@@ -1,0 +1,5 @@
+{
+  "name": "PapyrusCore PDF Engine & Viewer",
+  "description": "A professional-grade, modular PDF engine and viewer SDK architecture built with PDF.js, React, and Zustand. Features decoupled rendering, advanced navigation, search, and annotation systems.",
+  "requestFramePermissions": []
+}

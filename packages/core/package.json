@@ -1,0 +1,10 @@
+
+{
+  "name": "@papyrus/core",
+  "version": "0.1.0",
+  "main": "index.ts",
+  "dependencies": {
+    "@papyrus/types": "0.1.0",
+    "zustand": "^5.0.0"
+  }
+}

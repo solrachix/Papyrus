@@ -1,0 +1,11 @@
+
+{
+  "name": "@papyrus/ui-react",
+  "version": "0.1.0",
+  "main": "index.ts",
+  "dependencies": {
+    "@papyrus/core": "0.1.0",
+    "@papyrus/types": "0.1.0",
+    "react": "^19.0.0"
+  }
+}
