@@ -11,15 +11,14 @@ const PageRenderer: React.FC<PageRendererProps> = ({ engine, pageIndex }) => {
   const textLayerRef = useRef<HTMLDivElement>(null);
   
   const [loading, setLoading] = useState(true);
-  
   const [isDragging, setIsDragging] = useState(false);
   const [startPos, setStartPos] = useState({ x: 0, y: 0 });
   const [currentRect, setCurrentRect] = useState({ x: 0, y: 0, w: 0, h: 0 });
 
   const { 
     zoom, rotation, pageTheme, scrollToPageSignal, setDocumentState,
-    annotations, addAnnotation, activeTool, sidebarRightOpen, sidebarRightTab,
-    removeAnnotation, selectedAnnotationId, setSelectedAnnotation
+    annotations, addAnnotation, activeTool, removeAnnotation, 
+    selectedAnnotationId, setSelectedAnnotation
   } = useViewerStore();
 
   useEffect(() => {
@@ -37,16 +36,16 @@ const PageRenderer: React.FC<PageRendererProps> = ({ engine, pageIndex }) => {
       
       try {
         const RENDER_SCALE = 2.0; 
-
-        // 1. Renderizar Visual (Canvas)
+        
+        // A UI solicita renderização passando o "alvo" (Canvas/Div).
+        // Ela não sabe se o motor usa PDF.js ou se está gerando um bitmap.
         await engine.renderPage(pageIndex, canvasRef.current, RENDER_SCALE);
 
-        // 2. Renderizar Camada de Interação (Texto)
         textLayerRef.current.innerHTML = '';
         await engine.renderTextLayer(pageIndex, textLayerRef.current, RENDER_SCALE);
 
       } catch (err) {
-        console.error("Papyrus Render Error:", err);
+        console.error("[Papyrus] Falha na renderização:", err);
       } finally {
         if (active) setLoading(false);
       }
@@ -90,7 +89,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({ engine, pageIndex }) => {
       if (currentRect.w > 5 && currentRect.h > 5) {
         const rect = containerRef.current?.getBoundingClientRect();
         if (rect) {
-          const annotation: Annotation = {
+          addAnnotation({
             id: Math.random().toString(36).substr(2, 9),
             pageIndex,
             type: activeTool as any,
@@ -103,8 +102,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({ engine, pageIndex }) => {
             color: activeTool === 'highlight' ? '#fbbf24' : activeTool === 'strikeout' ? '#ef4444' : '#3b82f6',
             content: activeTool === 'text' || activeTool === 'comment' ? '' : undefined,
             createdAt: Date.now()
-          };
-          addAnnotation(annotation);
+          });
         }
       }
       setCurrentRect({ x: 0, y: 0, w: 0, h: 0 });
@@ -114,7 +112,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({ engine, pageIndex }) => {
     if (activeTool === 'select') {
       const selection = window.getSelection();
       const selectedText = selection?.toString().trim();
-      if (selectedText && selectedText.length > 0) {
+      if (selectedText) {
         papyrusEvents.emit(PapyrusEventType.TEXT_SELECTED, {
           text: selectedText,
           pageIndex: pageIndex
@@ -132,12 +130,10 @@ const PageRenderer: React.FC<PageRendererProps> = ({ engine, pageIndex }) => {
     }
   };
 
-  const pageAnnotations = annotations.filter(a => a.pageIndex === pageIndex);
-
   return (
     <div 
       ref={containerRef}
-      className={`relative inline-block shadow-2xl bg-white mb-10 transition-transform duration-300 ${activeTool !== 'select' ? 'no-select cursor-crosshair' : ''}`}
+      className={`relative inline-block shadow-2xl bg-white mb-10 transition-all ${activeTool !== 'select' ? 'no-select cursor-crosshair' : ''}`}
       style={{ scrollMarginTop: '20px', minHeight: '100px' }}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
@@ -145,7 +141,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({ engine, pageIndex }) => {
     >
       {loading && (
         <div className="absolute inset-0 bg-gray-50 flex items-center justify-center z-10 animate-pulse">
-           <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Sincronizando...</span>
+           <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Sincronizando...</span>
         </div>
       )}
       
@@ -160,17 +156,12 @@ const PageRenderer: React.FC<PageRendererProps> = ({ engine, pageIndex }) => {
       {isDragging && (
         <div 
           className="absolute border-2 border-blue-500 bg-blue-500/20 z-[40] pointer-events-none"
-          style={{
-            left: currentRect.x,
-            top: currentRect.y,
-            width: currentRect.w,
-            height: currentRect.h
-          }}
+          style={{ left: currentRect.x, top: currentRect.y, width: currentRect.w, height: currentRect.h }}
         />
       )}
 
       <div className="absolute inset-0 pointer-events-none z-20">
-        {pageAnnotations.map(ann => (
+        {annotations.filter(a => a.pageIndex === pageIndex).map(ann => (
           <AnnotationItem 
             key={ann.id} 
             ann={ann} 
@@ -196,9 +187,6 @@ const AnnotationItem: React.FC<{ ann: Annotation; isSelected: boolean; onDelete:
         height: `${ann.rect.height * 100}%`,
         backgroundColor: ann.type === 'highlight' ? `${ann.color}77` : 'transparent',
         borderBottom: ann.type === 'strikeout' ? `2px solid ${ann.color}` : 'none',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center'
       }}
       onClick={(e) => { e.stopPropagation(); onSelect(); }}
     >
@@ -206,7 +194,7 @@ const AnnotationItem: React.FC<{ ann: Annotation; isSelected: boolean; onDelete:
         <div className="absolute top-full mt-2 w-64 bg-white shadow-2xl rounded-xl p-4 border border-gray-100 z-50">
           <textarea 
             className="w-full bg-transparent border-none focus:ring-0 p-0 text-gray-800 text-xs font-medium" 
-            placeholder="Nota..." 
+            placeholder="Escreva sua nota..." 
             rows={3}
             defaultValue={ann.content || ''}
             autoFocus
@@ -216,7 +204,7 @@ const AnnotationItem: React.FC<{ ann: Annotation; isSelected: boolean; onDelete:
       {isSelected && (
         <button 
           onClick={(e) => { e.stopPropagation(); onDelete(); }}
-          className="absolute -top-3 -right-3 bg-red-500 text-white rounded-full p-1 shadow-lg hover:bg-red-600 transition-all"
+          className="absolute -top-3 -right-3 bg-red-500 text-white rounded-full p-1 shadow-lg hover:bg-red-600"
         >
           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
         </button>

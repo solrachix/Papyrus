@@ -37,4 +37,3 @@ O **Papyrus** não é apenas mais um visualizador de PDF; é um **SDK Modular de
 ---
 
 **Papyrus: Onde o papel encontra o futuro.**
-# Papyrus

@@ -17,7 +17,7 @@ export class PDFJSEngine extends BaseDocumentEngine {
       this.pdfDoc = await pdfjsLib.getDocument(data).promise;
       this.currentPage = 1;
     } catch (error) { 
-      console.error("PDFJSEngine Load Error:", error);
+      console.error("[PDFJSEngine] Erro ao carregar:", error);
       throw error; 
     }
   }
@@ -27,10 +27,12 @@ export class PDFJSEngine extends BaseDocumentEngine {
   goToPage(page: number): void { if (page >= 1 && page <= this.getPageCount()) this.currentPage = page; }
   setZoom(zoom: number): void { this.zoom = Math.max(0.1, Math.min(5.0, zoom)); }
   getZoom(): number { return this.zoom; }
+  
   rotate(direction: 'clockwise' | 'counterclockwise'): void {
     if (direction === 'clockwise') this.rotation = (this.rotation + 90) % 360;
     else { this.rotation = (this.rotation - 90) % 360; if (this.rotation < 0) this.rotation += 360; }
   }
+  
   getRotation(): number { return this.rotation; }
 
   async getPageDimensions(pageIndex: number): Promise<{ width: number, height: number }> {
@@ -40,30 +42,37 @@ export class PDFJSEngine extends BaseDocumentEngine {
     return { width: viewport.width, height: viewport.height };
   }
 
-  async renderPage(pageIndex: number, canvas: HTMLCanvasElement, scale: number): Promise<void> {
-    if (!this.pdfDoc) return;
+  async renderPage(pageIndex: number, target: any, scale: number): Promise<void> {
+    const canvas = target as HTMLCanvasElement;
+    if (!this.pdfDoc || !canvas) return;
+    
     const page = await this.pdfDoc.getPage(pageIndex + 1);
     const viewport = page.getViewport({ scale: scale * this.zoom, rotation: this.rotation });
+    
     canvas.height = viewport.height; 
     canvas.width = viewport.width;
-    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+    
+    const context = canvas.getContext('2d');
+    if (!context) return;
+
+    await page.render({ canvasContext: context, viewport }).promise;
   }
 
-  async renderTextLayer(pageIndex: number, container: HTMLElement, scale: number): Promise<void> {
-    if (!this.pdfDoc) return;
+  async renderTextLayer(pageIndex: number, container: any, scale: number): Promise<void> {
+    const element = container as HTMLElement;
+    if (!this.pdfDoc || !element) return;
+    
     const page = await this.pdfDoc.getPage(pageIndex + 1);
     const viewport = page.getViewport({ scale: scale * this.zoom, rotation: this.rotation });
-    
     const textContentSource = await page.getTextContent();
     
-    // Configurações do container para o PDF.js
-    container.style.width = `${viewport.width}px`;
-    container.style.height = `${viewport.height}px`;
-    container.style.setProperty('--scale-factor', viewport.scale.toString());
+    element.style.width = `${viewport.width}px`;
+    element.style.height = `${viewport.height}px`;
+    element.style.setProperty('--scale-factor', viewport.scale.toString());
     
     await pdfjsLib.renderTextLayer({
       textContentSource,
-      container,
+      container: element,
       viewport,
       textDivs: []
     }).promise;

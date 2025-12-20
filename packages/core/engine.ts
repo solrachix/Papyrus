@@ -10,11 +10,9 @@ export abstract class BaseDocumentEngine implements DocumentEngine {
   abstract getZoom(): number;
   abstract rotate(direction: 'clockwise' | 'counterclockwise'): void;
   abstract getRotation(): number;
-  abstract renderPage(pageIndex: number, canvas: HTMLCanvasElement, scale: number): Promise<void>;
-  // Added missing abstract method required by DocumentEngine interface in packages/types/index.ts
-  abstract renderTextLayer(pageIndex: number, container: HTMLElement, scale: number): Promise<void>;
+  abstract renderPage(pageIndex: number, target: any, scale: number): Promise<void>;
+  abstract renderTextLayer(pageIndex: number, container: any, scale: number): Promise<void>;
   abstract getTextContent(pageIndex: number): Promise<TextItem[]>;
-  // Fix: Added missing abstract method required by DocumentEngine interface in packages/types/index.ts
   abstract getPageDimensions(pageIndex: number): Promise<{ width: number, height: number }>;
   abstract getOutline(): Promise<OutlineItem[]>;
   abstract getPageIndex(dest: any): Promise<number | null>;

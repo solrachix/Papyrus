@@ -70,8 +70,8 @@ export interface EventPayloads {
 export type PapyrusEventListener<T extends PapyrusEventType> = (payload: EventPayloads[T]) => void;
 
 /**
- * Interface principal do Motor de Documentos.
- * Qualquer implementação (PDF.js, Imagens, Office) deve seguir este contrato.
+ * Interface agnóstica do Motor.
+ * A UI interage apenas com estes métodos.
  */
 export interface DocumentEngine {
   load(source: File | ArrayBuffer | string): Promise<void>;
@@ -82,9 +82,19 @@ export interface DocumentEngine {
   getZoom(): number;
   rotate(direction: 'clockwise' | 'counterclockwise'): void;
   getRotation(): number;
-  renderPage(pageIndex: number, canvas: HTMLCanvasElement, scale: number): Promise<void>;
-  /** Renderiza a camada de texto para seleção/copiar em um container específico */
-  renderTextLayer(pageIndex: number, container: HTMLElement, scale: number): Promise<void>;
+  
+  /** 
+   * Renderiza o conteúdo visual da página.
+   * target: HTMLCanvasElement no Web ou NativeHandle no RN.
+   */
+  renderPage(pageIndex: number, target: any, scale: number): Promise<void>;
+  
+  /** 
+   * Renderiza a camada de texto para seleção.
+   * container: HTMLElement no Web ou GhostView no RN.
+   */
+  renderTextLayer(pageIndex: number, container: any, scale: number): Promise<void>;
+  
   getTextContent(pageIndex: number): Promise<TextItem[]>;
   getPageDimensions(pageIndex: number): Promise<{ width: number, height: number }>;
   getOutline(): Promise<OutlineItem[]>;
