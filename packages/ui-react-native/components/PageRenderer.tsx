@@ -166,6 +166,10 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     setSelectionRects(selection.rects);
     setSelectionText(selection.text || '');
     const bounds = getBoundsFromRects(selection.rects);
+    if (!bounds) {
+      clearSelection();
+      return;
+    }
     setSelectionBounds(bounds);
     selectionBoundsRef.current = bounds;
     setSelectionActive(true);
@@ -496,17 +500,17 @@ const PageRenderer: React.FC<PageRendererProps> = ({
             );
           })}
         </View>
-        {selectionRects.length > 0 && selectionRect ? (
+        {selectionRects.length > 0 && selectionBoundsPx ? (
           <View
             pointerEvents="box-none"
             style={[
               styles.selectionToolbar,
               {
-                left: selectionRect.x,
+                left: selectionBoundsPx.x,
                 top:
-                  selectionRect.y + selectionRect.height + 8 > layout.height - 56
-                    ? Math.max(8, selectionRect.y - 52)
-                    : selectionRect.y + selectionRect.height + 8,
+                  selectionBoundsPx.y + selectionBoundsPx.height + 8 > layout.height - 56
+                    ? Math.max(8, selectionBoundsPx.y - 52)
+                    : selectionBoundsPx.y + selectionBoundsPx.height + 8,
               },
             ]}
           >
@@ -581,9 +585,9 @@ const styles = StyleSheet.create({
   },
   selectionHandle: {
     position: 'absolute',
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
     backgroundColor: '#ffffff',
     borderWidth: 2,
     borderColor: '#2563eb',
