@@ -3,6 +3,8 @@
 #include <dlfcn.h>
 
 #include <algorithm>
+#include <cmath>
+#include <string>
 #include <vector>
 
 #define LOG_TAG "PapyrusText"
@@ -210,6 +212,120 @@ static jobjectArray SearchDocument(JNIEnv *env, FPDF_DOCUMENT doc, int pageCount
   return result;
 }
 
+static jobject BuildSelection(JNIEnv *env, FPDF_DOCUMENT doc, int pageIndex, double normX, double normY, double normW, double normH) {
+  if (!doc || pageIndex < 0 || normW <= 0 || normH <= 0) return nullptr;
+
+  jclass selectionClass = env->FindClass("com/papyrus/engine/PapyrusTextSelection");
+  if (!selectionClass) return nullptr;
+  jmethodID ctor = env->GetMethodID(selectionClass, "<init>", "(Ljava/lang/String;[F)V");
+  if (!ctor) return nullptr;
+
+  FPDF_PAGE page = g_fns.loadPage(doc, pageIndex);
+  if (!page) return nullptr;
+  FPDF_TEXTPAGE textPage = g_fns.textLoadPage(page);
+  if (!textPage) {
+    g_fns.closePage(page);
+    return nullptr;
+  }
+
+  double pageWidth = g_fns.getPageWidth(page);
+  double pageHeight = g_fns.getPageHeight(page);
+  if (pageWidth <= 0 || pageHeight <= 0) {
+    g_fns.textClosePage(textPage);
+    g_fns.closePage(page);
+    return nullptr;
+  }
+
+  double rectLeft = normX * pageWidth;
+  double rectTop = pageHeight - (normY * pageHeight);
+  double rectRight = rectLeft + (normW * pageWidth);
+  double rectBottom = rectTop - (normH * pageHeight);
+
+  struct LineRect {
+    double left;
+    double right;
+    double top;
+    double bottom;
+  };
+
+  std::vector<LineRect> lines;
+  std::u16string selectedText;
+
+  int charCount = g_fns.textCountChars(textPage);
+  if (charCount <= 0) {
+    g_fns.textClosePage(textPage);
+    g_fns.closePage(page);
+    return nullptr;
+  }
+
+  const double lineTolerance = 2.5;
+  std::vector<unsigned short> charBuffer(2, 0);
+
+  for (int i = 0; i < charCount; i++) {
+    double cLeft = 0;
+    double cRight = 0;
+    double cTop = 0;
+    double cBottom = 0;
+    if (!g_fns.textGetCharBox(textPage, i, &cLeft, &cRight, &cBottom, &cTop)) continue;
+
+    bool intersects = !(cRight < rectLeft || cLeft > rectRight || cTop < rectBottom || cBottom > rectTop);
+    if (!intersects) continue;
+
+    int written = g_fns.textGetText(textPage, i, 1, charBuffer.data());
+    if (written > 0 && charBuffer[0] != 0) {
+      selectedText.push_back(static_cast<char16_t>(charBuffer[0]));
+    }
+
+    bool added = false;
+    for (auto &line : lines) {
+      if (std::abs(line.top - cTop) <= lineTolerance || std::abs(line.bottom - cBottom) <= lineTolerance) {
+        line.left = std::min(line.left, cLeft);
+        line.right = std::max(line.right, cRight);
+        line.top = std::max(line.top, cTop);
+        line.bottom = std::min(line.bottom, cBottom);
+        added = true;
+        break;
+      }
+    }
+    if (!added) {
+      lines.push_back({cLeft, cRight, cTop, cBottom});
+    }
+  }
+
+  std::vector<jfloat> rects;
+  rects.reserve(lines.size() * 4);
+  for (const auto &line : lines) {
+    float x = static_cast<float>(line.left / pageWidth);
+    float y = static_cast<float>((pageHeight - line.top) / pageHeight);
+    float w = static_cast<float>((line.right - line.left) / pageWidth);
+    float h = static_cast<float>((line.top - line.bottom) / pageHeight);
+
+    rects.push_back(std::max(0.0f, std::min(1.0f, x)));
+    rects.push_back(std::max(0.0f, std::min(1.0f, y)));
+    rects.push_back(std::max(0.0f, std::min(1.0f, w)));
+    rects.push_back(std::max(0.0f, std::min(1.0f, h)));
+  }
+
+  jfloatArray rectArray = env->NewFloatArray(static_cast<jsize>(rects.size()));
+  if (rectArray && !rects.empty()) {
+    env->SetFloatArrayRegion(rectArray, 0, static_cast<jsize>(rects.size()), rects.data());
+  }
+
+  jstring text = selectedText.empty()
+                     ? env->NewStringUTF("")
+                     : env->NewString(reinterpret_cast<const jchar *>(selectedText.data()), static_cast<jsize>(selectedText.size()));
+
+  jobject selection = env->NewObject(selectionClass, ctor, text, rectArray);
+
+  if (rectArray) env->DeleteLocalRef(rectArray);
+  if (text) env->DeleteLocalRef(text);
+
+  g_fns.textClosePage(textPage);
+  g_fns.closePage(page);
+
+  return selection;
+}
+
 extern "C" JNIEXPORT jobjectArray JNICALL
 Java_com_papyrus_engine_PapyrusTextSearch_nativeSearch(JNIEnv *env, jclass, jlong docPtr, jint pageCount, jstring query) {
   if (!LoadPdfium()) return nullptr;
@@ -263,4 +379,30 @@ Java_com_papyrus_engine_PapyrusTextSearch_nativeSearchFile(JNIEnv *env, jclass, 
   g_fns.closeDocument(doc);
 
   return result;
+}
+
+extern "C" JNIEXPORT jobject JNICALL
+Java_com_papyrus_engine_PapyrusTextSelect_nativeSelectText(JNIEnv *env, jclass, jlong docPtr, jint pageIndex, jfloat x, jfloat y, jfloat width, jfloat height) {
+  if (!LoadPdfium()) return nullptr;
+  if (!docPtr) return nullptr;
+
+  FPDF_DOCUMENT doc = reinterpret_cast<FPDF_DOCUMENT>(docPtr);
+  return BuildSelection(env, doc, pageIndex, x, y, width, height);
+}
+
+extern "C" JNIEXPORT jobject JNICALL
+Java_com_papyrus_engine_PapyrusTextSelect_nativeSelectTextFile(JNIEnv *env, jclass, jstring filePath, jint pageIndex, jfloat x, jfloat y, jfloat width, jfloat height) {
+  if (!LoadPdfium()) return nullptr;
+  if (!filePath) return nullptr;
+
+  const char *path = env->GetStringUTFChars(filePath, nullptr);
+  if (!path) return nullptr;
+
+  FPDF_DOCUMENT doc = g_fns.loadDocument(path, nullptr);
+  env->ReleaseStringUTFChars(filePath, path);
+  if (!doc) return nullptr;
+
+  jobject selection = BuildSelection(env, doc, pageIndex, x, y, width, height);
+  g_fns.closeDocument(doc);
+  return selection;
 }

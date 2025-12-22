@@ -11,6 +11,7 @@ import com.facebook.react.defaults.DefaultReactNativeHost
 import com.facebook.react.shell.MainReactPackage
 import com.facebook.react.soloader.OpenSourceMergedSoMapping
 import com.facebook.soloader.SoLoader
+import com.horcrux.svg.SvgPackage
 import com.papyrus.engine.PapyrusPackage
 
 class MainApplication : Application(), ReactApplication {
@@ -21,6 +22,7 @@ class MainApplication : Application(), ReactApplication {
             listOf(
                 MainReactPackage(),
                 PapyrusPackage(),
+                SvgPackage(),
             )
 
         override fun getJSMainModuleName(): String = "index"

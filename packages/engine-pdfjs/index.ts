@@ -1,6 +1,6 @@
 
 import { BaseDocumentEngine } from '../core/engine';
-import { DocumentSource, TextItem, OutlineItem, FileLike } from '../types/index';
+import { DocumentSource, TextItem, OutlineItem, FileLike, TextSelection } from '../types/index';
 
 declare const pdfjsLib: any;
 
@@ -51,6 +51,15 @@ export class PDFJSEngine extends BaseDocumentEngine {
     const page = await this.pdfDoc.getPage(pageIndex + 1);
     const viewport = page.getViewport({ scale: 1 });
     return { width: viewport.width, height: viewport.height };
+  }
+
+  async selectText(
+    pageIndex: number,
+    rect: { x: number; y: number; width: number; height: number }
+  ): Promise<TextSelection | null> {
+    void pageIndex;
+    void rect;
+    return null;
   }
 
   async renderPage(pageIndex: number, target: any, scale: number): Promise<void> {
@@ -106,7 +115,36 @@ export class PDFJSEngine extends BaseDocumentEngine {
   async getOutline(): Promise<OutlineItem[]> {
     if (!this.pdfDoc) return [];
     const outline = await this.pdfDoc.getOutline();
-    return outline || [];
+    if (!outline || outline.length === 0) return [];
+
+    const mapOutline = async (items: any[]): Promise<OutlineItem[]> => {
+      const mapped = await Promise.all(
+        items.map(async (item) => {
+          const title = item.title || '';
+          let pageIndex = -1;
+
+          if (item.dest) {
+            try {
+              const dest = typeof item.dest === 'string' ? await this.pdfDoc.getDestination(item.dest) : item.dest;
+              if (dest && dest[0]) {
+                pageIndex = await this.pdfDoc.getPageIndex(dest[0]);
+              }
+            } catch {
+              pageIndex = -1;
+            }
+          }
+
+          const children = item.items ? await mapOutline(item.items) : [];
+          const outlineItem: OutlineItem = { title, pageIndex };
+          if (children.length > 0) outlineItem.children = children;
+          return outlineItem;
+        })
+      );
+
+      return mapped;
+    };
+
+    return mapOutline(outline);
   }
 
   async getPageIndex(dest: any): Promise<number | null> {

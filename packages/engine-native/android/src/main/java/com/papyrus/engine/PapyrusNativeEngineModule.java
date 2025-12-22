@@ -169,8 +169,44 @@ public class PapyrusNativeEngineModule extends ReactContextBaseJavaModule {
 
   @ReactMethod
   public void getOutline(String engineId, Promise promise) {
-    WritableArray empty = Arguments.createArray();
-    promise.resolve(empty);
+    executor.execute(() -> {
+      PapyrusEngineStore.EngineState state = PapyrusEngineStore.getEngine(engineId);
+      if (state == null || state.document == null) {
+        promise.resolve(Arguments.createArray());
+        return;
+      }
+
+      PapyrusOutlineItem[] items = null;
+      try {
+        if (PapyrusOutline.AVAILABLE) {
+          if (state.sourcePath != null && !state.sourcePath.isEmpty()) {
+            synchronized (state.pdfiumLock) {
+              items = PapyrusOutline.nativeGetOutlineFile(state.sourcePath);
+            }
+          } else {
+            long docPtr;
+            synchronized (state.pdfiumLock) {
+              docPtr = extractNativeDocPointer(state.document);
+            }
+            if (docPtr != 0) {
+              synchronized (state.pdfiumLock) {
+                items = PapyrusOutline.nativeGetOutline(docPtr);
+              }
+            }
+          }
+        }
+      } catch (Throwable ignored) {
+        items = null;
+      }
+
+      WritableArray result = Arguments.createArray();
+      if (items != null) {
+        for (PapyrusOutlineItem item : items) {
+          result.pushMap(serializeOutlineItem(item));
+        }
+      }
+      promise.resolve(result);
+    });
   }
 
   @ReactMethod
@@ -272,6 +308,62 @@ public class PapyrusNativeEngineModule extends ReactContextBaseJavaModule {
     });
   }
 
+  @ReactMethod
+  public void selectText(String engineId, int pageIndex, double x, double y, double width, double height, Promise promise) {
+    executor.execute(() -> {
+      PapyrusEngineStore.EngineState state = PapyrusEngineStore.getEngine(engineId);
+      if (state == null || state.document == null || pageIndex < 0) {
+        promise.resolve(null);
+        return;
+      }
+
+      if (!PapyrusTextSelect.AVAILABLE) {
+        promise.resolve(null);
+        return;
+      }
+
+      PapyrusTextSelection selection = null;
+      try {
+        if (state.sourcePath != null && !state.sourcePath.isEmpty()) {
+          synchronized (state.pdfiumLock) {
+            selection = PapyrusTextSelect.nativeSelectTextFile(state.sourcePath, pageIndex, (float) x, (float) y, (float) width, (float) height);
+          }
+        } else {
+          long docPtr;
+          synchronized (state.pdfiumLock) {
+            docPtr = extractNativeDocPointer(state.document);
+          }
+          if (docPtr != 0) {
+            synchronized (state.pdfiumLock) {
+              selection = PapyrusTextSelect.nativeSelectText(docPtr, pageIndex, (float) x, (float) y, (float) width, (float) height);
+            }
+          }
+        }
+      } catch (Throwable ignored) {
+        selection = null;
+      }
+
+      if (selection == null || selection.rects == null || selection.rects.length == 0) {
+        promise.resolve(null);
+        return;
+      }
+
+      WritableMap result = Arguments.createMap();
+      result.putString("text", selection.text != null ? selection.text : "");
+      WritableArray rects = Arguments.createArray();
+      for (int i = 0; i + 3 < selection.rects.length; i += 4) {
+        WritableMap rect = Arguments.createMap();
+        rect.putDouble("x", selection.rects[i]);
+        rect.putDouble("y", selection.rects[i + 1]);
+        rect.putDouble("width", selection.rects[i + 2]);
+        rect.putDouble("height", selection.rects[i + 3]);
+        rects.pushMap(rect);
+      }
+      result.putArray("rects", rects);
+      promise.resolve(result);
+    });
+  }
+
   private String extractPageText(PapyrusEngineStore.EngineState state, int pageIndex) {
     try {
       state.pdfium.openPage(state.document, pageIndex);
@@ -322,6 +414,20 @@ public class PapyrusNativeEngineModule extends ReactContextBaseJavaModule {
     } catch (Throwable ignored) {
     }
     return 0;
+  }
+
+  private WritableMap serializeOutlineItem(PapyrusOutlineItem item) {
+    WritableMap map = Arguments.createMap();
+    map.putString("title", item.title != null ? item.title : "");
+    map.putInt("pageIndex", item.pageIndex);
+    if (item.children != null && item.children.length > 0) {
+      WritableArray children = Arguments.createArray();
+      for (PapyrusOutlineItem child : item.children) {
+        children.pushMap(serializeOutlineItem(child));
+      }
+      map.putArray("children", children);
+    }
+    return map;
   }
 
   private static File materializeSource(ReadableMap source, Context context) throws IOException {

@@ -1,6 +1,6 @@
 
 import { create } from 'zustand';
-import { ViewMode, Annotation, SearchResult, UITheme, PageTheme, OutlineItem, PapyrusEventType, PapyrusConfig } from '../types/index';
+import { ViewMode, Annotation, SearchResult, UITheme, PageTheme, OutlineItem, PapyrusEventType, PapyrusConfig, Locale } from '../types/index';
 import { papyrusEvents } from './services/event-emitter';
 
 interface ViewerState {
@@ -12,6 +12,8 @@ interface ViewerState {
   viewMode: ViewMode;
   uiTheme: UITheme;
   pageTheme: PageTheme;
+  locale: Locale;
+  annotationColor: string;
   outline: OutlineItem[];
   sidebarLeftOpen: boolean;
   sidebarLeftTab: 'thumbnails' | 'summary';
@@ -25,6 +27,8 @@ interface ViewerState {
   annotations: Annotation[];
   activeTool: 'select' | 'highlight' | 'text' | 'strikeout' | 'comment';
   selectedAnnotationId: string | null;
+  interactionMode: 'pan' | 'select';
+  selectionActive: boolean;
 
   initializeStore: (config: PapyrusConfig) => void;
   setDocumentState: (state: Partial<ViewerState>) => void;
@@ -40,6 +44,9 @@ interface ViewerState {
   nextSearchResult: () => void;
   prevSearchResult: () => void;
   triggerScrollToPage: (pageIndex: number) => void;
+  setAnnotationColor: (color: string) => void;
+  setInteractionMode: (mode: 'pan' | 'select') => void;
+  setSelectionActive: (active: boolean) => void;
 }
 
 export const useViewerStore = create<ViewerState>((set, get) => ({
@@ -51,6 +58,8 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
   viewMode: 'continuous',
   uiTheme: 'light',
   pageTheme: 'normal',
+  locale: 'en',
+  annotationColor: '#fbbf24',
   outline: [],
   sidebarLeftOpen: true,
   sidebarLeftTab: 'thumbnails',
@@ -64,6 +73,8 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
   annotations: [],
   activeTool: 'select',
   selectedAnnotationId: null,
+  interactionMode: 'pan',
+  selectionActive: false,
 
   initializeStore: (config) => set((state) => ({
     ...state,
@@ -73,6 +84,7 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
     viewMode: config.initialViewMode ?? state.viewMode,
     uiTheme: config.initialUITheme ?? state.uiTheme,
     pageTheme: config.initialPageTheme ?? state.pageTheme,
+    locale: config.initialLocale ?? state.locale,
     annotations: config.initialAnnotations ?? state.annotations,
     sidebarLeftOpen: config.sidebarLeftOpen ?? state.sidebarLeftOpen,
     sidebarRightOpen: config.sidebarRightOpen ?? state.sidebarRightOpen,
@@ -102,6 +114,7 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
     sidebarRightOpen: tab ? true : !state.sidebarRightOpen,
     sidebarRightTab: tab || state.sidebarRightTab 
   })),
+  setAnnotationColor: (color) => set({ annotationColor: color }),
 
   addAnnotation: (ann) => {
     set((state) => ({ annotations: [...state.annotations, ann], selectedAnnotationId: ann.id }));
@@ -121,6 +134,8 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
   },
 
   setSelectedAnnotation: (id) => set({ selectedAnnotationId: id }),
+  setInteractionMode: (mode) => set({ interactionMode: mode }),
+  setSelectionActive: (active) => set({ selectionActive: active }),
   
   setSearch: (query, results) => {
     set({ searchQuery: query, searchResults: results, activeSearchIndex: results.length > 0 ? 0 : -1 });

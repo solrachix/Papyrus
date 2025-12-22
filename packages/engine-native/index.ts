@@ -1,6 +1,6 @@
 import { NativeModules, requireNativeComponent, type ViewProps } from 'react-native';
 import { BaseDocumentEngine } from '../core/engine';
-import { DocumentSource, TextItem, OutlineItem, FileLike, SearchResult } from '../types/index';
+import { DocumentSource, TextItem, OutlineItem, FileLike, SearchResult, TextSelection } from '../types/index';
 
 const MODULE_NAME = 'PapyrusNativeEngine';
 
@@ -19,6 +19,7 @@ type NativeEngineModule = {
   getTextContent?: (engineId: string, pageIndex: number) => Promise<TextItem[]>;
   getPageDimensions?: (engineId: string, pageIndex: number) => Promise<{ width: number; height: number }>;
   searchText?: (engineId: string, query: string) => Promise<SearchResult[]>;
+  selectText?: (engineId: string, pageIndex: number, x: number, y: number, width: number, height: number) => Promise<TextSelection | null>;
   getOutline?: (engineId: string) => Promise<OutlineItem[]>;
   getPageIndex?: (engineId: string, dest: any) => Promise<number | null>;
 };
@@ -120,6 +121,15 @@ export class NativeDocumentEngine extends BaseDocumentEngine {
     const native = this.assertNativeModule();
     if (!native.getPageDimensions) return { width: 0, height: 0 };
     return native.getPageDimensions(this.engineId, pageIndex);
+  }
+
+  async selectText(
+    pageIndex: number,
+    rect: { x: number; y: number; width: number; height: number }
+  ): Promise<TextSelection | null> {
+    const native = this.assertNativeModule();
+    if (!native.selectText) return null;
+    return native.selectText(this.engineId, pageIndex, rect.x, rect.y, rect.width, rect.height);
   }
 
   async getOutline(): Promise<OutlineItem[]> {

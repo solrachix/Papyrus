@@ -36,27 +36,25 @@ const OutlineNode: React.FC<{ item: OutlineItem; engine: DocumentEngine; isDark:
   const [expanded, setExpanded] = useState(true);
 
   const matchesSearch = outlineSearchQuery === '' || item.title.toLowerCase().includes(outlineSearchQuery.toLowerCase());
-  const hasMatchingChildren = item.items?.some(child => child.title.toLowerCase().includes(outlineSearchQuery.toLowerCase()));
+  const hasMatchingChildren = item.children?.some(child => child.title.toLowerCase().includes(outlineSearchQuery.toLowerCase()));
 
   if (!matchesSearch && !hasMatchingChildren && outlineSearchQuery !== '') return null;
 
-  const handleClick = async () => {
-    if (item.dest) {
-      const pageIndex = await engine.getPageIndex(item.dest);
-      if (pageIndex !== null) {
-        triggerScrollToPage(pageIndex);
-      }
+  const handleClick = () => {
+    if (item.pageIndex >= 0) {
+      engine.goToPage(item.pageIndex + 1);
+      triggerScrollToPage(item.pageIndex);
     }
   };
 
   return (
     <div className="flex flex-col">
       <div 
-        className={`flex items-center py-1.5 px-3 rounded-md cursor-pointer transition-colors group ${isDark ? 'hover:bg-white/10' : 'hover:bg-gray-100'}`}
+        className={`flex items-center py-1.5 px-3 rounded-md transition-colors group ${item.pageIndex >= 0 ? 'cursor-pointer' : 'cursor-default'} ${isDark ? 'hover:bg-white/10' : 'hover:bg-gray-100'}`}
         style={{ paddingLeft: `${depth * 14 + 8}px` }}
         onClick={handleClick}
       >
-        {item.items && item.items.length > 0 ? (
+        {item.children && item.children.length > 0 ? (
           <button 
             className={`mr-1 text-gray-400 hover:text-blue-500 transition-transform p-1`}
             style={{ transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)' }}
@@ -69,9 +67,9 @@ const OutlineNode: React.FC<{ item: OutlineItem; engine: DocumentEngine; isDark:
           {item.title}
         </span>
       </div>
-      {expanded && item.items && item.items.length > 0 && (
+      {expanded && item.children && item.children.length > 0 && (
         <div className="flex flex-col">
-          {item.items.map((child, i) => (
+          {item.children.map((child, i) => (
             <OutlineNode key={i} item={child} engine={engine} isDark={isDark} depth={depth + 1} />
           ))}
         </div>

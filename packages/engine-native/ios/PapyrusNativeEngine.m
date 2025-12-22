@@ -15,6 +15,38 @@
 
 RCT_EXPORT_MODULE(PapyrusNativeEngine)
 
+static NSArray<NSDictionary *> *PapyrusBuildOutlineItems(PDFOutline *outline, PDFDocument *document) {
+  if (!outline || !document) return @[];
+
+  NSMutableArray<NSDictionary *> *items = [NSMutableArray array];
+  NSInteger count = outline.numberOfChildren;
+  for (NSInteger i = 0; i < count; i++) {
+    PDFOutline *child = [outline childAtIndex:i];
+    if (!child) continue;
+
+    NSString *title = child.label ?: @"";
+    NSInteger pageIndex = -1;
+    PDFDestination *dest = child.destination;
+    if (!dest && [child.action isKindOfClass:[PDFActionGoTo class]]) {
+      dest = ((PDFActionGoTo *)child.action).destination;
+    }
+    if (dest.page) {
+      pageIndex = [document indexForPage:dest.page];
+    }
+
+    NSArray<NSDictionary *> *children = PapyrusBuildOutlineItems(child, document);
+    NSMutableDictionary *item = [NSMutableDictionary dictionaryWithCapacity:3];
+    item[@"title"] = title;
+    item[@"pageIndex"] = @(pageIndex);
+    if (children.count > 0) {
+      item[@"children"] = children;
+    }
+    [items addObject:item];
+  }
+
+  return items;
+}
+
 + (BOOL)requiresMainQueueSetup {
   return YES;
 }
@@ -181,8 +213,19 @@ RCT_EXPORT_METHOD(getPageDimensions:(NSString *)engineId
 RCT_EXPORT_METHOD(getOutline:(NSString *)engineId
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject) {
-  #pragma unused(engineId)
-  resolve(@[]);
+  PDFDocument *document = [[PapyrusEngineStore shared] documentForEngine:engineId];
+  if (!document) {
+    resolve(@[]);
+    return;
+  }
+
+  PDFOutline *root = document.outlineRoot;
+  if (!root) {
+    resolve(@[]);
+    return;
+  }
+
+  resolve(PapyrusBuildOutlineItems(root, document));
 }
 
 RCT_EXPORT_METHOD(getPageIndex:(NSString *)engineId
@@ -256,6 +299,74 @@ RCT_EXPORT_METHOD(searchText:(NSString *)engineId
   }
 
   resolve(results);
+}
+
+RCT_EXPORT_METHOD(selectText:(NSString *)engineId
+                  pageIndex:(NSInteger)pageIndex
+                  x:(CGFloat)x
+                  y:(CGFloat)y
+                  width:(CGFloat)width
+                  height:(CGFloat)height
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject) {
+  PDFDocument *document = [[PapyrusEngineStore shared] documentForEngine:engineId];
+  if (!document || pageIndex < 0 || width <= 0 || height <= 0) {
+    resolve([NSNull null]);
+    return;
+  }
+
+  PDFPage *page = [document pageAtIndex:pageIndex];
+  if (!page) {
+    resolve([NSNull null]);
+    return;
+  }
+
+  CGRect pageBounds = [page boundsForBox:kPDFDisplayBoxMediaBox];
+  CGFloat pageWidth = pageBounds.size.width;
+  CGFloat pageHeight = pageBounds.size.height;
+  if (pageWidth <= 0 || pageHeight <= 0) {
+    resolve([NSNull null]);
+    return;
+  }
+
+  CGFloat rectX = x * pageWidth;
+  CGFloat rectW = width * pageWidth;
+  CGFloat rectH = height * pageHeight;
+  CGFloat rectTop = y * pageHeight;
+  CGFloat rectY = pageHeight - rectTop - rectH;
+  CGRect selectionRect = CGRectMake(rectX, rectY, rectW, rectH);
+
+  PDFSelection *selection = [page selectionForRect:selectionRect];
+  if (!selection) {
+    resolve([NSNull null]);
+    return;
+  }
+
+  NSArray<PDFSelection *> *lineSelections = [selection selectionsByLine];
+  if (!lineSelections || lineSelections.count == 0) {
+    lineSelections = @[selection];
+  }
+
+  NSMutableArray *rects = [NSMutableArray arrayWithCapacity:lineSelections.count];
+  for (PDFSelection *line in lineSelections) {
+    CGRect bounds = [line boundsForPage:page];
+    if (CGRectIsEmpty(bounds)) continue;
+
+    CGFloat topLeftY = pageHeight - (bounds.origin.y + bounds.size.height);
+    NSDictionary *rect = @{
+      @"x": @(bounds.origin.x / pageWidth),
+      @"y": @(topLeftY / pageHeight),
+      @"width": @(bounds.size.width / pageWidth),
+      @"height": @(bounds.size.height / pageHeight)
+    };
+    [rects addObject:rect];
+  }
+
+  NSDictionary *result = @{
+    @"text": selection.string ?: @"",
+    @"rects": rects
+  };
+  resolve(result);
 }
 
 @end

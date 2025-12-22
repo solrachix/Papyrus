@@ -11,12 +11,13 @@ import {
   FlatList,
   Dimensions,
   findNodeHandle,
-  Platform,
   type LayoutChangeEvent,
 } from 'react-native';
 import { useViewerStore, SearchService } from '../../core/index';
-import { DocumentEngine } from '../../types/index';
+import { DocumentEngine, OutlineItem } from '../../types/index';
 import { PapyrusPageView } from '../../engine-native/index';
+import { getStrings } from '../strings';
+import { IconChevronLeft, IconChevronRight } from '../icons';
 
 interface RightSheetProps {
   engine: DocumentEngine;
@@ -28,8 +29,11 @@ const PageThumbnail: React.FC<{
   isActive: boolean;
   isDark: boolean;
   zoom: number;
+  cardWidth: number;
+  frameWidth: number;
+  frameHeight: number;
   onPress: () => void;
-}> = ({ engine, pageIndex, isActive, isDark, zoom, onPress }) => {
+}> = ({ engine, pageIndex, isActive, isDark, zoom, cardWidth, frameWidth, frameHeight, onPress }) => {
   const viewRef = useRef<any>(null);
   const [layoutReady, setLayoutReady] = useState(false);
 
@@ -37,7 +41,7 @@ const PageThumbnail: React.FC<{
     if (!layoutReady) return;
     const viewTag = findNodeHandle(viewRef.current);
     if (!viewTag) return;
-    const renderScale = 1.5 / Math.max(zoom, 0.5);
+    const renderScale = 2.0 / Math.max(zoom, 0.5);
     void engine.renderPage(pageIndex, viewTag, renderScale);
   }, [engine, pageIndex, layoutReady, zoom]);
 
@@ -50,13 +54,55 @@ const PageThumbnail: React.FC<{
   return (
     <Pressable
       onPress={onPress}
-      style={[styles.thumbCard, isDark && styles.thumbCardDark, isActive && styles.thumbCardActive]}
+      style={[
+        styles.thumbCard,
+        { width: cardWidth },
+        isDark && styles.thumbCardDark,
+        isActive && styles.thumbCardActive,
+      ]}
     >
-      <View onLayout={handleLayout} style={styles.thumbFrame}>
+      <View onLayout={handleLayout} style={[styles.thumbFrame, { width: frameWidth, height: frameHeight }]}>
         <PapyrusPageView ref={viewRef} style={styles.thumbView} />
       </View>
       <Text style={[styles.thumbLabel, isDark && styles.thumbLabelDark]}>{pageIndex + 1}</Text>
     </Pressable>
+  );
+};
+
+const OutlineNode: React.FC<{
+  item: OutlineItem;
+  depth?: number;
+  isDark: boolean;
+  onSelect: (pageIndex: number) => void;
+  untitledLabel: string;
+}> = ({ item, depth = 0, isDark, onSelect, untitledLabel }) => {
+  const hasChildren = item.children && item.children.length > 0;
+  const isClickable = item.pageIndex >= 0;
+
+  return (
+    <View>
+      <Pressable
+        onPress={() => {
+          if (isClickable) onSelect(item.pageIndex);
+        }}
+        style={[styles.outlineRow, { paddingLeft: 12 + depth * 12 }]}
+      >
+        <Text
+          style={[
+            styles.outlineText,
+            isDark && styles.outlineTextDark,
+            !isClickable && styles.outlineTextMuted,
+          ]}
+          numberOfLines={2}
+        >
+          {item.title || untitledLabel}
+        </Text>
+      </Pressable>
+      {hasChildren &&
+        item.children!.map((child, index) => (
+          <OutlineNode key={`${child.title}-${index}`} item={child} depth={depth + 1} isDark={isDark} onSelect={onSelect} />
+        ))}
+    </View>
   );
 };
 
@@ -65,8 +111,12 @@ const RightSheet: React.FC<RightSheetProps> = ({ engine }) => {
     sidebarRightOpen,
     sidebarRightTab,
     toggleSidebarRight,
+    outline,
     searchResults,
+    searchQuery,
     activeSearchIndex,
+    nextSearchResult,
+    prevSearchResult,
     annotations,
     uiTheme,
     setSearch,
@@ -76,12 +126,21 @@ const RightSheet: React.FC<RightSheetProps> = ({ engine }) => {
     pageCount,
     currentPage,
     zoom,
+    locale,
   } = useViewerStore();
+  const [pagesMode, setPagesMode] = useState<'thumbnails' | 'summary'>('thumbnails');
   const [query, setQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const searchService = useMemo(() => new SearchService(engine), [engine]);
   const isDark = uiTheme === 'dark';
-  const sheetHeight = Math.min(520, Dimensions.get('window').height * 0.6);
+  const t = getStrings(locale);
+  const sheetHeight = Math.min(640, Dimensions.get('window').height * 0.72);
+  const windowWidth = Dimensions.get('window').width;
+  const gridGutter = 12;
+  const gridPadding = 16;
+  const cardWidth = (windowWidth - gridPadding * 2 - gridGutter) / 2;
+  const frameWidth = cardWidth - 16;
+  const frameHeight = frameWidth * 1.28;
 
   const closeSheet = () => toggleSidebarRight();
 
@@ -101,6 +160,64 @@ const RightSheet: React.FC<RightSheetProps> = ({ engine }) => {
   };
 
   const pages = useMemo(() => Array.from({ length: pageCount }, (_, i) => i), [pageCount]);
+
+  const renderHighlightedSnippet = (text: string, isActive: boolean) => {
+    const trimmedQuery = searchQuery.trim();
+    if (trimmedQuery.length < 2) {
+      return (
+        <Text
+          style={[
+            styles.resultText,
+            isDark && styles.resultTextDark,
+            isActive && styles.resultTextActive,
+          ]}
+        >
+          ...{text}...
+        </Text>
+      );
+    }
+
+    const lowerText = text.toLowerCase();
+    const lowerQuery = trimmedQuery.toLowerCase();
+    const parts: Array<{ text: string; match: boolean }> = [];
+    let cursor = 0;
+
+    while (cursor < text.length) {
+      const index = lowerText.indexOf(lowerQuery, cursor);
+      if (index === -1) {
+        parts.push({ text: text.slice(cursor), match: false });
+        break;
+      }
+      if (index > cursor) {
+        parts.push({ text: text.slice(cursor, index), match: false });
+      }
+      parts.push({ text: text.slice(index, index + trimmedQuery.length), match: true });
+      cursor = index + trimmedQuery.length;
+    }
+
+    return (
+      <Text
+        style={[
+          styles.resultText,
+          isDark && styles.resultTextDark,
+          isActive && styles.resultTextActive,
+        ]}
+      >
+        {parts.map((part, idx) => (
+          <Text
+            key={`${idx}-${part.text}`}
+            style={[
+              part.match && styles.matchText,
+              part.match && isDark && styles.matchTextDark,
+              part.match && isActive && styles.matchTextActive,
+            ]}
+          >
+            {part.text}
+          </Text>
+        ))}
+      </Text>
+    );
+  };
 
   if (!sidebarRightOpen) return null;
 
@@ -128,7 +245,7 @@ const RightSheet: React.FC<RightSheetProps> = ({ engine }) => {
                     sidebarRightTab === tab && styles.tabTextActive,
                   ]}
                 >
-                  {tab === 'pages' ? 'Pages' : tab === 'search' ? 'Search' : 'Notes'}
+                  {tab === 'pages' ? t.pages : tab === 'search' ? t.search : t.notes}
                 </Text>
               </Pressable>
             ))}
@@ -136,72 +253,163 @@ const RightSheet: React.FC<RightSheetProps> = ({ engine }) => {
 
           {sidebarRightTab === 'pages' ? (
             <View style={styles.pagesContent}>
-              <Text style={[styles.pageStatus, isDark && styles.pageStatusDark]}>
-                Page {currentPage} / {pageCount}
-              </Text>
-              <FlatList
-                horizontal
-                data={pages}
-                keyExtractor={(item) => `thumb-${item}`}
-                contentContainerStyle={styles.thumbList}
-                showsHorizontalScrollIndicator={false}
-                initialNumToRender={6}
-                windowSize={5}
-                renderItem={({ item }) => (
-                  <PageThumbnail
-                    engine={engine}
-                    pageIndex={item}
-                    isActive={item + 1 === currentPage}
-                    isDark={isDark}
-                    zoom={zoom}
-                    onPress={() => {
-                      engine.goToPage(item + 1);
-                      setDocumentState({ currentPage: item + 1 });
-                      triggerScrollToPage(item);
-                      closeSheet();
-                    }}
-                  />
-                )}
-              />
+              <View style={styles.pageHeader}>
+                <Text style={[styles.pageStatus, isDark && styles.pageStatusDark]}>
+                  {t.page} {currentPage} / {pageCount}
+                </Text>
+                <View style={[styles.segmented, isDark && styles.segmentedDark]}>
+                  <Pressable
+                    onPress={() => setPagesMode('thumbnails')}
+                    style={[
+                      styles.segmentButton,
+                      pagesMode === 'thumbnails' && styles.segmentButtonActive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.segmentText,
+                        isDark && styles.segmentTextDark,
+                        pagesMode === 'thumbnails' && styles.segmentTextActive,
+                      ]}
+                    >
+                      {t.pagesTab}
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => setPagesMode('summary')}
+                    style={[
+                      styles.segmentButton,
+                      pagesMode === 'summary' && styles.segmentButtonActive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.segmentText,
+                        isDark && styles.segmentTextDark,
+                        pagesMode === 'summary' && styles.segmentTextActive,
+                      ]}
+                    >
+                      {t.summaryTab}
+                    </Text>
+                  </Pressable>
+                </View>
+              </View>
+              {pagesMode === 'thumbnails' ? (
+                <FlatList
+                  data={pages}
+                  keyExtractor={(item) => `thumb-${item}`}
+                  numColumns={2}
+                  contentContainerStyle={styles.thumbGrid}
+                  columnWrapperStyle={styles.thumbRow}
+                  showsVerticalScrollIndicator={false}
+                  initialNumToRender={6}
+                  renderItem={({ item }) => (
+                    <PageThumbnail
+                      engine={engine}
+                      pageIndex={item}
+                      isActive={item + 1 === currentPage}
+                      isDark={isDark}
+                      zoom={zoom}
+                      cardWidth={cardWidth}
+                      frameWidth={frameWidth}
+                      frameHeight={frameHeight}
+                      onPress={() => {
+                        engine.goToPage(item + 1);
+                        setDocumentState({ currentPage: item + 1 });
+                        triggerScrollToPage(item);
+                        closeSheet();
+                      }}
+                    />
+                  )}
+                />
+              ) : (
+                <ScrollView contentContainerStyle={styles.summaryContent} showsVerticalScrollIndicator={false}>
+                  {outline.length === 0 ? (
+                    <Text style={[styles.emptyText, isDark && styles.emptyTextDark]}>
+                      {t.noSummary}
+                    </Text>
+                  ) : (
+                    outline.map((item, index) => (
+                      <OutlineNode
+                        key={`${item.title}-${index}`}
+                        item={item}
+                        isDark={isDark}
+                        untitledLabel={t.untitled}
+                        onSelect={(pageIndex) => {
+                          engine.goToPage(pageIndex + 1);
+                          setDocumentState({ currentPage: pageIndex + 1 });
+                          triggerScrollToPage(pageIndex);
+                          closeSheet();
+                        }}
+                      />
+                    ))
+                  )}
+                </ScrollView>
+              )}
             </View>
           ) : (
-            <ScrollView contentContainerStyle={styles.content}>
+            <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
               {sidebarRightTab === 'search' ? (
                 <View>
                   <View style={[styles.searchBox, isDark && styles.searchBoxDark]}>
                     <TextInput
                       value={query}
                       onChangeText={setQuery}
-                      placeholder="Search text..."
+                      placeholder={t.searchPlaceholder}
                       placeholderTextColor={isDark ? '#9ca3af' : '#6b7280'}
                       style={[styles.searchInput, isDark && styles.searchInputDark]}
                       onSubmitEditing={handleSearch}
                       returnKeyType="search"
                     />
                     <Pressable onPress={handleSearch} style={styles.searchButton}>
-                      <Text style={styles.searchButtonText}>Go</Text>
+                      <Text style={styles.searchButtonText}>{t.searchGo}</Text>
                     </Pressable>
+                  </View>
+
+                  <View style={styles.searchMeta}>
+                    <Text style={[styles.searchCount, isDark && styles.searchCountDark]}>
+                      {searchResults.length} {t.results}
+                    </Text>
+                    <View style={styles.searchNav}>
+                      <Pressable
+                        onPress={prevSearchResult}
+                        disabled={searchResults.length === 0}
+                        style={[
+                          styles.searchNavButton,
+                          isDark && styles.searchNavButtonDark,
+                          searchResults.length === 0 && styles.searchNavButtonDisabled,
+                        ]}
+                      >
+                        <IconChevronLeft size={14} color={isDark ? '#e5e7eb' : '#111827'} />
+                      </Pressable>
+                      <Pressable
+                        onPress={nextSearchResult}
+                        disabled={searchResults.length === 0}
+                        style={[
+                          styles.searchNavButton,
+                          isDark && styles.searchNavButtonDark,
+                          searchResults.length === 0 && styles.searchNavButtonDisabled,
+                        ]}
+                      >
+                        <IconChevronRight size={14} color={isDark ? '#e5e7eb' : '#111827'} />
+                      </Pressable>
+                    </View>
                   </View>
 
                   {isSearching && (
                     <View style={styles.searchStatus}>
                       <ActivityIndicator size="small" color={isDark ? '#60a5fa' : '#2563eb'} />
                       <Text style={[styles.searchStatusText, isDark && styles.searchStatusTextDark]}>
-                        Searching...
+                        {t.searching}
                       </Text>
                     </View>
                   )}
 
-                {!isSearching && searchResults.length === 0 && (
-                  <Text style={[styles.emptyText, isDark && styles.emptyTextDark]}>
-                    No results yet.
-                  </Text>
-                )}
-                {!isSearching && searchResults.length === 0 && query.trim().length >= 2 && Platform.OS === 'android' && (
-                  <Text style={[styles.searchHint, isDark && styles.searchHintDark]}>
-                    Search on Android is limited until PDF text extraction is upgraded.
-                  </Text>
-                )}
+                  {!isSearching && searchResults.length === 0 && (
+                    <Text style={[styles.emptyText, isDark && styles.emptyTextDark]}>
+                      {t.noResults}
+                    </Text>
+                  )}
 
                   {!isSearching &&
                     searchResults.map((res, idx) => {
@@ -221,17 +429,9 @@ const RightSheet: React.FC<RightSheetProps> = ({ engine }) => {
                           ]}
                         >
                           <Text style={[styles.resultPage, isDark && styles.resultPageDark]}>
-                            Page {res.pageIndex + 1}
+                            {t.page} {res.pageIndex + 1}
                           </Text>
-                          <Text
-                            style={[
-                              styles.resultText,
-                              isDark && styles.resultTextDark,
-                              isActive && styles.resultTextActive,
-                            ]}
-                          >
-                            ...{res.text}...
-                          </Text>
+                          {renderHighlightedSnippet(res.text, isActive)}
                         </Pressable>
                       );
                     })}
@@ -240,7 +440,7 @@ const RightSheet: React.FC<RightSheetProps> = ({ engine }) => {
                 <View>
                   {annotations.length === 0 ? (
                     <Text style={[styles.emptyText, isDark && styles.emptyTextDark]}>
-                      No annotations yet.
+                      {t.noAnnotations}
                     </Text>
                   ) : (
                     annotations.map((ann) => (
@@ -256,11 +456,11 @@ const RightSheet: React.FC<RightSheetProps> = ({ engine }) => {
                         <View style={styles.noteHeader}>
                           <View style={[styles.noteDot, { backgroundColor: ann.color }]} />
                           <Text style={[styles.noteTitle, isDark && styles.noteTitleDark]}>
-                            Page {ann.pageIndex + 1}
+                            {t.page} {ann.pageIndex + 1}
                           </Text>
                         </View>
                         <Text style={[styles.noteType, isDark && styles.noteTypeDark]}>
-                          {ann.type.toUpperCase()}
+                          {ann.type === 'comment' || ann.type === 'text' ? t.note.toUpperCase() : ann.type.toUpperCase()}
                         </Text>
                         {ann.content ? (
                           <Text style={[styles.noteContent, isDark && styles.noteContentDark]}>
@@ -321,14 +521,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   tabButton: {
     paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 12,
+    paddingHorizontal: 14,
+    borderRadius: 999,
     marginRight: 8,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: '#e5e7eb',
   },
   tabButtonDark: {
     backgroundColor: '#111827',
@@ -349,22 +549,59 @@ const styles = StyleSheet.create({
   },
   pagesContent: {
     paddingHorizontal: 16,
+    flex: 1,
+  },
+  pageHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
   },
   pageStatus: {
     fontSize: 12,
     fontWeight: '700',
     color: '#111827',
-    marginBottom: 8,
   },
   pageStatusDark: {
     color: '#e5e7eb',
   },
-  thumbList: {
-    paddingVertical: 8,
+  segmented: {
+    flexDirection: 'row',
+    backgroundColor: '#e5e7eb',
+    borderRadius: 999,
+    padding: 2,
+  },
+  segmentedDark: {
+    backgroundColor: '#111827',
+  },
+  segmentButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+  },
+  segmentButtonActive: {
+    backgroundColor: '#2563eb',
+  },
+  segmentText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  segmentTextDark: {
+    color: '#e5e7eb',
+  },
+  segmentTextActive: {
+    color: '#ffffff',
+  },
+  thumbGrid: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
+  thumbRow: {
+    justifyContent: 'space-between',
+    marginBottom: 12,
   },
   thumbCard: {
-    width: 112,
-    marginRight: 12,
     padding: 8,
     borderRadius: 14,
     backgroundColor: '#f9fafb',
@@ -380,8 +617,6 @@ const styles = StyleSheet.create({
     borderColor: '#2563eb',
   },
   thumbFrame: {
-    width: 92,
-    height: 128,
     borderRadius: 10,
     backgroundColor: '#ffffff',
     overflow: 'hidden',
@@ -402,6 +637,25 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 16,
     paddingBottom: 16,
+  },
+  summaryContent: {
+    paddingBottom: 24,
+  },
+  outlineRow: {
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(148, 163, 184, 0.18)',
+  },
+  outlineText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  outlineTextDark: {
+    color: '#e5e7eb',
+  },
+  outlineTextMuted: {
+    color: '#9ca3af',
   },
   searchBox: {
     flexDirection: 'row',
@@ -449,20 +703,45 @@ const styles = StyleSheet.create({
   searchStatusTextDark: {
     color: '#9ca3af',
   },
+  searchMeta: {
+    marginTop: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  searchCount: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#2563eb',
+  },
+  searchCountDark: {
+    color: '#60a5fa',
+  },
+  searchNav: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  searchNavButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 10,
+    backgroundColor: '#e5e7eb',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 6,
+  },
+  searchNavButtonDark: {
+    backgroundColor: '#111827',
+  },
+  searchNavButtonDisabled: {
+    opacity: 0.5,
+  },
   emptyText: {
     marginTop: 16,
     fontSize: 12,
     color: '#6b7280',
   },
   emptyTextDark: {
-    color: '#9ca3af',
-  },
-  searchHint: {
-    marginTop: 8,
-    fontSize: 11,
-    color: '#6b7280',
-  },
-  searchHintDark: {
     color: '#9ca3af',
   },
   resultCard: {
@@ -497,6 +776,19 @@ const styles = StyleSheet.create({
     color: '#d1d5db',
   },
   resultTextActive: {
+    color: '#1d4ed8',
+  },
+  matchText: {
+    backgroundColor: 'rgba(245, 158, 11, 0.3)',
+    color: '#111827',
+    fontWeight: '700',
+  },
+  matchTextDark: {
+    backgroundColor: 'rgba(245, 158, 11, 0.25)',
+    color: '#fde68a',
+  },
+  matchTextActive: {
+    backgroundColor: 'rgba(59, 130, 246, 0.35)',
     color: '#1d4ed8',
   },
   noteCard: {

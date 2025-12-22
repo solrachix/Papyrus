@@ -3,6 +3,7 @@ project(papyrus_text)
 
 add_library(papyrus_text SHARED
   papyrus_text_search.cpp
+  papyrus_outline.cpp
 )
 
 target_compile_options(papyrus_text PRIVATE -Wall -Werror)

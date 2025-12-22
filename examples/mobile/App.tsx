@@ -10,7 +10,7 @@ import { SafeAreaView, View, ActivityIndicator, StyleSheet, Image } from 'react-
 import { NativeDocumentEngine } from '@papyrus/engine-native';
 import { useViewerStore } from '@papyrus/core';
 import { PapyrusConfig } from '@papyrus/types';
-import { Viewer, Topbar, ToolDock, RightSheet, AnnotationEditor } from '@papyrus/ui-react-native';
+import { Viewer, Topbar, ToolDock, RightSheet, AnnotationEditor, BottomBar, SettingsSheet } from '@papyrus/ui-react-native';
 
 const LOCAL_WEB_PDF = Image.resolveAssetSource(require('./assets/tracemonkey-pldi-09.pdf'));
 const SAMPLE_PDF = Image.resolveAssetSource(require('./assets/sample.pdf'));
@@ -25,7 +25,8 @@ const INITIAL_SDK_CONFIG: PapyrusConfig = {
   initialUITheme: 'dark',
   initialPageTheme: 'sepia',
   initialPage: 4,
-  initialZoom: 1.2,
+  initialZoom: 1.0,
+  initialLocale: 'pt-BR',
   sidebarLeftOpen: true,
   initialAnnotations: [
     {
@@ -42,6 +43,7 @@ const INITIAL_SDK_CONFIG: PapyrusConfig = {
 
 const App: React.FC = () => {
   const [engine] = useState(() => new NativeDocumentEngine());
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const { isLoaded, setDocumentState, initializeStore, triggerScrollToPage, uiTheme } = useViewerStore();
 
   useEffect(() => {
@@ -81,12 +83,14 @@ const App: React.FC = () => {
 
   return (
     <SafeAreaView style={[styles.container, uiTheme === 'dark' && styles.containerDark]}>
-      <Topbar engine={engine} />
-      <ToolDock />
+      <Topbar engine={engine} onOpenSettings={() => setSettingsOpen(true)} />
       <View style={styles.viewer}>
         <Viewer engine={engine} />
+        <ToolDock />
       </View>
+      <BottomBar />
       <RightSheet engine={engine} />
+      <SettingsSheet engine={engine} visible={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <AnnotationEditor />
     </SafeAreaView>
   );
@@ -102,6 +106,7 @@ const styles = StyleSheet.create({
   },
   viewer: {
     flex: 1,
+    position: 'relative',
   },
   loading: {
     flex: 1,

@@ -1,5 +1,5 @@
 
-import { DocumentEngine, TextItem, OutlineItem, DocumentSource } from '../types/index';
+import { DocumentEngine, TextItem, OutlineItem, DocumentSource, TextSelection } from '../types/index';
 
 export abstract class BaseDocumentEngine implements DocumentEngine {
   abstract load(source: DocumentSource): Promise<void>;
@@ -14,6 +14,7 @@ export abstract class BaseDocumentEngine implements DocumentEngine {
   abstract renderTextLayer(pageIndex: number, container: any, scale: number): Promise<void>;
   abstract getTextContent(pageIndex: number): Promise<TextItem[]>;
   abstract getPageDimensions(pageIndex: number): Promise<{ width: number, height: number }>;
+  abstract selectText(pageIndex: number, rect: { x: number; y: number; width: number; height: number }): Promise<TextSelection | null>;
   abstract getOutline(): Promise<OutlineItem[]>;
   abstract getPageIndex(dest: any): Promise<number | null>;
   abstract destroy(): void;

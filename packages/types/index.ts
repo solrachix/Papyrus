@@ -2,6 +2,7 @@
 export type ViewMode = 'single' | 'double' | 'continuous';
 export type UITheme = 'light' | 'dark';
 export type PageTheme = 'normal' | 'sepia' | 'dark' | 'high-contrast';
+export type Locale = 'en' | 'pt-BR';
 
 export interface FileLike {
   arrayBuffer(): Promise<ArrayBuffer>;
@@ -31,6 +32,11 @@ export interface SearchResult {
   rects?: { x: number; y: number; width: number; height: number }[];
 }
 
+export interface TextSelection {
+  text: string;
+  rects: { x: number; y: number; width: number; height: number }[];
+}
+
 export interface Annotation {
   id: string;
   type: 'highlight' | 'text' | 'strikeout' | 'comment';
@@ -43,9 +49,8 @@ export interface Annotation {
 
 export interface OutlineItem {
   title: string;
-  dest: any;
-  items: OutlineItem[];
-  pageIndex?: number;
+  pageIndex: number;
+  children?: OutlineItem[];
 }
 
 export interface PapyrusConfig {
@@ -55,6 +60,7 @@ export interface PapyrusConfig {
   initialViewMode?: ViewMode;
   initialUITheme?: UITheme;
   initialPageTheme?: PageTheme;
+  initialLocale?: Locale;
   initialAnnotations?: Annotation[];
   sidebarLeftOpen?: boolean;
   sidebarRightOpen?: boolean;
@@ -111,6 +117,7 @@ export interface DocumentEngine {
   getTextContent(pageIndex: number): Promise<TextItem[]>;
   getPageDimensions(pageIndex: number): Promise<{ width: number, height: number }>;
   searchText?(query: string): Promise<SearchResult[]>;
+  selectText?(pageIndex: number, rect: { x: number; y: number; width: number; height: number }): Promise<TextSelection | null>;
   getOutline(): Promise<OutlineItem[]>;
   getPageIndex(dest: any): Promise<number | null>;
   destroy(): void;

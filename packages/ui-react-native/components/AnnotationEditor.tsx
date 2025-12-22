@@ -1,14 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { Modal, View, Text, TextInput, Pressable, StyleSheet } from 'react-native';
 import { useViewerStore } from '../../core/index';
+import { getStrings } from '../strings';
 
 const AnnotationEditor: React.FC = () => {
-  const { annotations, selectedAnnotationId, updateAnnotation, setSelectedAnnotation, uiTheme } =
+  const { annotations, selectedAnnotationId, updateAnnotation, setSelectedAnnotation, uiTheme, locale } =
     useViewerStore();
   const annotation = annotations.find((ann) => ann.id === selectedAnnotationId);
   const isEditable = annotation && (annotation.type === 'text' || annotation.type === 'comment');
   const [draft, setDraft] = useState('');
   const isDark = uiTheme === 'dark';
+  const t = getStrings(locale);
 
   useEffect(() => {
     if (isEditable) {
@@ -28,21 +30,21 @@ const AnnotationEditor: React.FC = () => {
     <Modal visible transparent animationType="fade" onRequestClose={handleClose}>
       <View style={styles.overlay}>
         <View style={[styles.card, isDark && styles.cardDark]}>
-          <Text style={[styles.title, isDark && styles.titleDark]}>Edit note</Text>
+          <Text style={[styles.title, isDark && styles.titleDark]}>{t.editNote}</Text>
           <TextInput
             style={[styles.input, isDark && styles.inputDark]}
             value={draft}
             onChangeText={setDraft}
-            placeholder="Write your note..."
+            placeholder={t.notePlaceholder}
             placeholderTextColor={isDark ? '#9ca3af' : '#6b7280'}
             multiline
           />
           <View style={styles.actions}>
             <Pressable onPress={handleClose} style={[styles.actionButton, styles.actionCancel]}>
-              <Text style={styles.actionText}>Cancel</Text>
+              <Text style={styles.actionText}>{t.cancel}</Text>
             </Pressable>
             <Pressable onPress={handleSave} style={[styles.actionButton, styles.actionSave]}>
-              <Text style={[styles.actionText, styles.actionTextLight]}>Save</Text>
+              <Text style={[styles.actionText, styles.actionTextLight]}>{t.save}</Text>
             </Pressable>
           </View>
         </View>

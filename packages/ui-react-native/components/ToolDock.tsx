@@ -1,92 +1,99 @@
 import React from 'react';
-import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useViewerStore } from '../../core/index';
+import { getStrings } from '../strings';
 
-const TOOLS = [
-  { id: 'select', label: 'Select' },
-  { id: 'highlight', label: 'Highlight' },
-  { id: 'strikeout', label: 'Strike' },
-  { id: 'text', label: 'Text' },
-  { id: 'comment', label: 'Note' },
-] as const;
+const COLOR_SWATCHES = [
+  '#fbbf24',
+  '#f97316',
+  '#ef4444',
+  '#10b981',
+  '#22d3ee',
+  '#3b82f6',
+  '#8b5cf6',
+  '#ec4899',
+  '#f3f4f6',
+  '#111827',
+];
 
 const ToolDock: React.FC = () => {
-  const { activeTool, setDocumentState, uiTheme } = useViewerStore();
+  const { selectionActive, uiTheme, locale, annotationColor, setAnnotationColor } = useViewerStore();
   const isDark = uiTheme === 'dark';
+  const isVisible = selectionActive;
+  const t = getStrings(locale);
+
+  if (!isVisible) return null;
 
   return (
     <View style={[styles.container, isDark && styles.containerDark]}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        {TOOLS.map((tool) => {
-          const isActive = activeTool === tool.id;
+      <Text style={[styles.title, isDark && styles.titleDark]}>{t.highlight}</Text>
+      <View style={styles.paletteRow}>
+        {COLOR_SWATCHES.map((color) => {
+          const isSelected = annotationColor === color;
           return (
             <Pressable
-              key={tool.id}
-              onPress={() => setDocumentState({ activeTool: tool.id })}
+              key={color}
+              onPress={() => setAnnotationColor(color)}
               style={[
-                styles.toolButton,
-                isDark && styles.toolButtonDark,
-                isActive && styles.toolButtonActive,
+                styles.swatch,
+                { backgroundColor: color },
+                isSelected && styles.swatchSelected,
               ]}
-            >
-              <Text
-                style={[
-                  styles.toolText,
-                  isDark && styles.toolTextDark,
-                  isActive && styles.toolTextActive,
-                ]}
-              >
-                {tool.label}
-              </Text>
-            </Pressable>
+            />
           );
         })}
-      </ScrollView>
+      </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    paddingVertical: 8,
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    bottom: 72,
+    paddingVertical: 10,
     paddingHorizontal: 12,
+    borderRadius: 16,
     backgroundColor: '#ffffff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    shadowColor: '#000000',
+    shadowOpacity: 0.15,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 6,
   },
   containerDark: {
     backgroundColor: '#0f1115',
-    borderBottomColor: '#1f2937',
+    borderColor: '#1f2937',
   },
-  scrollContent: {
-    paddingRight: 6,
-    alignItems: 'center',
-  },
-  toolButton: {
-    marginRight: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#f3f4f6',
-  },
-  toolButtonDark: {
-    backgroundColor: '#1f2937',
-  },
-  toolButtonActive: {
-    backgroundColor: '#2563eb',
-  },
-  toolText: {
-    fontSize: 10,
+  title: {
+    fontSize: 11,
     fontWeight: '800',
     color: '#111827',
+    marginBottom: 8,
   },
-  toolTextDark: {
+  titleDark: {
     color: '#e5e7eb',
   },
-  toolTextActive: {
-    color: '#ffffff',
+  paletteRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  swatch: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    marginRight: 8,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  swatchSelected: {
+    borderColor: '#2563eb',
+    borderWidth: 2,
   },
 });
 

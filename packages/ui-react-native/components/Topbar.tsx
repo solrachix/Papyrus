@@ -1,35 +1,29 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useViewerStore } from '../../core/index';
-import { DocumentEngine, PageTheme } from '../../types/index';
+import { IconSettings, IconChevronLeft, IconChevronRight } from '../icons';
+import { DocumentEngine } from '../../types/index';
 
 interface TopbarProps {
   engine: DocumentEngine;
+  onOpenSettings?: () => void;
 }
 
-const Topbar: React.FC<TopbarProps> = ({ engine }) => {
+const Topbar: React.FC<TopbarProps> = ({ engine, onOpenSettings }) => {
   const {
     currentPage,
     pageCount,
-    zoom,
     uiTheme,
-    pageTheme,
     setDocumentState,
     triggerScrollToPage,
-    toggleSidebarRight,
   } = useViewerStore();
   const [pageLabel, setPageLabel] = useState(`${currentPage}`);
   const isDark = uiTheme === 'dark';
+  const navIconColor = isDark ? '#e5e7eb' : '#111827';
 
   useEffect(() => {
     setPageLabel(`${currentPage}`);
   }, [currentPage]);
-
-  const handleZoom = (delta: number) => {
-    const next = Math.max(0.5, Math.min(4, zoom + delta));
-    engine.setZoom(next);
-    setDocumentState({ zoom: next });
-  };
 
   const handlePageChange = (delta: number) => {
     const next = Math.max(1, Math.min(pageCount, currentPage + delta));
@@ -38,100 +32,34 @@ const Topbar: React.FC<TopbarProps> = ({ engine }) => {
     triggerScrollToPage(next - 1);
   };
 
-  const handleCyclePageTheme = () => {
-    const order: PageTheme[] = ['normal', 'sepia', 'dark', 'high-contrast'];
-    const currentIndex = Math.max(0, order.indexOf(pageTheme));
-    const next = order[(currentIndex + 1) % order.length];
-    setDocumentState({ pageTheme: next });
-  };
-
-  const pageThemeLabel = (() => {
-    switch (pageTheme) {
-      case 'sepia':
-        return 'Filter: Sepia';
-      case 'dark':
-        return 'Filter: Invert';
-      case 'high-contrast':
-        return 'Filter: Hi-Contrast';
-      default:
-        return 'Filter: Normal';
-    }
-  })();
-
   return (
     <View style={[styles.container, isDark && styles.containerDark]}>
-      <View style={styles.brandRow}>
-        <View style={styles.brandGroup}>
-          <View style={styles.logoBadge}>
-            <Text style={styles.logoText}>P</Text>
-          </View>
-          <Text style={[styles.brandText, isDark && styles.brandTextDark]}>PapyrusCore</Text>
+      <View style={styles.leftGroup}>
+        <View style={styles.logoBadge}>
+          <Text style={styles.logoText}>P</Text>
         </View>
-        <View style={styles.brandActions}>
-          <Pressable
-            onPress={() => toggleSidebarRight('pages')}
-            style={[styles.actionChip, isDark && styles.actionChipDark]}
-          >
-            <Text style={[styles.actionChipText, isDark && styles.actionChipTextDark]}>Pages</Text>
-          </Pressable>
-          <Pressable
-            onPress={() => toggleSidebarRight('search')}
-            style={[styles.actionChip, isDark && styles.actionChipDark]}
-          >
-            <Text style={[styles.actionChipText, isDark && styles.actionChipTextDark]}>Search</Text>
-          </Pressable>
-          <Pressable
-            onPress={() => toggleSidebarRight('annotations')}
-            style={[styles.actionChip, isDark && styles.actionChipDark]}
-          >
-            <Text style={[styles.actionChipText, isDark && styles.actionChipTextDark]}>Notes</Text>
-          </Pressable>
-        </View>
+        <Text style={[styles.brandText, isDark && styles.brandTextDark]}>Papyrus</Text>
       </View>
 
-      <View style={styles.controlRow}>
-        <View style={styles.controlGroup}>
-          <Pressable onPress={() => handlePageChange(-1)} style={styles.controlButton}>
-            <Text style={styles.controlButtonText}>Prev</Text>
-          </Pressable>
-          <Text style={[styles.pageIndicator, isDark && styles.pageIndicatorDark]}>
-            {pageLabel}/{pageCount}
-          </Text>
-          <Pressable onPress={() => handlePageChange(1)} style={styles.controlButton}>
-            <Text style={styles.controlButtonText}>Next</Text>
-          </Pressable>
-        </View>
+      <View style={styles.pageGroup}>
+        <Pressable onPress={() => handlePageChange(-1)} style={[styles.pageButton, isDark && styles.pageButtonDark]}>
+          <IconChevronLeft size={16} color={navIconColor} />
+        </Pressable>
+        <Text style={[styles.pageIndicator, isDark && styles.pageIndicatorDark]}>
+          {pageLabel}/{pageCount}
+        </Text>
+        <Pressable onPress={() => handlePageChange(1)} style={[styles.pageButton, isDark && styles.pageButtonDark]}>
+          <IconChevronRight size={16} color={navIconColor} />
+        </Pressable>
+      </View>
 
-        <View style={styles.controlGroup}>
-          <Pressable onPress={() => handleZoom(-0.1)} style={styles.controlButton}>
-            <Text style={styles.controlButtonText}>-</Text>
-          </Pressable>
-          <Text style={[styles.zoomLabel, isDark && styles.zoomLabelDark]}>
-            {Math.round(zoom * 100)}%
-          </Text>
-          <Pressable onPress={() => handleZoom(0.1)} style={styles.controlButton}>
-            <Text style={styles.controlButtonText}>+</Text>
-          </Pressable>
-        </View>
-
-        <View style={styles.controlGroup}>
-          <Pressable
-            onPress={handleCyclePageTheme}
-            style={[styles.actionChip, isDark && styles.actionChipDark]}
-          >
-            <Text style={[styles.actionChipText, isDark && styles.actionChipTextDark]}>
-              {pageThemeLabel}
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={() => setDocumentState({ uiTheme: isDark ? 'light' : 'dark' })}
-            style={[styles.actionChip, isDark && styles.actionChipDark]}
-          >
-            <Text style={[styles.actionChipText, isDark && styles.actionChipTextDark]}>
-              UI: {isDark ? 'Dark' : 'Light'}
-            </Text>
-          </Pressable>
-        </View>
+      <View style={styles.rightGroup}>
+        <Pressable
+          onPress={() => onOpenSettings?.()}
+          style={[styles.iconButton, isDark && styles.iconButtonDark]}
+        >
+          <IconSettings size={16} color={isDark ? '#e5e7eb' : '#111827'} />
+        </Pressable>
       </View>
     </View>
   );
@@ -139,26 +67,22 @@ const Topbar: React.FC<TopbarProps> = ({ engine }) => {
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     backgroundColor: '#ffffff',
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   containerDark: {
     backgroundColor: '#0f1115',
     borderBottomColor: '#1f2937',
   },
-  brandRow: {
+  leftGroup: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  brandGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flex: 1,
   },
   logoBadge: {
     width: 26,
@@ -175,79 +99,85 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   brandText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '800',
     color: '#111827',
   },
   brandTextDark: {
     color: '#f9fafb',
   },
-  brandActions: {
+  pageGroup: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
+    justifyContent: 'center',
   },
-  controlRow: {
-    flexDirection: 'row',
+  pageButton: {
+    width: 26,
+    height: 26,
+    borderRadius: 10,
     alignItems: 'center',
-    flexWrap: 'wrap',
+    justifyContent: 'center',
+    backgroundColor: '#f3f4f6',
   },
-  controlGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginRight: 10,
-    marginBottom: 8,
-  },
-  controlButton: {
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderRadius: 8,
+  pageButtonDark: {
     backgroundColor: '#111827',
-    marginHorizontal: 4,
   },
-  controlButtonText: {
+  pageButtonText: {
     fontSize: 11,
-    fontWeight: '700',
-    color: '#ffffff',
+    fontWeight: '600',
+    color: '#111827',
+  },
+  pageButtonTextDark: {
+    color: '#e5e7eb',
   },
   pageIndicator: {
     fontSize: 12,
     color: '#374151',
-    minWidth: 48,
+    minWidth: 52,
     textAlign: 'center',
-    marginHorizontal: 4,
-    fontWeight: '600',
+    marginHorizontal: 6,
+    fontWeight: '700',
   },
   pageIndicatorDark: {
     color: '#d1d5db',
   },
-  zoomLabel: {
-    fontSize: 12,
-    color: '#374151',
-    minWidth: 40,
-    textAlign: 'center',
-    marginHorizontal: 4,
-    fontWeight: '600',
+  rightGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    flex: 1,
   },
-  zoomLabelDark: {
-    color: '#d1d5db',
-  },
-  actionChip: {
+  iconButton: {
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 10,
     backgroundColor: '#f3f4f6',
     marginLeft: 6,
   },
-  actionChipDark: {
+  iconButtonDark: {
     backgroundColor: '#111827',
   },
-  actionChipText: {
+  iconButtonActive: {
+    backgroundColor: '#2563eb',
+  },
+  iconButtonText: {
     fontSize: 11,
     fontWeight: '700',
     color: '#111827',
   },
-  actionChipTextDark: {
+  iconButtonTextDark: {
     color: '#e5e7eb',
+  },
+  iconButtonTextActive: {
+    color: '#ffffff',
+  },
+  iconRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  iconRowSpacer: {
+    width: 6,
   },
 });
 
