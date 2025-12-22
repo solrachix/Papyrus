@@ -17,7 +17,7 @@ interface ViewerState {
   sidebarLeftTab: 'thumbnails' | 'summary';
   outlineSearchQuery: string;
   sidebarRightOpen: boolean;
-  sidebarRightTab: 'search' | 'annotations';
+  sidebarRightTab: 'search' | 'annotations' | 'pages';
   searchQuery: string;
   searchResults: SearchResult[];
   activeSearchIndex: number;
@@ -31,7 +31,7 @@ interface ViewerState {
   toggleSidebarLeft: () => void;
   setSidebarLeftTab: (tab: 'thumbnails' | 'summary') => void;
   setOutlineSearch: (query: string) => void;
-  toggleSidebarRight: (tab?: 'search' | 'annotations') => void;
+  toggleSidebarRight: (tab?: 'search' | 'annotations' | 'pages') => void;
   addAnnotation: (annotation: Annotation) => void;
   updateAnnotation: (id: string, updates: Partial<Annotation>) => void;
   removeAnnotation: (id: string) => void;

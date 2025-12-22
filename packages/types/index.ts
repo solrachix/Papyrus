@@ -3,6 +3,18 @@ export type ViewMode = 'single' | 'double' | 'continuous';
 export type UITheme = 'light' | 'dark';
 export type PageTheme = 'normal' | 'sepia' | 'dark' | 'high-contrast';
 
+export interface FileLike {
+  arrayBuffer(): Promise<ArrayBuffer>;
+}
+
+export type DocumentSource =
+  | ArrayBuffer
+  | Uint8Array
+  | string
+  | { uri: string }
+  | { data: ArrayBuffer | Uint8Array }
+  | FileLike;
+
 export interface TextItem {
   str: string;
   dir: string;
@@ -16,6 +28,7 @@ export interface SearchResult {
   pageIndex: number;
   text: string;
   matchIndex: number;
+  rects?: { x: number; y: number; width: number; height: number }[];
 }
 
 export interface Annotation {
@@ -74,7 +87,7 @@ export type PapyrusEventListener<T extends PapyrusEventType> = (payload: EventPa
  * A UI interage apenas com estes métodos.
  */
 export interface DocumentEngine {
-  load(source: File | ArrayBuffer | string): Promise<void>;
+  load(source: DocumentSource): Promise<void>;
   getPageCount(): number;
   getCurrentPage(): number;
   goToPage(page: number): void;
@@ -97,6 +110,7 @@ export interface DocumentEngine {
   
   getTextContent(pageIndex: number): Promise<TextItem[]>;
   getPageDimensions(pageIndex: number): Promise<{ width: number, height: number }>;
+  searchText?(query: string): Promise<SearchResult[]>;
   getOutline(): Promise<OutlineItem[]>;
   getPageIndex(dest: any): Promise<number | null>;
   destroy(): void;

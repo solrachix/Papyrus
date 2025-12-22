@@ -7,6 +7,9 @@ export class SearchService {
 
   async search(query: string): Promise<SearchResult[]> {
     if (!query || query.length < 2) return [];
+    if (typeof this.engine.searchText === 'function') {
+      return await this.engine.searchText(query);
+    }
     const results: SearchResult[] = [];
     const pageCount = this.engine.getPageCount();
     const normalizedQuery = query.toLowerCase();

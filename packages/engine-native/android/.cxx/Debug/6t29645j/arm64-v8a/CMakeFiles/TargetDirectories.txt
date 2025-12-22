@@ -1,0 +1,3 @@
+C:/Users/solra/projects/meus/papyrus/packages/engine-native/android/.cxx/Debug/6t29645j/arm64-v8a/CMakeFiles/papyrus_text.dir
+C:/Users/solra/projects/meus/papyrus/packages/engine-native/android/.cxx/Debug/6t29645j/arm64-v8a/CMakeFiles/edit_cache.dir
+C:/Users/solra/projects/meus/papyrus/packages/engine-native/android/.cxx/Debug/6t29645j/arm64-v8a/CMakeFiles/rebuild_cache.dir

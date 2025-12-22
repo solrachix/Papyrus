@@ -1,0 +1,22 @@
+rootProject.name = 'PapyrusMobile'
+
+def currentDir = settingsDir
+def reactNativeGradlePluginPath = null
+while (currentDir != null && reactNativeGradlePluginPath == null) {
+  def candidate = new File(currentDir, "node_modules/@react-native/gradle-plugin")
+  if (candidate.exists()) {
+    reactNativeGradlePluginPath = candidate
+  } else {
+    currentDir = currentDir.parentFile
+  }
+}
+if (reactNativeGradlePluginPath == null) {
+  throw new GradleException("Could not find @react-native/gradle-plugin. Run npm install in the repo root.")
+}
+includeBuild(reactNativeGradlePluginPath)
+
+include ':app'
+
+include ':papyrus_engine_native'
+project(':papyrus_engine_native').projectDir =
+    new File(rootProject.projectDir, "../../../packages/engine-native/android")

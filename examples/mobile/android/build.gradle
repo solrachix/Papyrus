@@ -1,0 +1,65 @@
+import groovy.json.JsonOutput
+
+buildscript {
+    ext {
+        buildToolsVersion = "35.0.0"
+        minSdkVersion = 24
+        compileSdkVersion = 35
+        targetSdkVersion = 34
+        ndkVersion = "26.1.10909125"
+        kotlinVersion = "1.9.24"
+    }
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath("com.android.tools.build:gradle:8.6.0")
+        classpath("com.facebook.react:react-native-gradle-plugin")
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.24")
+    }
+}
+
+apply plugin: "com.facebook.react.rootproject"
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+        maven { url "https://www.jitpack.io" }
+    }
+}
+
+def autolinkingConfigFile = file("$buildDir/generated/autolinking/autolinking.json")
+
+tasks.register("generateAutolinkingConfig") {
+    outputs.file(autolinkingConfigFile)
+    doLast {
+        def config = [
+            reactNativeVersion: "0.76.0",
+            dependencies: [:],
+            project: [
+                android: [
+                    sourceDir: rootProject.projectDir.absolutePath,
+                    appName: "app",
+                    packageName: "com.papyrusmobile",
+                    applicationId: "com.papyrusmobile",
+                    mainActivity: ".MainActivity",
+                    watchModeCommandParams: null,
+                    dependencyConfiguration: null,
+                ],
+            ],
+        ]
+        autolinkingConfigFile.parentFile.mkdirs()
+        autolinkingConfigFile.text = JsonOutput.prettyPrint(JsonOutput.toJson(config))
+    }
+}
+
+gradle.projectsEvaluated {
+    project(":app").tasks.matching { it.name == "generateAutolinkingPackageList" }.configureEach {
+        dependsOn(tasks.named("generateAutolinkingConfig"))
+    }
+    project(":app").tasks.matching { it.name == "generateAutolinkingNewArchitectureFiles" }.configureEach {
+        dependsOn(tasks.named("generateAutolinkingConfig"))
+    }
+}

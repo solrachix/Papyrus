@@ -1,6 +1,6 @@
 
 import { BaseDocumentEngine } from '../core/engine';
-import { TextItem, OutlineItem } from '../types/index';
+import { DocumentSource, TextItem, OutlineItem, FileLike } from '../types/index';
 
 declare const pdfjsLib: any;
 
@@ -10,10 +10,21 @@ export class PDFJSEngine extends BaseDocumentEngine {
   private zoom: number = 1.0;
   private rotation: number = 0;
 
-  async load(source: File | ArrayBuffer | string): Promise<void> {
+  async load(source: DocumentSource): Promise<void> {
     try {
-      let data: any = source;
-      if (source instanceof File) data = await source.arrayBuffer();
+      let data: any;
+      if (typeof source === 'string') {
+        data = source;
+      } else if (this.isUriSource(source)) {
+        data = source.uri;
+      } else if (this.isDataSource(source)) {
+        data = source.data;
+      } else if (this.isFileLike(source)) {
+        data = await source.arrayBuffer();
+      } else {
+        data = source;
+      }
+
       this.pdfDoc = await pdfjsLib.getDocument(data).promise;
       this.currentPage = 1;
     } catch (error) { 
@@ -107,4 +118,16 @@ export class PDFJSEngine extends BaseDocumentEngine {
   }
 
   destroy(): void { if (this.pdfDoc) { this.pdfDoc.destroy(); this.pdfDoc = null; } }
+
+  private isUriSource(source: DocumentSource): source is { uri: string } {
+    return typeof source === 'object' && source !== null && 'uri' in source;
+  }
+
+  private isDataSource(source: DocumentSource): source is { data: ArrayBuffer | Uint8Array } {
+    return typeof source === 'object' && source !== null && 'data' in source;
+  }
+
+  private isFileLike(source: DocumentSource): source is FileLike {
+    return typeof source === 'object' && source !== null && typeof (source as FileLike).arrayBuffer === 'function';
+  }
 }

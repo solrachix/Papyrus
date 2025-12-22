@@ -1,8 +1,8 @@
 
-import { DocumentEngine, TextItem, OutlineItem } from '../types/index';
+import { DocumentEngine, TextItem, OutlineItem, DocumentSource } from '../types/index';
 
 export abstract class BaseDocumentEngine implements DocumentEngine {
-  abstract load(source: File | ArrayBuffer | string): Promise<void>;
+  abstract load(source: DocumentSource): Promise<void>;
   abstract getPageCount(): number;
   abstract getCurrentPage(): number;
   abstract goToPage(page: number): void;

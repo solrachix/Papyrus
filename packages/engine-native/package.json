@@ -1,0 +1,12 @@
+{
+  "name": "@papyrus/engine-native",
+  "version": "0.1.0",
+  "main": "index.ts",
+  "dependencies": {
+    "@papyrus/core": "0.1.0",
+    "@papyrus/types": "0.1.0"
+  },
+  "peerDependencies": {
+    "react-native": ">=0.76.0"
+  }
+}
