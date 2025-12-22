@@ -1,4 +1,5 @@
 # Papyrus Mobile (RN CLI + Expo compatibility)
+Read this in: English | [Portuguese (Brazil)](MOBILE.pt-BR.md)
 
 ## Goal
 Base the SDK on RN CLI with a native engine, while keeping Expo users unblocked via prebuild + config plugin.

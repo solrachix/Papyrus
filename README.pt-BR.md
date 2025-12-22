@@ -1,42 +1,42 @@
 # Papyrus PDF SDK
-> The last PDF engine you will ever need.
+> O ultimo motor de PDF que voce vai precisar.
 
 [![Engine: PDF.js](https://img.shields.io/badge/Engine-PDF.js-orange.svg)](https://mozilla.github.io/pdf.js/)
 [![Framework: React](https://img.shields.io/badge/Framework-React-blue.svg)](https://reactjs.org/)
 
-Read this in: English | [Portuguese (Brazil)](README.pt-BR.md)
+Leia em: [English](README.md) | Portugues (Brasil)
 
-Papyrus is a modular PDF SDK built to power document-heavy products. It combines a core state layer, pluggable engines (PDF.js on web, native on mobile), and UI kits for React and React Native.
+Papyrus e um SDK modular de PDF feito para produtos com documentos pesados. Ele combina uma camada central de estado, engines plugaveis (PDF.js na web, nativo no mobile) e kits de UI para React e React Native.
 
-## Docs
-- [Configuration guide](docs/CONFIGURATION.md)
-- [Event hooks](docs/CONFIGURATION.md#event-hooks)
-- [Mobile (React Native)](docs/MOBILE.md)
+## Documentacao
+- [Guia de configuracao](docs/CONFIGURATION.pt-BR.md)
+- [Event hooks](docs/CONFIGURATION.pt-BR.md#event-hooks)
+- [Mobile (React Native)](docs/MOBILE.pt-BR.md)
 
-## Features
-- Event hooks for page, zoom, selection, and annotations
-- Background text search with preview
-- Themeable UI: light, dark, sepia, high-contrast
-- Decoupled architecture: core state, engines, and UI packages
+## Funcionalidades
+- Event hooks para pagina, zoom, selecao e anotacoes
+- Busca textual em background com preview
+- UI com temas: claro, escuro, sepia, alto contraste
+- Arquitetura desacoplada: core, engines e pacotes de UI
 
-## Packages
-| Package | Responsibility |
+## Pacotes
+| Pacote | Responsabilidade |
 | :--- | :--- |
-| `@papyrus/types` | Shared types and contracts |
+| `@papyrus/types` | Tipos e contratos compartilhados |
 | `@papyrus/core` | Store (Zustand), event bus, search service |
-| `@papyrus/engine-pdfjs` | PDF.js engine adapter for web |
-| `@papyrus/engine-native` | Native engine bridge (iOS/Android) |
-| `@papyrus/ui-react` | React UI components |
-| `@papyrus/ui-react-native` | React Native UI components |
+| `@papyrus/engine-pdfjs` | Adaptador PDF.js para web |
+| `@papyrus/engine-native` | Engine nativa (iOS/Android) |
+| `@papyrus/ui-react` | Componentes de UI em React |
+| `@papyrus/ui-react-native` | Componentes de UI em React Native |
 
-## Quickstart (web)
+## Inicio rapido (web)
 ```bash
 npm install
 npm run dev
 ```
-Open the URL printed by Vite.
+Abra a URL exibida pelo Vite.
 
-## Minimal usage (web)
+## Uso minimo (web)
 ```tsx
 import { useViewerStore, papyrusEvents } from '@papyrus/core';
 import { PDFJSEngine } from '@papyrus/engine-pdfjs';
@@ -70,19 +70,19 @@ papyrusEvents.on(PapyrusEventType.DOCUMENT_LOADED, ({ pageCount }) => {
   console.log('Loaded pages:', pageCount);
 });
 
-// In your React tree:
+// Na sua arvore React:
 // <Topbar engine={engine} />
 // <SidebarLeft engine={engine} />
 // <Viewer engine={engine} />
 // <SidebarRight engine={engine} />
 ```
 
-## Examples
-- Web demo: `examples/web`
+## Exemplos
+- Demo web: `examples/web`
 - React Native: `examples/mobile`
 
-## Contributing
-See `CONTRIBUTING.md`.
+## Contribuicao
+Veja `CONTRIBUTING.md`.
 
-## License
-MIT. See `LICENSE`.
+## Licenca
+MIT. Veja `LICENSE`.
