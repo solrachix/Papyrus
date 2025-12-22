@@ -33,6 +33,7 @@ class PapyrusPageView extends View {
               final float zoom,
               final int rotation) {
     if (state == null || state.document == null) return;
+    if (state.isSearching) return;
     if (getWidth() == 0 || getHeight() == 0) {
       post(() -> render(state, pageIndex, scale, zoom, rotation));
       return;
@@ -50,17 +51,24 @@ class PapyrusPageView extends View {
       if (doc == null) return;
 
       try {
-        int pageCount = state.pdfium.getPageCount(doc);
-        if (pageIndex < 0 || pageIndex >= pageCount) return;
-        state.pdfium.openPage(doc, pageIndex);
-        Bitmap rendered = Bitmap.createBitmap(renderWidth, renderHeight, Bitmap.Config.ARGB_8888);
-        state.pdfium.renderPageBitmap(doc, rendered, pageIndex, 0, 0, renderWidth, renderHeight, true);
+        Bitmap rendered = null;
+        synchronized (state.pdfiumLock) {
+          if (doc != state.document) return;
+          int pageCount = state.pdfium.getPageCount(doc);
+          if (pageIndex < 0 || pageIndex >= pageCount) return;
+          state.pdfium.openPage(doc, pageIndex);
+          rendered = Bitmap.createBitmap(renderWidth, renderHeight, Bitmap.Config.ARGB_8888);
+          state.pdfium.renderPageBitmap(doc, rendered, pageIndex, 0, 0, renderWidth, renderHeight, true);
+        }
+
+        if (rendered == null) return;
+        final Bitmap renderedBitmap = rendered;
 
         post(() -> {
           if (bitmap != null && !bitmap.isRecycled()) {
             bitmap.recycle();
           }
-          bitmap = rendered;
+          bitmap = renderedBitmap;
           invalidate();
         });
       } catch (Throwable ignored) {

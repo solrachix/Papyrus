@@ -120,7 +120,10 @@ public class PapyrusNativeEngineModule extends ReactContextBaseJavaModule {
       promise.resolve(Arguments.createArray());
       return;
     }
-    String text = extractPageText(state, pageIndex);
+    String text;
+    synchronized (state.pdfiumLock) {
+      text = extractPageText(state, pageIndex);
+    }
     WritableArray items = Arguments.createArray();
     if (text != null && !text.isEmpty()) {
       WritableMap item = Arguments.createMap();
@@ -152,8 +155,12 @@ public class PapyrusNativeEngineModule extends ReactContextBaseJavaModule {
       promise.resolve(result);
       return;
     }
-    int width = state.pdfium.getPageWidthPoint(state.document, pageIndex);
-    int height = state.pdfium.getPageHeightPoint(state.document, pageIndex);
+    int width;
+    int height;
+    synchronized (state.pdfiumLock) {
+      width = state.pdfium.getPageWidthPoint(state.document, pageIndex);
+      height = state.pdfium.getPageHeightPoint(state.document, pageIndex);
+    }
     WritableMap result = Arguments.createMap();
     result.putInt("width", width);
     result.putInt("height", height);
@@ -181,64 +188,87 @@ public class PapyrusNativeEngineModule extends ReactContextBaseJavaModule {
       }
 
       int pageCount = state.pdfium.getPageCount(state.document);
-      long docPtr = extractNativeDocPointer(state.document);
+      state.isSearching = true;
       try {
-        if (docPtr != 0) {
-          PapyrusTextHit[] hits = PapyrusTextSearch.nativeSearch(docPtr, pageCount, query);
-          if (hits != null && hits.length > 0) {
-            WritableArray results = Arguments.createArray();
-            for (PapyrusTextHit hit : hits) {
-              WritableMap result = Arguments.createMap();
-              result.putInt("pageIndex", hit.pageIndex);
-              result.putString("text", hit.text != null ? hit.text : query);
-              result.putInt("matchIndex", hit.matchIndex);
-              if (hit.rects != null && hit.rects.length >= 4) {
-                WritableArray rects = Arguments.createArray();
-                for (int i = 0; i + 3 < hit.rects.length; i += 4) {
-                  WritableMap rect = Arguments.createMap();
-                  rect.putDouble("x", hit.rects[i]);
-                  rect.putDouble("y", hit.rects[i + 1]);
-                  rect.putDouble("width", hit.rects[i + 2]);
-                  rect.putDouble("height", hit.rects[i + 3]);
-                  rects.pushMap(rect);
-                }
-                result.putArray("rects", rects);
+        try {
+          if (PapyrusTextSearch.AVAILABLE) {
+            PapyrusTextHit[] hits = null;
+            if (state.sourcePath != null && !state.sourcePath.isEmpty()) {
+              synchronized (state.pdfiumLock) {
+                hits = PapyrusTextSearch.nativeSearchFile(state.sourcePath, query);
               }
-              results.pushMap(result);
+            } else {
+              long docPtr;
+              synchronized (state.pdfiumLock) {
+                docPtr = extractNativeDocPointer(state.document);
+              }
+              if (docPtr != 0) {
+                synchronized (state.pdfiumLock) {
+                  hits = PapyrusTextSearch.nativeSearch(docPtr, pageCount, query);
+                }
+              }
             }
-            promise.resolve(results);
-            return;
+
+            if (hits != null && hits.length > 0) {
+              WritableArray results = Arguments.createArray();
+              for (PapyrusTextHit hit : hits) {
+                WritableMap result = Arguments.createMap();
+                result.putInt("pageIndex", hit.pageIndex);
+                result.putString("text", hit.text != null ? hit.text : query);
+                result.putInt("matchIndex", hit.matchIndex);
+                if (hit.rects != null && hit.rects.length >= 4) {
+                  WritableArray rects = Arguments.createArray();
+                  for (int i = 0; i + 3 < hit.rects.length; i += 4) {
+                    WritableMap rect = Arguments.createMap();
+                    rect.putDouble("x", hit.rects[i]);
+                    rect.putDouble("y", hit.rects[i + 1]);
+                    rect.putDouble("width", hit.rects[i + 2]);
+                    rect.putDouble("height", hit.rects[i + 3]);
+                    rects.pushMap(rect);
+                  }
+                  result.putArray("rects", rects);
+                }
+                results.pushMap(result);
+              }
+              promise.resolve(results);
+              return;
+            }
+          }
+        } catch (Throwable ignored) {
+        }
+
+        String normalizedQuery = query.toLowerCase();
+        WritableArray results = Arguments.createArray();
+
+        for (int pageIndex = 0; pageIndex < pageCount; pageIndex++) {
+          String text;
+          synchronized (state.pdfiumLock) {
+            text = extractPageText(state, pageIndex);
+          }
+          if (text == null || text.isEmpty()) continue;
+
+          String lower = text.toLowerCase();
+          int pos = lower.indexOf(normalizedQuery);
+          int matchIndex = 0;
+          while (pos != -1) {
+            int start = Math.max(0, pos - 20);
+            int end = Math.min(text.length(), pos + normalizedQuery.length() + 20);
+            String preview = text.substring(start, end);
+
+            WritableMap result = Arguments.createMap();
+            result.putInt("pageIndex", pageIndex);
+            result.putString("text", preview);
+            result.putInt("matchIndex", matchIndex++);
+            results.pushMap(result);
+
+            pos = lower.indexOf(normalizedQuery, pos + 1);
           }
         }
-      } catch (Throwable ignored) {
+
+        promise.resolve(results);
+      } finally {
+        state.isSearching = false;
       }
-
-      String normalizedQuery = query.toLowerCase();
-      WritableArray results = Arguments.createArray();
-
-      for (int pageIndex = 0; pageIndex < pageCount; pageIndex++) {
-        String text = extractPageText(state, pageIndex);
-        if (text == null || text.isEmpty()) continue;
-
-        String lower = text.toLowerCase();
-        int pos = lower.indexOf(normalizedQuery);
-        int matchIndex = 0;
-        while (pos != -1) {
-          int start = Math.max(0, pos - 20);
-          int end = Math.min(text.length(), pos + normalizedQuery.length() + 20);
-          String preview = text.substring(start, end);
-
-          WritableMap result = Arguments.createMap();
-          result.putInt("pageIndex", pageIndex);
-          result.putString("text", preview);
-          result.putInt("matchIndex", matchIndex++);
-          results.pushMap(result);
-
-          pos = lower.indexOf(normalizedQuery, pos + 1);
-        }
-      }
-
-      promise.resolve(results);
     });
   }
 

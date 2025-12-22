@@ -1,1 +1,0 @@
-C:\Users\solra\projects\meus\papyrus\packages\engine-native\android\build\intermediates\cxx\Debug\6t29645j\obj\arm64-v8a

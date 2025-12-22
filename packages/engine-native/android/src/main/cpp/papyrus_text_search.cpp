@@ -14,11 +14,16 @@ typedef void *FPDF_TEXTPAGE;
 typedef void *FPDF_SCHHANDLE;
 typedef const unsigned short *FPDF_WIDESTRING;
 
+constexpr int kMaxHits = 200;
+
 struct PdfiumFns {
   FPDF_PAGE (*loadPage)(FPDF_DOCUMENT, int);
   void (*closePage)(FPDF_PAGE);
   double (*getPageWidth)(FPDF_PAGE);
   double (*getPageHeight)(FPDF_PAGE);
+  int (*getDocPageCount)(FPDF_DOCUMENT);
+  FPDF_DOCUMENT (*loadDocument)(const char *, const char *);
+  void (*closeDocument)(FPDF_DOCUMENT);
   FPDF_TEXTPAGE (*textLoadPage)(FPDF_PAGE);
   void (*textClosePage)(FPDF_TEXTPAGE);
   FPDF_SCHHANDLE (*textFindStart)(FPDF_TEXTPAGE, FPDF_WIDESTRING, int, int);
@@ -49,6 +54,9 @@ static bool LoadPdfium() {
   g_fns.closePage = reinterpret_cast<void (*)(FPDF_PAGE)>(dlsym(g_pdfium, "FPDF_ClosePage"));
   g_fns.getPageWidth = reinterpret_cast<double (*)(FPDF_PAGE)>(dlsym(g_pdfium, "FPDF_GetPageWidth"));
   g_fns.getPageHeight = reinterpret_cast<double (*)(FPDF_PAGE)>(dlsym(g_pdfium, "FPDF_GetPageHeight"));
+  g_fns.getDocPageCount = reinterpret_cast<int (*)(FPDF_DOCUMENT)>(dlsym(g_pdfium, "FPDF_GetPageCount"));
+  g_fns.loadDocument = reinterpret_cast<FPDF_DOCUMENT (*)(const char *, const char *)>(dlsym(g_pdfium, "FPDF_LoadDocument"));
+  g_fns.closeDocument = reinterpret_cast<void (*)(FPDF_DOCUMENT)>(dlsym(g_pdfium, "FPDF_CloseDocument"));
   g_fns.textLoadPage = reinterpret_cast<FPDF_TEXTPAGE (*)(FPDF_PAGE)>(dlsym(g_pdfium, "FPDFText_LoadPage"));
   g_fns.textClosePage = reinterpret_cast<void (*)(FPDF_TEXTPAGE)>(dlsym(g_pdfium, "FPDFText_ClosePage"));
   g_fns.textFindStart = reinterpret_cast<FPDF_SCHHANDLE (*)(FPDF_TEXTPAGE, FPDF_WIDESTRING, int, int)>(dlsym(g_pdfium, "FPDFText_FindStart"));
@@ -61,6 +69,7 @@ static bool LoadPdfium() {
   g_fns.textGetText = reinterpret_cast<int (*)(FPDF_TEXTPAGE, int, int, unsigned short *)>(dlsym(g_pdfium, "FPDFText_GetText"));
 
   if (!g_fns.loadPage || !g_fns.closePage || !g_fns.getPageWidth || !g_fns.getPageHeight ||
+      !g_fns.getDocPageCount || !g_fns.loadDocument || !g_fns.closeDocument ||
       !g_fns.textLoadPage || !g_fns.textClosePage || !g_fns.textFindStart || !g_fns.textFindNext ||
       !g_fns.textFindClose || !g_fns.textGetSchResultIndex || !g_fns.textGetSchCount ||
       !g_fns.textGetCharBox || !g_fns.textCountChars || !g_fns.textGetText) {
@@ -143,6 +152,64 @@ static jfloatArray BuildRect(JNIEnv *env, FPDF_TEXTPAGE textPage, FPDF_PAGE page
   return array;
 }
 
+static jobjectArray SearchDocument(JNIEnv *env, FPDF_DOCUMENT doc, int pageCount, const unsigned short *wideQuery, jsize queryLen) {
+  if (!doc || pageCount <= 0 || !wideQuery || queryLen <= 0) return nullptr;
+
+  jclass hitClass = env->FindClass("com/papyrus/engine/PapyrusTextHit");
+  if (!hitClass) return nullptr;
+  jmethodID ctor = env->GetMethodID(hitClass, "<init>", "(IILjava/lang/String;[F)V");
+  if (!ctor) return nullptr;
+
+  std::vector<jobject> hits;
+  hits.reserve(32);
+
+  for (int pageIndex = 0; pageIndex < pageCount; pageIndex++) {
+    FPDF_PAGE page = g_fns.loadPage(doc, pageIndex);
+    if (!page) continue;
+    FPDF_TEXTPAGE textPage = g_fns.textLoadPage(page);
+    if (!textPage) {
+      g_fns.closePage(page);
+      continue;
+    }
+
+    FPDF_SCHHANDLE handle = g_fns.textFindStart(textPage, wideQuery, 0, 0);
+    if (handle) {
+      int matchIndex = 0;
+      while (g_fns.textFindNext(handle)) {
+        int startIndex = g_fns.textGetSchResultIndex(handle);
+        int count = g_fns.textGetSchCount(handle);
+        int totalChars = g_fns.textCountChars(textPage);
+        if (startIndex < 0 || startIndex >= totalChars) continue;
+        if (count <= 0) count = 1;
+        if (startIndex + count > totalChars) {
+          count = std::max(1, totalChars - startIndex);
+        }
+
+        jstring preview = BuildPreview(env, textPage, startIndex, count);
+        jfloatArray rects = BuildRect(env, textPage, page, startIndex, count);
+        jobject hit = env->NewObject(hitClass, ctor, pageIndex, matchIndex, preview, rects);
+        if (hit) {
+          hits.push_back(hit);
+        }
+        matchIndex++;
+        if (static_cast<int>(hits.size()) >= kMaxHits) break;
+      }
+      g_fns.textFindClose(handle);
+    }
+
+    g_fns.textClosePage(textPage);
+    g_fns.closePage(page);
+    if (static_cast<int>(hits.size()) >= kMaxHits) break;
+  }
+
+  jobjectArray result = env->NewObjectArray(static_cast<jsize>(hits.size()), hitClass, nullptr);
+  for (jsize i = 0; i < static_cast<jsize>(hits.size()); i++) {
+    env->SetObjectArrayElement(result, i, hits[i]);
+  }
+
+  return result;
+}
+
 extern "C" JNIEXPORT jobjectArray JNICALL
 Java_com_papyrus_engine_PapyrusTextSearch_nativeSearch(JNIEnv *env, jclass, jlong docPtr, jint pageCount, jstring query) {
   if (!LoadPdfium()) return nullptr;
@@ -161,50 +228,39 @@ Java_com_papyrus_engine_PapyrusTextSearch_nativeSearch(JNIEnv *env, jclass, jlon
   }
   env->ReleaseStringChars(query, queryChars);
 
-  jclass hitClass = env->FindClass("com/papyrus/engine/PapyrusTextHit");
-  if (!hitClass) return nullptr;
-  jmethodID ctor = env->GetMethodID(hitClass, "<init>", "(IILjava/lang/String;[F)V");
-  if (!ctor) return nullptr;
-
-  std::vector<jobject> hits;
-  hits.reserve(32);
-
   FPDF_DOCUMENT doc = reinterpret_cast<FPDF_DOCUMENT>(docPtr);
+  jobjectArray result = SearchDocument(env, doc, pageCount, wideQuery.data(), queryLen);
+  return result;
+}
 
-  for (int pageIndex = 0; pageIndex < pageCount; pageIndex++) {
-    FPDF_PAGE page = g_fns.loadPage(doc, pageIndex);
-    if (!page) continue;
-    FPDF_TEXTPAGE textPage = g_fns.textLoadPage(page);
-    if (!textPage) {
-      g_fns.closePage(page);
-      continue;
-    }
+extern "C" JNIEXPORT jobjectArray JNICALL
+Java_com_papyrus_engine_PapyrusTextSearch_nativeSearchFile(JNIEnv *env, jclass, jstring filePath, jstring query) {
+  if (!LoadPdfium()) return nullptr;
+  if (!filePath || !query) return nullptr;
 
-    FPDF_SCHHANDLE handle = g_fns.textFindStart(textPage, wideQuery.data(), 0, 0);
-    if (handle) {
-      int matchIndex = 0;
-      while (g_fns.textFindNext(handle)) {
-        int startIndex = g_fns.textGetSchResultIndex(handle);
-        int count = g_fns.textGetSchCount(handle);
-        jstring preview = BuildPreview(env, textPage, startIndex, count);
-        jfloatArray rects = BuildRect(env, textPage, page, startIndex, count);
-        jobject hit = env->NewObject(hitClass, ctor, pageIndex, matchIndex, preview, rects);
-        if (hit) {
-          hits.push_back(hit);
-        }
-        matchIndex++;
-      }
-      g_fns.textFindClose(handle);
-    }
-
-    g_fns.textClosePage(textPage);
-    g_fns.closePage(page);
+  const jchar *queryChars = env->GetStringChars(query, nullptr);
+  jsize queryLen = env->GetStringLength(query);
+  if (!queryChars || queryLen == 0) {
+    if (queryChars) env->ReleaseStringChars(query, queryChars);
+    return nullptr;
   }
 
-  jobjectArray result = env->NewObjectArray(static_cast<jsize>(hits.size()), hitClass, nullptr);
-  for (jsize i = 0; i < static_cast<jsize>(hits.size()); i++) {
-    env->SetObjectArrayElement(result, i, hits[i]);
+  std::vector<unsigned short> wideQuery(static_cast<size_t>(queryLen) + 1, 0);
+  for (jsize i = 0; i < queryLen; i++) {
+    wideQuery[i] = static_cast<unsigned short>(queryChars[i]);
   }
+  env->ReleaseStringChars(query, queryChars);
+
+  const char *path = env->GetStringUTFChars(filePath, nullptr);
+  if (!path) return nullptr;
+
+  FPDF_DOCUMENT doc = g_fns.loadDocument(path, nullptr);
+  env->ReleaseStringUTFChars(filePath, path);
+  if (!doc) return nullptr;
+
+  int pageCount = g_fns.getDocPageCount(doc);
+  jobjectArray result = SearchDocument(env, doc, pageCount, wideQuery.data(), queryLen);
+  g_fns.closeDocument(doc);
 
   return result;
 }

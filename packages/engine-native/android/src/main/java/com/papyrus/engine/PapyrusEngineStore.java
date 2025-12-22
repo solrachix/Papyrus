@@ -15,6 +15,8 @@ import java.util.concurrent.ConcurrentHashMap;
 final class PapyrusEngineStore {
   static final class EngineState {
     final PdfiumCore pdfium;
+    final Object pdfiumLock = new Object();
+    volatile boolean isSearching = false;
     PdfDocument document;
     ParcelFileDescriptor fileDescriptor;
     String sourcePath;

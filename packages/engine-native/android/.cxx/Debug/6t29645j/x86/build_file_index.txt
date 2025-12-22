@@ -1,1 +1,0 @@
-C:\Users\solra\projects\meus\papyrus\packages\engine-native\android\src\main\cpp\CMakeLists.txt

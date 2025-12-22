@@ -38,11 +38,21 @@ const PageRenderer: React.FC<PageRendererProps> = ({ engine, pageIndex, scale = 
     selectedAnnotationId,
     setSelectedAnnotation,
     removeAnnotation,
+    searchResults,
+    activeSearchIndex,
   } = useViewerStore();
 
   const pageAnnotations = useMemo(
     () => annotations.filter((ann) => ann.pageIndex === pageIndex),
     [annotations, pageIndex]
+  );
+
+  const pageSearchHits = useMemo(
+    () =>
+      searchResults
+        .map((result, index) => ({ result, index }))
+        .filter(({ result }) => result.pageIndex === pageIndex),
+    [searchResults, pageIndex]
   );
 
   useEffect(() => {
@@ -140,6 +150,31 @@ const PageRenderer: React.FC<PageRendererProps> = ({ engine, pageIndex, scale = 
       >
         <PageViewComponent ref={viewRef} style={styles.page} />
         <View pointerEvents="none" style={[styles.themeOverlay, themeOverlayStyle]} />
+        <View pointerEvents="none" style={styles.searchLayer}>
+          {pageSearchHits.map(({ result, index }) => {
+            if (!result.rects || result.rects.length === 0) return null;
+            return result.rects.map((rect, rectIndex) => {
+              if (rect.width <= 0 || rect.height <= 0) return null;
+              const isActive = index === activeSearchIndex;
+              const highlightStyle = {
+                left: `${rect.x * 100}%`,
+                top: `${rect.y * 100}%`,
+                width: `${rect.width * 100}%`,
+                height: `${rect.height * 100}%`,
+              } as const;
+              return (
+                <View
+                  key={`${index}-${rectIndex}`}
+                  style={[
+                    styles.searchHighlight,
+                    isActive && styles.searchHighlightActive,
+                    highlightStyle,
+                  ]}
+                />
+              );
+            });
+          })}
+        </View>
         <View pointerEvents="box-none" style={styles.annotationLayer}>
           {pageAnnotations.map((ann) => {
             const isSelected = selectedAnnotationId === ann.id;
@@ -201,6 +236,24 @@ const styles = StyleSheet.create({
     top: 0,
     right: 0,
     bottom: 0,
+  },
+  searchLayer: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    right: 0,
+    bottom: 0,
+  },
+  searchHighlight: {
+    position: 'absolute',
+    backgroundColor: 'rgba(59, 130, 246, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(59, 130, 246, 0.35)',
+    borderRadius: 4,
+  },
+  searchHighlightActive: {
+    backgroundColor: 'rgba(59, 130, 246, 0.35)',
+    borderColor: '#3b82f6',
   },
   themeOverlay: {
     ...StyleSheet.absoluteFillObject,
