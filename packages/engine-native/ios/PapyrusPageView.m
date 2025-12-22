@@ -10,6 +10,7 @@
   self = [super initWithFrame:frame];
   if (self) {
     _pdfView = [[PDFView alloc] initWithFrame:self.bounds];
+    _pdfView.displayBox = kPDFDisplayBoxMediaBox;
     _pdfView.autoScales = NO;
     _pdfView.displayMode = kPDFDisplaySinglePage;
     _pdfView.displayDirection = kPDFDisplayDirectionVertical;
