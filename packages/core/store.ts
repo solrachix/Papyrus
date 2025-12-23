@@ -13,6 +13,7 @@ interface ViewerState {
   uiTheme: UITheme;
   pageTheme: PageTheme;
   locale: Locale;
+  accentColor: string;
   annotationColor: string;
   outline: OutlineItem[];
   sidebarLeftOpen: boolean;
@@ -47,6 +48,7 @@ interface ViewerState {
   setAnnotationColor: (color: string) => void;
   setInteractionMode: (mode: 'pan' | 'select') => void;
   setSelectionActive: (active: boolean) => void;
+  setAccentColor: (color: string) => void;
 }
 
 export const useViewerStore = create<ViewerState>((set, get) => ({
@@ -59,6 +61,7 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
   uiTheme: 'light',
   pageTheme: 'normal',
   locale: 'en',
+  accentColor: '#2563eb',
   annotationColor: '#fbbf24',
   outline: [],
   sidebarLeftOpen: true,
@@ -85,6 +88,7 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
     uiTheme: config.initialUITheme ?? state.uiTheme,
     pageTheme: config.initialPageTheme ?? state.pageTheme,
     locale: config.initialLocale ?? state.locale,
+    accentColor: config.initialAccentColor ?? state.accentColor,
     annotations: config.initialAnnotations ?? state.annotations,
     sidebarLeftOpen: config.sidebarLeftOpen ?? state.sidebarLeftOpen,
     sidebarRightOpen: config.sidebarRightOpen ?? state.sidebarRightOpen,
@@ -136,6 +140,7 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
   setSelectedAnnotation: (id) => set({ selectedAnnotationId: id }),
   setInteractionMode: (mode) => set({ interactionMode: mode }),
   setSelectionActive: (active) => set({ selectionActive: active }),
+  setAccentColor: (color) => set({ accentColor: color }),
   
   setSearch: (query, results) => {
     set({ searchQuery: query, searchResults: results, activeSearchIndex: results.length > 0 ? 0 : -1 });

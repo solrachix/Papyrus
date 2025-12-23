@@ -48,6 +48,8 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     annotations,
     annotationColor,
     addAnnotation,
+    setDocumentState,
+    accentColor,
     selectedAnnotationId,
     setSelectedAnnotation,
     removeAnnotation,
@@ -79,6 +81,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   const selectionBoundsRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
   const selectionBoundsStart = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
   const lastTapRef = useRef<{ time: number; x: number; y: number } | null>(null);
+  const pinchRef = useRef<{ distance: number; zoom: number } | null>(null);
 
   useEffect(() => {
     if (!layout.width || !layout.height) return;
@@ -193,6 +196,33 @@ const PageRenderer: React.FC<PageRendererProps> = ({
       height: size / layout.height,
     };
     await selectFromBounds(bounds);
+  };
+
+  const getTouchDistance = (touches: Array<{ pageX: number; pageY: number }>) => {
+    if (touches.length < 2) return 0;
+    const [a, b] = touches;
+    return Math.hypot(b.pageX - a.pageX, b.pageY - a.pageY);
+  };
+
+  const shouldHandlePinch = (touches: Array<{ pageX: number; pageY: number }>) => isNative && touches.length === 2;
+
+  const handlePinchStart = (touches: Array<{ pageX: number; pageY: number }>) => {
+    if (!shouldHandlePinch(touches)) return;
+    pinchRef.current = { distance: getTouchDistance(touches), zoom };
+  };
+
+  const handlePinchMove = (touches: Array<{ pageX: number; pageY: number }>) => {
+    if (!shouldHandlePinch(touches) || !pinchRef.current) return;
+    const distance = getTouchDistance(touches);
+    if (!distance) return;
+    const scale = distance / pinchRef.current.distance;
+    const nextZoom = clamp(pinchRef.current.zoom * scale, 0.5, 4.0);
+    setDocumentState({ zoom: nextZoom });
+    engine.setZoom(nextZoom);
+  };
+
+  const handlePinchEnd = () => {
+    pinchRef.current = null;
   };
 
   const handlePress = (event: GestureResponderEvent) => {
@@ -395,6 +425,12 @@ const PageRenderer: React.FC<PageRendererProps> = ({
         style={[styles.container, { width: pageWidth, height: pageHeight, marginBottom: spacing }]}
         onLayout={handleLayout}
         onPress={handlePress}
+        onStartShouldSetResponder={(event) => shouldHandlePinch(event.nativeEvent.touches)}
+        onMoveShouldSetResponder={(event) => shouldHandlePinch(event.nativeEvent.touches)}
+        onResponderGrant={(event) => handlePinchStart(event.nativeEvent.touches)}
+        onResponderMove={(event) => handlePinchMove(event.nativeEvent.touches)}
+        onResponderRelease={handlePinchEnd}
+        onResponderTerminate={handlePinchEnd}
       >
         <PageViewComponent ref={viewRef} style={styles.page} />
         <View pointerEvents="none" style={[styles.themeOverlay, themeOverlayStyle]} />
@@ -420,11 +456,18 @@ const PageRenderer: React.FC<PageRendererProps> = ({
                   top: selectionBoundsPx.y,
                   width: selectionBoundsPx.width,
                   height: selectionBoundsPx.height,
+                  borderColor: accentColor,
                 },
               ]}
             >
-              <View {...startHandleResponder.panHandlers} style={[styles.selectionHandle, { left: -8, top: -8 }]} />
-              <View {...endHandleResponder.panHandlers} style={[styles.selectionHandle, { right: -8, bottom: -8 }]} />
+              <View
+                {...startHandleResponder.panHandlers}
+                style={[styles.selectionHandle, { left: -8, top: -8, borderColor: accentColor }]}
+              />
+              <View
+                {...endHandleResponder.panHandlers}
+                style={[styles.selectionHandle, { right: -8, bottom: -8, borderColor: accentColor }]}
+              />
             </View>
           ) : null}
           {isSelecting && selectionRect ? (
@@ -437,6 +480,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({
                   top: selectionRect.y,
                   width: selectionRect.width,
                   height: selectionRect.height,
+                  borderColor: accentColor,
                 },
               ]}
             />
@@ -459,7 +503,9 @@ const PageRenderer: React.FC<PageRendererProps> = ({
                   key={`${index}-${rectIndex}`}
                   style={[
                     styles.searchHighlight,
+                    { borderColor: accentColor, backgroundColor: `${accentColor}26` },
                     isActive && styles.searchHighlightActive,
+                    isActive && { borderColor: accentColor, backgroundColor: `${accentColor}40` },
                     highlightStyle,
                   ]}
                 />
@@ -484,7 +530,12 @@ const PageRenderer: React.FC<PageRendererProps> = ({
               <Pressable
                 key={ann.id}
                 onPress={() => setSelectedAnnotation(ann.id)}
-                style={[styles.annotation, style, isSelected && styles.annotationSelected]}
+                style={[
+                  styles.annotation,
+                  style,
+                  isSelected && styles.annotationSelected,
+                  isSelected && { borderColor: accentColor },
+                ]}
               >
                 {(ann.type === 'comment' || ann.type === 'text') && (
                   <View style={[styles.annotationBadge, { borderColor: ann.color }]}>

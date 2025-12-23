@@ -60,6 +60,7 @@ export interface PapyrusConfig {
   initialViewMode?: ViewMode;
   initialUITheme?: UITheme;
   initialPageTheme?: PageTheme;
+  initialAccentColor?: string;
   initialLocale?: Locale;
   initialAnnotations?: Annotation[];
   sidebarLeftOpen?: boolean;

@@ -17,7 +17,7 @@ const COLOR_SWATCHES = [
 ];
 
 const ToolDock: React.FC = () => {
-  const { selectionActive, uiTheme, locale, annotationColor, setAnnotationColor } = useViewerStore();
+  const { selectionActive, uiTheme, locale, annotationColor, setAnnotationColor, accentColor } = useViewerStore();
   const isDark = uiTheme === 'dark';
   const isVisible = selectionActive;
   const t = getStrings(locale);
@@ -38,6 +38,7 @@ const ToolDock: React.FC = () => {
                 styles.swatch,
                 { backgroundColor: color },
                 isSelected && styles.swatchSelected,
+                isSelected && { borderColor: accentColor },
               ]}
             />
           );

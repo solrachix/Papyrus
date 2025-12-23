@@ -40,6 +40,14 @@ type Strings = {
   language: string;
   english: string;
   portuguese: string;
+  appearance: string;
+  light: string;
+  dark: string;
+  pageTheme: string;
+  themeOriginal: string;
+  themeSepia: string;
+  themeDark: string;
+  themeContrast: string;
 };
 
 const STRINGS: Record<Locale, Strings> = {
@@ -83,6 +91,14 @@ const STRINGS: Record<Locale, Strings> = {
     language: 'Language',
     english: 'English',
     portuguese: 'Portuguese (BR)',
+    appearance: 'Appearance',
+    light: 'Light',
+    dark: 'Dark',
+    pageTheme: 'Page theme',
+    themeOriginal: 'Original',
+    themeSepia: 'Sepia',
+    themeDark: 'Dark',
+    themeContrast: 'High contrast',
   },
   'pt-BR': {
     pages: 'Paginas',
@@ -124,6 +140,14 @@ const STRINGS: Record<Locale, Strings> = {
     language: 'Idioma',
     english: 'Ingles',
     portuguese: 'Portugues (BR)',
+    appearance: 'Aparencia',
+    light: 'Claro',
+    dark: 'Escuro',
+    pageTheme: 'Tema da pagina',
+    themeOriginal: 'Original',
+    themeSepia: 'Sepia',
+    themeDark: 'Escuro',
+    themeContrast: 'Contraste',
   },
 };
 

@@ -4,7 +4,7 @@ import { useViewerStore } from '../../core/index';
 import { getStrings } from '../strings';
 
 const AnnotationEditor: React.FC = () => {
-  const { annotations, selectedAnnotationId, updateAnnotation, setSelectedAnnotation, uiTheme, locale } =
+  const { annotations, selectedAnnotationId, updateAnnotation, setSelectedAnnotation, uiTheme, locale, accentColor } =
     useViewerStore();
   const annotation = annotations.find((ann) => ann.id === selectedAnnotationId);
   const isEditable = annotation && (annotation.type === 'text' || annotation.type === 'comment');
@@ -43,7 +43,7 @@ const AnnotationEditor: React.FC = () => {
             <Pressable onPress={handleClose} style={[styles.actionButton, styles.actionCancel]}>
               <Text style={styles.actionText}>{t.cancel}</Text>
             </Pressable>
-            <Pressable onPress={handleSave} style={[styles.actionButton, styles.actionSave]}>
+            <Pressable onPress={handleSave} style={[styles.actionButton, styles.actionSave, { backgroundColor: accentColor }]}>
               <Text style={[styles.actionText, styles.actionTextLight]}>{t.save}</Text>
             </Pressable>
           </View>

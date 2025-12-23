@@ -7,7 +7,7 @@ import PageRenderer from './PageRenderer';
 interface ViewerProps { engine: DocumentEngine; }
 
 const Viewer: React.FC<ViewerProps> = ({ engine }) => {
-  const { viewMode, pageCount, currentPage, activeTool, uiTheme, setDocumentState } = useViewerStore();
+  const { viewMode, pageCount, currentPage, activeTool, uiTheme, setDocumentState, accentColor } = useViewerStore();
   const isDark = uiTheme === 'dark';
   const viewerRef = useRef<HTMLDivElement>(null);
 
@@ -45,7 +45,12 @@ const Viewer: React.FC<ViewerProps> = ({ engine }) => {
       </div>
       <div className={`fixed bottom-10 left-1/2 -translate-x-1/2 shadow-2xl rounded-2xl p-2 flex border z-50 ${isDark ? 'bg-[#2a2a2a]/90 border-[#3a3a3a] backdrop-blur-xl' : 'bg-white/95 border-gray-100 backdrop-blur-md'}`}>
         {tools.map(tool => (
-          <button key={tool.id} onClick={() => setDocumentState({ activeTool: tool.id as any })} className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${activeTool === tool.id ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-400 hover:text-blue-500'}`}>
+          <button
+            key={tool.id}
+            onClick={() => setDocumentState({ activeTool: tool.id as any })}
+            className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${activeTool === tool.id ? 'text-white shadow-lg' : 'text-gray-400'}`}
+            style={activeTool === tool.id ? { backgroundColor: accentColor } : undefined}
+          >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={tool.icon} /></svg>
           </button>
         ))}

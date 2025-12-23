@@ -12,7 +12,7 @@ interface SettingsSheetProps {
 }
 
 const SettingsSheet: React.FC<SettingsSheetProps> = ({ engine, visible, onClose }) => {
-  const { viewMode, uiTheme, zoom, setDocumentState, locale } = useViewerStore();
+  const { viewMode, uiTheme, zoom, setDocumentState, locale, accentColor, pageTheme } = useViewerStore();
   const isDark = uiTheme === 'dark';
   const isPaged = viewMode === 'single';
   const isDouble = viewMode === 'double';
@@ -57,6 +57,132 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({ engine, visible, onClose 
           <View style={[styles.handle, isDark && styles.handleDark]} />
 
           <View style={styles.section}>
+            <Text style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}>{t.appearance}</Text>
+            <View style={styles.optionRow}>
+              <Pressable
+                onPress={() => setDocumentState({ uiTheme: 'light' })}
+                style={[
+                  styles.optionButton,
+                  isDark && styles.optionButtonDark,
+                  uiTheme === 'light' && styles.optionButtonActive,
+                  uiTheme === 'light' && { backgroundColor: accentColor },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.optionText,
+                    isDark && styles.optionTextDark,
+                    uiTheme === 'light' && styles.optionTextActive,
+                  ]}
+                >
+                  {t.light}
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setDocumentState({ uiTheme: 'dark' })}
+                style={[
+                  styles.optionButton,
+                  isDark && styles.optionButtonDark,
+                  uiTheme === 'dark' && styles.optionButtonActive,
+                  uiTheme === 'dark' && { backgroundColor: accentColor },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.optionText,
+                    isDark && styles.optionTextDark,
+                    uiTheme === 'dark' && styles.optionTextActive,
+                  ]}
+                >
+                  {t.dark}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}>{t.pageTheme}</Text>
+            <View style={styles.optionRow}>
+              <Pressable
+                onPress={() => setDocumentState({ pageTheme: 'normal' })}
+                style={[
+                  styles.optionButton,
+                  isDark && styles.optionButtonDark,
+                  pageTheme === 'normal' && styles.optionButtonActive,
+                  pageTheme === 'normal' && { backgroundColor: accentColor },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.optionText,
+                    isDark && styles.optionTextDark,
+                    pageTheme === 'normal' && styles.optionTextActive,
+                  ]}
+                >
+                  {t.themeOriginal}
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setDocumentState({ pageTheme: 'sepia' })}
+                style={[
+                  styles.optionButton,
+                  isDark && styles.optionButtonDark,
+                  pageTheme === 'sepia' && styles.optionButtonActive,
+                  pageTheme === 'sepia' && { backgroundColor: accentColor },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.optionText,
+                    isDark && styles.optionTextDark,
+                    pageTheme === 'sepia' && styles.optionTextActive,
+                  ]}
+                >
+                  {t.themeSepia}
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setDocumentState({ pageTheme: 'dark' })}
+                style={[
+                  styles.optionButton,
+                  isDark && styles.optionButtonDark,
+                  pageTheme === 'dark' && styles.optionButtonActive,
+                  pageTheme === 'dark' && { backgroundColor: accentColor },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.optionText,
+                    isDark && styles.optionTextDark,
+                    pageTheme === 'dark' && styles.optionTextActive,
+                  ]}
+                >
+                  {t.themeDark}
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setDocumentState({ pageTheme: 'high-contrast' })}
+                style={[
+                  styles.optionButton,
+                  isDark && styles.optionButtonDark,
+                  pageTheme === 'high-contrast' && styles.optionButtonActive,
+                  pageTheme === 'high-contrast' && { backgroundColor: accentColor },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.optionText,
+                    isDark && styles.optionTextDark,
+                    pageTheme === 'high-contrast' && styles.optionTextActive,
+                  ]}
+                >
+                  {t.themeContrast}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+
+          <View style={styles.section}>
             <Text style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}>{t.pageTransition}</Text>
             <View style={styles.optionRow}>
               <Pressable
@@ -65,6 +191,7 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({ engine, visible, onClose 
                   styles.optionButton,
                   isDark && styles.optionButtonDark,
                   (!isPaged || isDouble) && styles.optionButtonActive,
+                  (!isPaged || isDouble) && { backgroundColor: accentColor },
                 ]}
               >
                 <Text
@@ -83,6 +210,7 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({ engine, visible, onClose 
                   styles.optionButton,
                   isDark && styles.optionButtonDark,
                   isPaged && styles.optionButtonActive,
+                  isPaged && { backgroundColor: accentColor },
                 ]}
               >
                 <Text
@@ -107,6 +235,7 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({ engine, visible, onClose 
                   styles.optionButton,
                   isDark && styles.optionButtonDark,
                   !isDouble && styles.optionButtonActive,
+                  !isDouble && { backgroundColor: accentColor },
                 ]}
               >
                 <Text
@@ -125,6 +254,7 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({ engine, visible, onClose 
                   styles.optionButton,
                   isDark && styles.optionButtonDark,
                   isDouble && styles.optionButtonActive,
+                  isDouble && { backgroundColor: accentColor },
                 ]}
               >
                 <Text
@@ -184,6 +314,7 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({ engine, visible, onClose 
                   styles.optionButton,
                   isDark && styles.optionButtonDark,
                   locale === 'en' && styles.optionButtonActive,
+                  locale === 'en' && { backgroundColor: accentColor },
                 ]}
               >
                 <Text
@@ -202,6 +333,7 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({ engine, visible, onClose 
                   styles.optionButton,
                   isDark && styles.optionButtonDark,
                   locale === 'pt-BR' && styles.optionButtonActive,
+                  locale === 'pt-BR' && { backgroundColor: accentColor },
                 ]}
               >
                 <Text

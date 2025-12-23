@@ -18,7 +18,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({ engine, pageIndex }) => {
   const { 
     zoom, rotation, pageTheme, scrollToPageSignal, setDocumentState,
     annotations, addAnnotation, activeTool, removeAnnotation, 
-    selectedAnnotationId, setSelectedAnnotation
+    selectedAnnotationId, setSelectedAnnotation, accentColor
   } = useViewerStore();
 
   useEffect(() => {
@@ -99,7 +99,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({ engine, pageIndex }) => {
               width: currentRect.w / rect.width,
               height: currentRect.h / rect.height,
             },
-            color: activeTool === 'highlight' ? '#fbbf24' : activeTool === 'strikeout' ? '#ef4444' : '#3b82f6',
+            color: activeTool === 'highlight' ? '#fbbf24' : activeTool === 'strikeout' ? '#ef4444' : accentColor,
             content: activeTool === 'text' || activeTool === 'comment' ? '' : undefined,
             createdAt: Date.now()
           });
@@ -155,8 +155,15 @@ const PageRenderer: React.FC<PageRendererProps> = ({ engine, pageIndex }) => {
 
       {isDragging && (
         <div 
-          className="absolute border-2 border-blue-500 bg-blue-500/20 z-[40] pointer-events-none"
-          style={{ left: currentRect.x, top: currentRect.y, width: currentRect.w, height: currentRect.h }}
+          className="absolute border-2 z-[40] pointer-events-none"
+          style={{
+            borderColor: accentColor,
+            backgroundColor: `${accentColor}33`,
+            left: currentRect.x,
+            top: currentRect.y,
+            width: currentRect.w,
+            height: currentRect.h,
+          }}
         />
       )}
 
@@ -166,6 +173,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({ engine, pageIndex }) => {
             key={ann.id} 
             ann={ann} 
             isSelected={selectedAnnotationId === ann.id}
+            accentColor={accentColor}
             onDelete={() => removeAnnotation(ann.id)}
             onSelect={() => setSelectedAnnotation(ann.id)}
           />
@@ -175,11 +183,11 @@ const PageRenderer: React.FC<PageRendererProps> = ({ engine, pageIndex }) => {
   );
 };
 
-const AnnotationItem: React.FC<{ ann: Annotation; isSelected: boolean; onDelete: () => void; onSelect: () => void }> = ({ ann, isSelected, onDelete, onSelect }) => {
+const AnnotationItem: React.FC<{ ann: Annotation; isSelected: boolean; accentColor: string; onDelete: () => void; onSelect: () => void }> = ({ ann, isSelected, accentColor, onDelete, onSelect }) => {
   const isText = ann.type === 'text' || ann.type === 'comment';
   return (
     <div 
-      className={`absolute pointer-events-auto transition-all ${isSelected ? 'ring-2 ring-blue-500 shadow-xl z-30' : 'z-10 hover:ring-1 hover:ring-blue-300'}`}
+      className={`absolute pointer-events-auto transition-all ${isSelected ? 'shadow-xl z-30' : 'z-10'}`}
       style={{
         left: `${ann.rect.x * 100}%`,
         top: `${ann.rect.y * 100}%`,
@@ -187,6 +195,7 @@ const AnnotationItem: React.FC<{ ann: Annotation; isSelected: boolean; onDelete:
         height: `${ann.rect.height * 100}%`,
         backgroundColor: ann.type === 'highlight' ? `${ann.color}77` : 'transparent',
         borderBottom: ann.type === 'strikeout' ? `2px solid ${ann.color}` : 'none',
+        outline: isSelected ? `2px solid ${accentColor}` : undefined,
       }}
       onClick={(e) => { e.stopPropagation(); onSelect(); }}
     >

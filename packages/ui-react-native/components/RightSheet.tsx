@@ -23,6 +23,22 @@ interface RightSheetProps {
   engine: DocumentEngine;
 }
 
+const withAlpha = (hex: string, alpha: number) => {
+  const normalized = hex.replace('#', '').trim();
+  const value =
+    normalized.length === 3
+      ? normalized
+          .split('')
+          .map((c) => c + c)
+          .join('')
+      : normalized;
+  if (value.length !== 6) return hex;
+  const r = parseInt(value.slice(0, 2), 16);
+  const g = parseInt(value.slice(2, 4), 16);
+  const b = parseInt(value.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
+
 const PageThumbnail: React.FC<{
   engine: DocumentEngine;
   pageIndex: number;
@@ -32,8 +48,9 @@ const PageThumbnail: React.FC<{
   cardWidth: number;
   frameWidth: number;
   frameHeight: number;
+  accentColor: string;
   onPress: () => void;
-}> = ({ engine, pageIndex, isActive, isDark, zoom, cardWidth, frameWidth, frameHeight, onPress }) => {
+}> = ({ engine, pageIndex, isActive, isDark, zoom, cardWidth, frameWidth, frameHeight, accentColor, onPress }) => {
   const viewRef = useRef<any>(null);
   const [layoutReady, setLayoutReady] = useState(false);
 
@@ -59,6 +76,7 @@ const PageThumbnail: React.FC<{
         { width: cardWidth },
         isDark && styles.thumbCardDark,
         isActive && styles.thumbCardActive,
+        isActive && { borderColor: accentColor },
       ]}
     >
       <View onLayout={handleLayout} style={[styles.thumbFrame, { width: frameWidth, height: frameHeight }]}>
@@ -127,12 +145,15 @@ const RightSheet: React.FC<RightSheetProps> = ({ engine }) => {
     currentPage,
     zoom,
     locale,
+    accentColor,
   } = useViewerStore();
   const [pagesMode, setPagesMode] = useState<'thumbnails' | 'summary'>('thumbnails');
   const [query, setQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const searchService = useMemo(() => new SearchService(engine), [engine]);
   const isDark = uiTheme === 'dark';
+  const accentSoft = withAlpha(accentColor, 0.2);
+  const accentStrong = withAlpha(accentColor, 0.35);
   const t = getStrings(locale);
   const sheetHeight = Math.min(640, Dimensions.get('window').height * 0.72);
   const windowWidth = Dimensions.get('window').width;
@@ -170,6 +191,7 @@ const RightSheet: React.FC<RightSheetProps> = ({ engine }) => {
             styles.resultText,
             isDark && styles.resultTextDark,
             isActive && styles.resultTextActive,
+            isActive && { color: accentColor },
           ]}
         >
           ...{text}...
@@ -201,6 +223,7 @@ const RightSheet: React.FC<RightSheetProps> = ({ engine }) => {
           styles.resultText,
           isDark && styles.resultTextDark,
           isActive && styles.resultTextActive,
+          isActive && { color: accentColor },
         ]}
       >
         {parts.map((part, idx) => (
@@ -210,6 +233,7 @@ const RightSheet: React.FC<RightSheetProps> = ({ engine }) => {
               part.match && styles.matchText,
               part.match && isDark && styles.matchTextDark,
               part.match && isActive && styles.matchTextActive,
+              part.match && isActive && { backgroundColor: accentStrong, color: accentColor },
             ]}
           >
             {part.text}
@@ -236,6 +260,7 @@ const RightSheet: React.FC<RightSheetProps> = ({ engine }) => {
                   styles.tabButton,
                   isDark && styles.tabButtonDark,
                   sidebarRightTab === tab && styles.tabButtonActive,
+                  sidebarRightTab === tab && { backgroundColor: accentColor },
                 ]}
               >
                 <Text
@@ -263,6 +288,7 @@ const RightSheet: React.FC<RightSheetProps> = ({ engine }) => {
                     style={[
                       styles.segmentButton,
                       pagesMode === 'thumbnails' && styles.segmentButtonActive,
+                      pagesMode === 'thumbnails' && { backgroundColor: accentColor },
                     ]}
                   >
                     <Text
@@ -280,6 +306,7 @@ const RightSheet: React.FC<RightSheetProps> = ({ engine }) => {
                     style={[
                       styles.segmentButton,
                       pagesMode === 'summary' && styles.segmentButtonActive,
+                      pagesMode === 'summary' && { backgroundColor: accentColor },
                     ]}
                   >
                     <Text
@@ -313,6 +340,7 @@ const RightSheet: React.FC<RightSheetProps> = ({ engine }) => {
                       cardWidth={cardWidth}
                       frameWidth={frameWidth}
                       frameHeight={frameHeight}
+                      accentColor={accentColor}
                       onPress={() => {
                         engine.goToPage(item + 1);
                         setDocumentState({ currentPage: item + 1 });
@@ -361,13 +389,13 @@ const RightSheet: React.FC<RightSheetProps> = ({ engine }) => {
                       onSubmitEditing={handleSearch}
                       returnKeyType="search"
                     />
-                    <Pressable onPress={handleSearch} style={styles.searchButton}>
+                    <Pressable onPress={handleSearch} style={[styles.searchButton, { backgroundColor: accentColor }]}>
                       <Text style={styles.searchButtonText}>{t.searchGo}</Text>
                     </Pressable>
                   </View>
 
                   <View style={styles.searchMeta}>
-                    <Text style={[styles.searchCount, isDark && styles.searchCountDark]}>
+                    <Text style={[styles.searchCount, isDark && styles.searchCountDark, { color: accentColor }]}>
                       {searchResults.length} {t.results}
                     </Text>
                     <View style={styles.searchNav}>
@@ -398,7 +426,7 @@ const RightSheet: React.FC<RightSheetProps> = ({ engine }) => {
 
                   {isSearching && (
                     <View style={styles.searchStatus}>
-                      <ActivityIndicator size="small" color={isDark ? '#60a5fa' : '#2563eb'} />
+                      <ActivityIndicator size="small" color={accentColor} />
                       <Text style={[styles.searchStatusText, isDark && styles.searchStatusTextDark]}>
                         {t.searching}
                       </Text>
@@ -426,9 +454,10 @@ const RightSheet: React.FC<RightSheetProps> = ({ engine }) => {
                             styles.resultCard,
                             isDark && styles.resultCardDark,
                             isActive && styles.resultCardActive,
+                            isActive && { borderColor: accentColor },
                           ]}
                         >
-                          <Text style={[styles.resultPage, isDark && styles.resultPageDark]}>
+                          <Text style={[styles.resultPage, isDark && styles.resultPageDark, { color: accentColor }]}>
                             {t.page} {res.pageIndex + 1}
                           </Text>
                           {renderHighlightedSnippet(res.text, isActive)}
@@ -459,7 +488,7 @@ const RightSheet: React.FC<RightSheetProps> = ({ engine }) => {
                             {t.page} {ann.pageIndex + 1}
                           </Text>
                         </View>
-                        <Text style={[styles.noteType, isDark && styles.noteTypeDark]}>
+                        <Text style={[styles.noteType, isDark && styles.noteTypeDark, { color: accentColor }]}>
                           {ann.type === 'comment' || ann.type === 'text' ? t.note.toUpperCase() : ann.type.toUpperCase()}
                         </Text>
                         {ann.content ? (

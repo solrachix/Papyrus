@@ -7,7 +7,7 @@ interface TopbarProps { engine: DocumentEngine; }
 
 const Topbar: React.FC<TopbarProps> = ({ engine }) => {
   const { 
-    currentPage, pageCount, zoom, uiTheme, pageTheme, setDocumentState,
+    currentPage, pageCount, zoom, uiTheme, pageTheme, setDocumentState, accentColor,
     toggleSidebarLeft, toggleSidebarRight, triggerScrollToPage
   } = useViewerStore();
 
@@ -44,12 +44,16 @@ const Topbar: React.FC<TopbarProps> = ({ engine }) => {
         <button onClick={toggleSidebarLeft} className={`p-2 rounded-md ${isDark ? 'hover:bg-white/10' : 'hover:bg-gray-100'}`}>
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
         </button>
-        <span className="font-bold text-lg tracking-tight text-blue-500">Papyrus<span className={isDark ? 'text-white' : 'text-gray-900'}>Core</span></span>
+        <span className="font-bold text-lg tracking-tight" style={{ color: accentColor }}>
+          Papyrus<span className={isDark ? 'text-white' : 'text-gray-900'}>Core</span>
+        </span>
       </div>
 
       <div className="flex items-center space-x-4">
         <div className={`flex items-center rounded-lg p-1 space-x-1 border ${isDark ? 'bg-[#2a2a2a] border-[#444]' : 'bg-gray-50 border-gray-200'}`}>
-          <button onClick={() => handlePageChange(currentPage - 1)} className="p-1.5 hover:bg-blue-500 rounded transition-all"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg></button>
+          <button onClick={() => handlePageChange(currentPage - 1)} className="p-1.5 rounded transition-all hover:brightness-110" style={{ color: accentColor }}>
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+          </button>
           <input 
             type="text" 
             className="w-10 text-center bg-transparent focus:outline-none font-bold text-sm" 
@@ -59,13 +63,19 @@ const Topbar: React.FC<TopbarProps> = ({ engine }) => {
             onBlur={() => handlePageChange(parseInt(pageInput))} 
           />
           <span className="opacity-40 px-1">/</span><span className="opacity-80 text-sm">{pageCount}</span>
-          <button onClick={() => handlePageChange(currentPage + 1)} className="p-1.5 hover:bg-blue-500 rounded transition-all"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg></button>
+          <button onClick={() => handlePageChange(currentPage + 1)} className="p-1.5 rounded transition-all hover:brightness-110" style={{ color: accentColor }}>
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+          </button>
         </div>
 
         <div className={`flex items-center rounded-lg p-1 border ${isDark ? 'bg-[#2a2a2a] border-[#444]' : 'bg-gray-50 border-gray-200'}`}>
-          <button onClick={() => handleZoom(-0.1)} className="p-1.5 hover:bg-blue-500 rounded"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" /></svg></button>
+          <button onClick={() => handleZoom(-0.1)} className="p-1.5 rounded hover:brightness-110" style={{ color: accentColor }}>
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" /></svg>
+          </button>
           <span className="px-3 text-xs font-bold min-w-[50px] text-center">{Math.round(zoom * 100)}%</span>
-          <button onClick={() => handleZoom(0.1)} className="p-1.5 hover:bg-blue-500 rounded"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg></button>
+          <button onClick={() => handleZoom(0.1)} className="p-1.5 rounded hover:brightness-110" style={{ color: accentColor }}>
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+          </button>
         </div>
       </div>
 
@@ -85,7 +95,8 @@ const Topbar: React.FC<TopbarProps> = ({ engine }) => {
                 <button 
                   key={t.id}
                   onClick={() => { setDocumentState({ pageTheme: t.id }); setShowPageThemes(false); }}
-                  className={`w-full flex items-center space-x-3 px-3 py-2 rounded-md text-sm ${pageTheme === t.id ? 'bg-blue-500 text-white' : isDark ? 'hover:bg-white/10 text-gray-300' : 'hover:bg-gray-50 text-gray-700'}`}
+                  className={`w-full flex items-center space-x-3 px-3 py-2 rounded-md text-sm ${pageTheme === t.id ? 'text-white' : isDark ? 'hover:bg-white/10 text-gray-300' : 'hover:bg-gray-50 text-gray-700'}`}
+                  style={pageTheme === t.id ? { backgroundColor: accentColor } : undefined}
                 >
                   <div className={`w-3 h-3 rounded-full border ${t.color}`} />
                   <span>{t.name}</span>
@@ -98,7 +109,13 @@ const Topbar: React.FC<TopbarProps> = ({ engine }) => {
         <button onClick={() => setDocumentState({ uiTheme: isDark ? 'light' : 'dark' })} className={`p-2 rounded-full ${isDark ? 'bg-yellow-500/10 text-yellow-500' : 'bg-gray-100 text-gray-500'}`}>
           {isDark ? <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414z" /></svg> : <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" /></svg>}
         </button>
-        <button onClick={() => fileInputRef.current?.click()} className="px-4 py-1.5 bg-blue-600 text-white rounded-md text-sm font-bold shadow-md active:scale-95">UPLOAD</button>
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          className="px-4 py-1.5 text-white rounded-md text-sm font-bold shadow-md active:scale-95"
+          style={{ backgroundColor: accentColor }}
+        >
+          UPLOAD
+        </button>
         <input type="file" ref={fileInputRef} className="hidden" accept=".pdf" onChange={async (e) => {
           const file = e.target.files?.[0];
           if (file) {

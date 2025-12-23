@@ -16,6 +16,7 @@ const Topbar: React.FC<TopbarProps> = ({ engine, onOpenSettings }) => {
     uiTheme,
     setDocumentState,
     triggerScrollToPage,
+    accentColor,
   } = useViewerStore();
   const [pageLabel, setPageLabel] = useState(`${currentPage}`);
   const isDark = uiTheme === 'dark';
@@ -35,7 +36,7 @@ const Topbar: React.FC<TopbarProps> = ({ engine, onOpenSettings }) => {
   return (
     <View style={[styles.container, isDark && styles.containerDark]}>
       <View style={styles.leftGroup}>
-        <View style={styles.logoBadge}>
+        <View style={[styles.logoBadge, { backgroundColor: accentColor }]}>
           <Text style={styles.logoText}>P</Text>
         </View>
         <Text style={[styles.brandText, isDark && styles.brandTextDark]}>Papyrus</Text>

@@ -6,7 +6,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { SafeAreaView, View, ActivityIndicator, StyleSheet, Image } from 'react-native';
+import { SafeAreaView, View, ActivityIndicator, StyleSheet, Image, Platform, StatusBar } from 'react-native';
 import { NativeDocumentEngine } from '@papyrus/engine-native';
 import { useViewerStore } from '@papyrus/core';
 import { PapyrusConfig } from '@papyrus/types';
@@ -21,12 +21,14 @@ const DEFAULT_PDF = LOCAL_WEB_PDF?.uri
     ? { uri: SAMPLE_PDF.uri }
     : { uri: DEFAULT_PDF_URL };
 
+const ACCENT_COLOR = '#2563eb';
 const INITIAL_SDK_CONFIG: PapyrusConfig = {
   initialUITheme: 'dark',
   initialPageTheme: 'sepia',
   initialPage: 4,
   initialZoom: 1.0,
   initialLocale: 'pt-BR',
+  initialAccentColor: ACCENT_COLOR,
   sidebarLeftOpen: true,
   initialAnnotations: [
     {
@@ -45,6 +47,7 @@ const App: React.FC = () => {
   const [engine] = useState(() => new NativeDocumentEngine());
   const [settingsOpen, setSettingsOpen] = useState(false);
   const { isLoaded, setDocumentState, initializeStore, triggerScrollToPage, uiTheme } = useViewerStore();
+  const Root = Platform.OS === 'ios' ? SafeAreaView : View;
 
   useEffect(() => {
     initializeStore(INITIAL_SDK_CONFIG);
@@ -75,14 +78,22 @@ const App: React.FC = () => {
 
   if (!isLoaded) {
     return (
-      <SafeAreaView style={styles.loading}>
-        <ActivityIndicator size="small" color="#3b82f6" />
-      </SafeAreaView>
+      <Root style={styles.loading}>
+        <StatusBar
+          barStyle={uiTheme === 'dark' ? 'light-content' : 'dark-content'}
+          backgroundColor={uiTheme === 'dark' ? '#0f1115' : '#ffffff'}
+        />
+        <ActivityIndicator size="small" color={ACCENT_COLOR} />
+      </Root>
     );
   }
 
   return (
-    <SafeAreaView style={[styles.container, uiTheme === 'dark' && styles.containerDark]}>
+    <Root style={[styles.container, uiTheme === 'dark' && styles.containerDark]}>
+      <StatusBar
+        barStyle={uiTheme === 'dark' ? 'light-content' : 'dark-content'}
+        backgroundColor={uiTheme === 'dark' ? '#0f1115' : '#ffffff'}
+      />
       <Topbar engine={engine} onOpenSettings={() => setSettingsOpen(true)} />
       <View style={styles.viewer}>
         <Viewer engine={engine} />
@@ -92,7 +103,7 @@ const App: React.FC = () => {
       <RightSheet engine={engine} />
       <SettingsSheet engine={engine} visible={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <AnnotationEditor />
-    </SafeAreaView>
+    </Root>
   );
 };
 

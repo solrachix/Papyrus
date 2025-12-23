@@ -5,7 +5,7 @@ import { getStrings } from '../strings';
 import { IconDocument, IconGrid, IconSearch, IconComment } from '../icons';
 
 const BottomBar: React.FC = () => {
-  const { sidebarRightOpen, sidebarRightTab, toggleSidebarRight, setDocumentState, uiTheme, locale } = useViewerStore();
+  const { sidebarRightOpen, sidebarRightTab, toggleSidebarRight, setDocumentState, uiTheme, locale, accentColor } = useViewerStore();
   const isDark = uiTheme === 'dark';
   const t = getStrings(locale);
 
@@ -28,6 +28,7 @@ const BottomBar: React.FC = () => {
             styles.itemIcon,
             isDark && styles.itemIconDark,
             isActive('pages') && styles.itemIconActive,
+            isActive('pages') && { backgroundColor: accentColor },
           ]}
         >
           <IconGrid size={16} color={iconColor(isActive('pages'))} />
@@ -37,6 +38,7 @@ const BottomBar: React.FC = () => {
             styles.itemLabel,
             isDark && styles.itemLabelDark,
             isActive('pages') && styles.itemLabelActive,
+            isActive('pages') && { color: accentColor },
           ]}
         >
           {t.pages}
@@ -52,6 +54,7 @@ const BottomBar: React.FC = () => {
             styles.itemIcon,
             isDark && styles.itemIconDark,
             isActive('search') && styles.itemIconActive,
+            isActive('search') && { backgroundColor: accentColor },
           ]}
         >
           <IconSearch size={16} color={iconColor(isActive('search'))} />
@@ -61,6 +64,7 @@ const BottomBar: React.FC = () => {
             styles.itemLabel,
             isDark && styles.itemLabelDark,
             isActive('search') && styles.itemLabelActive,
+            isActive('search') && { color: accentColor },
           ]}
         >
           {t.search}
@@ -76,6 +80,7 @@ const BottomBar: React.FC = () => {
             styles.itemIcon,
             isDark && styles.itemIconDark,
             !sidebarRightOpen && styles.itemIconActive,
+            !sidebarRightOpen && { backgroundColor: accentColor },
           ]}
         >
           <IconDocument size={16} color={iconColor(!sidebarRightOpen)} />
@@ -85,6 +90,7 @@ const BottomBar: React.FC = () => {
             styles.itemLabel,
             isDark && styles.itemLabelDark,
             !sidebarRightOpen && styles.itemLabelActive,
+            !sidebarRightOpen && { color: accentColor },
           ]}
         >
           {t.read}
@@ -100,6 +106,7 @@ const BottomBar: React.FC = () => {
             styles.itemIcon,
             isDark && styles.itemIconDark,
             isActive('annotations') && styles.itemIconActive,
+            isActive('annotations') && { backgroundColor: accentColor },
           ]}
         >
           <IconComment size={16} color={iconColor(isActive('annotations'))} />
@@ -109,6 +116,7 @@ const BottomBar: React.FC = () => {
             styles.itemLabel,
             isDark && styles.itemLabelDark,
             isActive('annotations') && styles.itemLabelActive,
+            isActive('annotations') && { color: accentColor },
           ]}
         >
           {t.notes}

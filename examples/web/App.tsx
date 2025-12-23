@@ -7,11 +7,13 @@ import { Topbar, SidebarLeft, SidebarRight, Viewer } from '../../packages/ui-rea
 
 const DEFAULT_PDF = 'https://raw.githubusercontent.com/mozilla/pdf.js/ba2edeae/web/compressed.tracemonkey-pldi-09.pdf';
 
+const ACCENT_COLOR = '#2563eb';
 const INITIAL_SDK_CONFIG: PapyrusConfig = {
   initialUITheme: 'dark',
   initialPageTheme: 'sepia',
   initialPage: 4,
   initialZoom: 1.2,
+  initialAccentColor: ACCENT_COLOR,
   sidebarLeftOpen: true,
   initialAnnotations: [
     {
@@ -73,8 +75,8 @@ const App: React.FC = () => {
   }, [engine, initializeStore, setDocumentState, triggerScrollToPage]);
 
   if (!isLoaded) return (
-    <div className="h-screen flex flex-col items-center justify-center bg-[#1a1a1a] text-blue-500 font-mono">
-      <div className="w-12 h-12 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mb-4" />
+    <div className="h-screen flex flex-col items-center justify-center bg-[#1a1a1a] font-mono" style={{ color: ACCENT_COLOR }}>
+      <div className="w-12 h-12 border-2 border-t-transparent rounded-full animate-spin mb-4" style={{ borderColor: ACCENT_COLOR }} />
       <span className="text-[10px] font-black tracking-[0.3em] uppercase animate-pulse">Initializing Papyrus SDK...</span>
     </div>
   );
