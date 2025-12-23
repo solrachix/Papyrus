@@ -37,7 +37,7 @@ jobs:
           working-directory: examples/mobile
 
       - name: Install JS dependencies
-        run: npm install
+        run: npm install --legacy-peer-deps
 
       - name: Install CocoaPods
         working-directory: examples/mobile
