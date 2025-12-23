@@ -2,7 +2,25 @@
 {
   "name": "@papyrus/engine-pdfjs",
   "version": "0.1.0",
-  "main": "index.ts",
+  "main": "dist/index.cjs",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsup index.ts --dts --format cjs,esm --out-dir dist --clean --sourcemap"
+  },
   "dependencies": {
     "@papyrus/core": "0.1.0",
     "@papyrus/types": "0.1.0"

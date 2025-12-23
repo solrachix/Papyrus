@@ -1,5 +1,5 @@
 
-import { PapyrusEventType, PapyrusEventListener, EventPayloads } from '../../types/index';
+import { PapyrusEventType, PapyrusEventListener, EventPayloads } from '@papyrus/types';
 
 export class PapyrusEventEmitter {
   private listeners: Map<PapyrusEventType, Set<PapyrusEventListener<any>>> = new Map();

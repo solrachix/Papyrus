@@ -1,6 +1,6 @@
 
-import { BaseDocumentEngine } from '../core/engine';
-import { DocumentSource, TextItem, OutlineItem, FileLike, TextSelection } from '../types/index';
+import { BaseDocumentEngine } from '@papyrus/core';
+import { DocumentSource, TextItem, OutlineItem, FileLike, TextSelection } from '@papyrus/types';
 
 declare const pdfjsLib: any;
 

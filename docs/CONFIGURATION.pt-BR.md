@@ -26,6 +26,7 @@ useViewerStore.getState().initializeStore(config);
 | `initialRotation` | `number` | Rotacao inicial em graus (0, 90, 180, 270). |
 | `initialUITheme` | `'light' \| 'dark'` | Tema da interface (barras laterais e menus). |
 | `initialPageTheme` | `PageTheme` | Filtro visual da pagina (`normal`, `sepia`, `dark`, `high-contrast`). |
+| `initialAccentColor` | `string` | Cor de destaque (hex) para estados ativos da UI. |
 | `initialAnnotations` | `Annotation[]` | Anotacoes pre-existentes do seu backend. |
 | `sidebarLeftOpen` | `boolean` | Define se a barra de miniaturas inicia aberta. |
 | `sidebarRightOpen` | `boolean` | Define se a barra de busca/notas inicia aberta. |
@@ -45,4 +46,4 @@ papyrusEvents.on(PapyrusEventType.ANNOTATION_CREATED, ({ annotation }) => {
 ```
 
 ## Customizacao visual
-Os componentes do `@papyrus/ui-react` usam Tailwind CSS. Voce pode sobrescrever estilos ou injetar CSS global para alterar cores e fontes.
+Os componentes do `@papyrus/ui-react` usam Tailwind CSS. Voce pode sobrescrever estilos ou injetar CSS global para alterar cores e fontes. Use `initialAccentColor` para alinhar rapidamente com a marca.

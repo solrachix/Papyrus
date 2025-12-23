@@ -23,6 +23,11 @@ dist-ssr
 *.sln
 *.sw?
 
+# VitePress
+docs/.vitepress/cache
+docs/.vitepress/dist
+docs/.vitepress/.temp
+
 # Android native build artifacts
 **/android/.cxx/*
 **/android/build/*

@@ -1,0 +1,22 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
+
+:root {
+  --vp-c-brand-1: #2563eb;
+  --vp-c-brand-2: #1d4ed8;
+  --vp-c-brand-3: #3b82f6;
+  --vp-font-family-base: 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif;
+  --vp-font-family-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+}
+
+.VPHomeHero .name,
+.VPHomeHero .text,
+.vp-doc h1,
+.vp-doc h2,
+.vp-doc h3 {
+  font-family: 'Space Grotesk', 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif;
+  letter-spacing: -0.01em;
+}
+
+.VPHome {
+  background: radial-gradient(1200px 400px at 50% -120px, rgba(37, 99, 235, 0.16), transparent 70%);
+}

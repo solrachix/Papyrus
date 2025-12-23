@@ -1,6 +1,6 @@
 import { NativeModules, requireNativeComponent, type ViewProps } from 'react-native';
-import { BaseDocumentEngine } from '../core/engine';
-import { DocumentSource, TextItem, OutlineItem, FileLike, SearchResult, TextSelection } from '../types/index';
+import { BaseDocumentEngine } from '@papyrus/core';
+import { DocumentSource, TextItem, OutlineItem, FileLike, SearchResult, TextSelection } from '@papyrus/types';
 
 const MODULE_NAME = 'PapyrusNativeEngine';
 

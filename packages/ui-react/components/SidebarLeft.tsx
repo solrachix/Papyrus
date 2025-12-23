@@ -1,7 +1,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
-import { useViewerStore } from '../../core/index';
-import { DocumentEngine, OutlineItem } from '../../types/index';
+import { useViewerStore } from '@papyrus/core';
+import { DocumentEngine, OutlineItem } from '@papyrus/types';
 
 interface SidebarLeftProps {
   engine: DocumentEngine;

@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { useViewerStore } from '../../core/index';
+import { useViewerStore } from '@papyrus/core';
 import { getStrings } from '../strings';
 import { IconDocument, IconGrid, IconSearch, IconComment } from '../icons';
 

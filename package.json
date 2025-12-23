@@ -8,6 +8,15 @@
   ],
   "scripts": {
     "dev": "vite",
-    "build": "pnpm -r build"
+    "build": "pnpm -r build",
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.6",
+    "tsup": "^8.3.5",
+    "typescript": "^5.0.4",
+    "vitepress": "^1.5.0"
   }
 }

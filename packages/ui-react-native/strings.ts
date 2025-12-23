@@ -1,4 +1,4 @@
-import { Locale } from '../types/index';
+import { Locale } from '@papyrus/types';
 
 type Strings = {
   pages: string;

@@ -1,48 +1,40 @@
-# Configuration Guide - Papyrus SDK
-Read this in: English | [Portuguese (Brazil)](CONFIGURATION.pt-BR.md)
+# Configuration
 
-Papyrus is configured through the `PapyrusConfig` object.
+Papyrus is configured through `PapyrusConfig` before loading a document.
 
 ## Initialize
-In your main component (e.g. `App.tsx`), call `initializeStore` before loading the document.
 
 ```tsx
 import { useViewerStore } from '@papyrus/core';
 
-const config = {
-  initialPage: 10,
+useViewerStore.getState().initializeStore({
+  initialPage: 3,
   initialUITheme: 'dark',
-  initialAnnotations: mySavedAnnotations
-};
-
-useViewerStore.getState().initializeStore(config);
+  initialPageTheme: 'sepia',
+  initialAccentColor: '#2563eb',
+});
 ```
 
-## Available options
+## Options
+
 | Property | Type | Description |
-| :--- | :--- | :--- |
+| --- | --- | --- |
 | `initialPage` | `number` | Page shown on load (default: 1). |
 | `initialZoom` | `number` | Initial zoom level (1.0 = 100%). |
 | `initialRotation` | `number` | Initial rotation in degrees (0, 90, 180, 270). |
 | `initialUITheme` | `'light' \| 'dark'` | UI theme (sidebars and menus). |
 | `initialPageTheme` | `PageTheme` | Page filter (`normal`, `sepia`, `dark`, `high-contrast`). |
+| `initialAccentColor` | `string` | Accent color (hex) for active UI states. |
 | `initialAnnotations` | `Annotation[]` | Preloaded annotations from your backend. |
 | `sidebarLeftOpen` | `boolean` | Whether the thumbnail sidebar starts open. |
 | `sidebarRightOpen` | `boolean` | Whether the search/notes sidebar starts open. |
 
-## Event hooks
-To persist annotations in your database, listen for creation events:
+## Events
 
-```tsx
+```ts
 import { papyrusEvents, PapyrusEventType } from '@papyrus/core';
 
-papyrusEvents.on(PapyrusEventType.ANNOTATION_CREATED, ({ annotation }) => {
-  fetch('/api/annotations', {
-    method: 'POST',
-    body: JSON.stringify(annotation)
-  });
+papyrusEvents.on(PapyrusEventType.PAGE_CHANGED, ({ pageNumber }) => {
+  console.log('page', pageNumber);
 });
 ```
-
-## Visual customization
-`@papyrus/ui-react` components use Tailwind CSS. You can override styles or inject global CSS to change accent colors and fonts.

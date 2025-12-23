@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Modal, View, Text, TextInput, Pressable, StyleSheet } from 'react-native';
-import { useViewerStore } from '../../core/index';
+import { useViewerStore } from '@papyrus/core';
 import { getStrings } from '../strings';
 
 const AnnotationEditor: React.FC = () => {
