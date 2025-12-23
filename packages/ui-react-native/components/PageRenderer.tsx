@@ -15,11 +15,13 @@ import { useViewerStore } from '@papyrus-sdk/core';
 import { Annotation, DocumentEngine, TextSelection } from '@papyrus-sdk/types';
 import { PapyrusPageView, type PapyrusPageViewProps } from '@papyrus-sdk/engine-native';
 
+type PageViewComponentType = React.ComponentType<PapyrusPageViewProps & React.RefAttributes<any>>;
+
 interface PageRendererProps {
   engine: DocumentEngine;
   pageIndex: number;
   scale?: number;
-  PageViewComponent?: React.ComponentType<PapyrusPageViewProps>;
+  PageViewComponent?: PageViewComponentType;
   availableWidth?: number;
   horizontalPadding?: number;
   spacing?: number;
@@ -29,7 +31,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   engine,
   pageIndex,
   scale = 1,
-  PageViewComponent = PapyrusPageView,
+  PageViewComponent = PapyrusPageView as PageViewComponentType,
   availableWidth,
   horizontalPadding = 16,
   spacing = 24,

@@ -118,7 +118,14 @@ const OutlineNode: React.FC<{
       </Pressable>
       {hasChildren &&
         item.children!.map((child, index) => (
-          <OutlineNode key={`${child.title}-${index}`} item={child} depth={depth + 1} isDark={isDark} onSelect={onSelect} />
+          <OutlineNode
+            key={`${child.title}-${index}`}
+            item={child}
+            depth={depth + 1}
+            isDark={isDark}
+            onSelect={onSelect}
+            untitledLabel={untitledLabel}
+          />
         ))}
     </View>
   );

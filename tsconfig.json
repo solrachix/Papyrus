@@ -18,9 +18,13 @@
     "moduleDetection": "force",
     "allowJs": true,
     "jsx": "react-jsx",
+    "baseUrl": ".",
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "@papyrus-sdk/*": [
+        "packages/*/index.ts"
       ]
     },
     "allowImportingTsExtensions": true,
