@@ -5,7 +5,7 @@ Esta pagina mostra os fluxos do core entre store e eventos.
 ## Busca
 
 ```ts
-import { SearchService } from '@papyrus/core';
+import { SearchService } from '@papyrus-sdk/core';
 
 const service = new SearchService(engine);
 const results = await service.search('paper');
@@ -15,7 +15,7 @@ useViewerStore.getState().setSearch('paper', results);
 ## Anotacoes
 
 ```ts
-import { papyrusEvents, PapyrusEventType } from '@papyrus/core';
+import { papyrusEvents, PapyrusEventType } from '@papyrus-sdk/core';
 
 papyrusEvents.on(PapyrusEventType.ANNOTATION_CREATED, ({ annotation }) => {
   // Persistir no backend

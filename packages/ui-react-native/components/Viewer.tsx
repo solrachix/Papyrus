@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useEffect, useCallback } from 'react';
 import { FlatList, ScrollView, StyleSheet, View, useWindowDimensions, type ViewToken } from 'react-native';
-import { useViewerStore } from '@papyrus/core';
-import { DocumentEngine } from '@papyrus/types';
+import { useViewerStore } from '@papyrus-sdk/core';
+import { DocumentEngine } from '@papyrus-sdk/types';
 import PageRenderer from './PageRenderer';
 
 interface ViewerProps {

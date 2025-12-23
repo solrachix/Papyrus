@@ -1,6 +1,6 @@
 
 {
-  "name": "@papyrus/ui-react",
+  "name": "@papyrus-sdk/ui-react",
   "version": "0.1.0",
   "main": "dist/index.cjs",
   "module": "dist/index.mjs",
@@ -22,8 +22,8 @@
     "build": "tsup index.ts --dts --format cjs,esm --out-dir dist --clean --sourcemap"
   },
   "dependencies": {
-    "@papyrus/core": "0.1.0",
-    "@papyrus/types": "0.1.0"
+    "@papyrus-sdk/core": "0.1.0",
+    "@papyrus-sdk/types": "0.1.0"
   },
   "peerDependencies": {
     "react": ">=18.2.0 <20"

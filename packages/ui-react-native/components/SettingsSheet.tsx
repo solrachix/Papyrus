@@ -1,7 +1,7 @@
 import React from 'react';
 import { Modal, View, Text, Pressable, StyleSheet } from 'react-native';
-import { useViewerStore } from '@papyrus/core';
-import { DocumentEngine } from '@papyrus/types';
+import { useViewerStore } from '@papyrus-sdk/core';
+import { DocumentEngine } from '@papyrus-sdk/types';
 import { getStrings } from '../strings';
 import { IconZoomIn, IconZoomOut } from '../icons';
 

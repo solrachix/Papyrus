@@ -1,5 +1,5 @@
 
-import { DocumentEngine, TextItem, OutlineItem, DocumentSource, TextSelection } from '@papyrus/types';
+import { DocumentEngine, TextItem, OutlineItem, DocumentSource, TextSelection } from '@papyrus-sdk/types';
 
 export abstract class BaseDocumentEngine implements DocumentEngine {
   abstract load(source: DocumentSource): Promise<void>;

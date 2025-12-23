@@ -4,8 +4,8 @@ Papyrus mobile uses React Native UI plus a native engine bridge.
 
 ## Packages
 
-- `@papyrus/engine-native` for iOS (PDFKit) and Android (PDFium)
-- `@papyrus/ui-react-native` for the viewer, sheets, and toolbars
+- `@papyrus-sdk/engine-native` for iOS (PDFKit) and Android (PDFium)
+- `@papyrus-sdk/ui-react-native` for the viewer, sheets, and toolbars
 
 ## Status
 

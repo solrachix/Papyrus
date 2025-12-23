@@ -6,12 +6,12 @@ Papyrus e dividido em camadas pequenas para UI e engine evoluirem separadas.
 
 | Pacote | Papel |
 | --- | --- |
-| `@papyrus/types` | Contratos (DocumentEngine, Annotation, eventos). |
-| `@papyrus/core` | Store + eventos (`useViewerStore`, `papyrusEvents`). |
-| `@papyrus/engine-pdfjs` | Adapter web sobre PDF.js. |
-| `@papyrus/ui-react` | UI web de leitura, busca e navegacao. |
-| `@papyrus/engine-native` | Bridge nativa (iOS e Android). |
-| `@papyrus/ui-react-native` | UI mobile com sheets e toolbars. |
+| `@papyrus-sdk/types` | Contratos (DocumentEngine, Annotation, eventos). |
+| `@papyrus-sdk/core` | Store + eventos (`useViewerStore`, `papyrusEvents`). |
+| `@papyrus-sdk/engine-pdfjs` | Adapter web sobre PDF.js. |
+| `@papyrus-sdk/ui-react` | UI web de leitura, busca e navegacao. |
+| `@papyrus-sdk/engine-native` | Bridge nativa (iOS e Android). |
+| `@papyrus-sdk/ui-react-native` | UI mobile com sheets e toolbars. |
 
 ## Fluxo de dados
 

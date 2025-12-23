@@ -26,12 +26,12 @@ features:
 
 ## What is inside
 
-- `@papyrus/types`: contracts for engines, annotations, and events.
-- `@papyrus/core`: Zustand store plus papyrusEvents for UI and app logic.
-- `@papyrus/engine-pdfjs`: web adapter built on PDF.js.
-- `@papyrus/ui-react`: web UI components (Topbar, Sidebar, Viewer).
-- `@papyrus/engine-native`: native engine bridge for iOS and Android.
-- `@papyrus/ui-react-native`: mobile UI components and sheets.
+- `@papyrus-sdk/types`: contracts for engines, annotations, and events.
+- `@papyrus-sdk/core`: Zustand store plus papyrusEvents for UI and app logic.
+- `@papyrus-sdk/engine-pdfjs`: web adapter built on PDF.js.
+- `@papyrus-sdk/ui-react`: web UI components (Topbar, Sidebar, Viewer).
+- `@papyrus-sdk/engine-native`: native engine bridge for iOS and Android.
+- `@papyrus-sdk/ui-react-native`: mobile UI components and sheets.
 
 ## Why Papyrus
 

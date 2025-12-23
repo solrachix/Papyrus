@@ -1,5 +1,5 @@
 
-import { DocumentEngine, SearchResult } from '@papyrus/types';
+import { DocumentEngine, SearchResult } from '@papyrus-sdk/types';
 
 export class SearchService {
   private engine: DocumentEngine;

@@ -1,7 +1,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
-import { useViewerStore, papyrusEvents } from '@papyrus/core';
-import { DocumentEngine, Annotation, PapyrusEventType } from '@papyrus/types';
+import { useViewerStore, papyrusEvents } from '@papyrus-sdk/core';
+import { DocumentEngine, Annotation, PapyrusEventType } from '@papyrus-sdk/types';
 
 interface PageRendererProps { engine: DocumentEngine; pageIndex: number; }
 

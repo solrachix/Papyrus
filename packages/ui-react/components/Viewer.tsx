@@ -1,7 +1,7 @@
 
 import React, { useEffect, useRef } from 'react';
-import { useViewerStore } from '@papyrus/core';
-import { DocumentEngine } from '@papyrus/types';
+import { useViewerStore } from '@papyrus-sdk/core';
+import { DocumentEngine } from '@papyrus-sdk/types';
 import PageRenderer from './PageRenderer';
 
 interface ViewerProps { engine: DocumentEngine; }

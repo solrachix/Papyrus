@@ -11,9 +11,9 @@ import {
   type LayoutChangeEvent,
   type GestureResponderEvent,
 } from 'react-native';
-import { useViewerStore } from '@papyrus/core';
-import { Annotation, DocumentEngine, TextSelection } from '@papyrus/types';
-import { PapyrusPageView, type PapyrusPageViewProps } from '@papyrus/engine-native';
+import { useViewerStore } from '@papyrus-sdk/core';
+import { Annotation, DocumentEngine, TextSelection } from '@papyrus-sdk/types';
+import { PapyrusPageView, type PapyrusPageViewProps } from '@papyrus-sdk/engine-native';
 
 interface PageRendererProps {
   engine: DocumentEngine;

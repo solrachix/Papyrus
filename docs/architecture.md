@@ -6,12 +6,12 @@ Papyrus is split into small layers so UI and engine can evolve independently.
 
 | Package | Role |
 | --- | --- |
-| `@papyrus/types` | Shared contracts (DocumentEngine, Annotation, events). |
-| `@papyrus/core` | Store + events (`useViewerStore`, `papyrusEvents`). |
-| `@papyrus/engine-pdfjs` | Web engine adapter on top of PDF.js. |
-| `@papyrus/ui-react` | Web UI for reader, search, and navigation. |
-| `@papyrus/engine-native` | iOS/Android bridge (PDFKit, PDFium). |
-| `@papyrus/ui-react-native` | Mobile UI with sheets and toolbars. |
+| `@papyrus-sdk/types` | Shared contracts (DocumentEngine, Annotation, events). |
+| `@papyrus-sdk/core` | Store + events (`useViewerStore`, `papyrusEvents`). |
+| `@papyrus-sdk/engine-pdfjs` | Web engine adapter on top of PDF.js. |
+| `@papyrus-sdk/ui-react` | Web UI for reader, search, and navigation. |
+| `@papyrus-sdk/engine-native` | iOS/Android bridge (PDFKit, PDFium). |
+| `@papyrus-sdk/ui-react-native` | Mobile UI with sheets and toolbars. |
 
 ## Data flow
 

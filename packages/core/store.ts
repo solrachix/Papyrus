@@ -1,6 +1,6 @@
 
 import { create } from 'zustand';
-import { ViewMode, Annotation, SearchResult, UITheme, PageTheme, OutlineItem, PapyrusEventType, PapyrusConfig, Locale } from '@papyrus/types';
+import { ViewMode, Annotation, SearchResult, UITheme, PageTheme, OutlineItem, PapyrusEventType, PapyrusConfig, Locale } from '@papyrus-sdk/types';
 import { papyrusEvents } from './services/event-emitter';
 
 interface ViewerState {

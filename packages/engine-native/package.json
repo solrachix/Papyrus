@@ -1,5 +1,5 @@
 {
-  "name": "@papyrus/engine-native",
+  "name": "@papyrus-sdk/engine-native",
   "version": "0.1.0",
   "main": "dist/index.cjs",
   "module": "dist/index.mjs",
@@ -24,8 +24,8 @@
     "build": "tsup index.ts --dts --format cjs,esm --out-dir dist --clean --sourcemap"
   },
   "dependencies": {
-    "@papyrus/core": "0.1.0",
-    "@papyrus/types": "0.1.0"
+    "@papyrus-sdk/core": "0.1.0",
+    "@papyrus-sdk/types": "0.1.0"
   },
   "peerDependencies": {
     "react-native": ">=0.76.0"

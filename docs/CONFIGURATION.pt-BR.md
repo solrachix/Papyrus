@@ -7,7 +7,7 @@ O Papyrus e configurado pelo objeto `PapyrusConfig`.
 No seu componente principal (ex: `App.tsx`), chame `initializeStore` antes de carregar o documento.
 
 ```tsx
-import { useViewerStore } from '@papyrus/core';
+import { useViewerStore } from '@papyrus-sdk/core';
 
 const config = {
   initialPage: 10,
@@ -35,7 +35,7 @@ useViewerStore.getState().initializeStore(config);
 Para salvar anotacoes no seu banco de dados, escute o evento de criacao:
 
 ```tsx
-import { papyrusEvents, PapyrusEventType } from '@papyrus/core';
+import { papyrusEvents, PapyrusEventType } from '@papyrus-sdk/core';
 
 papyrusEvents.on(PapyrusEventType.ANNOTATION_CREATED, ({ annotation }) => {
   fetch('/api/annotations', {
@@ -46,4 +46,4 @@ papyrusEvents.on(PapyrusEventType.ANNOTATION_CREATED, ({ annotation }) => {
 ```
 
 ## Customizacao visual
-Os componentes do `@papyrus/ui-react` usam Tailwind CSS. Voce pode sobrescrever estilos ou injetar CSS global para alterar cores e fontes. Use `initialAccentColor` para alinhar rapidamente com a marca.
+Os componentes do `@papyrus-sdk/ui-react` usam Tailwind CSS. Voce pode sobrescrever estilos ou injetar CSS global para alterar cores e fontes. Use `initialAccentColor` para alinhar rapidamente com a marca.

@@ -1,6 +1,6 @@
 
 {
-  "name": "@papyrus/core",
+  "name": "@papyrus-sdk/core",
   "version": "0.1.0",
   "main": "dist/index.cjs",
   "module": "dist/index.mjs",
@@ -22,7 +22,7 @@
     "build": "tsup index.ts --dts --format cjs,esm --out-dir dist --clean --sourcemap"
   },
   "dependencies": {
-    "@papyrus/types": "0.1.0",
+    "@papyrus-sdk/types": "0.1.0",
     "zustand": "^5.0.0"
   }
 }

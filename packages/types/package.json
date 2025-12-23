@@ -1,6 +1,6 @@
 
 {
-  "name": "@papyrus/types",
+  "name": "@papyrus-sdk/types",
   "version": "0.1.0",
   "main": "dist/index.cjs",
   "module": "dist/index.mjs",

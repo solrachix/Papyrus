@@ -5,7 +5,7 @@ Papyrus e configurado via `PapyrusConfig` antes de carregar o documento.
 ## Inicializar
 
 ```tsx
-import { useViewerStore } from '@papyrus/core';
+import { useViewerStore } from '@papyrus-sdk/core';
 
 useViewerStore.getState().initializeStore({
   initialPage: 3,
@@ -32,7 +32,7 @@ useViewerStore.getState().initializeStore({
 ## Eventos
 
 ```ts
-import { papyrusEvents, PapyrusEventType } from '@papyrus/core';
+import { papyrusEvents, PapyrusEventType } from '@papyrus-sdk/core';
 
 papyrusEvents.on(PapyrusEventType.PAGE_CHANGED, ({ pageNumber }) => {
   console.log('pagina', pageNumber);

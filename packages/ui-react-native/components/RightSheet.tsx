@@ -13,9 +13,9 @@ import {
   findNodeHandle,
   type LayoutChangeEvent,
 } from 'react-native';
-import { useViewerStore, SearchService } from '@papyrus/core';
-import { DocumentEngine, OutlineItem } from '@papyrus/types';
-import { PapyrusPageView } from '@papyrus/engine-native';
+import { useViewerStore, SearchService } from '@papyrus-sdk/core';
+import { DocumentEngine, OutlineItem } from '@papyrus-sdk/types';
+import { PapyrusPageView } from '@papyrus-sdk/engine-native';
 import { getStrings } from '../strings';
 import { IconChevronLeft, IconChevronRight } from '../icons';
 

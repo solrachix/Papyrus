@@ -26,12 +26,12 @@ features:
 
 ## O que existe no monorepo
 
-- `@papyrus/types`: contratos de engine, anotacoes e eventos.
-- `@papyrus/core`: store e eventos para o app.
-- `@papyrus/engine-pdfjs`: engine web via PDF.js.
-- `@papyrus/ui-react`: UI web com Topbar, Sidebars e Viewer.
-- `@papyrus/engine-native`: bridge nativa para iOS e Android.
-- `@papyrus/ui-react-native`: UI mobile com sheets e toolbars.
+- `@papyrus-sdk/types`: contratos de engine, anotacoes e eventos.
+- `@papyrus-sdk/core`: store e eventos para o app.
+- `@papyrus-sdk/engine-pdfjs`: engine web via PDF.js.
+- `@papyrus-sdk/ui-react`: UI web com Topbar, Sidebars e Viewer.
+- `@papyrus-sdk/engine-native`: bridge nativa para iOS e Android.
+- `@papyrus-sdk/ui-react-native`: UI mobile com sheets e toolbars.
 
 ## Por que Papyrus
 

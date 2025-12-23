@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { useViewerStore } from '@papyrus/core';
+import { useViewerStore } from '@papyrus-sdk/core';
 import { IconSettings, IconChevronLeft, IconChevronRight } from '../icons';
-import { DocumentEngine } from '@papyrus/types';
+import { DocumentEngine } from '@papyrus-sdk/types';
 
 interface TopbarProps {
   engine: DocumentEngine;

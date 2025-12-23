@@ -1,7 +1,7 @@
 
 import React, { useRef, useState, useEffect } from 'react';
-import { useViewerStore } from '@papyrus/core';
-import { DocumentEngine, PageTheme } from '@papyrus/types';
+import { useViewerStore } from '@papyrus-sdk/core';
+import { DocumentEngine, PageTheme } from '@papyrus-sdk/types';
 
 interface TopbarProps { engine: DocumentEngine; }
 

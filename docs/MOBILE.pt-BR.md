@@ -10,7 +10,7 @@ Basear o SDK em RN CLI com engine nativa, mantendo usuarios do Expo sem bloqueio
 npx react-native init PapyrusMobile
 ```
 2) Coloque o app em `examples/mobile` ou aponte para os pacotes do monorepo.
-3) Linke os pacotes `@papyrus/*` no `package.json` do app.
+3) Linke os pacotes `@papyrus-sdk/*` no `package.json` do app.
 
 ## Engine nativa
 - iOS: PDFKit
@@ -25,7 +25,7 @@ Nome esperado da view nativa: `PapyrusPageView`
 O wrapper JS fica em `packages/engine-native`.
 
 ## App de exemplo (RN CLI)
-O repo inclui um app de exemplo em `examples/mobile` que consome `@papyrus/*`.
+O repo inclui um app de exemplo em `examples/mobile` que consome `@papyrus-sdk/*`.
 
 Na raiz do repo:
 ```
@@ -54,7 +54,7 @@ Use Expo com prebuild e um config plugin:
 2) `expo run:ios` / `expo run:android`
 3) Use um Dev Client
 
-Crie `@papyrus/expo-plugin` para injetar a engine nativa nos projetos iOS/Android gerados.
+Crie `@papyrus-sdk/expo-plugin` para injetar a engine nativa nos projetos iOS/Android gerados.
 
 ## Notas
 - `DocumentSource` suporta `{ uri }`, `{ data }`, `ArrayBuffer` e `Uint8Array`.

@@ -7,10 +7,10 @@
 
 import React, { useEffect, useState } from 'react';
 import { SafeAreaView, View, ActivityIndicator, StyleSheet, Image, Platform, StatusBar } from 'react-native';
-import { NativeDocumentEngine } from '@papyrus/engine-native';
-import { useViewerStore } from '@papyrus/core';
-import { PapyrusConfig } from '@papyrus/types';
-import { Viewer, Topbar, ToolDock, RightSheet, AnnotationEditor, BottomBar, SettingsSheet } from '@papyrus/ui-react-native';
+import { NativeDocumentEngine } from '@papyrus-sdk/engine-native';
+import { useViewerStore } from '@papyrus-sdk/core';
+import { PapyrusConfig } from '@papyrus-sdk/types';
+import { Viewer, Topbar, ToolDock, RightSheet, AnnotationEditor, BottomBar, SettingsSheet } from '@papyrus-sdk/ui-react-native';
 
 const LOCAL_WEB_PDF = Image.resolveAssetSource(require('./assets/tracemonkey-pldi-09.pdf'));
 const SAMPLE_PDF = Image.resolveAssetSource(require('./assets/sample.pdf'));

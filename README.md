@@ -22,12 +22,12 @@ Papyrus is a modular PDF SDK built to power document-heavy products. It combines
 ## Packages
 | Package | Responsibility |
 | :--- | :--- |
-| `@papyrus/types` | Shared types and contracts |
-| `@papyrus/core` | Store (Zustand), event bus, search service |
-| `@papyrus/engine-pdfjs` | PDF.js engine adapter for web |
-| `@papyrus/engine-native` | Native engine bridge (iOS/Android) |
-| `@papyrus/ui-react` | React UI components |
-| `@papyrus/ui-react-native` | React Native UI components |
+| `@papyrus-sdk/types` | Shared types and contracts |
+| `@papyrus-sdk/core` | Store (Zustand), event bus, search service |
+| `@papyrus-sdk/engine-pdfjs` | PDF.js engine adapter for web |
+| `@papyrus-sdk/engine-native` | Native engine bridge (iOS/Android) |
+| `@papyrus-sdk/ui-react` | React UI components |
+| `@papyrus-sdk/ui-react-native` | React Native UI components |
 
 ## Quickstart (web)
 ```bash
@@ -38,10 +38,10 @@ Open the URL printed by Vite.
 
 ## Minimal usage (web)
 ```tsx
-import { useViewerStore, papyrusEvents } from '@papyrus/core';
-import { PDFJSEngine } from '@papyrus/engine-pdfjs';
-import { PapyrusConfig, PapyrusEventType } from '@papyrus/types';
-import { Viewer, Topbar, SidebarLeft, SidebarRight } from '@papyrus/ui-react';
+import { useViewerStore, papyrusEvents } from '@papyrus-sdk/core';
+import { PDFJSEngine } from '@papyrus-sdk/engine-pdfjs';
+import { PapyrusConfig, PapyrusEventType } from '@papyrus-sdk/types';
+import { Viewer, Topbar, SidebarLeft, SidebarRight } from '@papyrus-sdk/ui-react';
 
 const engine = new PDFJSEngine();
 

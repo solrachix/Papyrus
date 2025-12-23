@@ -14,9 +14,9 @@ pnpm install
 
 ```tsx
 import React, { useEffect, useState } from 'react';
-import { PDFJSEngine } from '@papyrus/engine-pdfjs';
-import { useViewerStore } from '@papyrus/core';
-import { Topbar, SidebarLeft, SidebarRight, Viewer } from '@papyrus/ui-react';
+import { PDFJSEngine } from '@papyrus-sdk/engine-pdfjs';
+import { useViewerStore } from '@papyrus-sdk/core';
+import { Topbar, SidebarLeft, SidebarRight, Viewer } from '@papyrus-sdk/ui-react';
 
 const INITIAL_CONFIG = {
   initialUITheme: 'dark',
@@ -59,7 +59,7 @@ export const App = () => {
 ## 3) Listen for events
 
 ```ts
-import { papyrusEvents, PapyrusEventType } from '@papyrus/core';
+import { papyrusEvents, PapyrusEventType } from '@papyrus-sdk/core';
 
 papyrusEvents.on(PapyrusEventType.ANNOTATION_CREATED, ({ annotation }) => {
   // Persist to your backend

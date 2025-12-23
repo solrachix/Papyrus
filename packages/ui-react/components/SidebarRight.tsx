@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
-import { useViewerStore, SearchService } from '@papyrus/core';
-import { DocumentEngine } from '@papyrus/types';
+import { useViewerStore, SearchService } from '@papyrus-sdk/core';
+import { DocumentEngine } from '@papyrus-sdk/types';
 
 interface SidebarRightProps { engine: DocumentEngine; }
 
