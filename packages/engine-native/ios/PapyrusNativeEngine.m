@@ -7,9 +7,13 @@
 #import "PapyrusEngineStore.h"
 #import "PapyrusPageView.h"
 
+NS_ASSUME_NONNULL_BEGIN
+
 @interface PapyrusNativeEngine : NSObject <RCTBridgeModule>
 @property (nonatomic, weak) RCTBridge *bridge;
 @end
+
+NS_ASSUME_NONNULL_END
 
 @implementation PapyrusNativeEngine
 
@@ -132,7 +136,7 @@ RCT_EXPORT_BLOCKING_SYNCHRONOUS_METHOD(getPageCount:(NSString *)engineId) {
 
 RCT_EXPORT_METHOD(renderPage:(NSString *)engineId
                   pageIndex:(NSInteger)pageIndex
-                  target:(NSNumber *)target
+                  target:(nonnull NSNumber *)target
                   scale:(CGFloat)scale
                   zoom:(CGFloat)zoom
                   rotation:(NSInteger)rotation) {
@@ -148,7 +152,7 @@ RCT_EXPORT_METHOD(renderPage:(NSString *)engineId
 
 RCT_EXPORT_METHOD(renderTextLayer:(NSString *)engineId
                   pageIndex:(NSInteger)pageIndex
-                  target:(NSNumber *)target
+                  target:(nonnull NSNumber *)target
                   scale:(CGFloat)scale
                   zoom:(CGFloat)zoom
                   rotation:(NSInteger)rotation) {
@@ -166,7 +170,8 @@ RCT_EXPORT_METHOD(getTextContent:(NSString *)engineId
     return;
   }
 
-  PDFSelection *selection = [page selectionForWholePage];
+  CGRect pageBounds = [page boundsForBox:kPDFDisplayBoxMediaBox];
+  PDFSelection *selection = [page selectionForRect:pageBounds];
   if (!selection) {
     resolve(@[]);
     return;

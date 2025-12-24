@@ -19,10 +19,13 @@ target 'PapyrusMobile' do
 
   use_react_native!(
     :path => config[:reactNativePath],
-    :new_arch_enabled => true,
+    :new_arch_enabled => false,
     # An absolute path to your application root.
     :app_path => "#{Pod::Config.instance.installation_root}/.."
   )
+
+  # Explicit local pod for the workspace package so autolinking isn't required.
+  pod 'PapyrusNativeEngine', :path => '../../../packages/engine-native/ios'
 
   target 'PapyrusMobileTests' do
     inherit! :complete
