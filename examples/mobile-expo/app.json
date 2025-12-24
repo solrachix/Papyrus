@@ -5,10 +5,17 @@
     "owner": "solrachix",
     "version": "0.0.1",
     "orientation": "portrait",
-    "assetBundlePatterns": ["**/*"],
-    "plugins": ["@papyrus-sdk/expo-plugin"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "plugins": [
+      "@papyrus-sdk/expo-plugin"
+    ],
     "ios": {
-      "bundleIdentifier": "com.papyrus.sdk.mobileexpo"
+      "bundleIdentifier": "com.papyrus.sdk.mobileexpo",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.papyrus.sdk.mobileexpo"
