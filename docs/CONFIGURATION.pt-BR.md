@@ -1,5 +1,5 @@
 # Guia de Configuracao - Papyrus SDK
-Leia em: [English](CONFIGURATION.md) | Portugues (Brasil)
+Leia em: [English](configuration.md) | Portugues (Brasil)
 
 O Papyrus e configurado pelo objeto `PapyrusConfig`.
 
