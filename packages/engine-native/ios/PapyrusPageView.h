@@ -11,6 +11,9 @@ NS_ASSUME_NONNULL_BEGIN
                       zoom:(CGFloat)zoom
                   rotation:(NSInteger)rotation;
 
+- (CGRect)convertRectToPage:(CGRect)rect page:(PDFPage *)page;
+- (CGRect)convertRectFromPage:(CGRect)rect page:(PDFPage *)page;
+
 @end
 
 NS_ASSUME_NONNULL_END

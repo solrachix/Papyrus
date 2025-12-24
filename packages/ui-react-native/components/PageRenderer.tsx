@@ -89,10 +89,10 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     if (!layout.width || !layout.height) return;
     const viewTag = findNodeHandle(viewRef.current);
     if (viewTag) {
-      const renderScale = isAndroid ? scale / Math.max(zoom, 0.5) : scale;
+      const renderScale = isNative ? scale / Math.max(zoom, 0.5) : scale;
       void engine.renderPage(pageIndex, viewTag, renderScale);
     }
-  }, [engine, pageIndex, scale, zoom, rotation, layout.width, layout.height, isAndroid]);
+  }, [engine, pageIndex, scale, zoom, rotation, layout.width, layout.height, isNative]);
 
   useEffect(() => {
     let active = true;
@@ -411,9 +411,10 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     pageSize && pageSize.width > 0 && pageSize.height > 0 ? pageSize.width / pageSize.height : 0.77;
   const containerWidth = availableWidth ?? windowWidth;
   const baseWidth = containerWidth * 0.92;
-  const pageWidth = isAndroid ? baseWidth * zoom : baseWidth;
+  const pageWidth = isNative ? baseWidth * zoom : baseWidth;
   const pageHeight = pageWidth / aspectRatio;
-  const scrollEnabled = isAndroid && zoom > 1;
+  const hasActiveSelection = selectionRects.length > 0 || !!selectionBounds || isSelecting;
+  const scrollEnabled = isNative && zoom > 1 && !hasActiveSelection;
 
   return (
     <ScrollView

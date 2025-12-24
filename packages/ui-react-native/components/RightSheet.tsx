@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   FlatList,
   Dimensions,
+  Platform,
   findNodeHandle,
   type LayoutChangeEvent,
 } from 'react-native';
@@ -58,7 +59,8 @@ const PageThumbnail: React.FC<{
     if (!layoutReady) return;
     const viewTag = findNodeHandle(viewRef.current);
     if (!viewTag) return;
-    const renderScale = 2.0 / Math.max(zoom, 0.5);
+    const isNative = Platform.OS === 'android' || Platform.OS === 'ios';
+    const renderScale = isNative ? 2.0 / Math.max(zoom, 0.5) : 2.0;
     void engine.renderPage(pageIndex, viewTag, renderScale);
   }, [engine, pageIndex, layoutReady, zoom]);
 

@@ -19,6 +19,27 @@ NS_ASSUME_NONNULL_END
 
 RCT_EXPORT_MODULE(PapyrusNativeEngine)
 
+static NSMutableDictionary<NSString *, NSNumber *> *PapyrusPageViewTags;
+
+static NSString *PapyrusViewKeyFor(NSString *engineId, NSInteger pageIndex) {
+  return [NSString stringWithFormat:@"%@:%ld", engineId ?: @"", (long)pageIndex];
+}
+
+static void PapyrusEnsureViewTagStore(void) {
+  static dispatch_once_t onceToken;
+  dispatch_once(&onceToken, ^{
+    PapyrusPageViewTags = [NSMutableDictionary dictionary];
+  });
+}
+
+static void PapyrusSyncOnMain(void (^block)(void)) {
+  if ([NSThread isMainThread]) {
+    block();
+  } else {
+    dispatch_sync(dispatch_get_main_queue(), block);
+  }
+}
+
 static NSArray<NSDictionary *> *PapyrusBuildOutlineItems(PDFOutline *outline, PDFDocument *document) {
   if (!outline || !document) return @[];
 
@@ -145,6 +166,11 @@ RCT_EXPORT_METHOD(renderPage:(NSString *)engineId
     UIView *view = [self.bridge.uiManager viewForReactTag:target];
     if ([view isKindOfClass:[PapyrusPageView class]]) {
       PapyrusPageView *pageView = (PapyrusPageView *)view;
+      PapyrusEnsureViewTagStore();
+      NSString *key = PapyrusViewKeyFor(engineId, pageIndex);
+      @synchronized (PapyrusPageViewTags) {
+        PapyrusPageViewTags[key] = target;
+      }
       [pageView renderWithDocument:document pageIndex:pageIndex scale:scale zoom:zoom rotation:rotation];
     }
   });
@@ -170,7 +196,7 @@ RCT_EXPORT_METHOD(getTextContent:(NSString *)engineId
     return;
   }
 
-  CGRect pageBounds = [page boundsForBox:kPDFDisplayBoxMediaBox];
+  CGRect pageBounds = [page boundsForBox:kPDFDisplayBoxCropBox];
   PDFSelection *selection = [page selectionForRect:pageBounds];
   if (!selection) {
     resolve(@[]);
@@ -211,7 +237,7 @@ RCT_EXPORT_METHOD(getPageDimensions:(NSString *)engineId
     resolve(@{@"width": @(0), @"height": @(0)});
     return;
   }
-  CGRect box = [page boundsForBox:kPDFDisplayBoxMediaBox];
+  CGRect box = [page boundsForBox:kPDFDisplayBoxCropBox];
   resolve(@{@"width": @(box.size.width), @"height": @(box.size.height)});
 }
 
@@ -270,9 +296,11 @@ RCT_EXPORT_METHOD(searchText:(NSString *)engineId
     NSInteger matchIndex = [pageCounts[pageKey] integerValue];
     pageCounts[pageKey] = @(matchIndex + 1);
 
-    CGRect pageBounds = [page boundsForBox:kPDFDisplayBoxMediaBox];
+    CGRect pageBounds = [page boundsForBox:kPDFDisplayBoxCropBox];
     CGFloat pageWidth = pageBounds.size.width;
     CGFloat pageHeight = pageBounds.size.height;
+    CGFloat pageOriginX = pageBounds.origin.x;
+    CGFloat pageOriginY = pageBounds.origin.y;
 
     NSArray<PDFSelection *> *lineSelections = [selection selectionsByLine];
     if (!lineSelections || lineSelections.count == 0) {
@@ -284,9 +312,9 @@ RCT_EXPORT_METHOD(searchText:(NSString *)engineId
       CGRect bounds = [line boundsForPage:page];
       if (CGRectIsEmpty(bounds) || pageWidth <= 0 || pageHeight <= 0) continue;
 
-      CGFloat topLeftY = pageHeight - (bounds.origin.y + bounds.size.height);
+      CGFloat topLeftY = (pageOriginY + pageHeight) - (bounds.origin.y + bounds.size.height);
       NSDictionary *rect = @{
-        @"x": @(bounds.origin.x / pageWidth),
+        @"x": @((bounds.origin.x - pageOriginX) / pageWidth),
         @"y": @(topLeftY / pageHeight),
         @"width": @(bounds.size.width / pageWidth),
         @"height": @(bounds.size.height / pageHeight)
@@ -326,20 +354,51 @@ RCT_EXPORT_METHOD(selectText:(NSString *)engineId
     return;
   }
 
-  CGRect pageBounds = [page boundsForBox:kPDFDisplayBoxMediaBox];
+  CGRect pageBounds = [page boundsForBox:kPDFDisplayBoxCropBox];
   CGFloat pageWidth = pageBounds.size.width;
   CGFloat pageHeight = pageBounds.size.height;
+  CGFloat pageOriginX = pageBounds.origin.x;
+  CGFloat pageOriginY = pageBounds.origin.y;
   if (pageWidth <= 0 || pageHeight <= 0) {
     resolve([NSNull null]);
     return;
   }
 
-  CGFloat rectX = x * pageWidth;
-  CGFloat rectW = width * pageWidth;
-  CGFloat rectH = height * pageHeight;
-  CGFloat rectTop = y * pageHeight;
-  CGFloat rectY = pageHeight - rectTop - rectH;
-  CGRect selectionRect = CGRectMake(rectX, rectY, rectW, rectH);
+  CGRect selectionRect = CGRectZero;
+  __block PapyrusPageView *pageView = nil;
+  __block CGSize viewSize = CGSizeZero;
+  PapyrusEnsureViewTagStore();
+  NSString *key = PapyrusViewKeyFor(engineId, pageIndex);
+  NSNumber *viewTag = nil;
+  @synchronized (PapyrusPageViewTags) {
+    viewTag = PapyrusPageViewTags[key];
+  }
+
+  if (viewTag) {
+    PapyrusSyncOnMain(^{
+      UIView *view = [self.bridge.uiManager viewForReactTag:viewTag];
+      if ([view isKindOfClass:[PapyrusPageView class]]) {
+        pageView = (PapyrusPageView *)view;
+        viewSize = pageView.bounds.size;
+      }
+    });
+  }
+
+  if (pageView && viewSize.width > 0 && viewSize.height > 0) {
+    CGFloat rectX = x * viewSize.width;
+    CGFloat rectY = y * viewSize.height;
+    CGFloat rectW = width * viewSize.width;
+    CGFloat rectH = height * viewSize.height;
+    CGRect viewRect = CGRectMake(rectX, rectY, rectW, rectH);
+    selectionRect = [pageView convertRectToPage:viewRect page:page];
+  } else {
+    CGFloat rectX = pageOriginX + (x * pageWidth);
+    CGFloat rectW = width * pageWidth;
+    CGFloat rectH = height * pageHeight;
+    CGFloat rectTop = y * pageHeight;
+    CGFloat rectY = pageOriginY + (pageHeight - rectTop - rectH);
+    selectionRect = CGRectMake(rectX, rectY, rectW, rectH);
+  }
 
   PDFSelection *selection = [page selectionForRect:selectionRect];
   if (!selection) {
@@ -357,13 +416,24 @@ RCT_EXPORT_METHOD(selectText:(NSString *)engineId
     CGRect bounds = [line boundsForPage:page];
     if (CGRectIsEmpty(bounds)) continue;
 
-    CGFloat topLeftY = pageHeight - (bounds.origin.y + bounds.size.height);
-    NSDictionary *rect = @{
-      @"x": @(bounds.origin.x / pageWidth),
-      @"y": @(topLeftY / pageHeight),
-      @"width": @(bounds.size.width / pageWidth),
-      @"height": @(bounds.size.height / pageHeight)
-    };
+    NSDictionary *rect = nil;
+    if (pageView && viewSize.width > 0 && viewSize.height > 0) {
+      CGRect viewBounds = [pageView convertRectFromPage:bounds page:page];
+      rect = @{
+        @"x": @(viewBounds.origin.x / viewSize.width),
+        @"y": @(viewBounds.origin.y / viewSize.height),
+        @"width": @(viewBounds.size.width / viewSize.width),
+        @"height": @(viewBounds.size.height / viewSize.height)
+      };
+    } else {
+      CGFloat topLeftY = (pageOriginY + pageHeight) - (bounds.origin.y + bounds.size.height);
+      rect = @{
+        @"x": @((bounds.origin.x - pageOriginX) / pageWidth),
+        @"y": @(topLeftY / pageHeight),
+        @"width": @(bounds.size.width / pageWidth),
+        @"height": @(bounds.size.height / pageHeight)
+      };
+    }
     [rects addObject:rect];
   }
 
