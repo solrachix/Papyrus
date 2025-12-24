@@ -54,7 +54,8 @@ Use Expo com prebuild e um config plugin:
 2) `expo run:ios` / `expo run:android`
 3) Use um Dev Client
 
-Crie `@papyrus-sdk/expo-plugin` para injetar a engine nativa nos projetos iOS/Android gerados.
+Plugin: `@papyrus-sdk/expo-plugin`.
+Exemplo pronto em `examples/mobile-expo`.
 
 ## Notas
 - `DocumentSource` suporta `{ uri }`, `{ data }`, `ArrayBuffer` e `Uint8Array`.

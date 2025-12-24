@@ -1,0 +1,24 @@
+{
+  "name": "@papyrus-sdk/expo-plugin",
+  "version": "0.1.0",
+  "main": "app.plugin.js",
+  "types": "index.d.ts",
+  "exports": {
+    ".": "./app.plugin.js",
+    "./app.plugin.js": "./app.plugin.js"
+  },
+  "files": [
+    "dist",
+    "app.plugin.js",
+    "index.d.ts"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsup index.ts --dts --format cjs,esm --out-dir dist --clean --sourcemap"
+  },
+  "dependencies": {
+    "@expo/config-plugins": "^8.0.0"
+  }
+}

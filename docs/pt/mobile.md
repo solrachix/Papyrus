@@ -11,9 +11,10 @@ Papyrus no mobile usa UI em React Native e engine nativa.
 
 - Busca e selecao de texto no native.
 - UI em RN com fluxo parecido com o web.
-- Expo plugin planejado depois do contrato estabilizar.
+- Expo prebuild suportado via `@papyrus-sdk/expo-plugin`.
 
 ## Nota
 
-Mobile exige build nativo (Xcode / Android Studio). O exemplo esta em
-`examples/mobile`.
+Mobile exige build nativo (Xcode / Android Studio). Exemplos:
+- `examples/mobile` (RN CLI)
+- `examples/mobile-expo` (Expo + prebuild)

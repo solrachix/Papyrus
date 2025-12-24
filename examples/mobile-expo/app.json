@@ -1,0 +1,22 @@
+{
+  "expo": {
+    "name": "Papyrus",
+    "slug": "papyrus-sdk",
+    "owner": "solrachix",
+    "version": "0.0.1",
+    "orientation": "portrait",
+    "assetBundlePatterns": ["**/*"],
+    "plugins": ["@papyrus-sdk/expo-plugin"],
+    "ios": {
+      "bundleIdentifier": "com.papyrus.sdk.mobileexpo"
+    },
+    "android": {
+      "package": "com.papyrus.sdk.mobileexpo"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "b6676372-5aaf-4cdc-a54a-ea5c532d1e0a"
+      }
+    }
+  }
+}
