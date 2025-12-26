@@ -20,3 +20,53 @@
 .VPHome {
   background: radial-gradient(1200px 400px at 50% -120px, rgba(37, 99, 235, 0.16), transparent 70%);
 }
+
+:root {
+  --papyrus-code-bg: #f8fafc;
+  --papyrus-code-border: rgba(15, 23, 42, 0.12);
+  --papyrus-code-inline-bg: rgba(37, 99, 235, 0.12);
+  --papyrus-code-inline-border: rgba(37, 99, 235, 0.25);
+  --papyrus-code-inline-color: #0f172a;
+  --papyrus-code-shadow: 0 12px 30px rgba(15, 23, 42, 0.12);
+  --papyrus-code-text: #0f172a;
+}
+
+.dark {
+  --papyrus-code-bg: #0b1220;
+  --papyrus-code-border: rgba(148, 163, 184, 0.18);
+  --papyrus-code-inline-bg: rgba(37, 99, 235, 0.2);
+  --papyrus-code-inline-border: rgba(59, 130, 246, 0.35);
+  --papyrus-code-inline-color: #e2e8f0;
+  --papyrus-code-shadow: 0 18px 40px rgba(2, 6, 23, 0.55);
+  --papyrus-code-text: #e2e8f0;
+}
+
+.vp-doc div[class*='language-'] {
+  background: var(--papyrus-code-bg);
+  border: 1px solid var(--papyrus-code-border);
+  border-radius: 14px;
+  box-shadow: var(--papyrus-code-shadow);
+}
+
+.vp-doc div[class*='language-'] > pre {
+  font-size: 13px;
+  line-height: 1.65;
+  padding: 18px 20px;
+}
+
+.vp-doc div[class*='language-'] code {
+  color: var(--papyrus-code-text);
+}
+
+.vp-doc :not(pre) > code {
+  background: var(--papyrus-code-inline-bg);
+  border: 1px solid var(--papyrus-code-inline-border);
+  border-radius: 6px;
+  color: var(--papyrus-code-inline-color);
+  font-weight: 600;
+  padding: 0.15em 0.4em;
+}
+
+.vp-doc .line-numbers-wrapper {
+  border-right: 1px solid var(--papyrus-code-border);
+}
