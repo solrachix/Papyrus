@@ -9,6 +9,7 @@ export class PDFJSEngine extends BaseDocumentEngine {
   private currentPage: number = 1;
   private zoom: number = 1.0;
   private rotation: number = 0;
+  private renderTasks = new WeakMap<HTMLCanvasElement, any>();
 
   async load(source: DocumentSource): Promise<void> {
     try {
@@ -75,7 +76,19 @@ export class PDFJSEngine extends BaseDocumentEngine {
     const context = canvas.getContext('2d');
     if (!context) return;
 
-    await page.render({ canvasContext: context, viewport }).promise;
+    const previousTask = this.renderTasks.get(canvas);
+    if (previousTask?.cancel) {
+      try { previousTask.cancel(); } catch { /* ignore */ }
+    }
+
+    const renderTask = page.render({ canvasContext: context, viewport });
+    this.renderTasks.set(canvas, renderTask);
+    try {
+      await renderTask.promise;
+    } catch (error: any) {
+      if (error?.name === 'RenderingCancelledException') return;
+      throw error;
+    }
   }
 
   async renderTextLayer(pageIndex: number, container: any, scale: number): Promise<void> {

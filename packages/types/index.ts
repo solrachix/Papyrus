@@ -3,6 +3,7 @@ export type ViewMode = 'single' | 'double' | 'continuous';
 export type UITheme = 'light' | 'dark';
 export type PageTheme = 'normal' | 'sepia' | 'dark' | 'high-contrast';
 export type Locale = 'en' | 'pt-BR';
+export type RenderTargetType = 'canvas' | 'element';
 
 export interface FileLike {
   arrayBuffer(): Promise<ArrayBuffer>;
@@ -121,5 +122,6 @@ export interface DocumentEngine {
   selectText?(pageIndex: number, rect: { x: number; y: number; width: number; height: number }): Promise<TextSelection | null>;
   getOutline(): Promise<OutlineItem[]>;
   getPageIndex(dest: any): Promise<number | null>;
+  getRenderTargetType?(): RenderTargetType;
   destroy(): void;
 }

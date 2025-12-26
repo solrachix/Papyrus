@@ -8,6 +8,7 @@ interface PageRendererProps { engine: DocumentEngine; pageIndex: number; }
 const PageRenderer: React.FC<PageRendererProps> = ({ engine, pageIndex }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const htmlLayerRef = useRef<HTMLDivElement>(null);
   const textLayerRef = useRef<HTMLDivElement>(null);
   
   const [loading, setLoading] = useState(true);
@@ -20,6 +21,8 @@ const PageRenderer: React.FC<PageRendererProps> = ({ engine, pageIndex }) => {
     annotations, addAnnotation, activeTool, removeAnnotation, 
     selectedAnnotationId, setSelectedAnnotation, accentColor
   } = useViewerStore();
+  const renderTargetType = engine.getRenderTargetType?.() ?? 'canvas';
+  const isElementRender = renderTargetType === 'element';
 
   useEffect(() => {
     if (scrollToPageSignal === pageIndex && containerRef.current) {
@@ -31,7 +34,8 @@ const PageRenderer: React.FC<PageRendererProps> = ({ engine, pageIndex }) => {
   useEffect(() => {
     let active = true;
     const render = async () => {
-      if (!canvasRef.current || !textLayerRef.current) return;
+      const renderTarget = isElementRender ? htmlLayerRef.current : canvasRef.current;
+      if (!renderTarget || !textLayerRef.current) return;
       setLoading(true);
       
       try {
@@ -39,10 +43,13 @@ const PageRenderer: React.FC<PageRendererProps> = ({ engine, pageIndex }) => {
         
         // A UI solicita renderização passando o "alvo" (Canvas/Div).
         // Ela não sabe se o motor usa PDF.js ou se está gerando um bitmap.
-        await engine.renderPage(pageIndex, canvasRef.current, RENDER_SCALE);
+        await engine.renderPage(pageIndex, renderTarget, RENDER_SCALE);
 
-        textLayerRef.current.innerHTML = '';
-        await engine.renderTextLayer(pageIndex, textLayerRef.current, RENDER_SCALE);
+        if (!active || !textLayerRef.current) return;
+        if (!isElementRender) {
+          textLayerRef.current.innerHTML = '';
+          await engine.renderTextLayer(pageIndex, textLayerRef.current, RENDER_SCALE);
+        }
 
       } catch (err) {
         console.error("[Papyrus] Falha na renderização:", err);
@@ -53,7 +60,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({ engine, pageIndex }) => {
 
     render();
     return () => { active = false; };
-  }, [engine, pageIndex, zoom, rotation]);
+  }, [engine, pageIndex, zoom, rotation, isElementRender]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if (activeTool === 'select') return;
@@ -145,12 +152,24 @@ const PageRenderer: React.FC<PageRendererProps> = ({ engine, pageIndex }) => {
         </div>
       )}
       
-      <canvas ref={canvasRef} style={{ filter: getPageFilter() }} className="block" />
+      <canvas
+        ref={canvasRef}
+        style={{ filter: getPageFilter(), display: isElementRender ? 'none' : 'block' }}
+        className="block"
+      />
+      <div
+        ref={htmlLayerRef}
+        className="block"
+        style={{ filter: getPageFilter(), display: isElementRender ? 'block' : 'none' }}
+      />
 
       <div 
         ref={textLayerRef} 
         className="textLayer"
-        style={{ pointerEvents: activeTool === 'select' ? 'auto' : 'none' }}
+        style={{
+          pointerEvents: isElementRender ? 'none' : activeTool === 'select' ? 'auto' : 'none',
+          display: isElementRender ? 'none' : 'block',
+        }}
       />
 
       {isDragging && (
