@@ -38,6 +38,7 @@ const Topbar: React.FC<TopbarProps> = ({ engine }) => {
   };
 
   const handlePageChange = (page: number) => {
+    if (pageCount <= 0) return;
     const p = Math.max(1, Math.min(pageCount, page));
     engine.goToPage(p);
     setDocumentState({ currentPage: p });
@@ -105,7 +106,7 @@ const Topbar: React.FC<TopbarProps> = ({ engine }) => {
               onKeyDown={(e) => e.key === 'Enter' && handlePageInputBlur()}
             />
             <span className="opacity-40 px-1">/</span>
-            <span className="opacity-80 text-sm">{pageCount}</span>
+            <span className="opacity-80 text-sm">{pageCount > 0 ? pageCount : '—'}</span>
           </div>
           <button onClick={() => handlePageChange(currentPage + 1)} className="p-1.5 hover:bg-blue-500 hover:text-white rounded transition-all">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
@@ -171,7 +172,7 @@ const Topbar: React.FC<TopbarProps> = ({ engine }) => {
         >
           UPLOAD
         </button>
-        <input type="file" ref={fileInputRef} className="hidden" accept=".pdf" onChange={handleFileUpload} />
+        <input type="file" ref={fileInputRef} className="hidden" accept=".pdf,.epub,.txt" onChange={handleFileUpload} />
         
         <div className={`h-8 w-px ${isDark ? 'bg-[#333]' : 'bg-gray-200'}`} />
         

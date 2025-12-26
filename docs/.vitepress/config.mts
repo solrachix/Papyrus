@@ -6,6 +6,7 @@ const navEn = [
   { text: 'Configuration', link: '/configuration' },
   { text: 'Flows', link: '/flows' },
   { text: 'Mobile', link: '/mobile' },
+  { text: 'Examples', link: '/examples/' },
 ];
 
 const navPt = [
@@ -15,6 +16,7 @@ const navPt = [
   { text: 'Configuracao', link: '/pt/configuration' },
   { text: 'Fluxos', link: '/pt/flows' },
   { text: 'Mobile', link: '/pt/mobile' },
+  { text: 'Exemplos', link: '/pt/examples/' },
 ];
 
 const sidebarEn = [
@@ -34,6 +36,16 @@ const sidebarEn = [
       { text: 'Mobile', link: '/mobile' },
     ],
   },
+  {
+    text: 'Examples',
+    items: [
+      { text: 'Overview', link: '/examples/' },
+      { text: 'Demo', link: '/examples/demo' },
+      { text: 'Theme Switching', link: '/examples/theme' },
+      { text: 'Locale', link: '/examples/locale' },
+      { text: 'Switching Engines', link: '/examples/engines' },
+    ],
+  },
 ];
 
 const sidebarPt = [
@@ -51,6 +63,16 @@ const sidebarPt = [
       { text: 'Configuracao', link: '/pt/configuration' },
       { text: 'Fluxos', link: '/pt/flows' },
       { text: 'Mobile', link: '/pt/mobile' },
+    ],
+  },
+  {
+    text: 'Exemplos',
+    items: [
+      { text: 'Visao geral', link: '/pt/examples/' },
+      { text: 'Demo', link: '/pt/examples/demo' },
+      { text: 'Troca de Tema', link: '/pt/examples/theme' },
+      { text: 'Idioma', link: '/pt/examples/locale' },
+      { text: 'Troca de Engine', link: '/pt/examples/engines' },
     ],
   },
 ];

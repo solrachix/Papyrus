@@ -25,13 +25,19 @@ const withAlpha = (hex: string, alpha: number) => {
 
 const Thumbnail: React.FC<{ engine: DocumentEngine; pageIndex: number; active: boolean; isDark: boolean; accentColor: string; onClick: () => void }> = ({ engine, pageIndex, active, isDark, accentColor, onClick }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const htmlRef = useRef<HTMLDivElement>(null);
   const accentSoft = withAlpha(accentColor, 0.12);
+  const renderTargetType = engine.getRenderTargetType?.() ?? 'canvas';
 
   useEffect(() => {
-    if (canvasRef.current) {
-      engine.renderPage(pageIndex, canvasRef.current, 0.15);
+    if (renderTargetType === 'element') return;
+    const target = canvasRef.current;
+    if (target) {
+      engine.renderPage(pageIndex, target, 0.15).catch((err) => {
+        console.error('[Papyrus] Thumbnail render failed:', err);
+      });
     }
-  }, [engine, pageIndex]);
+  }, [engine, pageIndex, renderTargetType]);
 
   return (
     <div 
@@ -41,7 +47,27 @@ const Thumbnail: React.FC<{ engine: DocumentEngine; pageIndex: number; active: b
     >
       <div className="flex flex-col items-center">
         <div className={`shadow-lg rounded overflow-hidden mb-2 border ${isDark ? 'border-[#333]' : 'border-gray-200'}`}>
-          <canvas ref={canvasRef} className="max-w-full h-auto bg-white" />
+          <canvas
+            ref={canvasRef}
+            className="max-w-full h-auto bg-white"
+            style={{ display: renderTargetType === 'element' ? 'none' : 'block' }}
+          />
+          <div
+            ref={htmlRef}
+            className="bg-white"
+            style={{
+              width: 90,
+              height: 120,
+              display: renderTargetType === 'element' ? 'block' : 'none',
+              overflow: 'hidden',
+            }}
+          >
+            {renderTargetType === 'element' && (
+              <div className="w-full h-full flex items-center justify-center text-[10px] font-semibold text-gray-500">
+                HTML
+              </div>
+            )}
+          </div>
         </div>
         <span className={`text-[11px] font-bold ${active ? '' : isDark ? 'text-gray-500' : 'text-gray-400'}`} style={active ? { color: accentColor } : undefined}>{pageIndex + 1}</span>
       </div>

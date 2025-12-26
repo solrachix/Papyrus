@@ -1,0 +1,7 @@
+Papyrus Text Demo
+
+Este e um arquivo TXT simples para testar o engine de texto no web.
+
+- Suporte basico a paginacao
+- Renderizacao em container HTML
+- Pronto para evoluir com busca e selecao
