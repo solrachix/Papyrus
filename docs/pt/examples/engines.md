@@ -16,3 +16,11 @@ await epubEngine.load('/sample.epub');
 const textEngine = new TextEngine();
 await textEngine.load('Hello world');
 ```
+
+<DemoFrame />
+
+<DemoActions :actions="[
+  { label: 'Carregar engine: pdf', action: 'set-engine', value: 'pdf' },
+  { label: 'Carregar engine: epub', action: 'set-engine', value: 'epub' },
+  { label: 'Carregar engine: text', action: 'set-engine', value: 'text' }
+]" />

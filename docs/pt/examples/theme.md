@@ -16,3 +16,10 @@ const INITIAL_SDK_CONFIG: PapyrusConfig = {
 setDocumentState({ uiTheme: 'light' });
 setDocumentState({ pageTheme: 'high-contrast' });
 ```
+
+<DemoFrame />
+
+<DemoActions :actions="[
+  { label: 'Aplicar UI: light', action: 'set-ui-theme', value: 'light' },
+  { label: 'Aplicar Page: high-contrast', action: 'set-page-theme', value: 'high-contrast' }
+]" />

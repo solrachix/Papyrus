@@ -1,17 +1,22 @@
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useViewerStore, papyrusEvents } from '@papyrus-sdk/core';
 import { DocumentEngine, Annotation, PapyrusEventType } from '@papyrus-sdk/types';
 
-interface PageRendererProps { engine: DocumentEngine; pageIndex: number; }
+interface PageRendererProps {
+  engine: DocumentEngine;
+  pageIndex: number;
+  availableWidth?: number;
+}
 
-const PageRenderer: React.FC<PageRendererProps> = ({ engine, pageIndex }) => {
+const PageRenderer: React.FC<PageRendererProps> = ({ engine, pageIndex, availableWidth }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const htmlLayerRef = useRef<HTMLDivElement>(null);
   const textLayerRef = useRef<HTMLDivElement>(null);
   
   const [loading, setLoading] = useState(true);
+  const [pageSize, setPageSize] = useState<{ width: number; height: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [startPos, setStartPos] = useState({ x: 0, y: 0 });
   const [currentRect, setCurrentRect] = useState({ x: 0, y: 0, w: 0, h: 0 });
@@ -23,6 +28,39 @@ const PageRenderer: React.FC<PageRendererProps> = ({ engine, pageIndex }) => {
   } = useViewerStore();
   const renderTargetType = engine.getRenderTargetType?.() ?? 'canvas';
   const isElementRender = renderTargetType === 'element';
+
+  useEffect(() => {
+    let active = true;
+    const loadSize = async () => {
+      try {
+        const size = await engine.getPageDimensions(pageIndex);
+        if (!active) return;
+        if (size.width > 0 && size.height > 0) {
+          setPageSize(size);
+        }
+      } catch {
+        // Ignore size errors to avoid blocking rendering.
+      }
+    };
+    loadSize();
+    return () => { active = false; };
+  }, [engine, pageIndex]);
+
+  const fitScale = useMemo(() => {
+    if (!availableWidth || !pageSize?.width) return 1;
+    const targetWidth = Math.max(0, availableWidth - 48);
+    if (!targetWidth) return 1;
+    return Math.min(1, targetWidth / pageSize.width);
+  }, [availableWidth, pageSize]);
+
+  const displaySize = useMemo(() => {
+    if (!pageSize) return null;
+    const scale = zoom * fitScale;
+    return {
+      width: pageSize.width * scale,
+      height: pageSize.height * scale,
+    };
+  }, [pageSize, zoom, fitScale]);
 
   useEffect(() => {
     if (scrollToPageSignal === pageIndex && containerRef.current) {
@@ -40,15 +78,35 @@ const PageRenderer: React.FC<PageRendererProps> = ({ engine, pageIndex }) => {
       
       try {
         const RENDER_SCALE = 2.0; 
+        const renderScale = isElementRender ? 1.0 : RENDER_SCALE * fitScale; 
         
         // A UI solicita renderização passando o "alvo" (Canvas/Div).
         // Ela não sabe se o motor usa PDF.js ou se está gerando um bitmap.
-        await engine.renderPage(pageIndex, renderTarget, RENDER_SCALE);
+        await engine.renderPage(pageIndex, renderTarget, renderScale);
+
+        if (!isElementRender && !pageSize && canvasRef.current) {
+          const denom = renderScale * Math.max(zoom, 0.01);
+          if (denom > 0) {
+            setPageSize({
+              width: canvasRef.current.width / denom,
+              height: canvasRef.current.height / denom,
+            });
+          }
+        }
 
         if (!active || !textLayerRef.current) return;
         if (!isElementRender) {
           textLayerRef.current.innerHTML = '';
-          await engine.renderTextLayer(pageIndex, textLayerRef.current, RENDER_SCALE);
+          await engine.renderTextLayer(pageIndex, textLayerRef.current, renderScale);
+        }
+
+        if (!isElementRender && displaySize) {
+          if (canvasRef.current) {
+            canvasRef.current.style.width = `${displaySize.width}px`;
+            canvasRef.current.style.height = `${displaySize.height}px`;
+          }
+          textLayerRef.current.style.width = `${displaySize.width}px`;
+          textLayerRef.current.style.height = `${displaySize.height}px`;
         }
 
       } catch (err) {
@@ -60,7 +118,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({ engine, pageIndex }) => {
 
     render();
     return () => { active = false; };
-  }, [engine, pageIndex, zoom, rotation, isElementRender]);
+  }, [engine, pageIndex, zoom, rotation, isElementRender, fitScale, displaySize, pageSize]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if (activeTool === 'select') return;

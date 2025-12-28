@@ -20,3 +20,149 @@
 .VPHome {
   background: radial-gradient(1200px 400px at 50% -120px, rgba(37, 99, 235, 0.16), transparent 70%);
 }
+
+.papyrus-demo-frame {
+  margin: 32px auto 40px;
+  position: relative;
+  width: 100%;
+  max-width: 860px;
+  padding: 0 12px;
+  box-sizing: border-box;
+}
+
+.vp-doc .papyrus-demo-frame {
+  width: 100%;
+  max-width: 860px;
+}
+
+.papyrus-demo-shell {
+  aspect-ratio: 1 / 1;
+  height: auto;
+  max-height: 82vh;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 16px;
+  overflow: hidden;
+  padding: 12px;
+  box-sizing: border-box;
+  background: var(--vp-c-bg-soft);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.25);
+}
+
+.papyrus-demo-iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  display: block;
+}
+
+@media (max-width: 960px) {
+  .vp-doc .papyrus-demo-frame {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .papyrus-demo-shell {
+    height: auto;
+    max-height: 70vh;
+    border-radius: 12px;
+  }
+}
+
+.papyrus-demo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 12px 0 24px;
+}
+
+.papyrus-demo-action {
+  border: 1px solid var(--vp-c-divider);
+  background: var(--vp-c-bg-alt);
+  color: var(--vp-c-text-1);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  transition: all 0.2s ease;
+}
+
+.papyrus-demo-action:hover {
+  border-color: var(--vp-c-brand-2);
+  color: var(--vp-c-brand-2);
+  background: var(--vp-c-bg);
+}
+
+.papyrus-demo-events {
+  border: 1px solid var(--vp-c-divider);
+  background: var(--vp-c-bg-alt);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin: 8px 0 24px;
+}
+
+.papyrus-demo-events-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.papyrus-demo-events-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.papyrus-demo-events-clear {
+  border: 1px solid var(--vp-c-divider);
+  background: transparent;
+  color: var(--vp-c-text-2);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  transition: all 0.2s ease;
+}
+
+.papyrus-demo-events-clear:hover {
+  border-color: var(--vp-c-brand-2);
+  color: var(--vp-c-brand-2);
+}
+
+.papyrus-demo-events-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.papyrus-demo-events-item {
+  border: 1px solid var(--vp-c-divider);
+  background: var(--vp-c-bg);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.papyrus-demo-events-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--vp-c-text-2);
+  margin-bottom: 4px;
+}
+
+.papyrus-demo-events-payload {
+  font-family: var(--vp-font-family-mono);
+  font-size: 11px;
+  color: var(--vp-c-text-2);
+  white-space: pre-wrap;
+  word-break: break-word;
+}

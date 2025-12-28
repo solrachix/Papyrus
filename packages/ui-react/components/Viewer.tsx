@@ -1,5 +1,5 @@
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useViewerStore } from '@papyrus-sdk/core';
 import { DocumentEngine } from '@papyrus-sdk/types';
 import PageRenderer from './PageRenderer';
@@ -10,6 +10,31 @@ const Viewer: React.FC<ViewerProps> = ({ engine }) => {
   const { viewMode, pageCount, currentPage, activeTool, uiTheme, setDocumentState, accentColor } = useViewerStore();
   const isDark = uiTheme === 'dark';
   const viewerRef = useRef<HTMLDivElement>(null);
+  const [availableWidth, setAvailableWidth] = useState<number | null>(null);
+  const isCompact = availableWidth !== null && availableWidth < 820;
+  const paddingY = isCompact ? 'py-10' : 'py-16';
+  const toolDockPosition = isCompact ? 'bottom-6' : 'bottom-10';
+
+  useEffect(() => {
+    const element = viewerRef.current;
+    if (!element) return;
+
+    const updateWidth = () => {
+      const nextWidth = element.clientWidth;
+      if (nextWidth > 0) setAvailableWidth(nextWidth);
+    };
+
+    updateWidth();
+
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', updateWidth);
+      return () => window.removeEventListener('resize', updateWidth);
+    }
+
+    const observer = new ResizeObserver(() => updateWidth());
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     const observer = new IntersectionObserver((entries) => {
@@ -35,15 +60,15 @@ const Viewer: React.FC<ViewerProps> = ({ engine }) => {
   ];
 
   return (
-    <div ref={viewerRef} className={`flex-1 overflow-auto flex flex-col items-center py-16 relative custom-scrollbar scroll-smooth ${isDark ? 'bg-[#121212]' : 'bg-[#e9ecef]'}`}>
+    <div ref={viewerRef} className={`flex-1 overflow-auto flex flex-col items-center ${paddingY} relative custom-scrollbar scroll-smooth ${isDark ? 'bg-[#121212]' : 'bg-[#e9ecef]'}`}>
       <div className="flex flex-col items-center gap-6 w-full">
         {pages.map(idx => (
           <div key={idx} data-page-index={idx} className="page-container">
-            <PageRenderer engine={engine} pageIndex={idx} />
+            <PageRenderer engine={engine} pageIndex={idx} availableWidth={availableWidth ?? undefined} />
           </div>
         ))}
       </div>
-      <div className={`fixed bottom-10 left-1/2 -translate-x-1/2 shadow-2xl rounded-2xl p-2 flex border z-50 ${isDark ? 'bg-[#2a2a2a]/90 border-[#3a3a3a] backdrop-blur-xl' : 'bg-white/95 border-gray-100 backdrop-blur-md'}`}>
+      <div className={`fixed ${toolDockPosition} left-1/2 -translate-x-1/2 shadow-2xl rounded-2xl p-2 flex border z-50 ${isDark ? 'bg-[#2a2a2a]/90 border-[#3a3a3a] backdrop-blur-xl' : 'bg-white/95 border-gray-100 backdrop-blur-md'}`}>
         {tools.map(tool => (
           <button
             key={tool.id}
