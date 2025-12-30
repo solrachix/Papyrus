@@ -1,12 +1,12 @@
 # Papyrus PDF SDK
-> The last document engine you will ever need.
+> Open source PDF/EPUB/TXT SDK for web and mobile document readers.
 
 [![Engine: PDF.js](https://img.shields.io/badge/Engine-PDF.js-orange.svg)](https://mozilla.github.io/pdf.js/)
 [![Framework: React](https://img.shields.io/badge/Framework-React-blue.svg)](https://reactjs.org/)
 
 Read this in: English | [Portuguese (Brazil)](README.pt-BR.md)
 
-Papyrus is a modular document SDK built to power document-heavy products. It combines a core state layer, pluggable engines (PDF.js on web, native on mobile), and UI kits for React and React Native.
+Papyrus is a modular open source PDF/EPUB/TXT SDK built to power document-heavy products. It combines a core state layer, pluggable engines (PDF.js on web, native on mobile), and UI kits for React and React Native.
 
 Supports PDF, EPUB, and TXT. On mobile, EPUB/TXT render via a WebView runtime while PDF stays native.
 
@@ -14,6 +14,11 @@ Supports PDF, EPUB, and TXT. On mobile, EPUB/TXT render via a WebView runtime wh
 - [Configuration guide](docs/CONFIGURATION.md)
 - [Event hooks](docs/CONFIGURATION.md#event-hooks)
 - [Mobile (React Native)](docs/MOBILE.md)
+- [Papyrus FAQ](docs/faq.md)
+- [Open Source PDF SDK](docs/open-source-pdf-sdk.md)
+- [Open Source EPUB SDK](docs/open-source-epub-sdk.md)
+- [Papyrus vs PDFTron](docs/papyrus-pdftron-alternative.md)
+- [Best Free PDF SDK 2026](docs/best-free-pdf-sdk-2026.md)
 
 ## Features
 - Event hooks for page, zoom, selection, and annotations
