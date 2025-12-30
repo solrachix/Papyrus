@@ -1,5 +1,50 @@
 import { defineConfig } from 'vitepress';
 
+const SITE_URL = process.env.VITEPRESS_SITE_URL;
+const SITE_NAME = 'Papyrus';
+const DESCRIPTION_EN = 'Open source PDF, EPUB, and TXT SDK for web and mobile document readers.';
+const DESCRIPTION_PT = 'SDK open source de PDF, EPUB e TXT para leitores de documentos web e mobile.';
+const KEYWORDS = [
+  'PDF SDK',
+  'EPUB SDK',
+  'open source PDF library',
+  'document reader',
+  'document viewer',
+  'React PDF viewer',
+  'React Native PDF SDK',
+  'PDF.js',
+].join(', ');
+const OG_IMAGE = process.env.VITEPRESS_OG_IMAGE || (SITE_URL ? `${SITE_URL}/og.png` : '/og.png');
+
+const head = [
+  ['meta', { name: 'keywords', content: KEYWORDS }],
+  ['meta', { property: 'og:type', content: 'website' }],
+  ['meta', { property: 'og:site_name', content: SITE_NAME }],
+  ['meta', { property: 'og:title', content: SITE_NAME }],
+  ['meta', { property: 'og:description', content: DESCRIPTION_EN }],
+  ['meta', { name: 'twitter:card', content: 'summary_large_image' }],
+  ['meta', { name: 'twitter:title', content: SITE_NAME }],
+  ['meta', { name: 'twitter:description', content: DESCRIPTION_EN }],
+];
+
+if (OG_IMAGE) {
+  head.push(['meta', { property: 'og:image', content: OG_IMAGE }]);
+  head.push(['meta', { name: 'twitter:image', content: OG_IMAGE }]);
+}
+
+if (SITE_URL) {
+  head.push(['meta', { property: 'og:url', content: SITE_URL }]);
+}
+
+const buildRoute = (relativePath: string) => {
+  const normalized = relativePath.replace(/\\/g, '/').replace(/\.md$/, '');
+  if (normalized === 'index') return '/';
+  if (normalized.endsWith('/index')) {
+    return `/${normalized.slice(0, -'/index'.length)}/`;
+  }
+  return `/${normalized}`;
+};
+
 const navEn = [
   { text: 'Quickstart', link: '/quickstart' },
   { text: 'Architecture', link: '/architecture' },
@@ -37,6 +82,16 @@ const sidebarEn = [
     ],
   },
   {
+    text: 'Resources',
+    items: [
+      { text: 'FAQ', link: '/faq' },
+      { text: 'Open Source PDF SDK', link: '/open-source-pdf-sdk' },
+      { text: 'Open Source EPUB SDK', link: '/open-source-epub-sdk' },
+      { text: 'Papyrus vs PDFTron', link: '/papyrus-pdftron-alternative' },
+      { text: 'Best Free PDF SDK 2026', link: '/best-free-pdf-sdk-2026' },
+    ],
+  },
+  {
     text: 'Examples',
     items: [
       { text: 'Overview', link: '/examples/' },
@@ -66,6 +121,16 @@ const sidebarPt = [
     ],
   },
   {
+    text: 'Recursos',
+    items: [
+      { text: 'FAQ', link: '/pt/faq' },
+      { text: 'SDK PDF Open Source', link: '/pt/sdk-pdf-open-source' },
+      { text: 'SDK EPUB Open Source', link: '/pt/sdk-epub-open-source' },
+      { text: 'Papyrus vs PDFTron', link: '/pt/papyrus-alternativa-pdftron' },
+      { text: 'Melhor SDK PDF Gratis 2026', link: '/pt/melhor-sdk-pdf-gratis-2026' },
+    ],
+  },
+  {
     text: 'Exemplos',
     items: [
       { text: 'Visao geral', link: '/pt/examples/' },
@@ -79,10 +144,27 @@ const sidebarPt = [
 
 export default defineConfig({
   title: 'Papyrus',
-  description: 'Modular PDF SDK',
+  description: DESCRIPTION_EN,
   cleanUrls: true,
   lastUpdated: true,
   appearance: true,
+  head,
+  sitemap: SITE_URL ? { hostname: SITE_URL } : undefined,
+  transformHead: ({ pageData }) => {
+    if (!SITE_URL) return [];
+    const route = buildRoute(pageData.relativePath);
+    const canonical = `${SITE_URL}${route}`;
+    const isPt = pageData.relativePath.replace(/\\/g, '/').startsWith('pt/');
+    const enRoute = isPt ? route.replace(/^\/pt\//, '/') : route;
+    const ptRoute = isPt ? route : route === '/' ? '/pt/' : `/pt${route}`;
+
+    return [
+      ['link', { rel: 'canonical', href: canonical }],
+      ['link', { rel: 'alternate', hreflang: 'en', href: `${SITE_URL}${enRoute}` }],
+      ['link', { rel: 'alternate', hreflang: 'pt-BR', href: `${SITE_URL}${ptRoute}` }],
+      ['link', { rel: 'alternate', hreflang: 'x-default', href: `${SITE_URL}${enRoute}` }],
+    ];
+  },
   themeConfig: {
     search: {
       provider: 'local',
@@ -92,6 +174,7 @@ export default defineConfig({
     root: {
       label: 'English',
       lang: 'en-US',
+      description: DESCRIPTION_EN,
       themeConfig: {
         nav: navEn,
         sidebar: {
@@ -103,6 +186,7 @@ export default defineConfig({
       label: 'Portugues',
       lang: 'pt-BR',
       link: '/pt/',
+      description: DESCRIPTION_PT,
       themeConfig: {
         nav: navPt,
         sidebar: {
