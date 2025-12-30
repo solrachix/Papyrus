@@ -17,8 +17,13 @@ buildscript {
     dependencies {
         classpath('com.android.tools.build:gradle')
         classpath('com.facebook.react:react-native-gradle-plugin')
-        classpath('org.jetbrains.kotlin:kotlin-gradle-plugin')
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:${kotlinVersion}")
     }
+}
+
+ext {
+    // Expo modules read kotlinVersion from rootProject.ext.
+    kotlinVersion = findProperty('android.kotlinVersion') ?: '1.9.25'
 }
 
 apply plugin: "com.facebook.react.rootproject"

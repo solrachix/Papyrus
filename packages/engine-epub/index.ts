@@ -1,6 +1,6 @@
 import ePub from 'epubjs';
 import { BaseDocumentEngine } from '@papyrus-sdk/core';
-import { DocumentSource, TextItem, OutlineItem, FileLike, TextSelection } from '@papyrus-sdk/types';
+import { DocumentLoadInput, DocumentLoadRequest, DocumentSource, DocumentType, TextItem, OutlineItem, FileLike, TextSelection } from '@papyrus-sdk/types';
 
 export class EPUBEngine extends BaseDocumentEngine {
   private book: any = null;
@@ -14,20 +14,14 @@ export class EPUBEngine extends BaseDocumentEngine {
 
   getRenderTargetType(): 'element' { return 'element'; }
 
-  async load(source: DocumentSource): Promise<void> {
+  async load(input: DocumentLoadInput): Promise<void> {
     try {
-      let data: any;
-      if (typeof source === 'string') {
-        data = source;
-      } else if (this.isUriSource(source)) {
-        data = source.uri;
-      } else if (this.isDataSource(source)) {
-        data = source.data;
-      } else if (this.isFileLike(source)) {
-        data = await source.arrayBuffer();
-      } else {
-        data = source;
+      const { source, type } = this.normalizeLoadInput(input);
+      if (type && type !== 'epub') {
+        throw new Error(`[EPUBEngine] Tipo de documento não suportado: ${type}`);
       }
+
+      const data = await this.resolveSource(source);
 
       this.book = ePub(data);
       await this.book.ready;
@@ -217,5 +211,76 @@ export class EPUBEngine extends BaseDocumentEngine {
 
   private isFileLike(source: DocumentSource): source is FileLike {
     return typeof source === 'object' && source !== null && typeof (source as FileLike).arrayBuffer === 'function';
+  }
+
+  private normalizeLoadInput(input: DocumentLoadInput): { source: DocumentSource; type?: DocumentType } {
+    if (this.isLoadRequest(input)) {
+      return { source: input.source, type: input.type };
+    }
+    return { source: input };
+  }
+
+  private isLoadRequest(input: DocumentLoadInput): input is DocumentLoadRequest {
+    return typeof input === 'object' && input !== null && 'source' in input && 'type' in input;
+  }
+
+  private async resolveSource(source: DocumentSource): Promise<any> {
+    if (typeof source === 'string') {
+      const dataUri = this.parseDataUri(source);
+      if (dataUri) {
+        return dataUri.isBase64 ? this.decodeBase64(dataUri.data) : dataUri.data;
+      }
+      if (this.looksLikeUri(source)) {
+        return source;
+      }
+      if (this.isLikelyBase64(source)) {
+        return this.decodeBase64(source);
+      }
+      return source;
+    }
+    if (this.isUriSource(source)) return source.uri;
+    if (this.isDataSource(source)) return source.data;
+    if (this.isFileLike(source)) return await source.arrayBuffer();
+    return source;
+  }
+
+  private parseDataUri(value: string): { isBase64: boolean; data: string } | null {
+    const match = /^data:([^;,]+)?(;base64)?,(.*)$/.exec(value);
+    if (!match) return null;
+    const isBase64 = Boolean(match[2]);
+    const data = match[3] ?? '';
+    return { isBase64, data };
+  }
+
+  private decodeBase64(value: string): Uint8Array {
+    const clean = value.replace(/\s/g, '');
+    if (typeof atob !== 'function') {
+      throw new Error('[EPUBEngine] atob não está disponível para decodificar base64.');
+    }
+    const binary = atob(clean);
+    const len = binary.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i += 1) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes;
+  }
+
+  private looksLikeUri(value: string): boolean {
+    return (
+      value.startsWith('http://') ||
+      value.startsWith('https://') ||
+      value.startsWith('/') ||
+      value.startsWith('./') ||
+      value.startsWith('../') ||
+      value.startsWith('file://')
+    );
+  }
+
+  private isLikelyBase64(value: string): boolean {
+    if (this.looksLikeUri(value)) return false;
+    if (value.includes('.')) return false;
+    if (value.length < 16) return false;
+    return /^[A-Za-z0-9+/=]+$/.test(value);
   }
 }

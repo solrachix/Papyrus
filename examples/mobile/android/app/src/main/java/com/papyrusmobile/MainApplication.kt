@@ -13,6 +13,7 @@ import com.facebook.react.soloader.OpenSourceMergedSoMapping
 import com.facebook.soloader.SoLoader
 import com.horcrux.svg.SvgPackage
 import com.papyrus.engine.PapyrusPackage
+import com.reactnativecommunity.webview.RNCWebViewPackage
 
 class MainApplication : Application(), ReactApplication {
 
@@ -23,6 +24,7 @@ class MainApplication : Application(), ReactApplication {
                 MainReactPackage(),
                 PapyrusPackage(),
                 SvgPackage(),
+                RNCWebViewPackage(),
             )
 
         override fun getJSMainModuleName(): String = "index"

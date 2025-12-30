@@ -3,6 +3,12 @@ pluginManagement {
 }
 plugins { id("com.facebook.react.settings") }
 
+gradle.beforeProject { project ->
+  if (project == rootProject) {
+    project.ext.set("kotlinVersion", "1.9.25")
+  }
+}
+
 extensions.configure(com.facebook.react.ReactSettingsExtension) { ex ->
   if (System.getenv('EXPO_USE_COMMUNITY_AUTOLINKING') == '1') {
     ex.autolinkLibrariesFromCommand()

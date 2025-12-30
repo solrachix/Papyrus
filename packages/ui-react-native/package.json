@@ -12,13 +12,14 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "runtime"
   ],
   "publishConfig": {
     "access": "public"
   },
   "scripts": {
-    "build": "tsup index.ts --dts --format cjs,esm --out-dir dist --clean --sourcemap"
+    "build": "tsup"
   },
   "dependencies": {
     "@papyrus-sdk/core": "0.1.0",
@@ -28,7 +29,13 @@
   },
   "peerDependencies": {
     "react": ">=18.2.0 <20",
-    "react-native": ">=0.76.0"
+    "react-native": ">=0.76.0",
+    "react-native-webview": ">=13"
+  },
+  "peerDependenciesMeta": {
+    "react-native-webview": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "react": "^18.2.0",

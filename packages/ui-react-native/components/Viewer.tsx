@@ -3,6 +3,7 @@ import { FlatList, ScrollView, StyleSheet, View, useWindowDimensions, type ViewT
 import { useViewerStore } from '@papyrus-sdk/core';
 import { DocumentEngine } from '@papyrus-sdk/types';
 import PageRenderer from './PageRenderer';
+import WebViewViewer from './WebViewViewer';
 
 interface ViewerProps {
   engine: DocumentEngine;
@@ -15,6 +16,8 @@ const Viewer: React.FC<ViewerProps> = ({ engine }) => {
   const { width: windowWidth } = useWindowDimensions();
   const isDouble = viewMode === 'double';
   const isSingle = viewMode === 'single';
+  const renderTargetType = engine.getRenderTargetType?.() ?? 'canvas';
+  const isWebView = renderTargetType === 'webview';
 
   const pages = useMemo(() => Array.from({ length: pageCount }).map((_, i) => i), [pageCount]);
   const rows = useMemo(() => {
@@ -27,6 +30,16 @@ const Viewer: React.FC<ViewerProps> = ({ engine }) => {
   }, [isDouble, pageCount]);
 
   useEffect(() => {
+    if (isWebView) {
+      if (scrollToPageSignal === null) return;
+      if (pageCount === 0) return;
+      if (scrollToPageSignal < 0 || scrollToPageSignal >= pageCount) return;
+      const nextPage = scrollToPageSignal + 1;
+      engine.goToPage(nextPage);
+      setDocumentState({ currentPage: nextPage, scrollToPageSignal: null });
+      return;
+    }
+
     if (scrollToPageSignal === null) return;
     if (pageCount === 0) return;
     if (scrollToPageSignal < 0 || scrollToPageSignal >= pageCount) return;
@@ -37,7 +50,7 @@ const Viewer: React.FC<ViewerProps> = ({ engine }) => {
     const targetIndex = isDouble ? Math.floor(scrollToPageSignal / 2) : scrollToPageSignal;
     listRef.current?.scrollToIndex({ index: targetIndex, animated: true });
     setDocumentState({ scrollToPageSignal: null });
-  }, [scrollToPageSignal, pageCount, setDocumentState, isDouble, isSingle]);
+  }, [scrollToPageSignal, pageCount, setDocumentState, isDouble, isSingle, isWebView, engine]);
 
   const onViewableItemsChanged = useCallback(
     ({ viewableItems }: { viewableItems: Array<ViewToken> }) => {
@@ -62,6 +75,14 @@ const Viewer: React.FC<ViewerProps> = ({ engine }) => {
     },
     [currentPage, isDouble, setDocumentState]
   );
+
+  if (isWebView) {
+    return (
+      <View style={[styles.container, isDark && styles.containerDark]}>
+        <WebViewViewer engine={engine} />
+      </View>
+    );
+  }
 
   if (isSingle) {
     return (

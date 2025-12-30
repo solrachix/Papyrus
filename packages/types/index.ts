@@ -3,7 +3,7 @@ export type ViewMode = 'single' | 'double' | 'continuous';
 export type UITheme = 'light' | 'dark';
 export type PageTheme = 'normal' | 'sepia' | 'dark' | 'high-contrast';
 export type Locale = 'en' | 'pt-BR';
-export type RenderTargetType = 'canvas' | 'element';
+export type RenderTargetType = 'canvas' | 'element' | 'webview';
 
 export interface FileLike {
   arrayBuffer(): Promise<ArrayBuffer>;
@@ -16,6 +16,15 @@ export type DocumentSource =
   | { uri: string }
   | { data: ArrayBuffer | Uint8Array }
   | FileLike;
+
+export type DocumentType = 'pdf' | 'epub' | 'text';
+
+export interface DocumentLoadRequest {
+  type: DocumentType;
+  source: DocumentSource;
+}
+
+export type DocumentLoadInput = DocumentSource | DocumentLoadRequest;
 
 export interface TextItem {
   str: string;
@@ -96,6 +105,7 @@ export type PapyrusEventListener<T extends PapyrusEventType> = (payload: EventPa
  */
 export interface DocumentEngine {
   load(source: DocumentSource): Promise<void>;
+  load(request: DocumentLoadRequest): Promise<void>;
   getPageCount(): number;
   getCurrentPage(): number;
   goToPage(page: number): void;

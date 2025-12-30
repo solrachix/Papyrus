@@ -16,7 +16,7 @@ const {assetExts} = defaultConfig.resolver;
 const config = {
   watchFolders: [workspaceRoot],
   resolver: {
-    assetExts: [...assetExts, 'pdf'],
+    assetExts: [...assetExts, 'pdf', 'epub', 'html'],
     nodeModulesPaths: [
       path.resolve(projectRoot, 'node_modules'),
       path.resolve(workspaceRoot, 'node_modules'),

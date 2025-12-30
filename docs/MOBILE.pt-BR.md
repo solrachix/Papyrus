@@ -60,3 +60,45 @@ Exemplo pronto em `examples/mobile-expo`.
 ## Notas
 - `DocumentSource` suporta `{ uri }`, `{ data }`, `ArrayBuffer` e `Uint8Array`.
 - Componentes de UI para RN ficam em `packages/ui-react-native`.
+
+## Status
+
+- PDF continua nativo (Android PDFium + iOS PDFKit).
+- EPUB/TXT renderizam via WebView (epub.js + DOM), mantendo o mesmo shell de UI.
+- Busca e selecao de texto variam por engine.
+
+## Tipos de documento
+
+`DocumentType` inclui:
+`'pdf' | 'epub' | 'text'`
+
+Para forcar o tipo:
+
+```ts
+import { MobileDocumentEngine } from '@papyrus-sdk/engine-native';
+
+const engine = new MobileDocumentEngine();
+await engine.load({ type: 'epub', source: { uri: 'https://example.com/book.epub' } });
+```
+
+Compatibilidade mantida:
+`engine.load(source)` continua funcionando e o tipo e inferido por extensao (URI) ou mime (data URI), com fallback para `pdf`.
+
+## WebView
+
+EPUB/TXT exigem `react-native-webview` no app host:
+
+```bash
+npm install react-native-webview
+```
+
+Para apps RN CLI, garanta que o Metro trate `html` como asset:
+
+```js
+// metro.config.js
+resolver: {
+  assetExts: [...assetExts, 'pdf', 'html'],
+},
+```
+
+Ao carregar EPUB/TXT, renderize `<Viewer />` antes de aguardar `engine.load(...)` para o runtime WebView inicializar.

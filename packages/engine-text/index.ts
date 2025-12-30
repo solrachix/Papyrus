@@ -1,5 +1,5 @@
 import { BaseDocumentEngine } from '@papyrus-sdk/core';
-import { DocumentSource, TextItem, OutlineItem, FileLike, TextSelection } from '@papyrus-sdk/types';
+import { DocumentLoadInput, DocumentLoadRequest, DocumentSource, DocumentType, TextItem, OutlineItem, FileLike, TextSelection } from '@papyrus-sdk/types';
 
 export class TextEngine extends BaseDocumentEngine {
   private text = '';
@@ -11,8 +11,13 @@ export class TextEngine extends BaseDocumentEngine {
 
   getRenderTargetType(): 'element' { return 'element'; }
 
-  async load(source: DocumentSource): Promise<void> {
+  async load(input: DocumentLoadInput): Promise<void> {
     try {
+      const { source, type } = this.normalizeLoadInput(input);
+      if (type && type !== 'text') {
+        throw new Error(`[TextEngine] Tipo de documento não suportado: ${type}`);
+      }
+
       const data = await this.resolveSource(source);
       this.text = data;
       this.pages = this.paginateText(data);
@@ -121,9 +126,19 @@ export class TextEngine extends BaseDocumentEngine {
 
   private async resolveSource(source: DocumentSource): Promise<string> {
     if (typeof source === 'string') {
-      if (source.startsWith('http://') || source.startsWith('https://') || source.startsWith('/')) {
+      const dataUri = this.parseDataUri(source);
+      if (dataUri) {
+        if (dataUri.isBase64) {
+          return this.decodeBase64ToText(dataUri.data);
+        }
+        return decodeURIComponent(dataUri.data);
+      }
+      if (this.looksLikeUri(source)) {
         const res = await fetch(source);
         return await res.text();
+      }
+      if (this.isLikelyBase64(source)) {
+        return this.decodeBase64ToText(source);
       }
       return source;
     }
@@ -154,5 +169,56 @@ export class TextEngine extends BaseDocumentEngine {
 
   private isFileLike(source: DocumentSource): source is FileLike {
     return typeof source === 'object' && source !== null && typeof (source as FileLike).arrayBuffer === 'function';
+  }
+
+  private normalizeLoadInput(input: DocumentLoadInput): { source: DocumentSource; type?: DocumentType } {
+    if (this.isLoadRequest(input)) {
+      return { source: input.source, type: input.type };
+    }
+    return { source: input };
+  }
+
+  private isLoadRequest(input: DocumentLoadInput): input is DocumentLoadRequest {
+    return typeof input === 'object' && input !== null && 'source' in input && 'type' in input;
+  }
+
+  private parseDataUri(value: string): { isBase64: boolean; data: string } | null {
+    const match = /^data:([^;,]+)?(;base64)?,(.*)$/.exec(value);
+    if (!match) return null;
+    const isBase64 = Boolean(match[2]);
+    const data = match[3] ?? '';
+    return { isBase64, data };
+  }
+
+  private decodeBase64ToText(value: string): string {
+    const clean = value.replace(/\s/g, '');
+    if (typeof atob !== 'function') {
+      throw new Error('[TextEngine] atob não está disponível para decodificar base64.');
+    }
+    const binary = atob(clean);
+    const len = binary.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i += 1) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return new TextDecoder('utf-8').decode(bytes);
+  }
+
+  private looksLikeUri(value: string): boolean {
+    return (
+      value.startsWith('http://') ||
+      value.startsWith('https://') ||
+      value.startsWith('/') ||
+      value.startsWith('./') ||
+      value.startsWith('../') ||
+      value.startsWith('file://')
+    );
+  }
+
+  private isLikelyBase64(value: string): boolean {
+    if (this.looksLikeUri(value)) return false;
+    if (value.includes('.')) return false;
+    if (value.length < 16) return false;
+    return /^[A-Za-z0-9+/=]+$/.test(value);
   }
 }

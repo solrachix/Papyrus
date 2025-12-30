@@ -5,6 +5,7 @@
     "owner": "solrachix",
     "version": "0.0.1",
     "orientation": "portrait",
+    "entryPoint": "./App.tsx",
     "assetBundlePatterns": [
       "**/*"
     ],

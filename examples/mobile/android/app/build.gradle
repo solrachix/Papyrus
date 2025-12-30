@@ -110,6 +110,7 @@ dependencies {
     implementation("com.facebook.react:react-android")
     implementation project(':papyrus_engine_native')
     implementation project(':react-native-svg')
+    implementation project(':react-native-webview')
 
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")
