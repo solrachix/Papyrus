@@ -1,12 +1,14 @@
 # Papyrus PDF SDK
-> O ultimo motor de PDF que voce vai precisar.
+> O ultimo motor de documentos que voce vai precisar.
 
 [![Engine: PDF.js](https://img.shields.io/badge/Engine-PDF.js-orange.svg)](https://mozilla.github.io/pdf.js/)
 [![Framework: React](https://img.shields.io/badge/Framework-React-blue.svg)](https://reactjs.org/)
 
 Leia em: [English](README.md) | Portugues (Brasil)
 
-Papyrus e um SDK modular de PDF feito para produtos com documentos pesados. Ele combina uma camada central de estado, engines plugaveis (PDF.js na web, nativo no mobile) e kits de UI para React e React Native.
+Papyrus e um SDK modular de documentos feito para produtos com documentos pesados. Ele combina uma camada central de estado, engines plugaveis (PDF.js na web, nativo no mobile) e kits de UI para React e React Native.
+
+Suporta PDF, EPUB e TXT. No mobile, EPUB/TXT renderizam via WebView enquanto PDF fica nativo.
 
 ## Documentacao
 - [Guia de configuracao](docs/CONFIGURATION.pt-BR.md)
@@ -15,6 +17,7 @@ Papyrus e um SDK modular de PDF feito para produtos com documentos pesados. Ele 
 
 ## Funcionalidades
 - Event hooks para pagina, zoom, selecao e anotacoes
+- Tipos de documento: PDF, EPUB, TXT
 - Busca textual em background com preview
 - UI com temas: claro, escuro, sepia, alto contraste
 - Arquitetura desacoplada: core, engines e pacotes de UI
@@ -25,9 +28,12 @@ Papyrus e um SDK modular de PDF feito para produtos com documentos pesados. Ele 
 | `@papyrus-sdk/types` | Tipos e contratos compartilhados |
 | `@papyrus-sdk/core` | Store (Zustand), event bus, search service |
 | `@papyrus-sdk/engine-pdfjs` | Adaptador PDF.js para web |
+| `@papyrus-sdk/engine-epub` | Adaptador EPUB para web |
+| `@papyrus-sdk/engine-text` | Adaptador TXT para web |
 | `@papyrus-sdk/engine-native` | Engine nativa (iOS/Android) |
 | `@papyrus-sdk/ui-react` | Componentes de UI em React |
 | `@papyrus-sdk/ui-react-native` | Componentes de UI em React Native |
+| `@papyrus-sdk/expo-plugin` | Plugin Expo para builds nativos |
 
 ## Inicio rapido (web)
 ```bash

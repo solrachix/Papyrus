@@ -4,8 +4,8 @@ title: Papyrus
 titleTemplate: false
 hero:
   name: Papyrus
-  text: SDK modular de PDF
-  tagline: Monte leitura, busca e anotacoes com um core limpo e engines trocaveis.
+  text: SDK modular de documentos
+  tagline: Monte leitura, busca e anotacoes para PDF, EPUB e TXT.
   actions:
     - theme: brand
       text: Quickstart
@@ -16,6 +16,8 @@ hero:
 features:
   - title: Engine agnostica
     details: Use PDF.js no web e PDFKit ou PDFium no mobile sem trocar a UI.
+  - title: PDF, EPUB, TXT
+    details: Mesma UI entre formatos, com EPUB/TXT via WebView no mobile.
   - title: Core orientado a eventos
     details: useViewerStore e papyrusEvents unificam estado, acoes e ciclo de vida.
   - title: UI pronta
@@ -35,7 +37,7 @@ features:
 
 ## Por que Papyrus
 
-Papyrus foi pensado para experiencias de PDF com UX profissional:
+Papyrus foi pensado para experiencias de documentos com UX profissional:
 busca, selecao, anotacao e UI customizavel sobre um core estavel.
 
 ## Proximos passos

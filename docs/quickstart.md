@@ -1,6 +1,7 @@
 # Quickstart (Web)
 
 This guide mirrors the web example in `examples/web`.
+Papyrus supports PDF, EPUB, and TXT, but the quickstart uses PDF.js for simplicity.
 
 ## 1) Install deps
 

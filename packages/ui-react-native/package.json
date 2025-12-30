@@ -1,6 +1,6 @@
 {
   "name": "@papyrus-sdk/ui-react-native",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
@@ -22,9 +22,9 @@
     "build": "tsup"
   },
   "dependencies": {
-    "@papyrus-sdk/core": "0.1.0",
-    "@papyrus-sdk/types": "0.1.0",
-    "@papyrus-sdk/engine-native": "0.1.0",
+    "@papyrus-sdk/core": "0.1.1",
+    "@papyrus-sdk/types": "0.1.1",
+    "@papyrus-sdk/engine-native": "0.1.1",
     "react-native-svg": "^15.5.0"
   },
   "peerDependencies": {

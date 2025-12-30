@@ -1,0 +1,17 @@
+android/.cxx
+android/build
+android/.gradle
+android/**/.cxx
+android/**/build
+android/**/intermediates
+android/**/outputs
+android/**/obj
+android/**/.ninja*
+android/**/CMakeFiles
+android/**/CMakeCache.txt
+android/**/cmake_install.cmake
+android/**/compile_commands.json
+android/**/compile_commands.json.bin
+ios/build
+ios/Pods
+ios/Podfile.lock

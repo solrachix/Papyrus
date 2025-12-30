@@ -1,6 +1,6 @@
 {
   "name": "@papyrus-sdk/engine-epub",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
@@ -21,8 +21,8 @@
     "build": "tsup index.ts --dts --format cjs,esm --out-dir dist --clean --sourcemap"
   },
   "dependencies": {
-    "@papyrus-sdk/core": "0.1.0",
-    "@papyrus-sdk/types": "0.1.0",
+    "@papyrus-sdk/core": "0.1.1",
+    "@papyrus-sdk/types": "0.1.1",
     "epubjs": "^0.3.92"
   }
 }

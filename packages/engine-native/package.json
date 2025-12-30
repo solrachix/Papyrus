@@ -1,6 +1,6 @@
 {
   "name": "@papyrus-sdk/engine-native",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
@@ -13,8 +13,12 @@
   },
   "files": [
     "dist",
-    "android",
-    "ios",
+    "android/src",
+    "android/build.gradle",
+    "android/consumer-rules.pro",
+    "ios/*.h",
+    "ios/*.m",
+    "ios/*.podspec",
     "react-native.config.js"
   ],
   "publishConfig": {
@@ -24,8 +28,8 @@
     "build": "tsup index.ts --dts --format cjs,esm --out-dir dist --clean --sourcemap"
   },
   "dependencies": {
-    "@papyrus-sdk/core": "0.1.0",
-    "@papyrus-sdk/types": "0.1.0"
+    "@papyrus-sdk/core": "0.1.1",
+    "@papyrus-sdk/types": "0.1.1"
   },
   "peerDependencies": {
     "react-native": ">=0.76.0"

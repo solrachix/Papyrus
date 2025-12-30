@@ -4,8 +4,8 @@ title: Papyrus
 titleTemplate: false
 hero:
   name: Papyrus
-  text: Modular PDF SDK
-  tagline: Build reader, search, and annotation UX with a clean core and swappable engines.
+  text: Modular document SDK
+  tagline: Build reader, search, and annotation UX for PDF, EPUB, and TXT.
   actions:
     - theme: brand
       text: Quickstart
@@ -16,6 +16,8 @@ hero:
 features:
   - title: Engine agnostic
     details: Swap PDF.js on web and PDFKit or PDFium on mobile without changing UI logic.
+  - title: PDF, EPUB, TXT
+    details: Same UI shell across formats, with EPUB/TXT running in a WebView on mobile.
   - title: Event driven core
     details: useViewerStore and papyrusEvents unify state, actions, and lifecycle hooks.
   - title: UI ready
@@ -35,7 +37,7 @@ features:
 
 ## Why Papyrus
 
-Papyrus is for product teams that need a PDF experience closer to Figma or Notion:
+Papyrus is for product teams that need a document experience closer to Figma or Notion:
 search, selection, highlights, and custom UI on top of a stable engine layer.
 
 ## Next steps

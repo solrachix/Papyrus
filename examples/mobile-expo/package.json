@@ -10,11 +10,11 @@
     "prebuild": "expo prebuild"
   },
   "dependencies": {
-    "@papyrus-sdk/core": "0.1.0",
-    "@papyrus-sdk/engine-native": "0.1.0",
-    "@papyrus-sdk/expo-plugin": "0.1.0",
-    "@papyrus-sdk/types": "0.1.0",
-    "@papyrus-sdk/ui-react-native": "0.1.0",
+    "@papyrus-sdk/core": "0.1.1",
+    "@papyrus-sdk/engine-native": "0.1.1",
+    "@papyrus-sdk/expo-plugin": "0.1.1",
+    "@papyrus-sdk/types": "0.1.1",
+    "@papyrus-sdk/ui-react-native": "0.1.1",
     "expo": "~52.0.0",
     "expo-dev-client": "~5.0.0",
     "react": "18.2.0",
