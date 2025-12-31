@@ -1,8 +1,8 @@
 ---
-title: Demo
+title: Demo e Eventos
 ---
 
-# Demo
+# Demo e Eventos
 
 O demo e gerado a partir de `examples/web` e embutido aqui. O PDF padrao e o TraceMonkey local em `examples/web/assets`. Para trocar entre PDF/EPUB/TXT, edite `examples/web/App.tsx` e ajuste as constantes da engine/source.
 

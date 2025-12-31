@@ -6,13 +6,13 @@
   --vp-c-brand-3: #3b82f6;
   --vp-font-family-base: 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif;
   --vp-font-family-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
-  --papyrus-code-bg: #f8fafc;
-  --papyrus-code-border: rgba(15, 23, 42, 0.12);
+  --papyrus-code-bg: var(--vp-c-bg-soft);
+  --papyrus-code-border: var(--vp-c-divider);
   --papyrus-code-inline-bg: rgba(37, 99, 235, 0.12);
   --papyrus-code-inline-border: rgba(37, 99, 235, 0.25);
-  --papyrus-code-inline-color: #0f172a;
-  --papyrus-code-shadow: 0 12px 30px rgba(15, 23, 42, 0.12);
-  --papyrus-code-text: #0f172a;
+  --papyrus-code-inline-color: var(--vp-c-text-1);
+  --papyrus-code-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
+  --papyrus-code-text: var(--vp-c-text-1);
 }
 
 .VPHomeHero .name,
@@ -175,13 +175,11 @@
 }
 
 .dark {
-  --papyrus-code-bg: #0b1220;
-  --papyrus-code-border: rgba(148, 163, 184, 0.18);
   --papyrus-code-inline-bg: rgba(37, 99, 235, 0.2);
   --papyrus-code-inline-border: rgba(59, 130, 246, 0.35);
-  --papyrus-code-inline-color: #e2e8f0;
-  --papyrus-code-shadow: 0 18px 40px rgba(2, 6, 23, 0.55);
-  --papyrus-code-text: #e2e8f0;
+  --papyrus-code-inline-color: var(--vp-c-text-1);
+  --papyrus-code-shadow: 0 14px 36px rgba(2, 6, 23, 0.45);
+  --papyrus-code-text: var(--vp-c-text-1);
 }
 
 .vp-doc div[class*='language-'] {
@@ -212,4 +210,50 @@
 
 .vp-doc .line-numbers-wrapper {
   border-right: 1px solid var(--papyrus-code-border);
+}
+
+.vp-doc details {
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 14px;
+  padding: 12px 16px;
+  margin: 12px 0;
+  background: var(--vp-c-bg-soft);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.vp-doc details[open] {
+  border-color: rgba(37, 99, 235, 0.45);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12);
+}
+
+.vp-doc details summary {
+  list-style: none;
+  cursor: pointer;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.vp-doc details summary::-webkit-details-marker {
+  display: none;
+}
+
+.vp-doc details summary::after {
+  content: '+';
+  margin-left: auto;
+  font-size: 16px;
+  color: var(--vp-c-text-2);
+  transition: transform 0.2s ease, color 0.2s ease;
+}
+
+.vp-doc details[open] summary::after {
+  content: '–';
+  color: var(--vp-c-brand-1);
+}
+
+.vp-doc details p {
+  margin: 10px 0 0;
+  color: var(--vp-c-text-2);
 }

@@ -1,8 +1,8 @@
 ---
-title: Demo
+title: Demo + Events
 ---
 
-# Demo
+# Demo + Events
 
 The demo is built from `examples/web` and embedded here. The default PDF is the local TraceMonkey sample in `examples/web/assets`. To switch between PDF/EPUB/TXT, edit `examples/web/App.tsx` and update the engine/source constants.
 

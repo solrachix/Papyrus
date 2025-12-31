@@ -47,21 +47,23 @@ const buildRoute = (relativePath: string) => {
 
 const navEn = [
   { text: 'Quickstart', link: '/quickstart' },
+  { text: 'FAQ', link: '/faq' },
   { text: 'Architecture', link: '/architecture' },
   { text: 'Configuration', link: '/configuration' },
   { text: 'Flows', link: '/flows' },
   { text: 'Mobile', link: '/mobile' },
-  { text: 'Examples', link: '/examples/' },
+  { text: 'Interactive', link: '/examples/' },
 ];
 
 const navPt = [
   { text: 'Inicio', link: '/pt/' },
   { text: 'Quickstart', link: '/pt/quickstart' },
+  { text: 'FAQ', link: '/pt/faq' },
   { text: 'Arquitetura', link: '/pt/architecture' },
   { text: 'Configuracao', link: '/pt/configuration' },
   { text: 'Fluxos', link: '/pt/flows' },
   { text: 'Mobile', link: '/pt/mobile' },
-  { text: 'Exemplos', link: '/pt/examples/' },
+  { text: 'Interativo', link: '/pt/examples/' },
 ];
 
 const sidebarEn = [
@@ -82,23 +84,23 @@ const sidebarEn = [
     ],
   },
   {
-    text: 'Resources',
+    text: 'Interactive',
+    items: [
+      { text: 'Overview', link: '/examples/' },
+      { text: 'Demo + Events', link: '/examples/demo' },
+      { text: 'Theme Switching', link: '/examples/theme' },
+      { text: 'Locale', link: '/examples/locale' },
+      { text: 'Switching Engines', link: '/examples/engines' },
+    ],
+  },
+  {
+    text: 'Articles',
     items: [
       { text: 'FAQ', link: '/faq' },
       { text: 'Open Source PDF SDK', link: '/open-source-pdf-sdk' },
       { text: 'Open Source EPUB SDK', link: '/open-source-epub-sdk' },
       { text: 'Papyrus vs PDFTron', link: '/papyrus-pdftron-alternative' },
       { text: 'Best Free PDF SDK 2026', link: '/best-free-pdf-sdk-2026' },
-    ],
-  },
-  {
-    text: 'Examples',
-    items: [
-      { text: 'Overview', link: '/examples/' },
-      { text: 'Demo', link: '/examples/demo' },
-      { text: 'Theme Switching', link: '/examples/theme' },
-      { text: 'Locale', link: '/examples/locale' },
-      { text: 'Switching Engines', link: '/examples/engines' },
     ],
   },
 ];
@@ -121,23 +123,23 @@ const sidebarPt = [
     ],
   },
   {
-    text: 'Recursos',
+    text: 'Interativo',
+    items: [
+      { text: 'Visao geral', link: '/pt/examples/' },
+      { text: 'Demo e Eventos', link: '/pt/examples/demo' },
+      { text: 'Troca de Tema', link: '/pt/examples/theme' },
+      { text: 'Idioma', link: '/pt/examples/locale' },
+      { text: 'Troca de Engine', link: '/pt/examples/engines' },
+    ],
+  },
+  {
+    text: 'Artigos',
     items: [
       { text: 'FAQ', link: '/pt/faq' },
       { text: 'SDK PDF Open Source', link: '/pt/sdk-pdf-open-source' },
       { text: 'SDK EPUB Open Source', link: '/pt/sdk-epub-open-source' },
       { text: 'Papyrus vs PDFTron', link: '/pt/papyrus-alternativa-pdftron' },
       { text: 'Melhor SDK PDF Gratis 2026', link: '/pt/melhor-sdk-pdf-gratis-2026' },
-    ],
-  },
-  {
-    text: 'Exemplos',
-    items: [
-      { text: 'Visao geral', link: '/pt/examples/' },
-      { text: 'Demo', link: '/pt/examples/demo' },
-      { text: 'Troca de Tema', link: '/pt/examples/theme' },
-      { text: 'Idioma', link: '/pt/examples/locale' },
-      { text: 'Troca de Engine', link: '/pt/examples/engines' },
     ],
   },
 ];

@@ -79,17 +79,25 @@ export const App = () => {
 
 ## FAQ
 
-### Papyrus e um SDK open source de PDF/EPUB/TXT?
-Sim. O Papyrus e um SDK open source que oferece uma UI unificada e engines para PDF, EPUB e TXT.
+<details>
+<summary>Papyrus e um SDK open source de PDF/EPUB/TXT?</summary>
+<p>Sim. O Papyrus e um SDK open source que oferece uma UI unificada e engines para PDF, EPUB e TXT.</p>
+</details>
 
-### Posso trocar a engine de PDF?
-Sim. A arquitetura e agnostica, entao voce pode usar PDF.js, PDFium ou engines nativas sem mudar a UI.
+<details>
+<summary>Posso trocar a engine de PDF?</summary>
+<p>Sim. A arquitetura e agnostica, entao voce pode usar PDF.js, PDFium ou engines nativas sem mudar a UI.</p>
+</details>
 
-### Funciona com React e React Native?
-Sim. O Papyrus tem camadas de UI para React no web e React Native no mobile.
+<details>
+<summary>Funciona com React e React Native?</summary>
+<p>Sim. O Papyrus tem camadas de UI para React no web e React Native no mobile.</p>
+</details>
 
-### Suporta anotacoes e busca?
-Sim. O core inclui eventos, estado de anotacoes e hooks para montar fluxos de leitura.
+<details>
+<summary>Suporta anotacoes e busca?</summary>
+<p>Sim. O core inclui eventos, estado de anotacoes e hooks para montar fluxos de leitura.</p>
+</details>
 
 ## Feito para times que entregam UX de leitura
 
