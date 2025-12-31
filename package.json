@@ -8,7 +8,7 @@
   "scripts": {
     "dev:web": "yarn --cwd examples/web dev",
     "build:web": "yarn --cwd examples/web build",
-    "build": "pnpm -r build",
+    "build": "pnpm -r --workspace-concurrency=1 build",
     "docs:dev": "yarn --cwd examples/web build --mode docs && vitepress dev docs",
     "docs:build": "yarn --cwd examples/web build --mode docs && vitepress build docs",
     "docs:preview": "vitepress preview docs"
