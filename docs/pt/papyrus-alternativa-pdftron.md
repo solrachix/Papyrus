@@ -1,5 +1,5 @@
 ---
-title: Papyrus: Alternativa Open Source ao PDFTron
+title: "Papyrus: Alternativa Open Source ao PDFTron"
 description: Papyrus e um SDK open source para leitura e anotacoes em PDF, EPUB e TXT, uma alternativa gratuita ao PDFTron (Apryse) para web e mobile.
 ---
 
