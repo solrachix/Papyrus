@@ -1,6 +1,64 @@
 ---
 title: Papyrus FAQ
 description: Answers about the open source PDF, EPUB, and TXT SDK for web and mobile document readers.
+head:
+  - - script
+    - type: application/ld+json
+    - |
+        {
+          "@context": "https://schema.org",
+          "@type": "FAQPage",
+          "mainEntity": [
+            {
+              "@type": "Question",
+              "name": "What is Papyrus?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Papyrus is an open source document SDK with a shared core, pluggable engines, and UI kits for React and React Native."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Which formats are supported?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Papyrus supports PDF, EPUB, and TXT. On mobile, EPUB and TXT use WebView while PDF stays native."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Does it work with React and React Native?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Yes. Papyrus ships UI layers for React on web and React Native on mobile."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Can I swap the PDF engine?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Yes. The core is engine-agnostic so you can swap PDF.js, PDFium, or native engines without changing UI logic."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Does it support search and annotations?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Yes. The core exposes events, state, and search hooks for building highlights, notes, and reader workflows."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Is it free for commercial use?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Yes. Papyrus is MIT licensed."
+              }
+            }
+          ]
+        }
 ---
 
 # Papyrus FAQ
@@ -29,60 +87,3 @@ Yes. Papyrus is MIT licensed. See `LICENSE` for details.
 - [Quickstart](/quickstart)
 - [Configuration](/configuration)
 - [Best Free PDF SDK 2026](/best-free-pdf-sdk-2026)
-
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "FAQPage",
-  "mainEntity": [
-    {
-      "@type": "Question",
-      "name": "What is Papyrus?",
-      "acceptedAnswer": {
-        "@type": "Answer",
-        "text": "Papyrus is an open source document SDK with a shared core, pluggable engines, and UI kits for React and React Native."
-      }
-    },
-    {
-      "@type": "Question",
-      "name": "Which formats are supported?",
-      "acceptedAnswer": {
-        "@type": "Answer",
-        "text": "Papyrus supports PDF, EPUB, and TXT. On mobile, EPUB and TXT use WebView while PDF stays native."
-      }
-    },
-    {
-      "@type": "Question",
-      "name": "Does it work with React and React Native?",
-      "acceptedAnswer": {
-        "@type": "Answer",
-        "text": "Yes. Papyrus ships UI layers for React on web and React Native on mobile."
-      }
-    },
-    {
-      "@type": "Question",
-      "name": "Can I swap the PDF engine?",
-      "acceptedAnswer": {
-        "@type": "Answer",
-        "text": "Yes. The core is engine-agnostic so you can swap PDF.js, PDFium, or native engines without changing UI logic."
-      }
-    },
-    {
-      "@type": "Question",
-      "name": "Does it support search and annotations?",
-      "acceptedAnswer": {
-        "@type": "Answer",
-        "text": "Yes. The core exposes events, state, and search hooks for building highlights, notes, and reader workflows."
-      }
-    },
-    {
-      "@type": "Question",
-      "name": "Is it free for commercial use?",
-      "acceptedAnswer": {
-        "@type": "Answer",
-        "text": "Yes. Papyrus is MIT licensed."
-      }
-    }
-  ]
-}
-</script>
