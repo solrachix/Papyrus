@@ -514,14 +514,18 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     if (raw && typeof raw === 'object' && raw.kind && raw.id) {
       message = raw;
     } else if (typeof raw === 'string') {
+      const trimmed = raw.trim();
+      if (!trimmed || (!trimmed.startsWith('{') && !trimmed.startsWith('['))) {
+        return;
+      }
       try {
-        message = JSON.parse(raw);
+        message = JSON.parse(trimmed);
       } catch (err) {
         sendEvent('RUNTIME_ERROR', {
           message: 'Failed to parse message',
           context: 'runtime.onMessage',
           stack: err && err.stack ? err.stack : null,
-          preview: raw.slice(0, 200),
+          preview: trimmed.slice(0, 200),
         });
         return;
       }

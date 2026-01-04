@@ -11,6 +11,7 @@ import {
   FlatList,
   Dimensions,
   Platform,
+  UIManager,
   findNodeHandle,
   type LayoutChangeEvent,
 } from 'react-native';
@@ -50,19 +51,32 @@ const PageThumbnail: React.FC<{
   frameWidth: number;
   frameHeight: number;
   accentColor: string;
+  useNativePreview: boolean;
   onPress: () => void;
-}> = ({ engine, pageIndex, isActive, isDark, zoom, cardWidth, frameWidth, frameHeight, accentColor, onPress }) => {
+}> = ({
+  engine,
+  pageIndex,
+  isActive,
+  isDark,
+  zoom,
+  cardWidth,
+  frameWidth,
+  frameHeight,
+  accentColor,
+  useNativePreview,
+  onPress,
+}) => {
   const viewRef = useRef<any>(null);
   const [layoutReady, setLayoutReady] = useState(false);
 
   useEffect(() => {
-    if (!layoutReady) return;
+    if (!layoutReady || !useNativePreview) return;
     const viewTag = findNodeHandle(viewRef.current);
     if (!viewTag) return;
     const isNative = Platform.OS === 'android' || Platform.OS === 'ios';
     const renderScale = isNative ? 2.0 / Math.max(zoom, 0.5) : 2.0;
     void engine.renderPage(pageIndex, viewTag, renderScale);
-  }, [engine, pageIndex, layoutReady, zoom]);
+  }, [engine, pageIndex, layoutReady, useNativePreview, zoom]);
 
   const handleLayout = (event: LayoutChangeEvent) => {
     if (event.nativeEvent.layout.width && event.nativeEvent.layout.height) {
@@ -82,7 +96,15 @@ const PageThumbnail: React.FC<{
       ]}
     >
       <View onLayout={handleLayout} style={[styles.thumbFrame, { width: frameWidth, height: frameHeight }]}>
-        <PapyrusPageView ref={viewRef} style={styles.thumbView} />
+        {useNativePreview ? (
+          <PapyrusPageView ref={viewRef} style={styles.thumbView} />
+        ) : (
+          <View style={[styles.thumbFallback, isDark && styles.thumbFallbackDark]}>
+            <Text style={[styles.thumbFallbackText, isDark && styles.thumbFallbackTextDark]}>
+              {pageIndex + 1}
+            </Text>
+          </View>
+        )}
       </View>
       <Text style={[styles.thumbLabel, isDark && styles.thumbLabelDark]}>{pageIndex + 1}</Text>
     </Pressable>
@@ -171,6 +193,9 @@ const RightSheet: React.FC<RightSheetProps> = ({ engine }) => {
   const cardWidth = (windowWidth - gridPadding * 2 - gridGutter) / 2;
   const frameWidth = cardWidth - 16;
   const frameHeight = frameWidth * 1.28;
+  const renderTarget = engine.getRenderTargetType?.();
+  const hasNativePageView = Boolean(UIManager.getViewManagerConfig?.('PapyrusPageView'));
+  const useNativePreview = renderTarget !== 'webview' && hasNativePageView;
 
   const closeSheet = () => toggleSidebarRight();
 
@@ -350,6 +375,7 @@ const RightSheet: React.FC<RightSheetProps> = ({ engine }) => {
                       frameWidth={frameWidth}
                       frameHeight={frameHeight}
                       accentColor={accentColor}
+                      useNativePreview={useNativePreview}
                       onPress={() => {
                         engine.goToPage(item + 1);
                         setDocumentState({ currentPage: item + 1 });
@@ -662,6 +688,23 @@ const styles = StyleSheet.create({
   thumbView: {
     width: '100%',
     height: '100%',
+  },
+  thumbFallback: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ffffff',
+  },
+  thumbFallbackDark: {
+    backgroundColor: '#0b0f14',
+  },
+  thumbFallbackText: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#1f2937',
+  },
+  thumbFallbackTextDark: {
+    color: '#e5e7eb',
   },
   thumbLabel: {
     marginTop: 6,
