@@ -10,10 +10,10 @@
     "test": "jest"
   },
   "dependencies": {
-    "@papyrus-sdk/core": "0.1.1",
-    "@papyrus-sdk/engine-native": "0.1.1",
-    "@papyrus-sdk/types": "0.1.1",
-    "@papyrus-sdk/ui-react-native": "0.1.1",
+    "@papyrus-sdk/core": "workspace:*",
+    "@papyrus-sdk/engine-native": "workspace:*",
+    "@papyrus-sdk/types": "workspace:*",
+    "@papyrus-sdk/ui-react-native": "workspace:*",
     "react": "18.3.1",
     "react-native": "0.76.0",
     "react-native-svg": "^15.5.0",

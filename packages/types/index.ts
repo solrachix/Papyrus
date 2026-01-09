@@ -60,8 +60,16 @@ export interface Annotation {
 export interface OutlineItem {
   title: string;
   pageIndex: number;
+  dest?: PageDestination;
   children?: OutlineItem[];
 }
+
+export type PageDestination =
+  | string
+  | { kind: 'pageIndex'; value: number }
+  | { kind: 'pageNumber'; value: number }
+  | { kind: 'named'; value: string }
+  | { kind: 'href'; value: string };
 
 export interface PapyrusConfig {
   initialPage?: number;
@@ -131,7 +139,7 @@ export interface DocumentEngine {
   searchText?(query: string): Promise<SearchResult[]>;
   selectText?(pageIndex: number, rect: { x: number; y: number; width: number; height: number }): Promise<TextSelection | null>;
   getOutline(): Promise<OutlineItem[]>;
-  getPageIndex(dest: any): Promise<number | null>;
+  getPageIndex(dest: PageDestination): Promise<number | null>;
   getRenderTargetType?(): RenderTargetType;
   destroy(): void;
 }

@@ -293,8 +293,12 @@
   });
 
   const getPageIndex = (dest) => {
-    if (currentType !== 'epub') return null;
+    if (!dest) return null;
     if (typeof dest === 'string') return getSpineIndexByHref(dest);
+    if (typeof dest !== 'object') return null;
+    if (dest.kind === 'href') return getSpineIndexByHref(dest.value);
+    if (dest.kind === 'pageIndex') return dest.value;
+    if (dest.kind === 'pageNumber') return Math.max(0, dest.value - 1);
     return null;
   };
 
@@ -415,12 +419,26 @@
 
   const onMessage = (event) => {
     let message = null;
-    try {
-      message = JSON.parse(event.data);
-    } catch (err) {
+    const raw = event && typeof event === 'object' ? event.data : null;
+
+    if (raw && typeof raw === 'object' && raw.kind && raw.id) {
+      message = raw;
+    } else if (typeof raw === 'string') {
+      if (raw.startsWith('setImmediate$')) return;
+      const trimmed = raw.trim();
+      if (!trimmed || (!trimmed.startsWith('{') && !trimmed.startsWith('['))) {
+        return;
+      }
+      try {
+        message = JSON.parse(trimmed);
+      } catch (err) {
+        return;
+      }
+    } else {
       return;
     }
-    if (!message || !message.kind || !message.id) return;
+
+    if (!message || !message.kind || message.id == null) return;
     handleCommand(message);
   };
 

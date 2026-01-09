@@ -1,4 +1,6 @@
-import { NativeModules, requireNativeComponent, type ViewProps } from 'react-native';
+import type { ComponentType, RefAttributes } from 'react';
+import { View, type ViewProps } from 'react-native';
+import { requireNativeViewManager, requireOptionalNativeModule } from 'expo-modules-core';
 import { BaseDocumentEngine, papyrusEvents } from '@papyrus-sdk/core';
 import {
   DocumentLoadInput,
@@ -6,6 +8,7 @@ import {
   DocumentEngine,
   DocumentSource,
   DocumentType,
+  PageDestination,
   PapyrusEventType,
   RenderTargetType,
   TextItem,
@@ -142,7 +145,25 @@ const inferDocumentType = (source: DocumentSource): DocumentType => {
 
 type NativeDocumentSource = {
   uri?: string;
-  data?: ArrayBuffer | Uint8Array;
+  data?: Uint8Array;
+};
+
+type NativePageDestination = {
+  kind: 'pageIndex' | 'pageNumber' | 'named';
+  value: number | string;
+};
+
+const normalizeNativeDestination = (dest: PageDestination): NativePageDestination | null => {
+  if (!dest) return null;
+  if (typeof dest === 'string') {
+    return { kind: 'named', value: dest };
+  }
+
+  if (dest.kind === 'pageIndex' || dest.kind === 'pageNumber' || dest.kind === 'named') {
+    return { kind: dest.kind, value: dest.value };
+  }
+
+  return null;
 };
 
 type NativeEngineModule = {
@@ -157,14 +178,24 @@ type NativeEngineModule = {
   searchText?: (engineId: string, query: string) => Promise<SearchResult[]>;
   selectText?: (engineId: string, pageIndex: number, x: number, y: number, width: number, height: number) => Promise<TextSelection | null>;
   getOutline?: (engineId: string) => Promise<OutlineItem[]>;
-  getPageIndex?: (engineId: string, dest: any) => Promise<number | null>;
+  getPageIndex?: (engineId: string, dest: NativePageDestination) => Promise<number | null>;
 };
 
 export type PapyrusPageViewProps = ViewProps & {
   engineId?: string;
 };
 
-export const PapyrusPageView = requireNativeComponent<PapyrusPageViewProps>('PapyrusPageView');
+type PapyrusPageViewComponent = ComponentType<PapyrusPageViewProps & RefAttributes<View>>;
+
+const resolvePapyrusPageView = (): PapyrusPageViewComponent => {
+  try {
+    return requireNativeViewManager<PapyrusPageViewProps>('PapyrusPageView') as PapyrusPageViewComponent;
+  } catch {
+    return View as PapyrusPageViewComponent;
+  }
+};
+
+export const PapyrusPageView = resolvePapyrusPageView();
 
 export class NativeDocumentEngine extends BaseDocumentEngine {
   private nativeModule: NativeEngineModule | null = null;
@@ -176,7 +207,7 @@ export class NativeDocumentEngine extends BaseDocumentEngine {
 
   constructor() {
     super();
-    this.nativeModule = (NativeModules as any)[MODULE_NAME] ?? null;
+    this.nativeModule = requireOptionalNativeModule<NativeEngineModule>(MODULE_NAME);
     this.engineId = this.nativeModule?.createEngine ? this.nativeModule.createEngine() : 'default';
   }
 
@@ -285,10 +316,18 @@ export class NativeDocumentEngine extends BaseDocumentEngine {
     return native.searchText(this.engineId, query);
   }
 
-  async getPageIndex(dest: any): Promise<number | null> {
+  async getPageIndex(dest: PageDestination): Promise<number | null> {
+    if (!dest) return null;
+    if (typeof dest !== 'string') {
+      if (dest.kind === 'pageIndex') return dest.value;
+      if (dest.kind === 'pageNumber') return Math.max(0, dest.value - 1);
+    }
+
     const native = this.assertNativeModule();
     if (!native.getPageIndex) return null;
-    return native.getPageIndex(this.engineId, dest);
+    const normalized = normalizeNativeDestination(dest);
+    if (!normalized || normalized.kind !== 'named') return null;
+    return native.getPageIndex(this.engineId, normalized);
   }
 
   destroy(): void {
@@ -297,7 +336,9 @@ export class NativeDocumentEngine extends BaseDocumentEngine {
 
   private assertNativeModule(): NativeEngineModule {
     if (!this.nativeModule) {
-      throw new Error(`[Papyrus] Native module "${MODULE_NAME}" not found. Did you run pod install / gradle sync?`);
+      throw new Error(
+        `[Papyrus] Native module "${MODULE_NAME}" not found. Use a dev client or a native build (Expo Go is not supported).`
+      );
     }
     return this.nativeModule;
   }
@@ -313,10 +354,17 @@ export class NativeDocumentEngine extends BaseDocumentEngine {
       return { uri: source };
     }
     if (this.isUriSource(source)) return { uri: source.uri };
-    if (this.isDataSource(source)) return { data: source.data };
-    if (this.isFileLike(source)) return { data: await source.arrayBuffer() };
-    if (source instanceof ArrayBuffer || source instanceof Uint8Array) return { data: source };
-    return { data: source as ArrayBuffer };
+    if (this.isDataSource(source)) {
+      const data = source.data instanceof Uint8Array ? source.data : new Uint8Array(source.data);
+      return { data };
+    }
+    if (this.isFileLike(source)) {
+      const buffer = await source.arrayBuffer();
+      return { data: new Uint8Array(buffer) };
+    }
+    if (source instanceof ArrayBuffer) return { data: new Uint8Array(source) };
+    if (source instanceof Uint8Array) return { data: source };
+    return { data: new Uint8Array(source as ArrayBuffer) };
   }
 
   private isUriSource(source: DocumentSource): source is { uri: string } {
@@ -451,6 +499,10 @@ export class WebViewDocumentEngine extends BaseDocumentEngine {
         return;
       }
       if (message.name === 'RUNTIME_ERROR') {
+        const errorMessage = typeof payload?.message === 'string' ? payload.message : '';
+        if (errorMessage.includes('ResizeObserver loop')) {
+          return;
+        }
         if (__DEV__) {
           console.warn('[Papyrus WebView runtime]', payload);
         }
@@ -565,7 +617,16 @@ export class WebViewDocumentEngine extends BaseDocumentEngine {
     return await this.request<OutlineItem[]>('get-outline');
   }
 
-  async getPageIndex(dest: any): Promise<number | null> {
+  async getPageIndex(dest: PageDestination): Promise<number | null> {
+    if (!dest) return null;
+    if (typeof dest !== 'string') {
+      if (dest.kind === 'pageIndex') return dest.value;
+      if (dest.kind === 'pageNumber') return Math.max(0, dest.value - 1);
+      if (dest.kind === 'href') {
+        return await this.request<number | null>('get-page-index', { dest: dest.value });
+      }
+      return null;
+    }
     return await this.request<number | null>('get-page-index', { dest });
   }
 
@@ -809,7 +870,7 @@ export class MobileDocumentEngine extends BaseDocumentEngine {
     return await this.activeEngine.getOutline();
   }
 
-  async getPageIndex(dest: any): Promise<number | null> {
+  async getPageIndex(dest: PageDestination): Promise<number | null> {
     return await this.activeEngine.getPageIndex(dest);
   }
 

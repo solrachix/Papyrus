@@ -1,5 +1,5 @@
 import { BaseDocumentEngine } from '@papyrus-sdk/core';
-import { DocumentLoadInput, DocumentLoadRequest, DocumentSource, DocumentType, TextItem, OutlineItem, FileLike, TextSelection } from '@papyrus-sdk/types';
+import { DocumentLoadInput, DocumentLoadRequest, DocumentSource, DocumentType, TextItem, OutlineItem, FileLike, TextSelection, PageDestination } from '@papyrus-sdk/types';
 
 export class TextEngine extends BaseDocumentEngine {
   private text = '';
@@ -104,8 +104,11 @@ export class TextEngine extends BaseDocumentEngine {
     return [];
   }
 
-  async getPageIndex(dest: any): Promise<number | null> {
-    void dest;
+  async getPageIndex(dest: PageDestination): Promise<number | null> {
+    if (!dest) return null;
+    if (typeof dest === 'string') return null;
+    if (dest.kind === 'pageIndex') return dest.value;
+    if (dest.kind === 'pageNumber') return Math.max(0, dest.value - 1);
     return null;
   }
 

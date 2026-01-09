@@ -1,6 +1,6 @@
 import ePub from 'epubjs';
 import { BaseDocumentEngine } from '@papyrus-sdk/core';
-import { DocumentLoadInput, DocumentLoadRequest, DocumentSource, DocumentType, TextItem, OutlineItem, FileLike, TextSelection } from '@papyrus-sdk/types';
+import { DocumentLoadInput, DocumentLoadRequest, DocumentSource, DocumentType, TextItem, OutlineItem, FileLike, TextSelection, PageDestination } from '@papyrus-sdk/types';
 
 export class EPUBEngine extends BaseDocumentEngine {
   private book: any = null;
@@ -164,9 +164,12 @@ export class EPUBEngine extends BaseDocumentEngine {
     return toc.map(mapItem);
   }
 
-  async getPageIndex(dest: any): Promise<number | null> {
+  async getPageIndex(dest: PageDestination): Promise<number | null> {
     if (!dest) return null;
     if (typeof dest === 'string') return this.getSpineIndexByHref(dest);
+    if (dest.kind === 'href') return this.getSpineIndexByHref(dest.value);
+    if (dest.kind === 'pageIndex') return dest.value;
+    if (dest.kind === 'pageNumber') return Math.max(0, dest.value - 1);
     return null;
   }
 

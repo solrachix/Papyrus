@@ -13,17 +13,17 @@ import com.shockwave.pdfium.PdfDocument;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-class PapyrusPageView extends View {
+public class PapyrusPageView extends View {
   private static final ExecutorService RENDER_EXECUTOR = Executors.newSingleThreadExecutor();
 
   private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
   private Bitmap bitmap;
 
-  PapyrusPageView(Context context) {
+  public PapyrusPageView(Context context) {
     super(context);
   }
 
-  PapyrusPageView(Context context, AttributeSet attrs) {
+  public PapyrusPageView(Context context, AttributeSet attrs) {
     super(context, attrs);
   }
 

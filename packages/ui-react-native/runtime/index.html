@@ -117,11 +117,19 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     }
   };
 
+  const shouldIgnoreError = (error) => {
+    const message = error && error.message ? error.message : String(error || '');
+    return message.includes('ResizeObserver loop');
+  };
+
   window.addEventListener('error', (event) => {
-    reportError(event.error || event.message, 'window.error');
+    const error = event.error || event.message;
+    if (shouldIgnoreError(error)) return;
+    reportError(error, 'window.error');
   });
 
   window.addEventListener('unhandledrejection', (event) => {
+    if (shouldIgnoreError(event.reason)) return;
     reportError(event.reason, 'unhandledrejection');
   });
 
@@ -386,8 +394,12 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   });
 
   const getPageIndex = (dest) => {
-    if (currentType !== 'epub') return null;
+    if (!dest) return null;
     if (typeof dest === 'string') return getSpineIndexByHref(dest);
+    if (typeof dest !== 'object') return null;
+    if (dest.kind === 'href') return getSpineIndexByHref(dest.value);
+    if (dest.kind === 'pageIndex') return dest.value;
+    if (dest.kind === 'pageNumber') return Math.max(0, dest.value - 1);
     return null;
   };
 
@@ -514,6 +526,9 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     if (raw && typeof raw === 'object' && raw.kind && raw.id) {
       message = raw;
     } else if (typeof raw === 'string') {
+      if (raw.startsWith('setImmediate$')) {
+        return;
+      }
       const trimmed = raw.trim();
       if (!trimmed || (!trimmed.startsWith('{') && !trimmed.startsWith('['))) {
         return;
@@ -530,9 +545,6 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         return;
       }
     } else {
-      sendEvent('RUNTIME_LOG', {
-        message: `Ignoring message of type ${typeof raw}`,
-      });
       return;
     }
 

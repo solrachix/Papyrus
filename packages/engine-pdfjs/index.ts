@@ -1,6 +1,6 @@
 
 import { BaseDocumentEngine } from '@papyrus-sdk/core';
-import { DocumentLoadInput, DocumentLoadRequest, DocumentSource, DocumentType, TextItem, OutlineItem, FileLike, TextSelection } from '@papyrus-sdk/types';
+import { DocumentLoadInput, DocumentLoadRequest, DocumentSource, DocumentType, TextItem, OutlineItem, FileLike, TextSelection, PageDestination } from '@papyrus-sdk/types';
 
 declare const pdfjsLib: any;
 
@@ -154,12 +154,28 @@ export class PDFJSEngine extends BaseDocumentEngine {
     return mapOutline(outline);
   }
 
-  async getPageIndex(dest: any): Promise<number | null> {
+  async getPageIndex(dest: PageDestination): Promise<number | null> {
     if (!this.pdfDoc || !dest) return null;
+    if (typeof dest !== 'string') {
+      if (dest.kind === 'pageIndex') return dest.value;
+      if (dest.kind === 'pageNumber') return Math.max(0, dest.value - 1);
+      if (dest.kind === 'named') {
+        try {
+          const named = await this.pdfDoc.getDestination(dest.value);
+          return await this.pdfDoc.getPageIndex(named[0]);
+        } catch {
+          return null;
+        }
+      }
+      return null;
+    }
+
     try {
-      const d = typeof dest === 'string' ? await this.pdfDoc.getDestination(dest) : dest;
+      const d = await this.pdfDoc.getDestination(dest);
       return await this.pdfDoc.getPageIndex(d[0]);
-    } catch (e) { return null; }
+    } catch {
+      return null;
+    }
   }
 
   destroy(): void { if (this.pdfDoc) { this.pdfDoc.destroy(); this.pdfDoc = null; } }
