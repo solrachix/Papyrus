@@ -91,6 +91,7 @@ papyrusEvents.on(PapyrusEventType.DOCUMENT_LOADED, ({ pageCount }) => {
 ## Examples
 - Web demo: `examples/web`
 - React Native: `examples/mobile`
+- Build packages: `pnpm -r --filter "./packages/**" --sort --workspace-concurrency=1 build`
 
 ## Contributing
 See `CONTRIBUTING.md`.

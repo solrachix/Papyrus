@@ -441,6 +441,19 @@ class PapyrusNativeEngineModule : Module() {
         return File(Uri.parse(uriValue).path ?: return null)
       }
 
+      if (uriValue.startsWith("res://")) {
+        val resourceName = uriValue.substring("res://".length)
+        val resourceId = context.resources.getIdentifier(resourceName, "raw", context.packageName)
+        if (resourceId != 0) {
+          return copyFromRawResource(resourceId, context)
+        }
+      }
+
+      val resourceId = context.resources.getIdentifier(uriValue, "raw", context.packageName)
+      if (resourceId != 0) {
+        return copyFromRawResource(resourceId, context)
+      }
+
       return File(uriValue)
     }
 
@@ -502,6 +515,14 @@ class PapyrusNativeEngineModule : Module() {
   @Throws(IOException::class)
   private fun copyFromAsset(assetPath: String, context: Context): File {
     val inputStream = context.assets.open(assetPath)
+    val out = createTempFile(context)
+    writeStreamToFile(inputStream, out)
+    return out
+  }
+
+  @Throws(IOException::class)
+  private fun copyFromRawResource(resourceId: Int, context: Context): File {
+    val inputStream = context.resources.openRawResource(resourceId)
     val out = createTempFile(context)
     writeStreamToFile(inputStream, out)
     return out

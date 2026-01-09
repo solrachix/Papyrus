@@ -33,6 +33,11 @@ cd examples/mobile
 npm install
 ```
 
+Build dos pacotes (na raiz do repo):
+```
+pnpm -r --filter "./packages/**" --sort --workspace-concurrency=1 build
+```
+
 New Architecture esta habilitada por padrao no app de exemplo (`android/gradle.properties` + `ios/Podfile`).
 
 iOS (apenas macOS):
@@ -46,6 +51,17 @@ npm run ios
 Android:
 ```
 npm run android
+```
+
+APK Android (release):
+```
+cd android
+./gradlew assembleRelease
+```
+
+Instalar no emulador/dispositivo:
+```
+adb install -r app/build/outputs/apk/release/app-release.apk
 ```
 
 ## Compatibilidade com Expo (sem lock-in)

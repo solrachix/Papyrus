@@ -455,6 +455,19 @@ public class PapyrusNativeEngineModule extends ReactContextBaseJavaModule {
         return new File(Uri.parse(uriString).getPath());
       }
 
+      if (uriString.startsWith("res://")) {
+        String resourceName = uriString.substring("res://".length());
+        File resourceFile = copyFromRawResource(resourceName, context);
+        if (resourceFile != null) {
+          return resourceFile;
+        }
+      }
+
+      File resourceFile = copyFromRawResource(uriString, context);
+      if (resourceFile != null) {
+        return resourceFile;
+      }
+
       return new File(uriString);
     }
 
@@ -496,6 +509,17 @@ public class PapyrusNativeEngineModule extends ReactContextBaseJavaModule {
 
   private static File copyFromAsset(String assetPath, Context context) throws IOException {
     InputStream inputStream = context.getAssets().open(assetPath);
+    File out = createTempFile(context);
+    writeStreamToFile(inputStream, out);
+    return out;
+  }
+
+  private static File copyFromRawResource(String resourceName, Context context) throws IOException {
+    int resId = context.getResources().getIdentifier(resourceName, "raw", context.getPackageName());
+    if (resId == 0) {
+      return null;
+    }
+    InputStream inputStream = context.getResources().openRawResource(resId);
     File out = createTempFile(context);
     writeStreamToFile(inputStream, out);
     return out;

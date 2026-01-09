@@ -69,6 +69,9 @@ importers:
       '@react-native-community/cli-platform-ios':
         specifier: 15.0.0-alpha.2
         version: 15.0.0-alpha.2
+      '@react-native-community/cli-plugin-metro':
+        specifier: 12.3.6
+        version: 12.3.6
       '@react-native/babel-preset':
         specifier: 0.76.0
         version: 0.76.0(@babel/core@7.28.5)(@babel/preset-env@7.28.5(@babel/core@7.28.5))
@@ -1701,6 +1704,9 @@ packages:
 
   '@react-native-community/cli-platform-ios@15.0.0-alpha.2':
     resolution: {integrity: sha512-7teqYOMf7SnBmUbSeGklDS2lJCpAa1LKzmy/L8vFiayWImUTJHKzkJyZNzhmiLSImcibFYVH7uaD2DWuFNcrOQ==}
+
+  '@react-native-community/cli-plugin-metro@12.3.6':
+    resolution: {integrity: sha512-3jxSBQt4fkS+KtHCPSyB5auIT+KKIrPCv9Dk14FbvOaEh9erUWEm/5PZWmtboW1z7CYeNbFMeXm9fM2xwtVOpg==}
 
   '@react-native-community/cli-server-api@15.0.0-alpha.2':
     resolution: {integrity: sha512-e4bHsl/J006+coMTOpj6i44QPDat/X2s1sc3rqQkFL5vHIduB+Z6IyDI+W9F5uHrJhtQukE5NdajkjcXyjGLVA==}
@@ -7942,6 +7948,8 @@ snapshots:
     dependencies:
       '@react-native-community/cli-platform-apple': 15.0.0-alpha.2
 
+  '@react-native-community/cli-plugin-metro@12.3.6': {}
+
   '@react-native-community/cli-server-api@15.0.0-alpha.2':
     dependencies:
       '@react-native-community/cli-debugger-ui': 15.0.0-alpha.2
@@ -8253,7 +8261,9 @@ snapshots:
     transitivePeerDependencies:
       - '@babel/core'
       - '@babel/preset-env'
+      - bufferutil
       - supports-color
+      - utf-8-validate
 
   '@react-native/normalize-colors@0.76.0': {}
 

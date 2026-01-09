@@ -18,3 +18,19 @@ Papyrus no mobile usa UI em React Native e engine nativa.
 Mobile exige build nativo (Xcode / Android Studio). Exemplos:
 - `examples/mobile` (RN CLI)
 - `examples/mobile-expo` (Expo + prebuild)
+
+Build dos pacotes antes de rodar os examples:
+```bash
+pnpm -r --filter "./packages/**" --sort --workspace-concurrency=1 build
+```
+
+APK Android (example RN CLI):
+```bash
+cd examples/mobile/android
+./gradlew assembleRelease
+```
+
+Instalar no emulador/dispositivo:
+```bash
+adb install -r app/build/outputs/apk/release/app-release.apk
+```

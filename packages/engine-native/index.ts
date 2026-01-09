@@ -1,5 +1,5 @@
 import type { ComponentType, RefAttributes } from 'react';
-import { View, type ViewProps } from 'react-native';
+import { NativeModules, requireNativeComponent, View, type ViewProps } from 'react-native';
 import { requireNativeViewManager, requireOptionalNativeModule } from 'expo-modules-core';
 import { BaseDocumentEngine, papyrusEvents } from '@papyrus-sdk/core';
 import {
@@ -187,11 +187,22 @@ export type PapyrusPageViewProps = ViewProps & {
 
 type PapyrusPageViewComponent = ComponentType<PapyrusPageViewProps & RefAttributes<View>>;
 
+const resolveNativeModule = (): NativeEngineModule | null => {
+  const expoModule = requireOptionalNativeModule<NativeEngineModule>(MODULE_NAME);
+  if (expoModule) return expoModule;
+  const rnModule = (NativeModules as Record<string, NativeEngineModule | undefined>)[MODULE_NAME];
+  return rnModule ?? null;
+};
+
 const resolvePapyrusPageView = (): PapyrusPageViewComponent => {
   try {
     return requireNativeViewManager<PapyrusPageViewProps>('PapyrusPageView') as PapyrusPageViewComponent;
   } catch {
-    return View as PapyrusPageViewComponent;
+    try {
+      return requireNativeComponent<PapyrusPageViewProps>('PapyrusPageView') as PapyrusPageViewComponent;
+    } catch {
+      return View as PapyrusPageViewComponent;
+    }
   }
 };
 
@@ -207,7 +218,7 @@ export class NativeDocumentEngine extends BaseDocumentEngine {
 
   constructor() {
     super();
-    this.nativeModule = requireOptionalNativeModule<NativeEngineModule>(MODULE_NAME);
+    this.nativeModule = resolveNativeModule();
     this.engineId = this.nativeModule?.createEngine ? this.nativeModule.createEngine() : 'default';
   }
 
@@ -335,6 +346,9 @@ export class NativeDocumentEngine extends BaseDocumentEngine {
   }
 
   private assertNativeModule(): NativeEngineModule {
+    if (!this.nativeModule) {
+      this.nativeModule = resolveNativeModule();
+    }
     if (!this.nativeModule) {
       throw new Error(
         `[Papyrus] Native module "${MODULE_NAME}" not found. Use a dev client or a native build (Expo Go is not supported).`

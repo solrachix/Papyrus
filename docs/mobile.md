@@ -56,3 +56,19 @@ When loading EPUB/TXT, render `<Viewer />` before awaiting `engine.load(...)` so
 Mobile requires native build steps (Xcode / Android Studio). Examples live in:
 - `examples/mobile` (RN CLI)
 - `examples/mobile-expo` (Expo + prebuild)
+
+Build all packages before running the examples:
+```bash
+pnpm -r --filter "./packages/**" --sort --workspace-concurrency=1 build
+```
+
+Android APK (RN CLI example):
+```bash
+cd examples/mobile/android
+./gradlew assembleRelease
+```
+
+Install on emulator/device:
+```bash
+adb install -r app/build/outputs/apk/release/app-release.apk
+```
