@@ -6,3 +6,4 @@ export { default as RightSheet } from './components/RightSheet';
 export { default as AnnotationEditor } from './components/AnnotationEditor';
 export { default as BottomBar } from './components/BottomBar';
 export { default as SettingsSheet } from './components/SettingsSheet';
+export { default as CoverPreview } from './components/CoverPreview';
