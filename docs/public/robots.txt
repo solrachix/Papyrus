@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+Sitemap: https://papyrus-mocha.vercel.app/sitemap.xml
+Sitemap: https://solrachix.github.io/Papyrus/sitemap.xml
