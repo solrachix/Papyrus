@@ -15,6 +15,14 @@
   "publishConfig": {
     "access": "public"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/solrachix/Papyrus.git"
+  },
+  "homepage": "https://github.com/solrachix/Papyrus",
+  "bugs": {
+    "url": "https://github.com/solrachix/Papyrus/issues"
+  },
   "scripts": {
     "build": "tsup index.ts --dts --format cjs,esm --out-dir dist --clean --sourcemap"
   },
