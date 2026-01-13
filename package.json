@@ -6,11 +6,11 @@
     "examples/*"
   ],
   "scripts": {
-    "dev:web": "pnpm --dir examples/web dev",
-    "build:web": "pnpm --dir examples/web build",
+    "dev:web": "pnpm --filter @papyrus-sdk/example-web dev",
+    "build:web": "pnpm --filter @papyrus-sdk/example-web build",
     "build": "pnpm -r --workspace-concurrency=1 build",
-    "docs:dev": "pnpm --dir examples/web build -- --mode docs && vitepress dev docs",
-    "docs:build": "pnpm --dir examples/web build -- --mode docs && vitepress build docs",
+    "docs:dev": "pnpm --filter @papyrus-sdk/example-web build -- --mode docs && vitepress dev docs",
+    "docs:build": "pnpm --filter @papyrus-sdk/example-web build -- --mode docs && vitepress build docs",
     "docs:preview": "vitepress preview docs",
     "bump:packages": "node scripts/bump-packages.js"
   },
