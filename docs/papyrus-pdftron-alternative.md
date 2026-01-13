@@ -1,5 +1,5 @@
 ---
-title: PDFTron Alternative: Papyrus vs Apryse PDF SDK
+title: "PDFTron Alternative: Papyrus vs Apryse PDF SDK"
 description: Papyrus is an open source PDF SDK with annotations and viewer UI for web and mobile, a free alternative to PDFTron for many teams.
 ---
 
