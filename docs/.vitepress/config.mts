@@ -147,6 +147,7 @@ const sidebarPt = [
 export default defineConfig({
   title: 'Papyrus',
   description: DESCRIPTION_EN,
+  base: '/Papyrus/',
   cleanUrls: true,
   lastUpdated: true,
   appearance: true,
