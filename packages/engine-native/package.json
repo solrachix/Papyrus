@@ -1,6 +1,6 @@
 {
   "name": "@papyrus-sdk/engine-native",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
@@ -29,8 +29,8 @@
     "prepublishOnly": "pnpm build"
   },
   "dependencies": {
-    "@papyrus-sdk/core": "0.1.2",
-    "@papyrus-sdk/types": "0.1.2"
+    "@papyrus-sdk/core": "0.1.3",
+    "@papyrus-sdk/types": "0.1.3"
   },
   "peerDependencies": {
     "react-native": ">=0.76.0"
