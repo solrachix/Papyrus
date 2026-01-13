@@ -11,7 +11,8 @@
     "build": "pnpm -r --workspace-concurrency=1 build",
     "docs:dev": "pnpm --dir examples/web build -- --mode docs && vitepress dev docs",
     "docs:build": "pnpm --dir examples/web build -- --mode docs && vitepress build docs",
-    "docs:preview": "vitepress preview docs"
+    "docs:preview": "vitepress preview docs",
+    "bump:packages": "node scripts/bump-packages.js"
   },
   "devDependencies": {
     "@types/react": "^18.2.6",
