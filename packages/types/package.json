@@ -1,6 +1,17 @@
 {
   "name": "@papyrus-sdk/types",
   "version": "0.1.3",
+  "license": "MIT",
+  "keywords": [
+    "papyrus",
+    "types",
+    "document",
+    "sdk",
+    "viewer",
+    "pdf",
+    "epub",
+    "text"
+  ],
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",

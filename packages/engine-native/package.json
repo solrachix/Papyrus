@@ -1,6 +1,17 @@
 {
   "name": "@papyrus-sdk/engine-native",
   "version": "0.1.4",
+  "license": "MIT",
+  "keywords": [
+    "papyrus",
+    "react-native",
+    "pdf",
+    "pdfium",
+    "pdfkit",
+    "document",
+    "sdk",
+    "viewer"
+  ],
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",

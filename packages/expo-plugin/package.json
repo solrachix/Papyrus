@@ -1,6 +1,16 @@
 {
   "name": "@papyrus-sdk/expo-plugin",
   "version": "0.1.2",
+  "license": "MIT",
+  "keywords": [
+    "papyrus",
+    "expo",
+    "config-plugin",
+    "react-native",
+    "plugin",
+    "document",
+    "sdk"
+  ],
   "main": "app.plugin.js",
   "types": "index.d.ts",
   "exports": {
