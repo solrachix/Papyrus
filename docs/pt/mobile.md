@@ -1,3 +1,7 @@
+---
+title: "Mobile"
+description: "Papyrus no mobile usa UI em React Native e engine nativa."
+---
 # Mobile
 
 Papyrus no mobile usa UI em React Native e engine nativa.
@@ -34,3 +38,4 @@ Instalar no emulador/dispositivo:
 ```bash
 adb install -r app/build/outputs/apk/release/app-release.apk
 ```
+

@@ -1,3 +1,7 @@
+---
+title: "Core flows"
+description: "This page shows how core flows are wired across the store and events."
+---
 # Core flows
 
 This page shows how core flows are wired across the store and events.
@@ -43,3 +47,4 @@ useViewerStore.getState().setDocumentState({
   accentColor: '#2563eb',
 });
 ```
+

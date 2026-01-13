@@ -1,3 +1,7 @@
+---
+title: "Papyrus Mobile (RN CLI + compatibilidade com Expo)"
+description: "Leia em: English | Portugues (Brasil)"
+---
 # Papyrus Mobile (RN CLI + compatibilidade com Expo)
 Leia em: [English](mobile.md) | Portugues (Brasil)
 
@@ -118,3 +122,4 @@ resolver: {
 ```
 
 Ao carregar EPUB/TXT, renderize `<Viewer />` antes de aguardar `engine.load(...)` para o runtime WebView inicializar.
+

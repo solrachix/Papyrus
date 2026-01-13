@@ -1,3 +1,7 @@
+---
+title: "Arquitetura"
+description: "Papyrus e dividido em camadas pequenas para UI e engine evoluirem separadas."
+---
 # Arquitetura
 
 Papyrus e dividido em camadas pequenas para UI e engine evoluirem separadas.
@@ -23,3 +27,4 @@ Papyrus e dividido em camadas pequenas para UI e engine evoluirem separadas.
 
 Os componentes de UI conversam apenas com `DocumentEngine`. Isso permite
 trocar PDF.js por PDFKit ou PDFium sem refazer a UI.
+

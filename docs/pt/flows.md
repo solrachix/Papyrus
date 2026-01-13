@@ -1,3 +1,7 @@
+---
+title: "Fluxos principais"
+description: "Esta pagina mostra os fluxos do core entre store e eventos."
+---
 # Fluxos principais
 
 Esta pagina mostra os fluxos do core entre store e eventos.
@@ -39,3 +43,4 @@ useViewerStore.getState().setDocumentState({
   accentColor: '#2563eb',
 });
 ```
+

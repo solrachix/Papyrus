@@ -1,3 +1,7 @@
+---
+title: "Guia de Configuracao - Papyrus SDK"
+description: "Leia em: English | Portugues (Brasil)"
+---
 # Guia de Configuracao - Papyrus SDK
 Leia em: [English](configuration.md) | Portugues (Brasil)
 
@@ -47,3 +51,4 @@ papyrusEvents.on(PapyrusEventType.ANNOTATION_CREATED, ({ annotation }) => {
 
 ## Customizacao visual
 Os componentes do `@papyrus-sdk/ui-react` usam Tailwind CSS. Voce pode sobrescrever estilos ou injetar CSS global para alterar cores e fontes. Use `initialAccentColor` para alinhar rapidamente com a marca.
+

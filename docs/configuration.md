@@ -1,3 +1,7 @@
+---
+title: "Configuration"
+description: "Papyrus is configured through PapyrusConfig before loading a document."
+---
 # Configuration
 
 Papyrus is configured through `PapyrusConfig` before loading a document.
@@ -38,3 +42,4 @@ papyrusEvents.on(PapyrusEventType.PAGE_CHANGED, ({ pageNumber }) => {
   console.log('page', pageNumber);
 });
 ```
+

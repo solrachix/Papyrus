@@ -21,20 +21,12 @@ const head = [
   ['meta', { name: 'keywords', content: KEYWORDS }],
   ['meta', { property: 'og:type', content: 'website' }],
   ['meta', { property: 'og:site_name', content: SITE_NAME }],
-  ['meta', { property: 'og:title', content: SITE_NAME }],
-  ['meta', { property: 'og:description', content: DESCRIPTION_EN }],
   ['meta', { name: 'twitter:card', content: 'summary_large_image' }],
-  ['meta', { name: 'twitter:title', content: SITE_NAME }],
-  ['meta', { name: 'twitter:description', content: DESCRIPTION_EN }],
 ];
 
 if (OG_IMAGE) {
   head.push(['meta', { property: 'og:image', content: OG_IMAGE }]);
   head.push(['meta', { name: 'twitter:image', content: OG_IMAGE }]);
-}
-
-if (SITE_URL) {
-  head.push(['meta', { property: 'og:url', content: SITE_URL }]);
 }
 
 const buildRoute = (relativePath: string) => {
@@ -155,19 +147,32 @@ export default defineConfig({
   head,
   sitemap: SITE_URL ? { hostname: SITE_URL } : undefined,
   transformHead: ({ pageData }) => {
-    if (!SITE_URL) return [];
     const route = buildRoute(pageData.relativePath);
-    const canonical = `${SITE_URL}${route}`;
     const isPt = pageData.relativePath.replace(/\\/g, '/').startsWith('pt/');
     const enRoute = isPt ? route.replace(/^\/pt\//, '/') : route;
     const ptRoute = isPt ? route : route === '/' ? '/pt/' : `/pt${route}`;
+    const pageTitle = pageData.frontmatter?.title || pageData.title || SITE_NAME;
+    const pageDescription =
+      pageData.frontmatter?.description || pageData.description || (isPt ? DESCRIPTION_PT : DESCRIPTION_EN);
+    const fullTitle = pageTitle === SITE_NAME ? SITE_NAME : `${pageTitle} | ${SITE_NAME}`;
 
-    return [
-      ['link', { rel: 'canonical', href: canonical }],
-      ['link', { rel: 'alternate', hreflang: 'en', href: `${SITE_URL}${enRoute}` }],
-      ['link', { rel: 'alternate', hreflang: 'pt-BR', href: `${SITE_URL}${ptRoute}` }],
-      ['link', { rel: 'alternate', hreflang: 'x-default', href: `${SITE_URL}${enRoute}` }],
-    ];
+    const tags = [
+      ['meta', { property: 'og:title', content: fullTitle }],
+      ['meta', { property: 'og:description', content: pageDescription }],
+      ['meta', { name: 'twitter:title', content: fullTitle }],
+      ['meta', { name: 'twitter:description', content: pageDescription }],
+    ] as [string, Record<string, string>][];
+
+    if (SITE_URL) {
+      const canonical = `${SITE_URL}${route}`;
+      tags.push(['meta', { property: 'og:url', content: canonical }]);
+      tags.push(['link', { rel: 'canonical', href: canonical }]);
+      tags.push(['link', { rel: 'alternate', hreflang: 'en', href: `${SITE_URL}${enRoute}` }]);
+      tags.push(['link', { rel: 'alternate', hreflang: 'pt-BR', href: `${SITE_URL}${ptRoute}` }]);
+      tags.push(['link', { rel: 'alternate', hreflang: 'x-default', href: `${SITE_URL}${enRoute}` }]);
+    }
+
+    return tags;
   },
   themeConfig: {
     search: {

@@ -1,3 +1,7 @@
+---
+title: "Mobile"
+description: "Papyrus mobile uses React Native UI plus a native engine bridge."
+---
 # Mobile
 
 Papyrus mobile uses React Native UI plus a native engine bridge.
@@ -72,3 +76,4 @@ Install on emulator/device:
 ```bash
 adb install -r app/build/outputs/apk/release/app-release.apk
 ```
+

@@ -1,3 +1,7 @@
+---
+title: "Architecture"
+description: "Papyrus is split into small layers so UI and engine can evolve independently."
+---
 # Architecture
 
 Papyrus is split into small layers so UI and engine can evolve independently.
@@ -23,3 +27,4 @@ Papyrus is split into small layers so UI and engine can evolve independently.
 
 UI components never import PDF.js or native code directly. They talk to the
 `DocumentEngine` interface so you can swap engines without changing UI logic.
+

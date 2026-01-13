@@ -1,3 +1,7 @@
+---
+title: "Quickstart (Web)"
+description: "Este guia segue o exemplo em examples/web. Papyrus suporta PDF, EPUB e TXT, mas o quickstart usa PDF.js por simplicidade."
+---
 # Quickstart (Web)
 
 Este guia segue o exemplo em `examples/web`.
@@ -72,3 +76,4 @@ papyrusEvents.on(PapyrusEventType.ANNOTATION_CREATED, ({ annotation }) => {
 - [Arquitetura](/pt/architecture)
 - [Configuracao](/pt/configuration)
 - [Fluxos](/pt/flows)
+
