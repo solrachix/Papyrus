@@ -1,10 +1,15 @@
 ---
-title: "Mobile"
-description: "Papyrus mobile uses React Native UI plus a native engine bridge."
+title: "PDF SDK for React Native (iOS & Android)"
+description: "React Native PDF SDK with a native engine bridge for iOS and Android."
 ---
-# Mobile
+# PDF SDK for React Native (iOS & Android)
 
-Papyrus mobile uses React Native UI plus a native engine bridge.
+Papyrus mobile uses React Native UI plus a native engine bridge for PDF rendering on iOS and Android.
+
+**What it is:** a React Native PDF SDK with native rendering.  
+**Who it's for:** teams building reader UX on iOS + Android.  
+**When to use:** you need native PDF performance and shared UI logic.  
+**When not to use:** you only need web rendering.
 
 ## Packages
 
@@ -76,4 +81,10 @@ Install on emulator/device:
 ```bash
 adb install -r app/build/outputs/apk/release/app-release.apk
 ```
+
+## Next steps
+
+- [Open Source PDF SDK](/open-source-pdf-sdk)
+- [Quickstart](/quickstart)
+- [Configuration](/configuration)
 

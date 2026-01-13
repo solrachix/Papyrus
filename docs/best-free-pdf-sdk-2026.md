@@ -7,6 +7,11 @@ description: How to evaluate the best free PDF SDK in 2026, with an open source 
 
 If you are looking for the best free PDF SDK in 2026, focus on open source quality, engine flexibility, and the full reader workflow. This guide explains what to evaluate and where Papyrus fits.
 
+**What it is:** an evergreen checklist for picking a free PDF SDK.  
+**Who it's for:** product teams comparing open source options.  
+**When to use:** you need a reader SDK, not just a renderer.  
+**When not to use:** you only need basic PDF rendering.
+
 ## What "free" should mean in 2026
 
 - A clear open source license (MIT, Apache-2.0, GPL) with no hidden usage caps.
@@ -56,6 +61,7 @@ Use this to compare candidates quickly:
 
 ## Next steps
 
+- [Open Source PDF SDK](/open-source-pdf-sdk)
 - [Papyrus FAQ](/faq)
 - [Quickstart](/quickstart)
 - [Architecture](/architecture)

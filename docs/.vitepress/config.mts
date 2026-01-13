@@ -148,9 +148,11 @@ export default defineConfig({
   sitemap: SITE_URL ? { hostname: SITE_URL } : undefined,
   transformHead: ({ pageData }) => {
     const route = buildRoute(pageData.relativePath);
-    const isPt = pageData.relativePath.replace(/\\/g, '/').startsWith('pt/');
-    const enRoute = isPt ? route.replace(/^\/pt\//, '/') : route;
-    const ptRoute = isPt ? route : route === '/' ? '/pt/' : `/pt${route}`;
+    const canonicalOverride = pageData.frontmatter?.canonical as string | undefined;
+    const canonicalRoute = canonicalOverride || route;
+    const isPt = canonicalRoute.replace(/\\/g, '/').startsWith('/pt/');
+    const enRoute = isPt ? canonicalRoute.replace(/^\/pt\//, '/') : canonicalRoute;
+    const ptRoute = isPt ? canonicalRoute : canonicalRoute === '/' ? '/pt/' : `/pt${canonicalRoute}`;
     const pageTitle = pageData.frontmatter?.title || pageData.title || SITE_NAME;
     const pageDescription =
       pageData.frontmatter?.description || pageData.description || (isPt ? DESCRIPTION_PT : DESCRIPTION_EN);
@@ -164,7 +166,7 @@ export default defineConfig({
     ] as [string, Record<string, string>][];
 
     if (SITE_URL) {
-      const canonical = `${SITE_URL}${route}`;
+      const canonical = `${SITE_URL}${canonicalRoute}`;
       tags.push(['meta', { property: 'og:url', content: canonical }]);
       tags.push(['link', { rel: 'canonical', href: canonical }]);
       tags.push(['link', { rel: 'alternate', hreflang: 'en', href: `${SITE_URL}${enRoute}` }]);

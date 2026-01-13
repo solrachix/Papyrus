@@ -1,6 +1,11 @@
 ---
 title: "Papyrus Mobile (RN CLI + compatibilidade com Expo)"
 description: "Leia em: English | Portugues (Brasil)"
+canonical: "/pt/mobile"
+head:
+  - - meta
+    - name: robots
+      content: "noindex,follow"
 ---
 # Papyrus Mobile (RN CLI + compatibilidade com Expo)
 Leia em: [English](mobile.md) | Portugues (Brasil)

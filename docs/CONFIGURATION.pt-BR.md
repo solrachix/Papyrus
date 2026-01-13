@@ -1,6 +1,11 @@
 ---
 title: "Guia de Configuracao - Papyrus SDK"
 description: "Leia em: English | Portugues (Brasil)"
+canonical: "/pt/configuration"
+head:
+  - - meta
+    - name: robots
+      content: "noindex,follow"
 ---
 # Guia de Configuracao - Papyrus SDK
 Leia em: [English](configuration.md) | Portugues (Brasil)
