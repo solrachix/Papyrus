@@ -25,7 +25,7 @@ If you are evaluating PDFTron mainly for document reading, Papyrus covers most r
 
 - MIT license and open source code.
 - Engine-agnostic core (PDF.js on web; native bridge on mobile). See [Architecture](/architecture).
-- UI kits for React and React Native (viewer, sidebars, topbar). See [Examples](/examples).
+- UI kits for React and React Native (viewer, sidebars, topbar). See [Examples](/examples/).
 - Annotations, text selection, search, and lifecycle events. See [Configuration](/configuration).
 - Theming and configuration for brand-aligned UX. See [Configuration](/configuration).
 - Support for PDF, EPUB, and TXT in one SDK. See [Open Source EPUB SDK](/open-source-epub-sdk).
@@ -37,7 +37,7 @@ If you are evaluating PDFTron mainly for document reading, Papyrus covers most r
 | Licensing | MIT, open source | Commercial, proprietary |
 | Cost | Free | Paid, enterprise licensing |
 | Platforms | Web (React) + [Mobile (React Native)](/mobile) | Native SDKs across platforms |
-| UI kits | Yes, [open source components](/examples) | Yes, commercial UI |
+| UI kits | Yes, [open source components](/examples/) | Yes, commercial UI |
 | Annotations | Yes, via [core state/events](/architecture) | Yes, advanced tooling |
 | Search | Yes, integrated | Yes, advanced tooling |
 | Multi-format | PDF, EPUB, TXT | PDF focus with add-ons |
