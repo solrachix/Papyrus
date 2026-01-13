@@ -1,6 +1,7 @@
 import { defineConfig } from 'vitepress';
 
 const SITE_URL = process.env.VITEPRESS_SITE_URL;
+const BASE_PATH = process.env.VITEPRESS_BASE || '/Papyrus/';
 const SITE_NAME = 'Papyrus';
 const DESCRIPTION_EN = 'Open source PDF, EPUB, and TXT SDK for web and mobile document readers.';
 const DESCRIPTION_PT = 'SDK open source de PDF, EPUB e TXT para leitores de documentos web e mobile.';
@@ -147,7 +148,7 @@ const sidebarPt = [
 export default defineConfig({
   title: 'Papyrus',
   description: DESCRIPTION_EN,
-  base: '/Papyrus/',
+  base: BASE_PATH,
   cleanUrls: true,
   lastUpdated: true,
   appearance: true,
