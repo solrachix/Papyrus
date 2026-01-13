@@ -187,7 +187,7 @@ importers:
     dependencies:
       '@papyrus-sdk/types':
         specifier: 0.1.3
-        version: link:../types
+        version: 0.1.3
       zustand:
         specifier: ^5.0.0
         version: 5.0.9(@types/react@18.3.27)(react@18.3.1)
@@ -196,10 +196,10 @@ importers:
     dependencies:
       '@papyrus-sdk/core':
         specifier: 0.1.3
-        version: link:../core
+        version: 0.1.3(@types/react@18.3.27)(react@18.3.1)
       '@papyrus-sdk/types':
         specifier: 0.1.3
-        version: link:../types
+        version: 0.1.3
       epubjs:
         specifier: ^0.3.92
         version: 0.3.93
@@ -208,10 +208,10 @@ importers:
     dependencies:
       '@papyrus-sdk/core':
         specifier: 0.1.3
-        version: link:../core
+        version: 0.1.3(@types/react@18.3.27)(react@18.3.1)
       '@papyrus-sdk/types':
         specifier: 0.1.3
-        version: link:../types
+        version: 0.1.3
     devDependencies:
       react-native:
         specifier: ^0.76.0
@@ -221,19 +221,19 @@ importers:
     dependencies:
       '@papyrus-sdk/core':
         specifier: 0.1.3
-        version: link:../core
+        version: 0.1.3(@types/react@18.3.27)(react@18.3.1)
       '@papyrus-sdk/types':
         specifier: 0.1.3
-        version: link:../types
+        version: 0.1.3
 
   packages/engine-text:
     dependencies:
       '@papyrus-sdk/core':
         specifier: 0.1.3
-        version: link:../core
+        version: 0.1.3(@types/react@18.3.27)(react@18.3.1)
       '@papyrus-sdk/types':
         specifier: 0.1.3
-        version: link:../types
+        version: 0.1.3
 
   packages/expo-plugin:
     dependencies:
@@ -247,10 +247,10 @@ importers:
     dependencies:
       '@papyrus-sdk/core':
         specifier: 0.1.3
-        version: link:../core
+        version: 0.1.3(@types/react@18.3.27)(react@18.3.1)
       '@papyrus-sdk/types':
         specifier: 0.1.3
-        version: link:../types
+        version: 0.1.3
     devDependencies:
       react:
         specifier: ^18.2.0
@@ -260,13 +260,13 @@ importers:
     dependencies:
       '@papyrus-sdk/core':
         specifier: 0.1.3
-        version: link:../core
+        version: 0.1.3(@types/react@18.3.27)(react@18.3.1)
       '@papyrus-sdk/engine-native':
         specifier: 0.1.4
-        version: link:../engine-native
+        version: 0.1.4(@types/react@18.3.27)(react-native@0.76.0(@babel/core@7.28.5)(@babel/preset-env@7.28.5(@babel/core@7.28.5))(@types/react@18.3.27)(react@18.3.1))(react@18.3.1)
       '@papyrus-sdk/types':
         specifier: 0.1.3
-        version: link:../types
+        version: 0.1.3
       react-native-svg:
         specifier: ^15.5.0
         version: 15.15.1(react-native@0.76.0(@babel/core@7.28.5)(@babel/preset-env@7.28.5(@babel/core@7.28.5))(@types/react@18.3.27)(react@18.3.1))(react@18.3.1)
@@ -1676,6 +1676,17 @@ packages:
   '@npmcli/fs@3.1.1':
     resolution: {integrity: sha512-q9CRWjpHCMIh5sVyefoD1cA7PkvILqCZsnSOEUUivORLjxCO/Irmue2DprETiNgEqktDBZaM1Bi+jrarx1XdCg==}
     engines: {node: ^14.17.0 || ^16.13.0 || >=18.0.0}
+
+  '@papyrus-sdk/core@0.1.3':
+    resolution: {integrity: sha512-2pCa9h7hsISFiW2sDY3oVjnLf0+oyLwF77jTxba/omDEO9QsgOed0mJZg6DeO0Trhjah4djuhjlK+ogRuMXlQg==}
+
+  '@papyrus-sdk/engine-native@0.1.4':
+    resolution: {integrity: sha512-tWfKCaBOVCllpQUSkb80q9vDen6QFzTaUfLRLXWUFPr08Bnb9p9n3ubXT/Dgels1Xt5TcMb1BdZ+vOibub4oDw==}
+    peerDependencies:
+      react-native: '>=0.76.0'
+
+  '@papyrus-sdk/types@0.1.3':
+    resolution: {integrity: sha512-Pe635klsLYAHrlqtYLPByq+ScOpdTF1nDXVcKLQ3RlgM6JOuJnQbEoyrS8l8AXpOMXL7ORwtYBeml3JlGa7zkg==}
 
   '@pkgjs/parseargs@0.11.0':
     resolution: {integrity: sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==}
@@ -7889,6 +7900,29 @@ snapshots:
     dependencies:
       semver: 7.7.3
 
+  '@papyrus-sdk/core@0.1.3(@types/react@18.3.27)(react@18.3.1)':
+    dependencies:
+      '@papyrus-sdk/types': 0.1.3
+      zustand: 5.0.9(@types/react@18.3.27)(react@18.3.1)
+    transitivePeerDependencies:
+      - '@types/react'
+      - immer
+      - react
+      - use-sync-external-store
+
+  '@papyrus-sdk/engine-native@0.1.4(@types/react@18.3.27)(react-native@0.76.0(@babel/core@7.28.5)(@babel/preset-env@7.28.5(@babel/core@7.28.5))(@types/react@18.3.27)(react@18.3.1))(react@18.3.1)':
+    dependencies:
+      '@papyrus-sdk/core': 0.1.3(@types/react@18.3.27)(react@18.3.1)
+      '@papyrus-sdk/types': 0.1.3
+      react-native: 0.76.0(@babel/core@7.28.5)(@babel/preset-env@7.28.5(@babel/core@7.28.5))(@types/react@18.3.27)(react@18.3.1)
+    transitivePeerDependencies:
+      - '@types/react'
+      - immer
+      - react
+      - use-sync-external-store
+
+  '@papyrus-sdk/types@0.1.3': {}
+
   '@pkgjs/parseargs@0.11.0':
     optional: true
 
@@ -8272,9 +8306,7 @@ snapshots:
     transitivePeerDependencies:
       - '@babel/core'
       - '@babel/preset-env'
-      - bufferutil
       - supports-color
-      - utf-8-validate
 
   '@react-native/normalize-colors@0.76.0': {}
 
