@@ -2,13 +2,7 @@ name: iOS Build
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - ".github/workflows/ios-build.yml"
-      - "packages/**"
-      - "examples/mobile/**"
-      - "scripts/ci/**"
+  # Disabled auto-run on push. Trigger manually from Actions if needed.
 
 jobs:
   build:
