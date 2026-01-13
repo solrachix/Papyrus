@@ -1,5 +1,5 @@
 ---
-title: Best Free PDF SDK 2026
+title: Best Free PDF SDK 2026 | Open Source Options
 description: How to evaluate the best free PDF SDK in 2026, with an open source checklist and where Papyrus fits.
 ---
 
@@ -39,6 +39,12 @@ This is where Papyrus fits: a shared core, pluggable engines, and UI kits for Re
 
 ### 3) Commercial SDKs with free tiers
 Some vendors offer a limited free tier. These can be useful but often restrict annotations or advanced search.
+
+## Recommended free PDF SDKs in 2026
+
+- **Papyrus:** best open source option for reader UX on web and React Native. See the [Open Source PDF SDK](/open-source-pdf-sdk).
+- **PDF.js:** solid engine-only renderer if you are building all UI and state yourself.
+- **Commercial free tiers:** useful for evaluation, but typically limited in features or usage.
 
 ## Why Papyrus is a strong option
 

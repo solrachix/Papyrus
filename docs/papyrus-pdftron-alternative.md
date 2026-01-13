@@ -1,9 +1,9 @@
 ---
-title: Papyrus vs PDFTron (Apryse)
+title: PDFTron Alternative: Papyrus vs Apryse PDF SDK
 description: Papyrus is an open source PDF SDK with annotations and viewer UI for web and mobile, a free alternative to PDFTron for many teams.
 ---
 
-# Papyrus vs PDFTron (Apryse)
+# PDFTron Alternative: Papyrus vs Apryse PDF SDK
 
 Teams searching for "PDFTron alternative" typically want a PDF SDK with annotations and viewer UI, but without enterprise licensing. Papyrus is an open source option focused on document reading workflows for web and mobile.
 
@@ -11,6 +11,8 @@ Teams searching for "PDFTron alternative" typically want a PDF SDK with annotati
 **Who it's for:** teams needing reader UX without enterprise licensing.  
 **When to use:** you want open source + full UI control.  
 **When not to use:** you need advanced PDF editing or enterprise compliance modules.
+
+If you are evaluating PDFTron mainly for document reading, Papyrus covers most reader workflows without licensing overhead.
 
 ## Why teams look for a PDFTron alternative
 
@@ -22,11 +24,11 @@ Teams searching for "PDFTron alternative" typically want a PDF SDK with annotati
 ## What Papyrus provides
 
 - MIT license and open source code.
-- Engine-agnostic core (PDF.js on web; native bridge on mobile).
-- UI kits for React and React Native (viewer, sidebars, topbar).
-- Annotations, text selection, search, and lifecycle events.
-- Theming and configuration for brand-aligned UX.
-- Support for PDF, EPUB, and TXT in one SDK.
+- Engine-agnostic core (PDF.js on web; native bridge on mobile). See [Architecture](/architecture).
+- UI kits for React and React Native (viewer, sidebars, topbar). See [Examples](/examples).
+- Annotations, text selection, search, and lifecycle events. See [Configuration](/configuration).
+- Theming and configuration for brand-aligned UX. See [Configuration](/configuration).
+- Support for PDF, EPUB, and TXT in one SDK. See [Open Source EPUB SDK](/open-source-epub-sdk).
 
 ## Quick comparison
 
@@ -34,9 +36,9 @@ Teams searching for "PDFTron alternative" typically want a PDF SDK with annotati
 | --- | --- | --- |
 | Licensing | MIT, open source | Commercial, proprietary |
 | Cost | Free | Paid, enterprise licensing |
-| Platforms | Web (React) + Mobile (React Native) | Native SDKs across platforms |
-| UI kits | Yes, open source components | Yes, commercial UI |
-| Annotations | Yes, via core state/events | Yes, advanced tooling |
+| Platforms | Web (React) + [Mobile (React Native)](/mobile) | Native SDKs across platforms |
+| UI kits | Yes, [open source components](/examples) | Yes, commercial UI |
+| Annotations | Yes, via [core state/events](/architecture) | Yes, advanced tooling |
 | Search | Yes, integrated | Yes, advanced tooling |
 | Multi-format | PDF, EPUB, TXT | PDF focus with add-ons |
 | Customization | High (code access) | Limited to SDK options |
