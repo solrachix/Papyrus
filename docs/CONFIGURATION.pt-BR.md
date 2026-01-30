@@ -40,6 +40,37 @@ useViewerStore.getState().initializeStore(config);
 | `sidebarLeftOpen` | `boolean` | Define se a barra de miniaturas inicia aberta. |
 | `sidebarRightOpen` | `boolean` | Define se a barra de busca/notas inicia aberta. |
 
+## Customizacao da Topbar (web)
+
+A `Topbar` da web suporta flags para esconder elementos da UI.
+
+```tsx
+import { Topbar } from '@papyrus-sdk/ui-react';
+
+<Topbar
+  engine={engine}
+  showBrand={false}
+  showUpload={false}
+  showUIToggle={false}
+  showPageThemeSelector={false}
+  showSearch={false}
+/>;
+```
+
+Props disponiveis (todas opcionais, padrao `true`):
+
+| Propriedade | Tipo | Descricao |
+| --- | --- | --- |
+| `showBrand` | `boolean` | Exibe o branding PapyrusCore. |
+| `brand` | `ReactNode` | Substitui a area de branding. |
+| `showSidebarLeftToggle` | `boolean` | Exibe o botao da sidebar esquerda. |
+| `showPageControls` | `boolean` | Exibe navegacao de paginas. |
+| `showZoomControls` | `boolean` | Exibe controles de zoom. |
+| `showPageThemeSelector` | `boolean` | Exibe seletor de tema da pagina. |
+| `showUIToggle` | `boolean` | Exibe toggle claro/escuro. |
+| `showUpload` | `boolean` | Exibe botao de upload. |
+| `showSearch` | `boolean` | Exibe botao de busca. |
+
 ## Event hooks
 Para salvar anotacoes no seu banco de dados, escute o evento de criacao:
 

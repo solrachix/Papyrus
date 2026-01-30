@@ -33,6 +33,37 @@ useViewerStore.getState().initializeStore({
 | `sidebarLeftOpen` | `boolean` | Whether the thumbnail sidebar starts open. |
 | `sidebarRightOpen` | `boolean` | Whether the search/notes sidebar starts open. |
 
+## Topbar customization (web)
+
+The web `Topbar` component supports flags to hide UI elements.
+
+```tsx
+import { Topbar } from '@papyrus-sdk/ui-react';
+
+<Topbar
+  engine={engine}
+  showBrand={false}
+  showUpload={false}
+  showUIToggle={false}
+  showPageThemeSelector={false}
+  showSearch={false}
+/>;
+```
+
+Available props (all optional, default `true`):
+
+| Prop | Type | Description |
+| --- | --- | --- |
+| `showBrand` | `boolean` | Show the PapyrusCore brand. |
+| `brand` | `ReactNode` | Replace the brand area with custom content. |
+| `showSidebarLeftToggle` | `boolean` | Show the left sidebar toggle button. |
+| `showPageControls` | `boolean` | Show page navigation controls. |
+| `showZoomControls` | `boolean` | Show zoom controls. |
+| `showPageThemeSelector` | `boolean` | Show page theme selector. |
+| `showUIToggle` | `boolean` | Show light/dark toggle. |
+| `showUpload` | `boolean` | Show upload button. |
+| `showSearch` | `boolean` | Show search button. |
+
 ## Events
 
 ```ts

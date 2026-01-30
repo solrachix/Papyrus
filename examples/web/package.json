@@ -3,9 +3,9 @@
   "private": true,
   "version": "0.1.0",
   "scripts": {
-    "dev": "pnpm exec vite",
-    "build": "pnpm exec vite build",
-    "preview": "pnpm exec vite preview"
+    "dev": "node ../../node_modules/vite/bin/vite.js",
+    "build": "node ../../node_modules/vite/bin/vite.js build",
+    "preview": "node ../../node_modules/vite/bin/vite.js preview"
   },
   "dependencies": {
     "react": "^18.2.0",
