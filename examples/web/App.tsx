@@ -8,6 +8,7 @@ import { PapyrusEventType, PapyrusConfig, PageTheme } from '@papyrus-sdk/types';
 import { Topbar, SidebarLeft, SidebarRight, Viewer } from '@papyrus-sdk/ui-react';
 
 const LOCAL_PDF_URL = new URL('./assets/tracemonkey-pldi-09.pdf', import.meta.url).toString();
+const REMOTE_PDF_URL = 'https://raw.githubusercontent.com/pdf-association/pdf20examples/master/pdf20-utf8-test.pdf';
 const LOCAL_EPUB_URL = new URL('./assets/sample.epub', import.meta.url).toString();
 const LOCAL_TEXT_URL = new URL('./assets/sample.txt', import.meta.url).toString();
 
@@ -47,11 +48,13 @@ type DemoMessage = {
 const usePapyrusDemo = (
   engineKind: EngineKind,
   setEngineKind: ((kind: EngineKind) => void) | null,
-  initialConfig: PapyrusConfig
+  initialConfig: PapyrusConfig,
+  options?: { useRemotePdf?: boolean; remotePdfUrl?: string }
 ) => {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [eventLogEnabled, setEventLogEnabled] = useState(false);
   const storeInitializedRef = useRef(false);
+  const { useRemotePdf, remotePdfUrl } = options ?? {};
 
   const engine = useMemo(() => {
     if (engineKind === 'epub') return new EPUBEngine();
@@ -62,8 +65,9 @@ const usePapyrusDemo = (
   const demoSource = useMemo(() => {
     if (engineKind === 'epub') return LOCAL_EPUB_URL;
     if (engineKind === 'text') return LOCAL_TEXT_URL;
+    if (useRemotePdf) return remotePdfUrl || REMOTE_PDF_URL;
     return LOCAL_PDF_URL;
-  }, [engineKind]);
+  }, [engineKind, useRemotePdf, remotePdfUrl]);
 
   const { isLoaded, setDocumentState, initializeStore, triggerScrollToPage } = useViewerStore();
 
@@ -228,16 +232,19 @@ const LoadingState: React.FC<{ error: string | null; className?: string }> = ({ 
 const PapyrusViewer: React.FC<{
   engineKind: EngineKind;
   setEngineKind: (kind: EngineKind) => void;
+  useRemotePdf?: boolean;
+  remotePdfUrl?: string;
   initialConfig: PapyrusConfig;
   syncState?: { uiTheme: UITheme; pageTheme: PageTheme; accentColor: string };
   topbarProps?: React.ComponentProps<typeof Topbar>;
   className?: string;
   loadingClassName?: string;
-}> = ({ engineKind, setEngineKind, initialConfig, syncState, topbarProps, className, loadingClassName }) => {
+}> = ({ engineKind, setEngineKind, useRemotePdf, remotePdfUrl, initialConfig, syncState, topbarProps, className, loadingClassName }) => {
   const { engine, isLoaded, loadError, setDocumentState } = usePapyrusDemo(
     engineKind,
     setEngineKind,
-    initialConfig
+    initialConfig,
+    { useRemotePdf, remotePdfUrl }
   );
 
   useEffect(() => {
@@ -265,6 +272,8 @@ const PapyrusViewer: React.FC<{
 
 const RenderPage: React.FC = () => {
   const [engineKind, setEngineKind] = useState<EngineKind>('pdf');
+  const [useRemotePdf, setUseRemotePdf] = useState(false);
+  const [remotePdfUrl, setRemotePdfUrl] = useState(REMOTE_PDF_URL);
   const isEmbedded = useMemo(
     () => typeof window !== 'undefined' && window.parent && window.parent !== window,
     []
@@ -275,6 +284,8 @@ const RenderPage: React.FC = () => {
     <PapyrusViewer
       engineKind={engineKind}
       setEngineKind={setEngineKind}
+      useRemotePdf={useRemotePdf}
+      remotePdfUrl={remotePdfUrl}
       initialConfig={initialConfig}
       className="bg-gray-100 h-screen"
       loadingClassName="h-screen"
@@ -288,6 +299,8 @@ const ConfigPage: React.FC = () => {
   const [pageTheme, setPageTheme] = useState<PageTheme>('sepia');
   const [accentColor, setAccentColor] = useState(ACCENT_COLOR);
   const [title, setTitle] = useState('Papyrus Demo');
+  const [useRemotePdf, setUseRemotePdf] = useState(false);
+  const [remotePdfUrl, setRemotePdfUrl] = useState(REMOTE_PDF_URL);
   const [showBrand, setShowBrand] = useState(true);
   const [showUpload, setShowUpload] = useState(true);
   const [showUIToggle, setShowUIToggle] = useState(true);
@@ -313,6 +326,10 @@ const ConfigPage: React.FC = () => {
       `  initialAccentColor: "${accentColor}",`,
     ].join('\n');
 
+    const remotePdfLine = engineKind === 'pdf' && useRemotePdf
+      ? `\nawait engine.load("${remotePdfUrl}");`
+      : '';
+
     const topbarProps = [
       title ? `  title: "${title}",` : null,
       `  showBrand: ${showBrand},`,
@@ -325,12 +342,15 @@ const ConfigPage: React.FC = () => {
       `  showZoomControls: ${showZoomControls},`,
     ].filter(Boolean).join('\n');
 
-    return `const config = {\n${config}\n};\n\n<Topbar\n  engine={engine}\n${topbarProps}\n/>`;
+    return `const config = {\n${config}\n};\n${remotePdfLine}\n\n<Topbar\n  engine={engine}\n${topbarProps}\n/>`;
   }, [
     uiTheme,
     pageTheme,
     accentColor,
     title,
+    engineKind,
+    useRemotePdf,
+    remotePdfUrl,
     showBrand,
     showUpload,
     showUIToggle,
@@ -363,6 +383,33 @@ const ConfigPage: React.FC = () => {
                 <option value="text">TXT</option>
               </select>
             </div>
+
+            {engineKind === 'pdf' && (
+              <div className="space-y-2">
+                <label className="block text-xs uppercase tracking-widest text-white/60">PDF remoto</label>
+                <label className="flex items-center gap-2 text-xs bg-white/5 border border-white/10 rounded-md px-2 py-2">
+                  <input
+                    type="checkbox"
+                    checked={useRemotePdf}
+                    onChange={(e) => setUseRemotePdf(e.target.checked)}
+                  />
+                  <span>Usar URL remota</span>
+                </label>
+                {useRemotePdf && (
+                  <input
+                    className="w-full bg-white/10 border border-white/10 rounded-md px-3 py-2 text-sm"
+                    value={remotePdfUrl}
+                    onChange={(e) => setRemotePdfUrl(e.target.value)}
+                    placeholder="https://..."
+                  />
+                )}
+                {!useRemotePdf && (
+                  <div className="text-[11px] text-white/50">
+                    Usando PDF local de <span className="font-mono">/assets</span>.
+                  </div>
+                )}
+              </div>
+            )}
 
             <div>
               <label className="block text-xs uppercase tracking-widest text-white/60 mb-2">Titulo</label>
@@ -458,6 +505,8 @@ const ConfigPage: React.FC = () => {
             <PapyrusViewer
               engineKind={engineKind}
               setEngineKind={setEngineKind}
+              useRemotePdf={useRemotePdf}
+              remotePdfUrl={remotePdfUrl}
               initialConfig={initialConfig}
               syncState={{ uiTheme, pageTheme, accentColor }}
               loadingClassName="h-full"
