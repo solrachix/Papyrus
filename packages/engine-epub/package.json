@@ -1,6 +1,6 @@
 {
   "name": "@papyrus-sdk/engine-epub",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "license": "MIT",
   "keywords": [
     "papyrus",
@@ -37,8 +37,8 @@
     "build": "tsup index.ts --dts --format cjs,esm --out-dir dist --clean --sourcemap"
   },
   "dependencies": {
-    "@papyrus-sdk/core": "0.1.3",
-    "@papyrus-sdk/types": "0.1.3",
+    "@papyrus-sdk/core": "0.2.1",
+    "@papyrus-sdk/types": "0.2.1",
     "epubjs": "^0.3.92"
   }
 }
