@@ -24,6 +24,7 @@ export default defineConfig(({ mode }) => {
     },
     resolve: {
       alias: [
+        { find: '@papyrus-sdk/ui-react', replacement: `${rootDir}/packages/ui-react/index.ts` },
         { find: '@', replacement: rootDir },
         { find: /^@papyrus-sdk\/(.*)$/, replacement: `${rootDir}/packages/$1` },
       ],

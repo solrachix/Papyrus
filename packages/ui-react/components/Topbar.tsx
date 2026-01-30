@@ -7,6 +7,7 @@ interface TopbarProps {
   engine: DocumentEngine;
   showBrand?: boolean;
   brand?: React.ReactNode;
+  title?: React.ReactNode;
   showSidebarLeftToggle?: boolean;
   showPageControls?: boolean;
   showZoomControls?: boolean;
@@ -20,6 +21,7 @@ const Topbar: React.FC<TopbarProps> = ({
   engine,
   showBrand = true,
   brand,
+  title,
   showSidebarLeftToggle = true,
   showPageControls = true,
   showZoomControls = true,
@@ -74,6 +76,11 @@ const Topbar: React.FC<TopbarProps> = ({
             Papyrus<span className={isDark ? 'text-white' : 'text-gray-900'}>Core</span>
           </span>
         ))}
+        {title && (
+          <span className={`text-sm font-semibold truncate max-w-[220px] ${isDark ? 'text-gray-200' : 'text-gray-700'}`} title={typeof title === 'string' ? title : undefined}>
+            {title}
+          </span>
+        )}
       </div>
 
       {(showPageControls || showZoomControls) && (

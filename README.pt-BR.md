@@ -14,6 +14,7 @@ Suporta PDF, EPUB e TXT. No mobile, EPUB/TXT renderizam via WebView enquanto PDF
 - [Guia de configuracao](docs/CONFIGURATION.pt-BR.md)
 - [Event hooks](docs/CONFIGURATION.pt-BR.md#event-hooks)
 - [Mobile (React Native)](docs/MOBILE.pt-BR.md)
+- [Release / Publicacao](docs/pt/release.md)
 - [FAQ do Papyrus](docs/pt/faq.md)
 - [SDK PDF Open Source](docs/pt/sdk-pdf-open-source.md)
 - [SDK EPUB Open Source](docs/pt/sdk-epub-open-source.md)

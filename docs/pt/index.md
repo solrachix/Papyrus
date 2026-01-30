@@ -110,6 +110,7 @@ de PDF para web ou mobile, este e o bloco central.
 - Comece aqui: [Quickstart](/pt/quickstart)
 - Entenda as camadas: [Arquitetura](/pt/architecture)
 - Configure temas e comportamento: [Configuracao](/pt/configuration)
+- Workflow de release: [Release / Publicacao](/pt/release)
 - FAQ: [FAQ](/pt/faq)
 - SDK PDF Open Source: [SDK PDF Open Source](/pt/sdk-pdf-open-source)
 - SDK EPUB Open Source: [SDK EPUB Open Source](/pt/sdk-epub-open-source)

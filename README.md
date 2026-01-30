@@ -14,6 +14,7 @@ Supports PDF, EPUB, and TXT. On mobile, EPUB/TXT render via a WebView runtime wh
 - [Configuration guide](docs/CONFIGURATION.md)
 - [Event hooks](docs/CONFIGURATION.md#event-hooks)
 - [Mobile (React Native)](docs/MOBILE.md)
+- [Release / Publish](docs/release.md)
 - [Papyrus FAQ](docs/faq.md)
 - [Open Source PDF SDK](docs/open-source-pdf-sdk.md)
 - [Open Source EPUB SDK](docs/open-source-epub-sdk.md)

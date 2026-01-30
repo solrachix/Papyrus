@@ -17,14 +17,14 @@ import { computed } from 'vue';
 import { withBase } from 'vitepress';
 
 const props = withDefaults(defineProps<{ src?: string; demoId?: string }>(), {
-  src: '/demo/index.html',
+  src: '/demo/index.html#/render',
   demoId: 'papyrus-demo',
 });
 
 const { src, demoId } = props;
 
 const resolvedSrc = computed(() => {
-  if (!src) return withBase('/demo/index.html');
+  if (!src) return withBase('/demo/index.html#/render');
   if (/^https?:\/\//.test(src) || src.startsWith('//')) return src;
   return withBase(src);
 });

@@ -63,6 +63,7 @@ Props disponiveis (todas opcionais, padrao `true`):
 | --- | --- | --- |
 | `showBrand` | `boolean` | Exibe o branding PapyrusCore. |
 | `brand` | `ReactNode` | Substitui a area de branding. |
+| `title` | `ReactNode` | Titulo opcional do documento no header. |
 | `showSidebarLeftToggle` | `boolean` | Exibe o botao da sidebar esquerda. |
 | `showPageControls` | `boolean` | Exibe navegacao de paginas. |
 | `showZoomControls` | `boolean` | Exibe controles de zoom. |

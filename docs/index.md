@@ -110,6 +110,7 @@ for a web or mobile app, this is the core building block.
 - Start here: [Quickstart](/quickstart)
 - Understand the layers: [Architecture](/architecture)
 - Configure themes and behavior: [Configuration](/configuration)
+- Release workflow: [Release / Publish](/release)
 - Papyrus FAQ: [FAQ](/faq)
 - Open Source PDF SDK: [Open Source PDF SDK](/open-source-pdf-sdk)
 - Open Source EPUB SDK: [Open Source EPUB SDK](/open-source-epub-sdk)

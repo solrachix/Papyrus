@@ -43,6 +43,7 @@ Props:
 | --- | --- | --- | --- |
 | `showBrand` | `boolean` | `true` | Show the PapyrusCore brand. |
 | `brand` | `ReactNode` | `undefined` | Replace the brand area with custom content. |
+| `title` | `ReactNode` | `undefined` | Optional document title shown in the header. |
 | `showSidebarLeftToggle` | `boolean` | `true` | Show the left sidebar toggle button. |
 | `showPageControls` | `boolean` | `true` | Show page navigation controls. |
 | `showZoomControls` | `boolean` | `true` | Show zoom controls. |
