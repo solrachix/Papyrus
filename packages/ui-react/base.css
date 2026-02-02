@@ -1,57 +1,90 @@
+.papyrus-theme {
+  --papyrus-bg: #f3f4f6;
+  --papyrus-surface: #ffffff;
+  --papyrus-surface-2: #f9fafb;
+  --papyrus-border: #e5e7eb;
+  --papyrus-border-strong: #d1d5db;
+  --papyrus-text: #111827;
+  --papyrus-text-muted: #6b7280;
+  --papyrus-icon: #6b7280;
+  --papyrus-focus: #93c5fd;
+  --papyrus-canvas: #f3f4f6;
+  --papyrus-hover: #e5e7eb;
+  --papyrus-popover: #ffffff;
+  --papyrus-shadow: rgba(15, 23, 42, 0.08);
+  color: var(--papyrus-text);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.papyrus-theme[data-papyrus-theme="dark"] {
+  --papyrus-bg: #0f1115;
+  --papyrus-surface: #1a1a1a;
+  --papyrus-surface-2: #222222;
+  --papyrus-border: #333333;
+  --papyrus-border-strong: #444444;
+  --papyrus-text: #f3f4f6;
+  --papyrus-text-muted: #9ca3af;
+  --papyrus-icon: #9ca3af;
+  --papyrus-focus: #2563eb;
+  --papyrus-canvas: #121212;
+  --papyrus-hover: rgba(255, 255, 255, 0.08);
+  --papyrus-popover: #1f1f1f;
+  --papyrus-shadow: rgba(0, 0, 0, 0.4);
+}
+
+.papyrus-topbar,
+.papyrus-sidebar-left,
+.papyrus-sidebar-right {
+  background: var(--papyrus-surface) !important;
+  border-color: var(--papyrus-border) !important;
+  color: var(--papyrus-text) !important;
+  box-sizing: border-box;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
 .papyrus-topbar {
   align-items: center;
-  background: #ffffff;
-  border-bottom: 1px solid #e5e7eb;
-  box-sizing: border-box;
-  color: #111827;
   display: flex;
   height: 56px;
   justify-content: space-between;
   padding: 0 16px;
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
   font-size: 14px;
-  line-height: 1.4;
 }
 
-.papyrus-sidebar-left {
-  background: #ffffff;
-  border-right: 1px solid #e5e7eb;
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  width: 288px;
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-  font-size: 13px;
-  line-height: 1.4;
-}
-
+.papyrus-sidebar-left,
 .papyrus-sidebar-right {
-  background: #ffffff;
-  border-left: 1px solid #e5e7eb;
-  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   height: 100%;
-  width: 320px;
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-  font-size: 13px;
-  line-height: 1.4;
 }
 
 .papyrus-viewer {
-  background: #f3f4f6;
+  background: var(--papyrus-canvas) !important;
   box-sizing: border-box;
   flex: 1 1 auto;
   overflow: auto;
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: var(--papyrus-text);
+}
+
+.papyrus-control,
+.papyrus-input,
+.papyrus-popover {
+  background: var(--papyrus-surface-2) !important;
+  border-color: var(--papyrus-border) !important;
+  color: var(--papyrus-text) !important;
+}
+
+.papyrus-popover {
+  background: var(--papyrus-popover) !important;
+  box-shadow: 0 20px 40px var(--papyrus-shadow);
 }
 
 .papyrus-topbar button,
 .papyrus-sidebar-left button,
 .papyrus-sidebar-right button {
-  background: #f3f4f6;
-  border: 1px solid #e5e7eb;
+  background: var(--papyrus-surface-2);
+  border: 1px solid var(--papyrus-border);
   border-radius: 8px;
   color: inherit;
   cursor: pointer;
@@ -66,11 +99,11 @@
 .papyrus-topbar select,
 .papyrus-sidebar-left select,
 .papyrus-sidebar-right select {
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
+  background: var(--papyrus-surface);
+  border: 1px solid var(--papyrus-border);
   border-radius: 6px;
   box-sizing: border-box;
-  color: #111827;
+  color: var(--papyrus-text);
   font: inherit;
   padding: 6px 8px;
 }
@@ -78,8 +111,8 @@
 .papyrus-topbar button:hover,
 .papyrus-sidebar-left button:hover,
 .papyrus-sidebar-right button:hover {
-  background: #e5e7eb;
-  border-color: #d1d5db;
+  background: var(--papyrus-hover);
+  border-color: var(--papyrus-border-strong);
 }
 
 .papyrus-topbar svg,
@@ -94,7 +127,7 @@
 .papyrus-topbar select:focus,
 .papyrus-sidebar-left select:focus,
 .papyrus-sidebar-right select:focus {
-  outline: 2px solid #93c5fd;
+  outline: 2px solid var(--papyrus-focus);
   outline-offset: 1px;
 }
 
@@ -107,7 +140,4 @@
   margin-bottom: 24px;
   display: flex;
   justify-content: center;
-}
-.papyrus-viewer .page-container {
-  margin-bottom: 24px;
 }

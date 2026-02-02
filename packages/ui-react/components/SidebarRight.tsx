@@ -45,7 +45,10 @@ const SidebarRight: React.FC<SidebarRightProps> = ({ engine }) => {
   if (!sidebarRightOpen) return null;
 
   return (
-    <div className={`papyrus-sidebar-right w-80 border-l flex flex-col h-full shrink-0 transition-colors duration-200 shadow-2xl z-40 ${isDark ? 'bg-[#1a1a1a] border-[#333]' : 'bg-white border-gray-200'}`}>
+    <div
+      data-papyrus-theme={uiTheme}
+      className={`papyrus-sidebar-right papyrus-theme w-80 border-l flex flex-col h-full shrink-0 transition-colors duration-200 shadow-2xl z-40 ${isDark ? 'bg-[#1a1a1a] border-[#333]' : 'bg-white border-gray-200'}`}
+    >
       <div className={`p-4 border-b flex items-center justify-between shrink-0 ${isDark ? 'border-[#333]' : 'border-gray-100'}`}>
         <div className="flex space-x-6">
           <button
@@ -74,7 +77,7 @@ const SidebarRight: React.FC<SidebarRightProps> = ({ engine }) => {
             <form onSubmit={handleSearch} className="relative mb-6">
               <input 
                 type="text" 
-                className={`w-full rounded-lg px-4 py-2.5 text-xs outline-none border transition-all shadow-inner font-medium ${isDark ? 'bg-[#2a2a2a] text-white border-[#444] focus:border-blue-500' : 'bg-gray-100 border-gray-200 focus:bg-white focus:border-blue-400'}`} 
+                className={`papyrus-input w-full rounded-lg px-4 py-2.5 text-xs outline-none border transition-all shadow-inner font-medium ${isDark ? 'bg-[#2a2a2a] text-white border-[#444] focus:border-blue-500' : 'bg-gray-100 border-gray-200 focus:bg-white focus:border-blue-400'}`} 
                 placeholder="O que você procura?" 
                 value={query} 
                 onChange={(e) => setQuery(e.target.value)} 

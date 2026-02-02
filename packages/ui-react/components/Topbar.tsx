@@ -64,7 +64,10 @@ const Topbar: React.FC<TopbarProps> = ({
   ];
 
   return (
-    <div className={`papyrus-topbar h-14 border-b flex items-center justify-between px-4 z-50 transition-colors duration-200 ${isDark ? 'bg-[#1a1a1a] border-[#333] text-white' : 'bg-white border-gray-200 text-gray-800'}`}>
+    <div
+      data-papyrus-theme={uiTheme}
+      className={`papyrus-topbar papyrus-theme h-14 border-b flex items-center justify-between px-4 z-50 transition-colors duration-200 ${isDark ? 'bg-[#1a1a1a] border-[#333] text-white' : 'bg-white border-gray-200 text-gray-800'}`}
+    >
       <div className="flex items-center space-x-3">
         {showSidebarLeftToggle && (
           <button onClick={toggleSidebarLeft} className={`p-2 rounded-md ${isDark ? 'hover:bg-white/10' : 'hover:bg-gray-100'}`}>
@@ -86,13 +89,13 @@ const Topbar: React.FC<TopbarProps> = ({
       {(showPageControls || showZoomControls) && (
         <div className="flex items-center space-x-4">
           {showPageControls && (
-            <div className={`flex items-center rounded-lg p-1 space-x-1 border ${isDark ? 'bg-[#2a2a2a] border-[#444]' : 'bg-gray-50 border-gray-200'}`}>
+            <div className={`papyrus-control flex items-center rounded-lg p-1 space-x-1 border ${isDark ? 'bg-[#2a2a2a] border-[#444]' : 'bg-gray-50 border-gray-200'}`}>
               <button onClick={() => handlePageChange(currentPage - 1)} className="p-1.5 rounded transition-all hover:brightness-110" style={{ color: accentColor }}>
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
               </button>
               <input 
                 type="text" 
-                className="w-10 text-center bg-transparent focus:outline-none font-bold text-sm" 
+                className="papyrus-input w-10 text-center bg-transparent focus:outline-none font-bold text-sm" 
                 value={pageInput} 
                 onChange={(e) => setPageInput(e.target.value)} 
                 onKeyDown={(e) => e.key === 'Enter' && handlePageChange(parseInt(pageInput))}
@@ -106,7 +109,7 @@ const Topbar: React.FC<TopbarProps> = ({
           )}
 
           {showZoomControls && (
-            <div className={`flex items-center rounded-lg p-1 border ${isDark ? 'bg-[#2a2a2a] border-[#444]' : 'bg-gray-50 border-gray-200'}`}>
+            <div className={`papyrus-control flex items-center rounded-lg p-1 border ${isDark ? 'bg-[#2a2a2a] border-[#444]' : 'bg-gray-50 border-gray-200'}`}>
               <button onClick={() => handleZoom(-0.1)} className="p-1.5 rounded hover:brightness-110" style={{ color: accentColor }}>
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" /></svg>
               </button>
@@ -125,13 +128,13 @@ const Topbar: React.FC<TopbarProps> = ({
           <div className="relative">
             <button 
               onClick={() => setShowPageThemes(!showPageThemes)}
-              className={`flex items-center space-x-2 px-3 py-1.5 rounded-md text-xs font-bold border transition-all ${isDark ? 'bg-[#2a2a2a] border-[#444]' : 'bg-gray-50 border-gray-200'}`}
+              className={`papyrus-control flex items-center space-x-2 px-3 py-1.5 rounded-md text-xs font-bold border transition-all ${isDark ? 'bg-[#2a2a2a] border-[#444]' : 'bg-gray-50 border-gray-200'}`}
             >
               <div className={`w-3 h-3 rounded-full border ${themes.find(t => t.id === pageTheme)?.color}`} />
               <span>TEMA</span>
             </button>
             {showPageThemes && (
-              <div className={`absolute top-full right-0 mt-2 w-48 rounded-lg shadow-xl border p-2 z-[60] ${isDark ? 'bg-[#2a2a2a] border-[#444]' : 'bg-white border-gray-200'}`}>
+              <div className={`papyrus-popover absolute top-full right-0 mt-2 w-48 rounded-lg shadow-xl border p-2 z-[60] ${isDark ? 'bg-[#2a2a2a] border-[#444]' : 'bg-white border-gray-200'}`}>
                 {themes.map(t => (
                   <button 
                     key={t.id}

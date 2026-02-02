@@ -33,6 +33,30 @@ useViewerStore.getState().initializeStore({
 | `sidebarLeftOpen` | `boolean` | Sidebar de miniaturas inicia aberta. |
 | `sidebarRightOpen` | `boolean` | Sidebar de busca/notas inicia aberta. |
 
+## Estilos da UI (web)
+
+Para web, voce pode usar Tailwind (recomendado) ou o CSS de fallback:
+
+```ts
+import '@papyrus-sdk/ui-react/base.css';
+```
+
+## Variaveis de tema (web)
+
+O Papyrus UI expoe variaveis CSS para customizar cores. Elas sao aplicadas em
+elementos com a classe `papyrus-theme` e respondem ao atributo
+`data-papyrus-theme="light|dark"`.
+
+```ts
+const root = document.documentElement;
+root.style.setProperty('--papyrus-surface', '#1b2b3a');
+root.style.setProperty('--papyrus-surface-2', '#223243');
+root.style.setProperty('--papyrus-border', '#2f4256');
+root.style.setProperty('--papyrus-text', '#e6edf3');
+root.style.setProperty('--papyrus-text-muted', '#9fb0c2');
+root.style.setProperty('--papyrus-canvas', '#0f172a');
+```
+
 ## Eventos
 
 ```ts

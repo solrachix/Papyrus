@@ -4,24 +4,8 @@ title: Examples
 
 # Examples
 
-Use the interactive demo to explore PDF, EPUB, and TXT rendering. The demo source is configured directly in `examples/web/App.tsx`.
+Use the interactive demo to explore PDF, EPUB, and TXT rendering. The demo source is configured directly in `examples/web/App.tsx`. You can tweak UI, theme vars, and topbar options live.
 
-## Quick actions
+<DemoFullscreenButton />
 
-```ts
-const INITIAL_SDK_CONFIG: PapyrusConfig = {
-  initialUITheme: 'dark',
-  initialPageTheme: 'sepia',
-};
-
-// Runtime
-setDocumentState({ uiTheme: 'light' });
-setDocumentState({ pageTheme: 'high-contrast' });
-```
-
-<DemoActions :actions="[
-  { label: 'Apply UI: light', action: 'set-ui-theme', value: 'light' },
-  { label: 'Apply Page: high-contrast', action: 'set-page-theme', value: 'high-contrast' }
-]" />
-
-<DemoFrame />
+<DemoFrame src="/demo/index.html#/" />

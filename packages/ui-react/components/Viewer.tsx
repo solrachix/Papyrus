@@ -65,7 +65,11 @@ const Viewer: React.FC<ViewerProps> = ({ engine }) => {
   ];
 
   return (
-    <div ref={viewerRef} className={`papyrus-viewer flex-1 overflow-auto flex flex-col items-center ${paddingY} relative custom-scrollbar scroll-smooth ${isDark ? 'bg-[#121212]' : 'bg-[#e9ecef]'}`}>
+    <div
+      ref={viewerRef}
+      data-papyrus-theme={uiTheme}
+      className={`papyrus-viewer papyrus-theme flex-1 overflow-auto flex flex-col items-center ${paddingY} relative custom-scrollbar scroll-smooth ${isDark ? 'bg-[#121212]' : 'bg-[#e9ecef]'}`}
+    >
       <div className="flex flex-col items-center gap-6 w-full">
         {pages.map(idx => (
           <div key={idx} data-page-index={idx} className="page-container">

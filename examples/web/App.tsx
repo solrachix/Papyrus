@@ -301,6 +301,10 @@ const ConfigPage: React.FC = () => {
   const [title, setTitle] = useState('Papyrus Demo');
   const [useRemotePdf, setUseRemotePdf] = useState(false);
   const [remotePdfUrl, setRemotePdfUrl] = useState(REMOTE_PDF_URL);
+  const [openSection, setOpenSection] = useState('engine');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const localObjectUrlRef = useRef<string | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [showBrand, setShowBrand] = useState(true);
   const [showUpload, setShowUpload] = useState(true);
   const [showUIToggle, setShowUIToggle] = useState(true);
@@ -309,6 +313,12 @@ const ConfigPage: React.FC = () => {
   const [showSidebarLeftToggle, setShowSidebarLeftToggle] = useState(true);
   const [showPageControls, setShowPageControls] = useState(true);
   const [showZoomControls, setShowZoomControls] = useState(true);
+  const [themeSurface, setThemeSurface] = useState('#111827');
+  const [themeSurface2, setThemeSurface2] = useState('#1f2937');
+  const [themeBorder, setThemeBorder] = useState('#273244');
+  const [themeText, setThemeText] = useState('#e2e8f0');
+  const [themeTextMuted, setThemeTextMuted] = useState('#94a3b8');
+  const [themeCanvas, setThemeCanvas] = useState('#0b1220');
 
   const initialConfigRef = useRef(
     createInitialConfig(false, {
@@ -331,18 +341,27 @@ const ConfigPage: React.FC = () => {
       : '';
 
     const topbarProps = [
-      title ? `  title: "${title}",` : null,
-      `  showBrand: ${showBrand},`,
-      `  showUpload: ${showUpload},`,
-      `  showUIToggle: ${showUIToggle},`,
-      `  showPageThemeSelector: ${showPageThemeSelector},`,
-      `  showSearch: ${showSearch},`,
-      `  showSidebarLeftToggle: ${showSidebarLeftToggle},`,
-      `  showPageControls: ${showPageControls},`,
-      `  showZoomControls: ${showZoomControls},`,
+      title ? `  title="${title}"` : null,
+      `  showBrand={${showBrand}}`,
+      `  showUpload={${showUpload}}`,
+      `  showUIToggle={${showUIToggle}}`,
+      `  showPageThemeSelector={${showPageThemeSelector}}`,
+      `  showSearch={${showSearch}}`,
+      `  showSidebarLeftToggle={${showSidebarLeftToggle}}`,
+      `  showPageControls={${showPageControls}}`,
+      `  showZoomControls={${showZoomControls}}`,
     ].filter(Boolean).join('\n');
 
-    return `const config = {\n${config}\n};\n${remotePdfLine}\n\n<Topbar\n  engine={engine}\n${topbarProps}\n/>`;
+    const themeVars = [
+      `  '--papyrus-surface': '${themeSurface}',`,
+      `  '--papyrus-surface-2': '${themeSurface2}',`,
+      `  '--papyrus-border': '${themeBorder}',`,
+      `  '--papyrus-text': '${themeText}',`,
+      `  '--papyrus-text-muted': '${themeTextMuted}',`,
+      `  '--papyrus-canvas': '${themeCanvas}',`,
+    ].join('\n');
+
+    return `const config = {\n${config}\n};\n${remotePdfLine}\n\nconst themeVars = {\n${themeVars}\n};\n\n<div style={themeVars}>\n  <Topbar\n    engine={engine}\n${topbarProps}\n  />\n</div>`;
   }, [
     uiTheme,
     pageTheme,
@@ -359,20 +378,98 @@ const ConfigPage: React.FC = () => {
     showSidebarLeftToggle,
     showPageControls,
     showZoomControls,
+    themeSurface,
+    themeSurface2,
+    themeBorder,
+    themeText,
+    themeTextMuted,
+    themeCanvas,
   ]);
+
+  const themeVarsStyle = useMemo(() => ({
+    '--papyrus-surface': themeSurface,
+    '--papyrus-surface-2': themeSurface2,
+    '--papyrus-border': themeBorder,
+    '--papyrus-text': themeText,
+    '--papyrus-text-muted': themeTextMuted,
+    '--papyrus-canvas': themeCanvas,
+  }) as React.CSSProperties, [
+    themeSurface,
+    themeSurface2,
+    themeBorder,
+    themeText,
+    themeTextMuted,
+    themeCanvas,
+  ]);
+
+  useEffect(() => {
+    return () => {
+      if (localObjectUrlRef.current) {
+        URL.revokeObjectURL(localObjectUrlRef.current);
+        localObjectUrlRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isFullscreen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsFullscreen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isFullscreen]);
+
+  const handleLocalPdf = (file?: File | null) => {
+    if (!file) return;
+    if (localObjectUrlRef.current) {
+      URL.revokeObjectURL(localObjectUrlRef.current);
+    }
+    const url = URL.createObjectURL(file);
+    localObjectUrlRef.current = url;
+    setEngineKind('pdf');
+    setUseRemotePdf(true);
+    setRemotePdfUrl(url);
+  };
+
+  const Section: React.FC<{ id: string; title: string; children: React.ReactNode }> = ({ id, title, children }) => {
+    const isOpen = openSection === id;
+    return (
+      <div className="rounded-xl border border-white/10 bg-white/5">
+        <button
+          type="button"
+          onClick={() => setOpenSection(isOpen ? '' : id)}
+          className="w-full flex items-center justify-between px-4 py-3 text-left text-xs uppercase tracking-widest text-white/70"
+        >
+          <span>{title}</span>
+          <span className={`transition-transform ${isOpen ? 'rotate-180' : ''}`}>▾</span>
+        </button>
+        <div
+          className={`grid transition-all duration-300 ease-out ${
+            isOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+          }`}
+        >
+          <div className="overflow-hidden">
+            <div className="px-4 pb-4 space-y-3">
+              {children}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="h-screen w-screen bg-[#0b0f1a] text-white">
-      <div className="h-full grid grid-cols-[360px_1fr] gap-0">
-        <div className="p-6 border-r border-white/10 overflow-y-auto">
+      <div className="h-full grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-0">
+        <div className="p-4 sm:p-6 border-r border-white/10 overflow-y-auto">
           <div className="flex items-center justify-between mb-6">
             <div className="text-sm font-semibold tracking-widest uppercase text-white/60">Papyrus Config</div>
             <a href="/render" className="text-xs text-blue-300 hover:text-blue-200">Abrir /render</a>
           </div>
 
-          <div className="space-y-6">
-            <div>
-              <label className="block text-xs uppercase tracking-widest text-white/60 mb-2">Engine</label>
+          <div className="space-y-4">
+            <Section id="engine" title="Engine">
               <select
                 className="w-full bg-white/10 border border-white/10 rounded-md px-3 py-2 text-sm"
                 value={engineKind}
@@ -382,11 +479,10 @@ const ConfigPage: React.FC = () => {
                 <option value="epub">EPUB</option>
                 <option value="text">TXT</option>
               </select>
-            </div>
+            </Section>
 
             {engineKind === 'pdf' && (
-              <div className="space-y-2">
-                <label className="block text-xs uppercase tracking-widest text-white/60">PDF remoto</label>
+              <Section id="pdf" title="PDF remoto">
                 <label className="flex items-center gap-2 text-xs bg-white/5 border border-white/10 rounded-md px-2 py-2">
                   <input
                     type="checkbox"
@@ -408,65 +504,108 @@ const ConfigPage: React.FC = () => {
                     Usando PDF local de <span className="font-mono">/assets</span>.
                   </div>
                 )}
-              </div>
+                <div className="pt-1">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full px-3 py-2 rounded-md text-xs font-semibold bg-white/10 border border-white/10 hover:bg-white/20"
+                  >
+                    Upload PDF local
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="application/pdf"
+                    className="hidden"
+                    onChange={(e) => handleLocalPdf(e.target.files?.[0])}
+                  />
+                </div>
+              </Section>
             )}
 
-            <div>
-              <label className="block text-xs uppercase tracking-widest text-white/60 mb-2">Titulo</label>
+            <Section id="title" title="Titulo">
               <input
                 className="w-full bg-white/10 border border-white/10 rounded-md px-3 py-2 text-sm"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="Nome do documento"
               />
-            </div>
+            </Section>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs uppercase tracking-widest text-white/60 mb-2">UI Theme</label>
-                <select
-                  className="w-full bg-white/10 border border-white/10 rounded-md px-3 py-2 text-sm"
-                  value={uiTheme}
-                  onChange={(e) => setUiTheme(e.target.value as UITheme)}
-                >
-                  <option value="dark">Dark</option>
-                  <option value="light">Light</option>
-                </select>
+            <Section id="ui" title="UI">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] uppercase tracking-widest text-white/60 mb-2">UI Theme</label>
+                  <select
+                    className="w-full bg-white/10 border border-white/10 rounded-md px-3 py-2 text-sm"
+                    value={uiTheme}
+                    onChange={(e) => setUiTheme(e.target.value as UITheme)}
+                  >
+                    <option value="dark">Dark</option>
+                    <option value="light">Light</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] uppercase tracking-widest text-white/60 mb-2">Page Theme</label>
+                  <select
+                    className="w-full bg-white/10 border border-white/10 rounded-md px-3 py-2 text-sm"
+                    value={pageTheme}
+                    onChange={(e) => setPageTheme(e.target.value as PageTheme)}
+                  >
+                    <option value="normal">Normal</option>
+                    <option value="sepia">Sepia</option>
+                    <option value="dark">Dark</option>
+                    <option value="high-contrast">High contrast</option>
+                  </select>
+                </div>
               </div>
               <div>
-                <label className="block text-xs uppercase tracking-widest text-white/60 mb-2">Page Theme</label>
-                <select
-                  className="w-full bg-white/10 border border-white/10 rounded-md px-3 py-2 text-sm"
-                  value={pageTheme}
-                  onChange={(e) => setPageTheme(e.target.value as PageTheme)}
-                >
-                  <option value="normal">Normal</option>
-                  <option value="sepia">Sepia</option>
-                  <option value="dark">Dark</option>
-                  <option value="high-contrast">High contrast</option>
-                </select>
+                <label className="block text-[11px] uppercase tracking-widest text-white/60 mb-2">Accent Color</label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="color"
+                    value={accentColor}
+                    onChange={(e) => setAccentColor(e.target.value)}
+                    className="h-10 w-10 rounded border border-white/10 bg-transparent"
+                  />
+                  <input
+                    className="min-w-0 flex-1 bg-white/10 border border-white/10 rounded-md px-3 py-2 text-sm"
+                    value={accentColor}
+                    onChange={(e) => setAccentColor(e.target.value)}
+                  />
+                </div>
               </div>
-            </div>
-
-            <div>
-              <label className="block text-xs uppercase tracking-widest text-white/60 mb-2">Accent Color</label>
-              <div className="flex items-center gap-3">
-                <input
-                  type="color"
-                  value={accentColor}
-                  onChange={(e) => setAccentColor(e.target.value)}
-                  className="h-10 w-10 rounded border border-white/10 bg-transparent"
-                />
-                <input
-                  className="flex-1 bg-white/10 border border-white/10 rounded-md px-3 py-2 text-sm"
-                  value={accentColor}
-                  onChange={(e) => setAccentColor(e.target.value)}
-                />
+              <div className="pt-2">
+                <label className="block text-[11px] uppercase tracking-widest text-white/60 mb-2">Theme Vars</label>
+                <div className="grid grid-cols-1 gap-2 text-xs">
+                  {[
+                    ['Surface', themeSurface, setThemeSurface],
+                    ['Surface 2', themeSurface2, setThemeSurface2],
+                    ['Border', themeBorder, setThemeBorder],
+                    ['Text', themeText, setThemeText],
+                    ['Text muted', themeTextMuted, setThemeTextMuted],
+                    ['Canvas', themeCanvas, setThemeCanvas],
+                  ].map(([label, value, setter]) => (
+                    <label key={label as string} className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-md px-2 py-2">
+                      <span className="w-20 text-[11px] text-white/60">{label as string}</span>
+                      <input
+                        type="color"
+                        value={value as string}
+                        onChange={(e) => (setter as React.Dispatch<React.SetStateAction<string>>)(e.target.value)}
+                        className="h-8 w-8 rounded border border-white/10 bg-transparent"
+                      />
+                      <input
+                        className="min-w-0 flex-1 bg-white/10 border border-white/10 rounded-md px-2 py-1 text-[11px]"
+                        value={value as string}
+                        onChange={(e) => (setter as React.Dispatch<React.SetStateAction<string>>)(e.target.value)}
+                      />
+                    </label>
+                  ))}
+                </div>
               </div>
-            </div>
+            </Section>
 
-            <div>
-              <label className="block text-xs uppercase tracking-widest text-white/60 mb-3">Topbar</label>
+            <Section id="topbar" title="Topbar">
               <div className="grid grid-cols-2 gap-2 text-xs">
                 {[
                   ['Brand', showBrand, setShowBrand],
@@ -488,20 +627,28 @@ const ConfigPage: React.FC = () => {
                   </label>
                 ))}
               </div>
-            </div>
+            </Section>
 
-            <div>
-              <label className="block text-xs uppercase tracking-widest text-white/60 mb-3">Codigo</label>
+            <Section id="code" title="Codigo">
               <div className="rounded-xl border border-white/10 bg-[#0f172a] p-4 text-[11px] leading-relaxed font-mono text-white/80 overflow-auto max-h-[220px]">
                 <pre className="whitespace-pre">{codeSample}</pre>
               </div>
-            </div>
+            </Section>
           </div>
         </div>
 
-        <div className="p-6">
-          <div className="text-xs uppercase tracking-widest text-white/50 mb-3">Preview</div>
-          <div className="h-[calc(100vh-120px)] rounded-2xl border border-white/10 overflow-hidden shadow-2xl bg-[#0f172a]">
+        <div className="p-4 sm:p-6 lg:border-l border-white/10">
+          <div className="flex items-center justify-between text-xs uppercase tracking-widest text-white/50 mb-3">
+            <span>Preview</span>
+            <button
+              type="button"
+              onClick={() => setIsFullscreen(true)}
+              className="text-[10px] px-3 py-1.5 rounded-full border border-white/10 bg-white/5 hover:bg-white/10"
+            >
+              Expandir
+            </button>
+          </div>
+          <div className="h-[60vh] lg:h-[calc(100vh-120px)] rounded-2xl border border-white/10 overflow-hidden shadow-2xl bg-[#0f172a]" style={themeVarsStyle}>
             <PapyrusViewer
               engineKind={engineKind}
               setEngineKind={setEngineKind}
@@ -525,6 +672,41 @@ const ConfigPage: React.FC = () => {
           </div>
         </div>
       </div>
+      {isFullscreen && (
+        <div className="fixed inset-0 z-[80] bg-[#0b0f1a]">
+          <div className="absolute top-4 right-4 z-[90] flex gap-2">
+            <button
+              type="button"
+              onClick={() => setIsFullscreen(false)}
+              className="text-[11px] px-3 py-2 rounded-full border border-white/10 bg-white/10 hover:bg-white/20"
+            >
+              Fechar
+            </button>
+          </div>
+          <div className="absolute inset-4 rounded-2xl border border-white/10 overflow-hidden shadow-2xl bg-[#0f172a]" style={themeVarsStyle}>
+            <PapyrusViewer
+              engineKind={engineKind}
+              setEngineKind={setEngineKind}
+              useRemotePdf={useRemotePdf}
+              remotePdfUrl={remotePdfUrl}
+              initialConfig={initialConfig}
+              syncState={{ uiTheme, pageTheme, accentColor }}
+              loadingClassName="h-full"
+              topbarProps={{
+                title,
+                showBrand,
+                showUpload,
+                showUIToggle,
+                showPageThemeSelector,
+                showSearch,
+                showSidebarLeftToggle,
+                showPageControls,
+                showZoomControls,
+              }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };

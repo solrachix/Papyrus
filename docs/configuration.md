@@ -56,6 +56,33 @@ import '@papyrus-sdk/ui-react/base.css';
 
 Use `@papyrus-sdk/core` + engines and build your own UI.
 
+## Theme variables (web)
+
+Papyrus UI exposes CSS variables so you can customize more than the accent color.
+They are applied on elements with the `papyrus-theme` class and respond to the
+`data-papyrus-theme="light|dark"` attribute.
+
+Example:
+
+```ts
+const root = document.documentElement;
+root.style.setProperty('--papyrus-surface', '#1b2b3a');
+root.style.setProperty('--papyrus-surface-2', '#223243');
+root.style.setProperty('--papyrus-border', '#2f4256');
+root.style.setProperty('--papyrus-text', '#e6edf3');
+root.style.setProperty('--papyrus-text-muted', '#9fb0c2');
+root.style.setProperty('--papyrus-canvas', '#0f172a');
+```
+
+Common tokens:
+
+- `--papyrus-surface`
+- `--papyrus-surface-2`
+- `--papyrus-border`
+- `--papyrus-text`
+- `--papyrus-text-muted`
+- `--papyrus-canvas`
+
 ## Topbar customization (web)
 
 The web `Topbar` component supports flags to hide UI elements.

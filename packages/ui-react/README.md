@@ -47,6 +47,21 @@ Use `@papyrus-sdk/core` + engines and build your own UI.
 
 Note: `@papyrus-sdk/ui-react` expects `@papyrus-sdk/core` and `@papyrus-sdk/types` as peer dependencies.
 
+## Theme variables
+
+You can override UI colors using CSS variables applied to elements with the
+`papyrus-theme` class (they also respond to `data-papyrus-theme="light|dark"`).
+
+```ts
+const root = document.documentElement;
+root.style.setProperty('--papyrus-surface', '#1b2b3a');
+root.style.setProperty('--papyrus-surface-2', '#223243');
+root.style.setProperty('--papyrus-border', '#2f4256');
+root.style.setProperty('--papyrus-text', '#e6edf3');
+root.style.setProperty('--papyrus-text-muted', '#9fb0c2');
+root.style.setProperty('--papyrus-canvas', '#0f172a');
+```
+
 ## Topbar customization
 
 `Topbar` accepts optional flags to show/hide controls.
