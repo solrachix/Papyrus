@@ -137,7 +137,7 @@ const SidebarLeft: React.FC<SidebarLeftProps> = ({ engine }) => {
   if (!sidebarLeftOpen) return null;
 
   return (
-    <div className={`w-72 border-r flex flex-col h-full shrink-0 overflow-hidden transition-colors duration-200 ${isDark ? 'bg-[#2a2a2a] border-[#3a3a3a]' : 'bg-[#fcfcfc] border-gray-200'}`}>
+    <div className={`papyrus-sidebar-left w-72 border-r flex flex-col h-full shrink-0 overflow-hidden transition-colors duration-200 ${isDark ? 'bg-[#2a2a2a] border-[#3a3a3a]' : 'bg-[#fcfcfc] border-gray-200'}`}>
       <div className={`p-4 border-b flex flex-col space-y-4 ${isDark ? 'border-[#3a3a3a]' : 'border-gray-100'}`}>
         <div className="flex items-center justify-between">
           <h3 className={`text-sm font-bold uppercase tracking-widest ${isDark ? 'text-gray-100' : 'text-gray-800'}`}>

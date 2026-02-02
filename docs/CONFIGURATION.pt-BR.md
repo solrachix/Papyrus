@@ -40,6 +40,29 @@ useViewerStore.getState().initializeStore(config);
 | `sidebarLeftOpen` | `boolean` | Define se a barra de miniaturas inicia aberta. |
 | `sidebarRightOpen` | `boolean` | Define se a barra de busca/notas inicia aberta. |
 
+## Estilos da UI (web)
+
+A UI do Papyrus usa classes utilitarias compativeis com Tailwind.
+
+Voce pode escolher um dos modos:
+
+1) **Tailwind (recomendado)**
+
+```bash
+pnpm add -D tailwindcss postcss autoprefixer
+npx tailwindcss init -p
+```
+
+2) **CSS de fallback (sem Tailwind)**
+
+```ts
+import '@papyrus-sdk/ui-react/base.css';
+```
+
+3) **Headless**
+
+Use `@papyrus-sdk/core` + engines e crie sua propria UI.
+
 ## Customizacao da Topbar (web)
 
 A `Topbar` da web suporta flags para esconder elementos da UI.

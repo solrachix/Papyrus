@@ -15,6 +15,38 @@ Na raiz do repo:
 pnpm install
 ```
 
+## 1.1) Setup no Vite (worker do PDF.js + Tailwind)
+
+A UI do Papyrus usa classes compativeis com Tailwind. Tailwind e recomendado.
+
+```bash
+pnpm add -D tailwindcss postcss autoprefixer
+npx tailwindcss init -p
+```
+
+Instale o PDF.js:
+
+```bash
+pnpm add pdfjs-dist
+```
+
+Configure o worker do PDF.js antes de usar a engine:
+
+```ts
+import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf';
+import workerUrl from 'pdfjs-dist/build/pdf.worker?url';
+import { configurePdfjsWorker, setPdfjsLib } from '@papyrus-sdk/engine-pdfjs';
+
+setPdfjsLib(pdfjsLib);
+configurePdfjsWorker(workerUrl, pdfjsLib);
+```
+
+Se voce nao quiser Tailwind, importe o CSS de fallback:
+
+```ts
+import '@papyrus-sdk/ui-react/base.css';
+```
+
 ## 2) Inicialize store e engine
 
 ```tsx

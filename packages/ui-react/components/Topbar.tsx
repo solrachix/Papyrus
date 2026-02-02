@@ -64,7 +64,7 @@ const Topbar: React.FC<TopbarProps> = ({
   ];
 
   return (
-    <div className={`h-14 border-b flex items-center justify-between px-4 z-50 transition-colors duration-200 ${isDark ? 'bg-[#1a1a1a] border-[#333] text-white' : 'bg-white border-gray-200 text-gray-800'}`}>
+    <div className={`papyrus-topbar h-14 border-b flex items-center justify-between px-4 z-50 transition-colors duration-200 ${isDark ? 'bg-[#1a1a1a] border-[#333] text-white' : 'bg-white border-gray-200 text-gray-800'}`}>
       <div className="flex items-center space-x-3">
         {showSidebarLeftToggle && (
           <button onClick={toggleSidebarLeft} className={`p-2 rounded-md ${isDark ? 'hover:bg-white/10' : 'hover:bg-gray-100'}`}>

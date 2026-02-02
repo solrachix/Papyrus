@@ -45,7 +45,7 @@ const SidebarRight: React.FC<SidebarRightProps> = ({ engine }) => {
   if (!sidebarRightOpen) return null;
 
   return (
-    <div className={`w-80 border-l flex flex-col h-full shrink-0 transition-colors duration-200 shadow-2xl z-40 ${isDark ? 'bg-[#1a1a1a] border-[#333]' : 'bg-white border-gray-200'}`}>
+    <div className={`papyrus-sidebar-right w-80 border-l flex flex-col h-full shrink-0 transition-colors duration-200 shadow-2xl z-40 ${isDark ? 'bg-[#1a1a1a] border-[#333]' : 'bg-white border-gray-200'}`}>
       <div className={`p-4 border-b flex items-center justify-between shrink-0 ${isDark ? 'border-[#333]' : 'border-gray-100'}`}>
         <div className="flex space-x-6">
           <button

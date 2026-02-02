@@ -15,6 +15,38 @@ From the repo root:
 pnpm install
 ```
 
+## 1.1) Vite setup (PDF.js worker + Tailwind)
+
+Papyrus UI uses Tailwind-compatible utility classes. Tailwind is recommended for best visuals.
+
+```bash
+pnpm add -D tailwindcss postcss autoprefixer
+npx tailwindcss init -p
+```
+
+Install PDF.js:
+
+```bash
+pnpm add pdfjs-dist
+```
+
+Configure the PDF.js worker once before using the engine:
+
+```ts
+import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf';
+import workerUrl from 'pdfjs-dist/build/pdf.worker?url';
+import { configurePdfjsWorker, setPdfjsLib } from '@papyrus-sdk/engine-pdfjs';
+
+setPdfjsLib(pdfjsLib);
+configurePdfjsWorker(workerUrl, pdfjsLib);
+```
+
+If you don't want Tailwind, you can import the fallback stylesheet:
+
+```ts
+import '@papyrus-sdk/ui-react/base.css';
+```
+
 ## 2) Initialize store and engine
 
 ```tsx

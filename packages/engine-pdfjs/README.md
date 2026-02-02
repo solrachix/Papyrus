@@ -5,17 +5,18 @@ Web engine for PDF documents, powered by PDF.js.
 ## Install
 
 ```bash
-npm install @papyrus-sdk/engine-pdfjs
+npm install @papyrus-sdk/engine-pdfjs pdfjs-dist
 ```
 
 ## Usage
 
 ```ts
-import { PDFJSEngine } from '@papyrus-sdk/engine-pdfjs';
-import * as pdfjsLib from 'pdfjs-dist';
+import { PDFJSEngine, setPdfjsLib, configurePdfjsWorker } from '@papyrus-sdk/engine-pdfjs';
+import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf';
+import workerUrl from 'pdfjs-dist/build/pdf.worker?url';
 
-// pdfjsLib is expected as a global in the engine
-(globalThis as any).pdfjsLib = pdfjsLib;
+setPdfjsLib(pdfjsLib);
+configurePdfjsWorker(workerUrl, pdfjsLib);
 
 const engine = new PDFJSEngine();
 await engine.load({ type: 'pdf', source: { uri: 'https://example.com/book.pdf' } });

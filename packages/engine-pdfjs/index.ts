@@ -4,6 +4,26 @@ import { DocumentLoadInput, DocumentLoadRequest, DocumentSource, DocumentType, T
 
 declare const pdfjsLib: any;
 
+const getPdfjsLib = (lib?: any) => {
+  if (lib) return lib;
+  const globalLib = (globalThis as any).pdfjsLib || (globalThis as any)['pdfjs-dist/build/pdf'];
+  return globalLib;
+};
+
+export const setPdfjsLib = (lib: any) => {
+  (globalThis as any).pdfjsLib = lib;
+  return lib;
+};
+
+export const configurePdfjsWorker = (workerSrc: string, lib?: any) => {
+  const target = getPdfjsLib(lib);
+  if (!target?.GlobalWorkerOptions) {
+    throw new Error('[PDFJSEngine] pdfjsLib não encontrado. Chame setPdfjsLib(importedPdfjs) antes.');
+  }
+  target.GlobalWorkerOptions.workerSrc = workerSrc;
+  return target;
+};
+
 export class PDFJSEngine extends BaseDocumentEngine {
   private pdfDoc: any = null;
   private currentPage: number = 1;

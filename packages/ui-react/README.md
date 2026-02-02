@@ -20,6 +20,31 @@ await engine.load({ type: 'pdf', source: { uri: 'https://example.com/book.pdf' }
 <Viewer engine={engine} />
 ```
 
+## Styling modes
+
+Papyrus UI uses utility-first class names compatible with Tailwind.
+
+You can choose one of the following:
+
+1) **Tailwind (recommended)**
+
+```bash
+pnpm add -D tailwindcss postcss autoprefixer
+npx tailwindcss init -p
+```
+
+2) **Fallback CSS (no Tailwind)**
+
+Import a minimal base stylesheet:
+
+```ts
+import '@papyrus-sdk/ui-react/base.css';
+```
+
+3) **Headless**
+
+Use `@papyrus-sdk/core` + engines and build your own UI.
+
 ## Topbar customization
 
 `Topbar` accepts optional flags to show/hide controls.

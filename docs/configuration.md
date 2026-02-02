@@ -33,6 +33,29 @@ useViewerStore.getState().initializeStore({
 | `sidebarLeftOpen` | `boolean` | Whether the thumbnail sidebar starts open. |
 | `sidebarRightOpen` | `boolean` | Whether the search/notes sidebar starts open. |
 
+## UI styling (web)
+
+Papyrus UI uses utility-first class names compatible with Tailwind.
+
+You can choose one of the following:
+
+1) **Tailwind (recommended)**
+
+```bash
+pnpm add -D tailwindcss postcss autoprefixer
+npx tailwindcss init -p
+```
+
+2) **Fallback CSS (no Tailwind)**
+
+```ts
+import '@papyrus-sdk/ui-react/base.css';
+```
+
+3) **Headless**
+
+Use `@papyrus-sdk/core` + engines and build your own UI.
+
 ## Topbar customization (web)
 
 The web `Topbar` component supports flags to hide UI elements.

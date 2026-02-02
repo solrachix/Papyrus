@@ -1,0 +1,68 @@
+.papyrus-topbar {
+  align-items: center;
+  background: #ffffff;
+  border-bottom: 1px solid #e5e7eb;
+  box-sizing: border-box;
+  color: #111827;
+  display: flex;
+  height: 56px;
+  justify-content: space-between;
+  padding: 0 16px;
+}
+
+.papyrus-sidebar-left {
+  background: #ffffff;
+  border-right: 1px solid #e5e7eb;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 288px;
+}
+
+.papyrus-sidebar-right {
+  background: #ffffff;
+  border-left: 1px solid #e5e7eb;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 320px;
+}
+
+.papyrus-viewer {
+  background: #f3f4f6;
+  box-sizing: border-box;
+  flex: 1 1 auto;
+  overflow: auto;
+}
+
+.papyrus-topbar button,
+.papyrus-sidebar-left button,
+.papyrus-sidebar-right button {
+  background: none;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+}
+
+.papyrus-topbar input,
+.papyrus-sidebar-left input,
+.papyrus-sidebar-right input,
+.papyrus-topbar select,
+.papyrus-sidebar-left select,
+.papyrus-sidebar-right select {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  box-sizing: border-box;
+  color: #111827;
+  font: inherit;
+  padding: 6px 8px;
+}
+
+.papyrus-viewer .page-container {
+  margin-bottom: 24px;
+}
