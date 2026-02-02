@@ -3,6 +3,9 @@
 
 [![Engine: PDF.js](https://img.shields.io/badge/Engine-PDF.js-orange.svg)](https://mozilla.github.io/pdf.js/)
 [![Framework: React](https://img.shields.io/badge/Framework-React-blue.svg)](https://reactjs.org/)
+[![npm](https://img.shields.io/npm/v/@papyrus-sdk/ui-react)](https://www.npmjs.com/package/@papyrus-sdk/ui-react)
+[![npm](https://img.shields.io/npm/v/@papyrus-sdk/engine-pdfjs)](https://www.npmjs.com/package/@papyrus-sdk/engine-pdfjs)
+[![npm](https://img.shields.io/npm/v/@papyrus-sdk/core)](https://www.npmjs.com/package/@papyrus-sdk/core)
 
 Read this in: English | [Portuguese (Brazil)](README.pt-BR.md)
 

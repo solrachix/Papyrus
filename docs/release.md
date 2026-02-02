@@ -53,6 +53,26 @@ If you intentionally publish from a dirty working tree:
 pnpm -r --filter ./packages/** publish --access public --no-git-checks
 ```
 
+## Publish only changed packages
+
+Detects changes since `origin/main` (or `BASE_REF`) and publishes only those packages.
+
+```bash
+pnpm publish:changed
+```
+
+Build only:
+
+```bash
+pnpm build:changed
+```
+
+Override the base ref:
+
+```bash
+BASE_REF=main pnpm publish:changed
+```
+
 ### Tags
 
 Add a tag if needed:

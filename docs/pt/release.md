@@ -53,6 +53,26 @@ Se for publicar com working tree sujo:
 pnpm -r --filter ./packages/** publish --access public --no-git-checks
 ```
 
+## Publicar somente pacotes alterados
+
+Detecta mudancas desde `origin/main` (ou `BASE_REF`) e publica apenas esses pacotes.
+
+```bash
+pnpm publish:changed
+```
+
+Build apenas:
+
+```bash
+pnpm build:changed
+```
+
+Trocar o base ref:
+
+```bash
+BASE_REF=main pnpm publish:changed
+```
+
 ### Tags
 
 Para usar tag:

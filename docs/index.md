@@ -27,7 +27,7 @@ features:
   - title: UI ready
     details: React and React Native UI layers ship with search, outlines, and themes.
   - title: Open an issue
-    details: Need help or found a bug? [Open an issue on GitHub](https://github.com/solrachix/Papyrus/issues).
+    details: Need help or found a bug? <a href="https://github.com/solrachix/Papyrus/issues">Open an issue on GitHub</a>.
   - title: Configurable
     details: PapyrusConfig covers initial page, zoom, theme, accent, and annotations.
 ---

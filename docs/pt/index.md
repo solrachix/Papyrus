@@ -27,7 +27,7 @@ features:
   - title: UI pronta
     details: Camadas React e React Native com busca, sumario e temas.
   - title: Abrir issue
-    details: Precisa de ajuda ou achou um bug? [Abra uma issue no GitHub](https://github.com/solrachix/Papyrus/issues).
+    details: Precisa de ajuda ou achou um bug? <a href="https://github.com/solrachix/Papyrus/issues">Abra uma issue no GitHub</a>.
   - title: Configuravel
     details: PapyrusConfig cobre pagina inicial, zoom, tema, accent e anotacoes.
 ---
