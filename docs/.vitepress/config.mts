@@ -46,6 +46,8 @@ const navEn = [
   { text: 'Flows', link: '/flows' },
   { text: 'Mobile', link: '/mobile' },
   { text: 'Interactive', link: '/examples/' },
+  { text: 'GitHub', link: 'https://github.com/solrachix/Papyrus' },
+  { text: 'Issues', link: 'https://github.com/solrachix/Papyrus/issues' },
 ];
 
 const navPt = [
@@ -57,6 +59,8 @@ const navPt = [
   { text: 'Fluxos', link: '/pt/flows' },
   { text: 'Mobile', link: '/pt/mobile' },
   { text: 'Interativo', link: '/pt/examples/' },
+  { text: 'GitHub', link: 'https://github.com/solrachix/Papyrus' },
+  { text: 'Issues', link: 'https://github.com/solrachix/Papyrus/issues' },
 ];
 
 const sidebarEn = [
@@ -180,6 +184,9 @@ export default defineConfig({
     search: {
       provider: 'local',
     },
+    socialLinks: [
+      { icon: 'github', link: 'https://github.com/solrachix/Papyrus' },
+    ],
   },
   locales: {
     root: {

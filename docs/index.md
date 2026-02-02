@@ -14,6 +14,9 @@ hero:
     - theme: alt
       text: Architecture
       link: /architecture
+    - theme: alt
+      text: Official Repository
+      link: https://github.com/solrachix/Papyrus
 features:
   - title: Engine agnostic
     details: Swap PDF.js on web and PDFKit or PDFium on mobile without changing UI logic.
@@ -23,6 +26,8 @@ features:
     details: useViewerStore and papyrusEvents unify state, actions, and lifecycle hooks.
   - title: UI ready
     details: React and React Native UI layers ship with search, outlines, and themes.
+  - title: Open an issue
+    details: Need help or found a bug? [Open an issue on GitHub](https://github.com/solrachix/Papyrus/issues).
   - title: Configurable
     details: PapyrusConfig covers initial page, zoom, theme, accent, and annotations.
 ---
