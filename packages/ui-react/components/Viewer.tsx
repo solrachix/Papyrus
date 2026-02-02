@@ -37,6 +37,8 @@ const Viewer: React.FC<ViewerProps> = ({ engine }) => {
   }, []);
 
   useEffect(() => {
+    const root = viewerRef.current;
+    if (!root) return;
     const observer = new IntersectionObserver((entries) => {
       entries.forEach((entry) => {
         if (entry.isIntersecting) {
@@ -44,11 +46,14 @@ const Viewer: React.FC<ViewerProps> = ({ engine }) => {
           if (pageIndex + 1 !== currentPage) setDocumentState({ currentPage: pageIndex + 1 });
         }
       });
-    }, { root: viewerRef.current, threshold: 0.5 });
+    }, { root, threshold: 0.5 });
 
-    const pageElements = viewerRef.current?.querySelectorAll('.page-container');
-    pageElements?.forEach((el) => observer.observe(el));
-    return () => { pageElements?.forEach((el) => observer.unobserve(el)); observer.disconnect(); };
+    const pageElements = root.querySelectorAll('.page-container');
+    pageElements.forEach((el) => observer.observe(el));
+    return () => {
+      pageElements.forEach((el) => observer.unobserve(el));
+      observer.disconnect();
+    };
   }, [pageCount, setDocumentState, currentPage]);
 
   const pages = Array.from({ length: pageCount }).map((_, i) => i);

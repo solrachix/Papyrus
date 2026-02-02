@@ -100,6 +100,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({ engine, pageIndex, availabl
           await engine.renderTextLayer(pageIndex, textLayerRef.current, renderScale);
         }
 
+        if (!active || !textLayerRef.current) return;
         if (!isElementRender && displaySize) {
           if (canvasRef.current) {
             canvasRef.current.style.width = `${displaySize.width}px`;
@@ -110,6 +111,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({ engine, pageIndex, availabl
         }
 
       } catch (err) {
+        if (!active) return;
         console.error("[Papyrus] Falha na renderização:", err);
       } finally {
         if (active) setLoading(false);
