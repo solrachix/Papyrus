@@ -197,31 +197,31 @@ importers:
 
   packages/engine-epub:
     dependencies:
-      '@papyrus-sdk/core':
-        specifier: 0.2.1
-        version: 0.2.1(@types/react@18.3.27)(react@18.3.1)
-      '@papyrus-sdk/types':
-        specifier: 0.2.1
-        version: 0.2.1
       epubjs:
         specifier: ^0.3.92
         version: 0.3.93
-
-  packages/engine-native:
-    dependencies:
+    devDependencies:
       '@papyrus-sdk/core':
         specifier: 0.2.1
         version: 0.2.1(@types/react@18.3.27)(react@18.3.1)
       '@papyrus-sdk/types':
         specifier: 0.2.1
         version: 0.2.1
+
+  packages/engine-native:
     devDependencies:
+      '@papyrus-sdk/core':
+        specifier: 0.2.1
+        version: 0.2.1(@types/react@18.3.27)(react@18.3.1)
+      '@papyrus-sdk/types':
+        specifier: 0.2.1
+        version: 0.2.1
       react-native:
         specifier: ^0.76.0
         version: 0.76.0(@babel/core@7.28.5)(@babel/preset-env@7.28.5(@babel/core@7.28.5))(@types/react@18.3.27)(react@18.3.1)
 
   packages/engine-pdfjs:
-    dependencies:
+    devDependencies:
       '@papyrus-sdk/core':
         specifier: 0.2.1
         version: 0.2.1(@types/react@18.3.27)(react@18.3.1)
@@ -230,7 +230,7 @@ importers:
         version: 0.2.1
 
   packages/engine-text:
-    dependencies:
+    devDependencies:
       '@papyrus-sdk/core':
         specifier: 0.2.1
         version: 0.2.1(@types/react@18.3.27)(react@18.3.1)
@@ -247,29 +247,22 @@ importers:
   packages/types: {}
 
   packages/ui-react:
-    dependencies:
+    devDependencies:
       '@papyrus-sdk/core':
         specifier: 0.2.1
         version: 0.2.1(@types/react@18.3.27)(react@18.3.1)
       '@papyrus-sdk/types':
         specifier: 0.2.1
         version: 0.2.1
-    devDependencies:
       react:
         specifier: ^18.2.0
         version: 18.3.1
 
   packages/ui-react-native:
     dependencies:
-      '@papyrus-sdk/core':
-        specifier: 0.2.1
-        version: 0.2.1(@types/react@18.3.27)(react@18.3.1)
       '@papyrus-sdk/engine-native':
         specifier: 0.2.1
         version: 0.2.1(@types/react@18.3.27)(react-native@0.76.0(@babel/core@7.28.5)(@babel/preset-env@7.28.5(@babel/core@7.28.5))(@types/react@18.3.27)(react@18.3.1))(react@18.3.1)
-      '@papyrus-sdk/types':
-        specifier: 0.2.1
-        version: 0.2.1
       react-native-svg:
         specifier: ^15.5.0
         version: 15.15.1(react-native@0.76.0(@babel/core@7.28.5)(@babel/preset-env@7.28.5(@babel/core@7.28.5))(@types/react@18.3.27)(react@18.3.1))(react@18.3.1)
@@ -277,6 +270,12 @@ importers:
         specifier: '>=13'
         version: 13.16.0(react-native@0.76.0(@babel/core@7.28.5)(@babel/preset-env@7.28.5(@babel/core@7.28.5))(@types/react@18.3.27)(react@18.3.1))(react@18.3.1)
     devDependencies:
+      '@papyrus-sdk/core':
+        specifier: 0.2.1
+        version: 0.2.1(@types/react@18.3.27)(react@18.3.1)
+      '@papyrus-sdk/types':
+        specifier: 0.2.1
+        version: 0.2.1
       react:
         specifier: ^18.2.0
         version: 18.3.1
