@@ -45,6 +45,8 @@ import '@papyrus-sdk/ui-react/base.css';
 
 Use `@papyrus-sdk/core` + engines and build your own UI.
 
+Note: `@papyrus-sdk/ui-react` expects `@papyrus-sdk/core` and `@papyrus-sdk/types` as peer dependencies.
+
 ## Topbar customization
 
 `Topbar` accepts optional flags to show/hide controls.

@@ -5,8 +5,10 @@ React Native UI components for Papyrus viewers.
 ## Install
 
 ```bash
-npm install @papyrus-sdk/ui-react-native @papyrus-sdk/engine-native
+npm install @papyrus-sdk/ui-react-native @papyrus-sdk/engine-native @papyrus-sdk/core @papyrus-sdk/types
 ```
+
+`@papyrus-sdk/core` and `@papyrus-sdk/types` are required peer dependencies.
 
 For EPUB/TXT previews on mobile:
 

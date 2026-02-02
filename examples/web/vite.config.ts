@@ -11,7 +11,7 @@ export default defineConfig(({ mode }) => {
     root: __dirname,
     base: isDocs ? './' : '/',
     server: {
-      port: 3000,
+      port: 3005,
       host: '0.0.0.0',
       fs: {
         allow: [rootDir],

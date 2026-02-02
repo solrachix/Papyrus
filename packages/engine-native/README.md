@@ -6,8 +6,10 @@ plus a WebView runtime for EPUB/TXT via `MobileDocumentEngine`.
 ## Install
 
 ```bash
-npm install @papyrus-sdk/engine-native
+npm install @papyrus-sdk/engine-native @papyrus-sdk/core @papyrus-sdk/types
 ```
+
+`@papyrus-sdk/core` and `@papyrus-sdk/types` are required peer dependencies.
 
 For EPUB/TXT on mobile, also install:
 

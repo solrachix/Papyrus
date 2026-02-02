@@ -5,8 +5,10 @@ Web engine for plain text documents.
 ## Install
 
 ```bash
-npm install @papyrus-sdk/engine-text
+npm install @papyrus-sdk/engine-text @papyrus-sdk/core @papyrus-sdk/types
 ```
+
+`@papyrus-sdk/core` and `@papyrus-sdk/types` are required peer dependencies.
 
 ## Usage
 

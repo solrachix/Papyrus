@@ -5,8 +5,10 @@ Web engine for PDF documents, powered by PDF.js.
 ## Install
 
 ```bash
-npm install @papyrus-sdk/engine-pdfjs pdfjs-dist
+npm install @papyrus-sdk/engine-pdfjs @papyrus-sdk/core @papyrus-sdk/types pdfjs-dist
 ```
+
+`@papyrus-sdk/core` and `@papyrus-sdk/types` are required peer dependencies.
 
 ## Usage
 
