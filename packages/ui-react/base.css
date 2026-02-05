@@ -12,6 +12,7 @@
   --papyrus-hover: #e5e7eb;
   --papyrus-popover: #ffffff;
   --papyrus-shadow: rgba(15, 23, 42, 0.08);
+  --papyrus-selection-bg: rgba(30, 64, 175, 0.5);
   color: var(--papyrus-text);
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
 }
@@ -30,6 +31,7 @@
   --papyrus-hover: rgba(255, 255, 255, 0.08);
   --papyrus-popover: #1f1f1f;
   --papyrus-shadow: rgba(0, 0, 0, 0.4);
+  --papyrus-selection-bg: rgba(96, 165, 250, 0.5);
 }
 
 .papyrus-topbar,
@@ -93,6 +95,12 @@
   transition: background 0.15s ease, border-color 0.15s ease;
 }
 
+.papyrus-unstyled-button {
+  background: transparent !important;
+  border: 0 !important;
+  padding: 0 !important;
+}
+
 .papyrus-topbar input,
 .papyrus-sidebar-left input,
 .papyrus-sidebar-right input,
@@ -140,4 +148,20 @@
   margin-bottom: 24px;
   display: flex;
   justify-content: center;
+}
+
+.papyrus-viewer .textLayer ::selection {
+  background: var(--papyrus-selection-bg);
+}
+
+.papyrus-viewer .textLayer {
+  opacity: 1 !important;
+}
+
+.papyrus-viewer .textLayer mark.papyrus-search-hit {
+  background: rgba(250, 204, 21, 0.55);
+  box-shadow: 0 0 0 1px rgba(234, 179, 8, 0.35);
+  border-radius: 2px;
+  color: transparent;
+  padding: 0;
 }

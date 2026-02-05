@@ -40,6 +40,25 @@ useViewerStore.getState().initializeStore(config);
 | `sidebarLeftOpen` | `boolean` | Define se a barra de miniaturas inicia aberta. |
 | `sidebarRightOpen` | `boolean` | Define se a barra de busca/notas inicia aberta. |
 
+## Formato de anotacao
+
+```ts
+type Annotation = {
+  id: string;
+  type: 'highlight' | 'underline' | 'squiggly' | 'strikeout' | 'text' | 'comment' | 'ink';
+  pageIndex: number;
+  rect: { x: number; y: number; width: number; height: number };
+  rects?: { x: number; y: number; width: number; height: number }[];
+  path?: { x: number; y: number }[];
+  color: string;
+  createdAt: number;
+  content?: string;
+};
+```
+
+- `rects` e usado para marcacoes de texto (highlight/underline/squiggly/strikeout).
+- `path` e usado para desenho livre (ink).
+
 ## Estilos da UI (web)
 
 A UI do Papyrus usa classes utilitarias compativeis com Tailwind.

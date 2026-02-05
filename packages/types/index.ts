@@ -49,10 +49,12 @@ export interface TextSelection {
 
 export interface Annotation {
   id: string;
-  type: 'highlight' | 'text' | 'strikeout' | 'comment';
+  type: 'highlight' | 'underline' | 'squiggly' | 'strikeout' | 'text' | 'comment' | 'ink';
   pageIndex: number;
   content?: string;
   rect: { x: number; y: number; width: number; height: number };
+  rects?: { x: number; y: number; width: number; height: number }[];
+  path?: { x: number; y: number }[];
   color: string;
   createdAt: number;
 }

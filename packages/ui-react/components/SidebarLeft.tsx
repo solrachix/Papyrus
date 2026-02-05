@@ -24,23 +24,46 @@ const withAlpha = (hex: string, alpha: number) => {
 };
 
 const Thumbnail: React.FC<{ engine: DocumentEngine; pageIndex: number; active: boolean; isDark: boolean; accentColor: string; onClick: () => void }> = ({ engine, pageIndex, active, isDark, accentColor, onClick }) => {
+  const wrapperRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const htmlRef = useRef<HTMLDivElement>(null);
   const accentSoft = withAlpha(accentColor, 0.12);
   const renderTargetType = engine.getRenderTargetType?.() ?? 'canvas';
+  const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
-    if (renderTargetType === 'element') return;
+    const target = wrapperRef.current;
+    if (!target) return;
+    if (typeof IntersectionObserver === 'undefined') {
+      setIsVisible(true);
+      return;
+    }
+    const root = target.closest('.custom-scrollbar');
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+          observer.disconnect();
+        }
+      });
+    }, { root: root ?? null, rootMargin: '200px' });
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (renderTargetType === 'element' || !isVisible) return;
     const target = canvasRef.current;
     if (target) {
       engine.renderPage(pageIndex, target, 0.15).catch((err) => {
         console.error('[Papyrus] Thumbnail render failed:', err);
       });
     }
-  }, [engine, pageIndex, renderTargetType]);
+  }, [engine, pageIndex, renderTargetType, isVisible]);
 
   return (
     <div 
+      ref={wrapperRef}
       onClick={onClick}
       className={`p-3 cursor-pointer transition-all rounded-lg border-2 ${active ? 'shadow-sm' : 'border-transparent'}`}
       style={active ? { borderColor: accentColor, backgroundColor: accentSoft } : undefined}

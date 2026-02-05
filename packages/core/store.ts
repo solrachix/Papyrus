@@ -26,7 +26,7 @@ interface ViewerState {
   activeSearchIndex: number;
   scrollToPageSignal: number | null;
   annotations: Annotation[];
-  activeTool: 'select' | 'highlight' | 'text' | 'strikeout' | 'comment';
+  activeTool: 'select' | 'highlight' | 'underline' | 'squiggly' | 'strikeout' | 'text' | 'comment' | 'ink';
   selectedAnnotationId: string | null;
   interactionMode: 'pan' | 'select';
   selectionActive: boolean;

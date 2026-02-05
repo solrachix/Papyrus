@@ -36,16 +36,31 @@ const Topbar: React.FC<TopbarProps> = ({
   } = useViewerStore();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const zoomTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingZoomRef = useRef<number | null>(null);
   const [pageInput, setPageInput] = useState(currentPage.toString());
+  const pageDigits = Math.max(2, String(pageCount || 1).length);
   const [showPageThemes, setShowPageThemes] = useState(false);
   const isDark = uiTheme === 'dark';
 
   useEffect(() => { setPageInput(currentPage.toString()); }, [currentPage]);
+  useEffect(() => () => {
+    if (zoomTimerRef.current) clearTimeout(zoomTimerRef.current);
+  }, []);
 
   const handleZoom = (delta: number) => {
-    const newZoom = Math.max(0.2, Math.min(5, zoom + delta));
-    engine.setZoom(newZoom);
-    setDocumentState({ zoom: newZoom });
+    const baseZoom = pendingZoomRef.current ?? zoom;
+    const nextZoom = Math.max(0.2, Math.min(5, baseZoom + delta));
+    pendingZoomRef.current = nextZoom;
+    if (zoomTimerRef.current) return;
+    zoomTimerRef.current = setTimeout(() => {
+      zoomTimerRef.current = null;
+      const targetZoom = pendingZoomRef.current;
+      pendingZoomRef.current = null;
+      if (targetZoom == null) return;
+      engine.setZoom(targetZoom);
+      setDocumentState({ zoom: targetZoom });
+    }, 80);
   };
 
   const handlePageChange = (page: number) => {
@@ -95,7 +110,8 @@ const Topbar: React.FC<TopbarProps> = ({
               </button>
               <input 
                 type="text" 
-                className="papyrus-input w-10 text-center bg-transparent focus:outline-none font-bold text-sm" 
+                className="papyrus-input text-center bg-transparent focus:outline-none font-bold text-sm shrink-0"
+                style={{ width: `${pageDigits + 1.75}ch` }}
                 value={pageInput} 
                 onChange={(e) => setPageInput(e.target.value)} 
                 onKeyDown={(e) => e.key === 'Enter' && handlePageChange(parseInt(pageInput))}

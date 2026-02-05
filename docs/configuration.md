@@ -33,6 +33,25 @@ useViewerStore.getState().initializeStore({
 | `sidebarLeftOpen` | `boolean` | Whether the thumbnail sidebar starts open. |
 | `sidebarRightOpen` | `boolean` | Whether the search/notes sidebar starts open. |
 
+## Annotation shape
+
+```ts
+type Annotation = {
+  id: string;
+  type: 'highlight' | 'underline' | 'squiggly' | 'strikeout' | 'text' | 'comment' | 'ink';
+  pageIndex: number;
+  rect: { x: number; y: number; width: number; height: number };
+  rects?: { x: number; y: number; width: number; height: number }[];
+  path?: { x: number; y: number }[];
+  color: string;
+  createdAt: number;
+  content?: string;
+};
+```
+
+- `rects` is used for text-based marks (highlight/underline/squiggly/strikeout).
+- `path` is used for freehand drawings (ink).
+
 ## UI styling (web)
 
 Papyrus UI uses utility-first class names compatible with Tailwind.

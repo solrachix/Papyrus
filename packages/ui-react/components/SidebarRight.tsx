@@ -32,6 +32,7 @@ const SidebarRight: React.FC<SidebarRightProps> = ({ engine }) => {
   const searchService = new SearchService(engine);
   const isDark = uiTheme === 'dark';
   const accentSoft = withAlpha(accentColor, 0.12);
+  const resultsCount = searchResults.length;
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,7 +67,7 @@ const SidebarRight: React.FC<SidebarRightProps> = ({ engine }) => {
             Notas
           </button>
         </div>
-        <button onClick={() => toggleSidebarRight()} className="text-gray-400 hover:text-red-500 transition-colors">
+        <button onClick={() => toggleSidebarRight()} className="papyrus-unstyled-button text-gray-400 hover:text-red-500 transition-colors">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
         </button>
       </div>
@@ -82,7 +83,12 @@ const SidebarRight: React.FC<SidebarRightProps> = ({ engine }) => {
                 value={query} 
                 onChange={(e) => setQuery(e.target.value)} 
               />
-              <button type="submit" className="absolute right-3 top-2.5 text-gray-400 transition-colors" style={{ color: accentColor }}>
+              {resultsCount > 0 && (
+                <span className="absolute right-9 top-2.5 text-[10px] font-bold text-gray-400">
+                  {resultsCount}
+                </span>
+              )}
+              <button type="submit" className="papyrus-unstyled-button absolute right-3 top-2.5 text-gray-400 transition-colors" style={{ color: accentColor }}>
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
               </button>
             </form>
@@ -97,7 +103,12 @@ const SidebarRight: React.FC<SidebarRightProps> = ({ engine }) => {
             {!isSearching && searchResults.map((res, idx) => (
               <div 
                 key={idx} 
-                onClick={() => { setDocumentState({ activeSearchIndex: idx }); triggerScrollToPage(res.pageIndex); }} 
+                onClick={() => {
+                  const page = res.pageIndex + 1;
+                  engine.goToPage(page);
+                  setDocumentState({ activeSearchIndex: idx, currentPage: page });
+                  triggerScrollToPage(res.pageIndex);
+                }} 
                 className={`p-4 rounded-xl border-2 cursor-pointer transition-all group hover:scale-[1.02] ${idx === activeSearchIndex ? 'shadow-lg' : isDark ? 'border-[#333] hover:border-[#555] bg-[#222]' : 'border-gray-50 hover:border-gray-200 bg-gray-50/50 hover:bg-white'}`}
                 style={idx === activeSearchIndex ? { borderColor: accentColor, backgroundColor: accentSoft } : undefined}
               >

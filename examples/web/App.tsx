@@ -462,7 +462,7 @@ const ConfigPage: React.FC = () => {
   return (
     <div className="h-screen w-screen bg-[#0b0f1a] text-white">
       <div className="h-full grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-0">
-        <div className="p-4 sm:p-6 border-r border-white/10 overflow-y-auto">
+        <div className="min-w-0 p-4 sm:p-6 border-r border-white/10 overflow-y-auto">
           <div className="flex items-center justify-between mb-6">
             <div className="text-sm font-semibold tracking-widest uppercase text-white/60">Papyrus Config</div>
             <a href="/render" className="text-xs text-blue-300 hover:text-blue-200">Abrir /render</a>
@@ -637,7 +637,7 @@ const ConfigPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="p-4 sm:p-6 lg:border-l border-white/10">
+        <div className="min-w-0 p-4 sm:p-6 lg:border-l border-white/10">
           <div className="flex items-center justify-between text-xs uppercase tracking-widest text-white/50 mb-3">
             <span>Preview</span>
             <button
@@ -648,7 +648,7 @@ const ConfigPage: React.FC = () => {
               Expandir
             </button>
           </div>
-          <div className="h-[60vh] lg:h-[calc(100vh-120px)] rounded-2xl border border-white/10 overflow-hidden shadow-2xl bg-[#0f172a]" style={themeVarsStyle}>
+          <div className="min-w-0 h-[60vh] lg:h-[calc(100vh-120px)] rounded-2xl border border-white/10 overflow-hidden shadow-2xl bg-[#0f172a]" style={themeVarsStyle}>
             <PapyrusViewer
               engineKind={engineKind}
               setEngineKind={setEngineKind}

@@ -33,6 +33,25 @@ useViewerStore.getState().initializeStore({
 | `sidebarLeftOpen` | `boolean` | Sidebar de miniaturas inicia aberta. |
 | `sidebarRightOpen` | `boolean` | Sidebar de busca/notas inicia aberta. |
 
+## Formato de anotacao
+
+```ts
+type Annotation = {
+  id: string;
+  type: 'highlight' | 'underline' | 'squiggly' | 'strikeout' | 'text' | 'comment' | 'ink';
+  pageIndex: number;
+  rect: { x: number; y: number; width: number; height: number };
+  rects?: { x: number; y: number; width: number; height: number }[];
+  path?: { x: number; y: number }[];
+  color: string;
+  createdAt: number;
+  content?: string;
+};
+```
+
+- `rects` e usado para marcacoes de texto (highlight/underline/squiggly/strikeout).
+- `path` e usado para desenho livre (ink).
+
 ## Estilos da UI (web)
 
 Para web, voce pode usar Tailwind (recomendado) ou o CSS de fallback:
