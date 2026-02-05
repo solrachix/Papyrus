@@ -16,12 +16,21 @@ const KEYWORDS = [
   'PDF.js',
 ].join(', ');
 const OG_IMAGE = process.env.VITEPRESS_OG_IMAGE || (SITE_URL ? `${SITE_URL}/og.png` : '/og.png');
+const CLOUDFLARE_BEACON_TOKEN = '9b6604661443464da2c87c6fe162e76b';
 
 const head = [
   ['meta', { name: 'keywords', content: KEYWORDS }],
   ['meta', { property: 'og:type', content: 'website' }],
   ['meta', { property: 'og:site_name', content: SITE_NAME }],
   ['meta', { name: 'twitter:card', content: 'summary_large_image' }],
+  [
+    'script',
+    {
+      defer: '',
+      src: 'https://static.cloudflareinsights.com/beacon.min.js',
+      'data-cf-beacon': `{"token":"${CLOUDFLARE_BEACON_TOKEN}"}`,
+    },
+  ],
 ];
 
 if (OG_IMAGE) {
