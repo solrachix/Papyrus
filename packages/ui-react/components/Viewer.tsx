@@ -313,7 +313,10 @@ const Viewer: React.FC<ViewerProps> = ({ engine }) => {
     },
   ];
 
-  const getTouchDistance = (touchA: Touch, touchB: Touch) => {
+  const getTouchDistance = (
+    touchA: { clientX: number; clientY: number },
+    touchB: { clientX: number; clientY: number }
+  ) => {
     const dx = touchA.clientX - touchB.clientX;
     const dy = touchA.clientY - touchB.clientY;
     return Math.sqrt(dx * dx + dy * dy);
