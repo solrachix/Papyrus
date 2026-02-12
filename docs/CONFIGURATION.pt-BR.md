@@ -31,14 +31,18 @@ useViewerStore.getState().initializeStore(config);
 | Propriedade | Tipo | Descricao |
 | :--- | :--- | :--- |
 | `initialPage` | `number` | Pagina exibida ao carregar (padrao: 1). |
-| `initialZoom` | `number` | Nivel de zoom inicial (1.0 = 100%). |
+| `initialZoom` | `number` | Nivel de zoom inicial (1.0 = 100%, padrao: 1.0). |
 | `initialRotation` | `number` | Rotacao inicial em graus (0, 90, 180, 270). |
 | `initialUITheme` | `'light' \| 'dark'` | Tema da interface (barras laterais e menus). |
 | `initialPageTheme` | `PageTheme` | Filtro visual da pagina (`normal`, `sepia`, `dark`, `high-contrast`). |
 | `initialAccentColor` | `string` | Cor de destaque (hex) para estados ativos da UI. |
 | `initialAnnotations` | `Annotation[]` | Anotacoes pre-existentes do seu backend. |
-| `sidebarLeftOpen` | `boolean` | Define se a barra de miniaturas inicia aberta. |
+| `sidebarLeftOpen` | `boolean` | Define se a barra de miniaturas/sumario inicia aberta. |
 | `sidebarRightOpen` | `boolean` | Define se a barra de busca/notas inicia aberta. |
+
+### Sidebar (web)
+
+A barra esquerda contem miniaturas e sumario. Use `sidebarLeftOpen` para definir o estado inicial e o botao da Topbar (`showSidebarLeftToggle`) ou `useViewerStore.getState().toggleSidebarLeft()` para abrir/fechar na sua UI.
 
 ## Formato de anotacao
 
@@ -133,7 +137,7 @@ Props disponiveis (todas opcionais, padrao `true`):
 | `showBrand` | `boolean` | Exibe o branding PapyrusCore. |
 | `brand` | `ReactNode` | Substitui a area de branding. |
 | `title` | `ReactNode` | Titulo opcional do documento no header. |
-| `showSidebarLeftToggle` | `boolean` | Exibe o botao da sidebar esquerda. |
+| `showSidebarLeftToggle` | `boolean` | Exibe o botao da sidebar esquerda (miniaturas/sumario). |
 | `showPageControls` | `boolean` | Exibe navegacao de paginas. |
 | `showZoomControls` | `boolean` | Exibe controles de zoom. |
 | `showPageThemeSelector` | `boolean` | Exibe seletor de tema da pagina. |
@@ -157,4 +161,3 @@ papyrusEvents.on(PapyrusEventType.ANNOTATION_CREATED, ({ annotation }) => {
 
 ## Customizacao visual
 Os componentes do `@papyrus-sdk/ui-react` usam Tailwind CSS. Voce pode sobrescrever estilos ou injetar CSS global para alterar cores e fontes. Use `initialAccentColor` para alinhar rapidamente com a marca.
-

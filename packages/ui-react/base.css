@@ -54,6 +54,16 @@
   font-size: 14px;
 }
 
+@media (max-width: 720px) {
+  .papyrus-topbar {
+    flex-wrap: wrap;
+    height: auto;
+    min-height: 56px;
+    padding: 8px 12px;
+    row-gap: 8px;
+  }
+}
+
 .papyrus-sidebar-left,
 .papyrus-sidebar-right {
   display: flex;

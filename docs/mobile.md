@@ -24,6 +24,34 @@ Papyrus mobile uses React Native UI plus a native engine bridge for PDF renderin
 - UI is built in React Native and mirrors web flows.
 - Expo prebuild is supported via `@papyrus-sdk/expo-plugin`.
 
+## Mobile UX baseline (reference for Web and RN)
+
+For small screens, keep this interaction baseline:
+
+- Header keeps key actions visible.
+- Left side: menu button (thumbnails) plus a pencil button to open/close the annotation dock.
+- Center: page navigation stays centered.
+- Right side: search sits next to the `...` overflow button.
+- Remove long branding on mobile (for example `PapyrusCore`) to prioritize title and controls.
+
+`...` quick actions modal:
+
+- Include zoom controls (`-` and `+`) with current percentage.
+- Include page theme options.
+- Include UI theme toggle with an icon.
+- Include upload action with an icon.
+- Do not duplicate search inside the modal when search is already visible in the header.
+- Keep the modal open after page/UI theme changes.
+- Enforce readable border/text contrast (avoid black-on-black).
+
+Layout behavior:
+
+- Thumbnail and search side panels should open as overlays, not push the page rendering sideways.
+- Viewer should support pinch-to-zoom (two-finger gesture) on touch devices.
+- Annotation dock should start closed and open only via explicit action (pencil button).
+- If the dock closes, nested popovers (for example color picker) should close too.
+- Bottom sheet/modal must render above the annotation dock (higher z-index/layer).
+
 ## Document types
 
 `DocumentType` includes:
@@ -87,4 +115,3 @@ adb install -r app/build/outputs/apk/release/app-release.apk
 - [Open Source PDF SDK](/open-source-pdf-sdk)
 - [Quickstart](/quickstart)
 - [Configuration](/configuration)
-

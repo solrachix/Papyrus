@@ -24,14 +24,18 @@ useViewerStore.getState().initializeStore({
 | Property | Type | Description |
 | --- | --- | --- |
 | `initialPage` | `number` | Page shown on load (default: 1). |
-| `initialZoom` | `number` | Initial zoom level (1.0 = 100%). |
+| `initialZoom` | `number` | Initial zoom level (1.0 = 100%, default: 1.0). |
 | `initialRotation` | `number` | Initial rotation in degrees (0, 90, 180, 270). |
 | `initialUITheme` | `'light' \| 'dark'` | UI theme (sidebars and menus). |
 | `initialPageTheme` | `PageTheme` | Page filter (`normal`, `sepia`, `dark`, `high-contrast`). |
 | `initialAccentColor` | `string` | Accent color (hex) for active UI states. |
 | `initialAnnotations` | `Annotation[]` | Preloaded annotations from your backend. |
-| `sidebarLeftOpen` | `boolean` | Whether the thumbnail sidebar starts open. |
+| `sidebarLeftOpen` | `boolean` | Whether the thumbnail/outline sidebar starts open. |
 | `sidebarRightOpen` | `boolean` | Whether the search/notes sidebar starts open. |
+
+### Sidebar defaults (web)
+
+The left sidebar hosts thumbnails and the outline. Use `sidebarLeftOpen` to set the initial state, and the Topbar toggle (`showSidebarLeftToggle`) or `useViewerStore.getState().toggleSidebarLeft()` to open/close it from your UI.
 
 ## Annotation shape
 
@@ -126,7 +130,7 @@ Available props (all optional, default `true`):
 | `showBrand` | `boolean` | Show the PapyrusCore brand. |
 | `brand` | `ReactNode` | Replace the brand area with custom content. |
 | `title` | `ReactNode` | Optional document title shown in the header. |
-| `showSidebarLeftToggle` | `boolean` | Show the left sidebar toggle button. |
+| `showSidebarLeftToggle` | `boolean` | Show the left sidebar (thumbnails/outline) toggle button. |
 | `showPageControls` | `boolean` | Show page navigation controls. |
 | `showZoomControls` | `boolean` | Show zoom controls. |
 | `showPageThemeSelector` | `boolean` | Show page theme selector. |
@@ -143,4 +147,3 @@ papyrusEvents.on(PapyrusEventType.PAGE_CHANGED, ({ pageNumber }) => {
   console.log('page', pageNumber);
 });
 ```
-

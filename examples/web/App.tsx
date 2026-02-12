@@ -1,21 +1,44 @@
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { PDFJSEngine } from "@papyrus-sdk/engine-pdfjs";
+import { EPUBEngine } from "@papyrus-sdk/engine-epub";
+import { TextEngine } from "@papyrus-sdk/engine-text";
+import { useViewerStore, papyrusEvents } from "@papyrus-sdk/core";
+import { PapyrusEventType, PapyrusConfig, PageTheme } from "@papyrus-sdk/types";
+import {
+  Topbar,
+  SidebarLeft,
+  SidebarRight,
+  Viewer,
+} from "@papyrus-sdk/ui-react";
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { PDFJSEngine } from '@papyrus-sdk/engine-pdfjs';
-import { EPUBEngine } from '@papyrus-sdk/engine-epub';
-import { TextEngine } from '@papyrus-sdk/engine-text';
-import { useViewerStore, papyrusEvents } from '@papyrus-sdk/core';
-import { PapyrusEventType, PapyrusConfig, PageTheme } from '@papyrus-sdk/types';
-import { Topbar, SidebarLeft, SidebarRight, Viewer } from '@papyrus-sdk/ui-react';
+const LOCAL_PDF_URL = new URL(
+  "./assets/tracemonkey-pldi-09.pdf",
+  import.meta.url
+).toString();
+const REMOTE_PDF_URL =
+  "https://raw.githubusercontent.com/pdf-association/pdf20examples/master/pdf20-utf8-test.pdf";
+const LOCAL_EPUB_URL = new URL(
+  "./assets/sample.epub",
+  import.meta.url
+).toString();
+const LOCAL_TEXT_URL = new URL(
+  "./assets/sample.txt",
+  import.meta.url
+).toString();
 
-const LOCAL_PDF_URL = new URL('./assets/tracemonkey-pldi-09.pdf', import.meta.url).toString();
-const REMOTE_PDF_URL = 'https://raw.githubusercontent.com/pdf-association/pdf20examples/master/pdf20-utf8-test.pdf';
-const LOCAL_EPUB_URL = new URL('./assets/sample.epub', import.meta.url).toString();
-const LOCAL_TEXT_URL = new URL('./assets/sample.txt', import.meta.url).toString();
-
-const ACCENT_COLOR = '#2563eb';
-const createInitialConfig = (isEmbedded: boolean, overrides?: Partial<PapyrusConfig>): PapyrusConfig => ({
-  initialUITheme: 'dark',
-  initialPageTheme: 'sepia',
+const ACCENT_COLOR = "#2563eb";
+const createInitialConfig = (
+  isEmbedded: boolean,
+  overrides?: Partial<PapyrusConfig>
+): PapyrusConfig => ({
+  initialUITheme: "dark",
+  initialPageTheme: "sepia",
   initialPage: 1,
   initialZoom: 1.0,
   initialAccentColor: ACCENT_COLOR,
@@ -23,20 +46,20 @@ const createInitialConfig = (isEmbedded: boolean, overrides?: Partial<PapyrusCon
   sidebarRightOpen: false,
   initialAnnotations: [
     {
-      id: 'mock-1',
+      id: "mock-1",
       pageIndex: 3,
-      type: 'text',
-      color: '#3b82f6',
-      content: 'Esta nota foi carregada via configuracao inicial!',
+      type: "text",
+      color: "#3b82f6",
+      content: "Esta nota foi carregada via configuracao inicial!",
       rect: { x: 0.1, y: 0.1, width: 0.2, height: 0.05 },
-      createdAt: Date.now()
-    }
+      createdAt: Date.now(),
+    },
   ],
   ...overrides,
 });
 
-type EngineKind = 'pdf' | 'epub' | 'text';
-type UITheme = 'light' | 'dark';
+type EngineKind = "pdf" | "epub" | "text";
+type UITheme = "light" | "dark";
 
 type DemoMessage = {
   source?: string;
@@ -57,19 +80,20 @@ const usePapyrusDemo = (
   const { useRemotePdf, remotePdfUrl } = options ?? {};
 
   const engine = useMemo(() => {
-    if (engineKind === 'epub') return new EPUBEngine();
-    if (engineKind === 'text') return new TextEngine();
+    if (engineKind === "epub") return new EPUBEngine();
+    if (engineKind === "text") return new TextEngine();
     return new PDFJSEngine();
   }, [engineKind]);
 
   const demoSource = useMemo(() => {
-    if (engineKind === 'epub') return LOCAL_EPUB_URL;
-    if (engineKind === 'text') return LOCAL_TEXT_URL;
+    if (engineKind === "epub") return LOCAL_EPUB_URL;
+    if (engineKind === "text") return LOCAL_TEXT_URL;
     if (useRemotePdf) return remotePdfUrl || REMOTE_PDF_URL;
     return LOCAL_PDF_URL;
   }, [engineKind, useRemotePdf, remotePdfUrl]);
 
-  const { isLoaded, setDocumentState, initializeStore, triggerScrollToPage } = useViewerStore();
+  const { isLoaded, setDocumentState, initializeStore, triggerScrollToPage } =
+    useViewerStore();
 
   useEffect(() => {
     const sendEvent = (type: PapyrusEventType, payload: unknown) => {
@@ -77,25 +101,35 @@ const usePapyrusDemo = (
       if (window.parent && window.parent !== window) {
         window.parent.postMessage(
           {
-            source: 'papyrus-demo',
-            type: 'event',
+            source: "papyrus-demo",
+            type: "event",
             eventType: type,
             payload,
           },
-          '*'
+          "*"
         );
       }
     };
 
-    const unsubDoc = papyrusEvents.on(PapyrusEventType.DOCUMENT_LOADED, (payload) => {
-      console.log(`[SDK] Documento pronto: ${payload.pageCount} pgs`);
-      sendEvent(PapyrusEventType.DOCUMENT_LOADED, payload);
-    });
+    const unsubDoc = papyrusEvents.on(
+      PapyrusEventType.DOCUMENT_LOADED,
+      (payload) => {
+        console.log(`[SDK] Documento pronto: ${payload.pageCount} pgs`);
+        sendEvent(PapyrusEventType.DOCUMENT_LOADED, payload);
+      }
+    );
 
-    const unsubSelection = papyrusEvents.on(PapyrusEventType.TEXT_SELECTED, (payload) => {
-      console.log(`[SDK] Texto selecionado na pag ${payload.pageIndex + 1}: "${payload.text}"`);
-      sendEvent(PapyrusEventType.TEXT_SELECTED, payload);
-    });
+    const unsubSelection = papyrusEvents.on(
+      PapyrusEventType.TEXT_SELECTED,
+      (payload) => {
+        console.log(
+          `[SDK] Texto selecionado na pag ${payload.pageIndex + 1}: "${
+            payload.text
+          }"`
+        );
+        sendEvent(PapyrusEventType.TEXT_SELECTED, payload);
+      }
+    );
 
     return () => {
       unsubDoc();
@@ -103,68 +137,85 @@ const usePapyrusDemo = (
     };
   }, [eventLogEnabled]);
 
-  const handleMessage = useCallback((event: MessageEvent<DemoMessage>) => {
-    const data = event.data;
-    if (!data || data.source !== 'papyrus-docs') return;
-    if (import.meta.env.MODE !== 'docs' && window.parent === window) return;
+  const handleMessage = useCallback(
+    (event: MessageEvent<DemoMessage>) => {
+      const data = event.data;
+      if (!data || data.source !== "papyrus-docs") return;
+      if (import.meta.env.MODE !== "docs" && window.parent === window) return;
 
-    switch (data.action) {
-      case 'set-ui-theme': {
-        if (data.value === 'light' || data.value === 'dark') {
-          setDocumentState({ uiTheme: data.value });
+      switch (data.action) {
+        case "set-ui-theme": {
+          if (data.value === "light" || data.value === "dark") {
+            setDocumentState({ uiTheme: data.value });
+          }
+          break;
         }
-        break;
-      }
-      case 'set-page-theme': {
-        if (data.value === 'normal' || data.value === 'sepia' || data.value === 'dark' || data.value === 'high-contrast') {
-          setDocumentState({ pageTheme: data.value });
+        case "set-page-theme": {
+          if (
+            data.value === "normal" ||
+            data.value === "sepia" ||
+            data.value === "dark" ||
+            data.value === "high-contrast"
+          ) {
+            setDocumentState({ pageTheme: data.value });
+          }
+          break;
         }
-        break;
-      }
-      case 'set-locale': {
-        if (data.value === 'en' || data.value === 'pt-BR') {
-          setDocumentState({ locale: data.value });
+        case "set-locale": {
+          if (data.value === "en" || data.value === "pt-BR") {
+            setDocumentState({ locale: data.value });
+          }
+          break;
         }
-        break;
-      }
-      case 'set-engine': {
-        if (!setEngineKind) return;
-        if (data.value === 'pdf' || data.value === 'epub' || data.value === 'text') {
-          setEngineKind(data.value as EngineKind);
+        case "set-engine": {
+          if (!setEngineKind) return;
+          if (
+            data.value === "pdf" ||
+            data.value === "epub" ||
+            data.value === "text"
+          ) {
+            setEngineKind(data.value as EngineKind);
+          }
+          break;
         }
-        break;
-      }
-      case 'set-event-log': {
-        setEventLogEnabled(Boolean(data.value));
-        break;
-      }
-      case 'set-zoom': {
-        const nextZoom = typeof data.value === 'number' ? data.value : Number(data.value);
-        if (Number.isFinite(nextZoom)) {
-          engine.setZoom(nextZoom);
-          setDocumentState({ zoom: nextZoom });
+        case "set-event-log": {
+          setEventLogEnabled(Boolean(data.value));
+          break;
         }
-        break;
-      }
-      case 'go-to-page': {
-        const nextPage = typeof data.value === 'number' ? data.value : Number(data.value);
-        if (Number.isFinite(nextPage)) {
-          const page = Math.max(1, Math.min(engine.getPageCount(), Math.floor(nextPage)));
-          engine.goToPage(page);
-          setDocumentState({ currentPage: page });
-          triggerScrollToPage(page - 1);
+        case "set-zoom": {
+          const nextZoom =
+            typeof data.value === "number" ? data.value : Number(data.value);
+          if (Number.isFinite(nextZoom)) {
+            engine.setZoom(nextZoom);
+            setDocumentState({ zoom: nextZoom });
+          }
+          break;
         }
-        break;
+        case "go-to-page": {
+          const nextPage =
+            typeof data.value === "number" ? data.value : Number(data.value);
+          if (Number.isFinite(nextPage)) {
+            const page = Math.max(
+              1,
+              Math.min(engine.getPageCount(), Math.floor(nextPage))
+            );
+            engine.goToPage(page);
+            setDocumentState({ currentPage: page });
+            triggerScrollToPage(page - 1);
+          }
+          break;
+        }
+        default:
+          break;
       }
-      default:
-        break;
-    }
-  }, [engine, setDocumentState, setEngineKind, triggerScrollToPage]);
+    },
+    [engine, setDocumentState, setEngineKind, triggerScrollToPage]
+  );
 
   useEffect(() => {
-    window.addEventListener('message', handleMessage);
+    window.addEventListener("message", handleMessage);
     return () => {
-      window.removeEventListener('message', handleMessage);
+      window.removeEventListener("message", handleMessage);
     };
   }, [handleMessage]);
 
@@ -178,14 +229,20 @@ const usePapyrusDemo = (
 
     const init = async () => {
       try {
-        setDocumentState({ isLoaded: false, pageCount: 0, outline: [], currentPage: 1 });
+        setDocumentState({
+          isLoaded: false,
+          pageCount: 0,
+          outline: [],
+          currentPage: 1,
+        });
         setLoadError(null);
 
         await engine.load(demoSource);
 
         if (!active) return;
 
-        if (initialConfig.initialZoom) engine.setZoom(initialConfig.initialZoom);
+        if (initialConfig.initialZoom)
+          engine.setZoom(initialConfig.initialZoom);
         const initialPage = initialConfig.initialPage ?? 1;
         if (initialPage) engine.goToPage(initialPage);
 
@@ -203,8 +260,8 @@ const usePapyrusDemo = (
           setTimeout(() => triggerScrollToPage(initialPage - 1), 500);
         }
       } catch (err) {
-        console.error('Papyrus Engine Init Failed', err);
-        setLoadError('Falha ao carregar o documento padrao.');
+        console.error("Papyrus Engine Init Failed", err);
+        setLoadError("Falha ao carregar o documento padrao.");
       }
     };
 
@@ -214,18 +271,36 @@ const usePapyrusDemo = (
       active = false;
       engine.destroy();
     };
-  }, [demoSource, engine, initializeStore, setDocumentState, triggerScrollToPage, initialConfig]);
+  }, [
+    demoSource,
+    engine,
+    initializeStore,
+    setDocumentState,
+    triggerScrollToPage,
+    initialConfig,
+  ]);
 
   return { engine, isLoaded, loadError, setDocumentState };
 };
 
-const LoadingState: React.FC<{ error: string | null; className?: string }> = ({ error, className }) => (
-  <div className={`${className ?? 'h-full'} flex flex-col items-center justify-center bg-[#1a1a1a] font-mono`} style={{ color: ACCENT_COLOR }}>
-    <div className="w-12 h-12 border-2 border-t-transparent rounded-full animate-spin mb-4" style={{ borderColor: ACCENT_COLOR }} />
-    <span className="text-[10px] font-black tracking-[0.3em] uppercase animate-pulse">Initializing Papyrus SDK...</span>
-    {error && (
-      <div className="mt-3 text-[11px] text-red-300">{error}</div>
-    )}
+const LoadingState: React.FC<{ error: string | null; className?: string }> = ({
+  error,
+  className,
+}) => (
+  <div
+    className={`${
+      className ?? "h-full"
+    } flex flex-col items-center justify-center bg-[#1a1a1a] font-mono`}
+    style={{ color: ACCENT_COLOR }}
+  >
+    <div
+      className="w-12 h-12 border-2 border-t-transparent rounded-full animate-spin mb-4"
+      style={{ borderColor: ACCENT_COLOR }}
+    />
+    <span className="text-[10px] font-black tracking-[0.3em] uppercase animate-pulse">
+      Initializing Papyrus SDK...
+    </span>
+    {error && <div className="mt-3 text-[11px] text-red-300">{error}</div>}
   </div>
 );
 
@@ -239,7 +314,17 @@ const PapyrusViewer: React.FC<{
   topbarProps?: React.ComponentProps<typeof Topbar>;
   className?: string;
   loadingClassName?: string;
-}> = ({ engineKind, setEngineKind, useRemotePdf, remotePdfUrl, initialConfig, syncState, topbarProps, className, loadingClassName }) => {
+}> = ({
+  engineKind,
+  setEngineKind,
+  useRemotePdf,
+  remotePdfUrl,
+  initialConfig,
+  syncState,
+  topbarProps,
+  className,
+  loadingClassName,
+}) => {
   const { engine, isLoaded, loadError, setDocumentState } = usePapyrusDemo(
     engineKind,
     setEngineKind,
@@ -256,12 +341,17 @@ const PapyrusViewer: React.FC<{
     });
   }, [syncState, setDocumentState]);
 
-  if (!isLoaded) return <LoadingState error={loadError} className={loadingClassName} />;
+  if (!isLoaded)
+    return <LoadingState error={loadError} className={loadingClassName} />;
 
   return (
-    <div className={`flex flex-col h-full overflow-hidden ${className ?? 'bg-gray-100'}`}>
+    <div
+      className={`flex flex-col h-full overflow-hidden ${
+        className ?? "bg-gray-100"
+      }`}
+    >
       <Topbar engine={engine} {...topbarProps} />
-      <div className="flex flex-1 overflow-hidden">
+      <div className="relative flex flex-1 overflow-hidden">
         <SidebarLeft engine={engine} />
         <Viewer engine={engine} />
         <SidebarRight engine={engine} />
@@ -271,14 +361,20 @@ const PapyrusViewer: React.FC<{
 };
 
 const RenderPage: React.FC = () => {
-  const [engineKind, setEngineKind] = useState<EngineKind>('pdf');
+  const [engineKind, setEngineKind] = useState<EngineKind>("pdf");
   const [useRemotePdf, setUseRemotePdf] = useState(false);
   const [remotePdfUrl, setRemotePdfUrl] = useState(REMOTE_PDF_URL);
   const isEmbedded = useMemo(
-    () => typeof window !== 'undefined' && window.parent && window.parent !== window,
+    () =>
+      typeof window !== "undefined" &&
+      window.parent &&
+      window.parent !== window,
     []
   );
-  const initialConfig = useMemo(() => createInitialConfig(isEmbedded), [isEmbedded]);
+  const initialConfig = useMemo(
+    () => createInitialConfig(isEmbedded),
+    [isEmbedded]
+  );
 
   return (
     <PapyrusViewer
@@ -294,14 +390,14 @@ const RenderPage: React.FC = () => {
 };
 
 const ConfigPage: React.FC = () => {
-  const [engineKind, setEngineKind] = useState<EngineKind>('pdf');
-  const [uiTheme, setUiTheme] = useState<UITheme>('dark');
-  const [pageTheme, setPageTheme] = useState<PageTheme>('sepia');
+  const [engineKind, setEngineKind] = useState<EngineKind>("pdf");
+  const [uiTheme, setUiTheme] = useState<UITheme>("dark");
+  const [pageTheme, setPageTheme] = useState<PageTheme>("sepia");
   const [accentColor, setAccentColor] = useState(ACCENT_COLOR);
-  const [title, setTitle] = useState('Papyrus Demo');
+  const [title, setTitle] = useState("Papyrus Demo");
   const [useRemotePdf, setUseRemotePdf] = useState(false);
   const [remotePdfUrl, setRemotePdfUrl] = useState(REMOTE_PDF_URL);
-  const [openSection, setOpenSection] = useState('engine');
+  const [openSection, setOpenSection] = useState("engine");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const localObjectUrlRef = useRef<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -313,12 +409,12 @@ const ConfigPage: React.FC = () => {
   const [showSidebarLeftToggle, setShowSidebarLeftToggle] = useState(true);
   const [showPageControls, setShowPageControls] = useState(true);
   const [showZoomControls, setShowZoomControls] = useState(true);
-  const [themeSurface, setThemeSurface] = useState('#111827');
-  const [themeSurface2, setThemeSurface2] = useState('#1f2937');
-  const [themeBorder, setThemeBorder] = useState('#273244');
-  const [themeText, setThemeText] = useState('#e2e8f0');
-  const [themeTextMuted, setThemeTextMuted] = useState('#94a3b8');
-  const [themeCanvas, setThemeCanvas] = useState('#0b1220');
+  const [themeSurface, setThemeSurface] = useState("#111827");
+  const [themeSurface2, setThemeSurface2] = useState("#1f2937");
+  const [themeBorder, setThemeBorder] = useState("#273244");
+  const [themeText, setThemeText] = useState("#e2e8f0");
+  const [themeTextMuted, setThemeTextMuted] = useState("#94a3b8");
+  const [themeCanvas, setThemeCanvas] = useState("#0b1220");
 
   const initialConfigRef = useRef(
     createInitialConfig(false, {
@@ -334,11 +430,12 @@ const ConfigPage: React.FC = () => {
       `  initialUITheme: "${uiTheme}",`,
       `  initialPageTheme: "${pageTheme}",`,
       `  initialAccentColor: "${accentColor}",`,
-    ].join('\n');
+    ].join("\n");
 
-    const remotePdfLine = engineKind === 'pdf' && useRemotePdf
-      ? `\nawait engine.load("${remotePdfUrl}");`
-      : '';
+    const remotePdfLine =
+      engineKind === "pdf" && useRemotePdf
+        ? `\nawait engine.load("${remotePdfUrl}");`
+        : "";
 
     const topbarProps = [
       title ? `  title="${title}"` : null,
@@ -350,7 +447,9 @@ const ConfigPage: React.FC = () => {
       `  showSidebarLeftToggle={${showSidebarLeftToggle}}`,
       `  showPageControls={${showPageControls}}`,
       `  showZoomControls={${showZoomControls}}`,
-    ].filter(Boolean).join('\n');
+    ]
+      .filter(Boolean)
+      .join("\n");
 
     const themeVars = [
       `  '--papyrus-surface': '${themeSurface}',`,
@@ -359,7 +458,7 @@ const ConfigPage: React.FC = () => {
       `  '--papyrus-text': '${themeText}',`,
       `  '--papyrus-text-muted': '${themeTextMuted}',`,
       `  '--papyrus-canvas': '${themeCanvas}',`,
-    ].join('\n');
+    ].join("\n");
 
     return `const config = {\n${config}\n};\n${remotePdfLine}\n\nconst themeVars = {\n${themeVars}\n};\n\n<div style={themeVars}>\n  <Topbar\n    engine={engine}\n${topbarProps}\n  />\n</div>`;
   }, [
@@ -386,21 +485,25 @@ const ConfigPage: React.FC = () => {
     themeCanvas,
   ]);
 
-  const themeVarsStyle = useMemo(() => ({
-    '--papyrus-surface': themeSurface,
-    '--papyrus-surface-2': themeSurface2,
-    '--papyrus-border': themeBorder,
-    '--papyrus-text': themeText,
-    '--papyrus-text-muted': themeTextMuted,
-    '--papyrus-canvas': themeCanvas,
-  }) as React.CSSProperties, [
-    themeSurface,
-    themeSurface2,
-    themeBorder,
-    themeText,
-    themeTextMuted,
-    themeCanvas,
-  ]);
+  const themeVarsStyle = useMemo(
+    () =>
+      ({
+        "--papyrus-surface": themeSurface,
+        "--papyrus-surface-2": themeSurface2,
+        "--papyrus-border": themeBorder,
+        "--papyrus-text": themeText,
+        "--papyrus-text-muted": themeTextMuted,
+        "--papyrus-canvas": themeCanvas,
+      } as React.CSSProperties),
+    [
+      themeSurface,
+      themeSurface2,
+      themeBorder,
+      themeText,
+      themeTextMuted,
+      themeCanvas,
+    ]
+  );
 
   useEffect(() => {
     return () => {
@@ -414,10 +517,10 @@ const ConfigPage: React.FC = () => {
   useEffect(() => {
     if (!isFullscreen) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setIsFullscreen(false);
+      if (event.key === "Escape") setIsFullscreen(false);
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, [isFullscreen]);
 
   const handleLocalPdf = (file?: File | null) => {
@@ -427,32 +530,38 @@ const ConfigPage: React.FC = () => {
     }
     const url = URL.createObjectURL(file);
     localObjectUrlRef.current = url;
-    setEngineKind('pdf');
+    setEngineKind("pdf");
     setUseRemotePdf(true);
     setRemotePdfUrl(url);
   };
 
-  const Section: React.FC<{ id: string; title: string; children: React.ReactNode }> = ({ id, title, children }) => {
+  const Section: React.FC<{
+    id: string;
+    title: string;
+    children: React.ReactNode;
+  }> = ({ id, title, children }) => {
     const isOpen = openSection === id;
     return (
       <div className="rounded-xl border border-white/10 bg-white/5">
         <button
           type="button"
-          onClick={() => setOpenSection(isOpen ? '' : id)}
+          onClick={() => setOpenSection(isOpen ? "" : id)}
           className="w-full flex items-center justify-between px-4 py-3 text-left text-xs uppercase tracking-widest text-white/70"
         >
           <span>{title}</span>
-          <span className={`transition-transform ${isOpen ? 'rotate-180' : ''}`}>▾</span>
+          <span
+            className={`transition-transform ${isOpen ? "rotate-180" : ""}`}
+          >
+            ▾
+          </span>
         </button>
         <div
           className={`grid transition-all duration-300 ease-out ${
-            isOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+            isOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
           }`}
         >
           <div className="overflow-hidden">
-            <div className="px-4 pb-4 space-y-3">
-              {children}
-            </div>
+            <div className="px-4 pb-4 space-y-3">{children}</div>
           </div>
         </div>
       </div>
@@ -464,8 +573,15 @@ const ConfigPage: React.FC = () => {
       <div className="h-full grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-0">
         <div className="min-w-0 p-4 sm:p-6 border-r border-white/10 overflow-y-auto">
           <div className="flex items-center justify-between mb-6">
-            <div className="text-sm font-semibold tracking-widest uppercase text-white/60">Papyrus Config</div>
-            <a href="/render" className="text-xs text-blue-300 hover:text-blue-200">Abrir /render</a>
+            <div className="text-sm font-semibold tracking-widest uppercase text-white/60">
+              Papyrus Config
+            </div>
+            <a
+              href="/render"
+              className="text-xs text-blue-300 hover:text-blue-200"
+            >
+              Abrir /render
+            </a>
           </div>
 
           <div className="space-y-4">
@@ -481,7 +597,7 @@ const ConfigPage: React.FC = () => {
               </select>
             </Section>
 
-            {engineKind === 'pdf' && (
+            {engineKind === "pdf" && (
               <Section id="pdf" title="PDF remoto">
                 <label className="flex items-center gap-2 text-xs bg-white/5 border border-white/10 rounded-md px-2 py-2">
                   <input
@@ -501,7 +617,8 @@ const ConfigPage: React.FC = () => {
                 )}
                 {!useRemotePdf && (
                   <div className="text-[11px] text-white/50">
-                    Usando PDF local de <span className="font-mono">/assets</span>.
+                    Usando PDF local de{" "}
+                    <span className="font-mono">/assets</span>.
                   </div>
                 )}
                 <div className="pt-1">
@@ -535,7 +652,9 @@ const ConfigPage: React.FC = () => {
             <Section id="ui" title="UI">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] uppercase tracking-widest text-white/60 mb-2">UI Theme</label>
+                  <label className="block text-[11px] uppercase tracking-widest text-white/60 mb-2">
+                    UI Theme
+                  </label>
                   <select
                     className="w-full bg-white/10 border border-white/10 rounded-md px-3 py-2 text-sm"
                     value={uiTheme}
@@ -546,7 +665,9 @@ const ConfigPage: React.FC = () => {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[11px] uppercase tracking-widest text-white/60 mb-2">Page Theme</label>
+                  <label className="block text-[11px] uppercase tracking-widest text-white/60 mb-2">
+                    Page Theme
+                  </label>
                   <select
                     className="w-full bg-white/10 border border-white/10 rounded-md px-3 py-2 text-sm"
                     value={pageTheme}
@@ -560,7 +681,9 @@ const ConfigPage: React.FC = () => {
                 </div>
               </div>
               <div>
-                <label className="block text-[11px] uppercase tracking-widest text-white/60 mb-2">Accent Color</label>
+                <label className="block text-[11px] uppercase tracking-widest text-white/60 mb-2">
+                  Accent Color
+                </label>
                 <div className="flex items-center gap-3">
                   <input
                     type="color"
@@ -576,28 +699,47 @@ const ConfigPage: React.FC = () => {
                 </div>
               </div>
               <div className="pt-2">
-                <label className="block text-[11px] uppercase tracking-widest text-white/60 mb-2">Theme Vars</label>
+                <label className="block text-[11px] uppercase tracking-widest text-white/60 mb-2">
+                  Theme Vars
+                </label>
                 <div className="grid grid-cols-1 gap-2 text-xs">
                   {[
-                    ['Surface', themeSurface, setThemeSurface],
-                    ['Surface 2', themeSurface2, setThemeSurface2],
-                    ['Border', themeBorder, setThemeBorder],
-                    ['Text', themeText, setThemeText],
-                    ['Text muted', themeTextMuted, setThemeTextMuted],
-                    ['Canvas', themeCanvas, setThemeCanvas],
+                    ["Surface", themeSurface, setThemeSurface],
+                    ["Surface 2", themeSurface2, setThemeSurface2],
+                    ["Border", themeBorder, setThemeBorder],
+                    ["Text", themeText, setThemeText],
+                    ["Text muted", themeTextMuted, setThemeTextMuted],
+                    ["Canvas", themeCanvas, setThemeCanvas],
                   ].map(([label, value, setter]) => (
-                    <label key={label as string} className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-md px-2 py-2">
-                      <span className="w-20 text-[11px] text-white/60">{label as string}</span>
+                    <label
+                      key={label as string}
+                      className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-md px-2 py-2"
+                    >
+                      <span className="w-20 text-[11px] text-white/60">
+                        {label as string}
+                      </span>
                       <input
                         type="color"
                         value={value as string}
-                        onChange={(e) => (setter as React.Dispatch<React.SetStateAction<string>>)(e.target.value)}
+                        onChange={(e) =>
+                          (
+                            setter as React.Dispatch<
+                              React.SetStateAction<string>
+                            >
+                          )(e.target.value)
+                        }
                         className="h-8 w-8 rounded border border-white/10 bg-transparent"
                       />
                       <input
                         className="min-w-0 flex-1 bg-white/10 border border-white/10 rounded-md px-2 py-1 text-[11px]"
                         value={value as string}
-                        onChange={(e) => (setter as React.Dispatch<React.SetStateAction<string>>)(e.target.value)}
+                        onChange={(e) =>
+                          (
+                            setter as React.Dispatch<
+                              React.SetStateAction<string>
+                            >
+                          )(e.target.value)
+                        }
                       />
                     </label>
                   ))}
@@ -608,20 +750,37 @@ const ConfigPage: React.FC = () => {
             <Section id="topbar" title="Topbar">
               <div className="grid grid-cols-2 gap-2 text-xs">
                 {[
-                  ['Brand', showBrand, setShowBrand],
-                  ['Upload', showUpload, setShowUpload],
-                  ['UI Toggle', showUIToggle, setShowUIToggle],
-                  ['Page Theme', showPageThemeSelector, setShowPageThemeSelector],
-                  ['Search', showSearch, setShowSearch],
-                  ['Sidebar Toggle', showSidebarLeftToggle, setShowSidebarLeftToggle],
-                  ['Page Controls', showPageControls, setShowPageControls],
-                  ['Zoom Controls', showZoomControls, setShowZoomControls],
+                  ["Brand", showBrand, setShowBrand],
+                  ["Upload", showUpload, setShowUpload],
+                  ["UI Toggle", showUIToggle, setShowUIToggle],
+                  [
+                    "Page Theme",
+                    showPageThemeSelector,
+                    setShowPageThemeSelector,
+                  ],
+                  ["Search", showSearch, setShowSearch],
+                  [
+                    "Sidebar Toggle",
+                    showSidebarLeftToggle,
+                    setShowSidebarLeftToggle,
+                  ],
+                  ["Page Controls", showPageControls, setShowPageControls],
+                  ["Zoom Controls", showZoomControls, setShowZoomControls],
                 ].map(([label, value, setter]) => (
-                  <label key={label as string} className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-md px-2 py-2">
+                  <label
+                    key={label as string}
+                    className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-md px-2 py-2"
+                  >
                     <input
                       type="checkbox"
                       checked={value as boolean}
-                      onChange={(e) => (setter as React.Dispatch<React.SetStateAction<boolean>>)(e.target.checked)}
+                      onChange={(e) =>
+                        (
+                          setter as React.Dispatch<
+                            React.SetStateAction<boolean>
+                          >
+                        )(e.target.checked)
+                      }
                     />
                     <span>{label as string}</span>
                   </label>
@@ -648,7 +807,10 @@ const ConfigPage: React.FC = () => {
               Expandir
             </button>
           </div>
-          <div className="min-w-0 h-[60vh] lg:h-[calc(100vh-120px)] rounded-2xl border border-white/10 overflow-hidden shadow-2xl bg-[#0f172a]" style={themeVarsStyle}>
+          <div
+            className="min-w-0 h-[60vh] lg:h-[calc(100vh-120px)] rounded-2xl border border-white/10 overflow-hidden shadow-2xl bg-[#0f172a]"
+            style={themeVarsStyle}
+          >
             <PapyrusViewer
               engineKind={engineKind}
               setEngineKind={setEngineKind}
@@ -683,7 +845,10 @@ const ConfigPage: React.FC = () => {
               Fechar
             </button>
           </div>
-          <div className="absolute inset-4 rounded-2xl border border-white/10 overflow-hidden shadow-2xl bg-[#0f172a]" style={themeVarsStyle}>
+          <div
+            className="absolute inset-4 rounded-2xl border border-white/10 overflow-hidden shadow-2xl bg-[#0f172a]"
+            style={themeVarsStyle}
+          >
             <PapyrusViewer
               engineKind={engineKind}
               setEngineKind={setEngineKind}
@@ -713,16 +878,16 @@ const ConfigPage: React.FC = () => {
 
 const App: React.FC = () => {
   const view = useMemo(() => {
-    if (typeof window === 'undefined') return 'config';
+    if (typeof window === "undefined") return "config";
     const { pathname, hash, search } = window.location;
-    if (pathname.startsWith('/render')) return 'render';
-    if (hash.includes('render')) return 'render';
+    if (pathname.startsWith("/render")) return "render";
+    if (hash.includes("render")) return "render";
     const params = new URLSearchParams(search);
-    if (params.get('view') === 'render') return 'render';
-    return 'config';
+    if (params.get("view") === "render") return "render";
+    return "config";
   }, []);
 
-  if (view === 'render') return <RenderPage />;
+  if (view === "render") return <RenderPage />;
   return <ConfigPage />;
 };
 export default App;

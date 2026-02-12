@@ -86,10 +86,12 @@ Props:
 | `showBrand` | `boolean` | `true` | Show the PapyrusCore brand. |
 | `brand` | `ReactNode` | `undefined` | Replace the brand area with custom content. |
 | `title` | `ReactNode` | `undefined` | Optional document title shown in the header. |
-| `showSidebarLeftToggle` | `boolean` | `true` | Show the left sidebar toggle button. |
+| `showSidebarLeftToggle` | `boolean` | `true` | Show the left sidebar (thumbnails/outline) toggle button. |
 | `showPageControls` | `boolean` | `true` | Show page navigation controls. |
 | `showZoomControls` | `boolean` | `true` | Show zoom controls. |
 | `showPageThemeSelector` | `boolean` | `true` | Show page theme selector (normal/sepia/dark/contrast). |
 | `showUIToggle` | `boolean` | `true` | Show light/dark toggle. |
 | `showUpload` | `boolean` | `true` | Show upload button. |
 | `showSearch` | `boolean` | `true` | Show search button. |
+
+Tip: use `sidebarLeftOpen` in `PapyrusConfig` to set whether the thumbnails/outline sidebar starts open. The Topbar toggle (`showSidebarLeftToggle`) and `useViewerStore.getState().toggleSidebarLeft()` let you open/close it from UI controls.

@@ -92,6 +92,34 @@ Exemplo pronto em `examples/mobile-expo`.
 - EPUB/TXT renderizam via WebView (epub.js + DOM), mantendo o mesmo shell de UI.
 - Busca e selecao de texto variam por engine.
 
+## Baseline UX mobile (referencia para Web e RN)
+
+Para telas pequenas, manter este padrao de interacao:
+
+- Header com acoes principais sempre visiveis.
+- Lado esquerdo: botao de menu (thumbnails) + botao de lapis para abrir/fechar toolbar de anotacao.
+- Centro: navegacao de pagina centralizada.
+- Lado direito: busca ao lado do botao `...` (overflow).
+- Ocultar marca longa no mobile (ex.: `PapyrusCore`) para priorizar titulo e controles.
+
+Modal de `...` (acoes rapidas):
+
+- Zoom com `-` e `+` e percentual atual.
+- Tema da pagina.
+- Alternancia de tema da UI com icone.
+- Upload com icone.
+- Nao duplicar busca no modal quando a busca ja esta no header.
+- Manter o modal aberto apos trocar o tema da pagina/UI.
+- Contraste de borda/texto legivel (evitar preto sobre preto).
+
+Comportamento de layout:
+
+- Sidebar de thumbnails e painel de busca em overlay, sem empurrar o render das paginas.
+- Viewer deve suportar pinch-to-zoom (gesto de dois dedos) em telas touch.
+- Toolbar de anotacoes inicia fechada e abre por acao explicita (botao de lapis).
+- Ao fechar toolbar, fechar tambem popovers internos (ex.: seletor de cor).
+- Bottom sheet/modal deve ficar acima da toolbar (z-index/camada maior).
+
 ## Tipos de documento
 
 `DocumentType` inclui:
@@ -127,4 +155,3 @@ resolver: {
 ```
 
 Ao carregar EPUB/TXT, renderize `<Viewer />` antes de aguardar `engine.load(...)` para o runtime WebView inicializar.
-

@@ -1,0 +1,84 @@
+# Mobile Performance Plan (ui-react-native)
+
+Goal: bring the web performance improvements (virtualization stability, faster thumbnails, smoother jumps) to the React Native viewer.
+
+## 1) Audit & baselines
+- Map render flow in `packages/ui-react-native/components/Viewer.tsx` + `PageRenderer.tsx`.
+- Measure baseline on a large PDF (1k+ pages):
+  - initial load time
+  - scroll FPS / dropped frames
+  - memory during scroll + thumbnails open
+- Identify current hot paths (frequent re-render props, `setDocumentState` bursts).
+
+## 2) Viewer list tuning (FlatList)
+- Add `windowSize`, `maxToRenderPerBatch`, `updateCellsBatchingPeriod`.
+- Enable `removeClippedSubviews`.
+- Provide `getItemLayout` using cached page sizes:
+  - cache `engine.getPageDimensions(pageIndex)` in store or local map.
+  - use estimated height fallback before cache.
+- Add “page jump” reliability:
+  - if `scrollToIndex` fails, compute `scrollToOffset` with cached height.
+  - set `currentPage` immediately on jump, then let `onViewableItemsChanged` settle it.
+
+## 3) Page rendering stability
+- Memoize `PageRenderer` with `React.memo`.
+- Avoid recreating props (e.g. stable callbacks via `useCallback`).
+- Reduce re-renders on scroll (avoid setting state per-frame).
+
+## 4) Thumbnails (RightSheet)
+- Limit initial render: `initialNumToRender`, `windowSize`.
+- Use `onViewableItemsChanged` to render thumbs only when visible.
+- Add placeholder fallback when not visible.
+- Cache thumbnail dimensions per page.
+
+## 5) Current page stability (hysteresis)
+- Add hysteresis logic for `currentPage` updates:
+  - switch only if next page is > X% visible.
+  - avoids flicker between pages.
+
+## 6) Config flags
+- Expose optional props to tune performance:
+  - `virtualWindowSize`
+  - `maxToRenderPerBatch`
+  - `removeClippedSubviews`
+  - `thumbsInitialCount`
+- Document defaults + recommended settings for large docs.
+
+## 7) Test matrix
+- Devices: mid Android (4GB), iPhone 11+.
+- PDFs: 50 pages / 500 pages / 1500 pages.
+- Scenarios: open, scroll, jump to page, open thumbnails, search result jump.
+
+## 8) Documentation
+- Update native docs with tuning flags.
+- Add “Performance tips (mobile)” section.
+
+## 9) Annotation parity (web → native)
+- Extend native annotation model usage to support:
+  - text marks: highlight, underline, squiggly, strikeout (`rects`)
+  - freehand (ink) with `path`
+- Add native tool dock + color picker for annotation color.
+- Implement selection menu for text tools (select → action menu).
+- Render overlay layers for:
+  - highlight/underline/squiggly/strikeout using rects
+  - ink paths as SVG or canvas overlay
+- Ensure annotations serialize/restore correctly.
+
+## 10) Mobile UX baseline parity (web → native)
+- Header:
+  - left: thumbnails toggle + pencil button (annotation dock toggle)
+  - center: page controls centered
+  - right: search button next to `...` overflow
+- Keep long branding hidden on small screens to preserve title/control space.
+- `...` quick-actions modal:
+  - zoom controls (`-`, `%`, `+`)
+  - page theme buttons
+  - UI theme toggle with icon
+  - upload action with icon
+  - do not duplicate search action if search is already in header
+  - keep modal open after theme changes
+- Side sheets/panels should open as overlay (must not push page render area).
+- Viewer should support pinch-to-zoom (two-finger gesture) on touch screens.
+- Annotation dock should start closed by default and open only on explicit user action.
+- Close nested popovers (e.g. color picker) when annotation dock closes.
+- Ensure quick-actions modal/bottom sheet is above annotation dock (z-index/layer priority).
