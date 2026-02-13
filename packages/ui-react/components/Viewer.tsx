@@ -32,6 +32,7 @@ const Viewer: React.FC<ViewerProps> = ({ engine }) => {
   const frameRef = useRef<number | null>(null);
   const jumpRef = useRef(false);
   const jumpTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastWidthRef = useRef<number | null>(null);
   const pinchRef = useRef<{
     active: boolean;
     startDistance: number;
@@ -98,8 +99,15 @@ const Viewer: React.FC<ViewerProps> = ({ engine }) => {
     if (!element) return;
 
     const updateWidth = () => {
-      const nextWidth = element.clientWidth;
-      if (nextWidth > 0) setAvailableWidth(nextWidth);
+      const rawWidth =
+        element.getBoundingClientRect?.().width ?? element.offsetWidth;
+      const nextWidth = Math.round(rawWidth);
+      if (nextWidth <= 0) return;
+      const previousWidth = lastWidthRef.current;
+      if (previousWidth != null && Math.abs(nextWidth - previousWidth) < 2)
+        return;
+      lastWidthRef.current = nextWidth;
+      setAvailableWidth(nextWidth);
     };
 
     updateWidth();
