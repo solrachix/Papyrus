@@ -383,6 +383,7 @@ const RenderPage: React.FC = () => {
       useRemotePdf={useRemotePdf}
       remotePdfUrl={remotePdfUrl}
       initialConfig={initialConfig}
+      topbarProps={{ title: "Papyrus Demo" }}
       className="bg-gray-100 h-screen"
       loadingClassName="h-screen"
     />

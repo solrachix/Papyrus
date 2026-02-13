@@ -452,7 +452,7 @@ const Topbar: React.FC<TopbarProps> = ({
 
         {title && (
           <span
-            className={`text-sm font-semibold truncate min-w-0 max-w-[35vw] sm:max-w-[260px] ${
+            className={`hidden sm:inline text-sm font-semibold truncate min-w-0 max-w-[35vw] sm:max-w-[260px] ${
               isDark ? "text-gray-200" : "text-gray-700"
             }`}
             title={typeof title === "string" ? title : undefined}
