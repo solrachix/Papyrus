@@ -311,6 +311,7 @@ const PapyrusViewer: React.FC<{
   remotePdfUrl?: string;
   initialConfig: PapyrusConfig;
   syncState?: { uiTheme: UITheme; pageTheme: PageTheme; accentColor: string };
+  themeVars?: React.CSSProperties;
   topbarProps?: React.ComponentProps<typeof Topbar>;
   className?: string;
   loadingClassName?: string;
@@ -321,6 +322,7 @@ const PapyrusViewer: React.FC<{
   remotePdfUrl,
   initialConfig,
   syncState,
+  themeVars,
   topbarProps,
   className,
   loadingClassName,
@@ -350,11 +352,11 @@ const PapyrusViewer: React.FC<{
         className ?? "bg-gray-100"
       }`}
     >
-      <Topbar engine={engine} {...topbarProps} />
+      <Topbar engine={engine} style={themeVars} {...topbarProps} />
       <div className="relative flex flex-1 overflow-hidden">
-        <SidebarLeft engine={engine} />
-        <Viewer engine={engine} />
-        <SidebarRight engine={engine} />
+        <SidebarLeft engine={engine} style={themeVars} />
+        <Viewer engine={engine} style={themeVars} />
+        <SidebarRight engine={engine} style={themeVars} />
       </div>
     </div>
   );
@@ -819,6 +821,7 @@ const ConfigPage: React.FC = () => {
               remotePdfUrl={remotePdfUrl}
               initialConfig={initialConfig}
               syncState={{ uiTheme, pageTheme, accentColor }}
+              themeVars={themeVarsStyle}
               loadingClassName="h-full"
               topbarProps={{
                 title,
@@ -857,6 +860,7 @@ const ConfigPage: React.FC = () => {
               remotePdfUrl={remotePdfUrl}
               initialConfig={initialConfig}
               syncState={{ uiTheme, pageTheme, accentColor }}
+              themeVars={themeVarsStyle}
               loadingClassName="h-full"
               topbarProps={{
                 title,

@@ -47,7 +47,7 @@ Goal: bring the web performance improvements (virtualization stability, faster t
 ## 7) Test matrix
 - Devices: mid Android (4GB), iPhone 11+.
 - PDFs: 50 pages / 500 pages / 1500 pages.
-- Scenarios: open, scroll, jump to page, open thumbnails, search result jump.
+- Scenarios: open, scroll, jump to page, open thumbnails, search result jump, theme changes in runtime (UI theme, page theme, accent, surface/border/text/canvas tokens).
 
 ## 8) Documentation
 - Update native docs with tuning flags.
@@ -82,3 +82,18 @@ Goal: bring the web performance improvements (virtualization stability, faster t
 - Annotation dock should start closed by default and open only on explicit user action.
 - Close nested popovers (e.g. color picker) when annotation dock closes.
 - Ensure quick-actions modal/bottom sheet is above annotation dock (z-index/layer priority).
+
+## 11) Theme token propagation parity (web lesson)
+- Ensure theme overrides are applied at each native surface root, not only on a parent wrapper:
+  - header/topbar
+  - viewer canvas container
+  - left sheet/panel
+  - right sheet/panel
+- Add explicit `themeOverrides` support on `PapyrusViewer` native entry and forward to internal components.
+- Resolve each token with fallback defaults per theme mode (light/dark) instead of hard overriding internal values.
+- Add a runtime validation checklist in demo:
+  - changing `surface` updates topbar and sheets immediately
+  - changing `border` updates panel and control borders
+  - changing `text`/`textMuted` updates labels and secondary text
+  - changing `canvas` updates viewer background
+- Document this behavior in native docs/examples to avoid regressions on future refactors.

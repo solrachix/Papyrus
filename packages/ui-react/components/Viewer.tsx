@@ -5,6 +5,7 @@ import PageRenderer from "./PageRenderer";
 
 interface ViewerProps {
   engine: DocumentEngine;
+  style?: React.CSSProperties;
 }
 const BASE_OVERSCAN = 6;
 const MIN_ZOOM = 0.2;
@@ -12,7 +13,7 @@ const MAX_ZOOM = 5;
 const WIDTH_SNAP_PX = 4;
 const WIDTH_HYSTERESIS_PX = 6;
 
-const Viewer: React.FC<ViewerProps> = ({ engine }) => {
+const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
   const {
     pageCount,
     currentPage,
@@ -424,6 +425,7 @@ const Viewer: React.FC<ViewerProps> = ({ engine }) => {
       className={`papyrus-viewer papyrus-theme min-w-0 w-full flex-1 overflow-y-scroll overflow-x-hidden flex flex-col items-center ${paddingY} relative custom-scrollbar scroll-smooth ${
         isDark ? "bg-[#121212]" : "bg-[#e9ecef]"
       }`}
+      style={style}
     >
       <div className="flex flex-col items-center gap-6 w-full min-w-0">
         {pages.map((idx) => (

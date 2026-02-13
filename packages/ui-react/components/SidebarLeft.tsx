@@ -4,6 +4,7 @@ import { DocumentEngine, OutlineItem } from "@papyrus-sdk/types";
 
 interface SidebarLeftProps {
   engine: DocumentEngine;
+  style?: React.CSSProperties;
 }
 
 const withAlpha = (hex: string, alpha: number) => {
@@ -223,7 +224,7 @@ const OutlineNode: React.FC<{
   );
 };
 
-const SidebarLeft: React.FC<SidebarLeftProps> = ({ engine }) => {
+const SidebarLeft: React.FC<SidebarLeftProps> = ({ engine, style }) => {
   const {
     pageCount,
     currentPage,
@@ -250,6 +251,7 @@ const SidebarLeft: React.FC<SidebarLeftProps> = ({ engine }) => {
           ? "bg-[#2a2a2a] border-[#3a3a3a]"
           : "bg-[#fcfcfc] border-gray-200"
       }`}
+      style={style}
     >
       <div
         className={`p-4 border-b flex flex-col space-y-4 ${

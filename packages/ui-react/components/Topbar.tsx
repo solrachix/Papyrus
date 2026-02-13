@@ -8,6 +8,7 @@ interface TopbarProps {
   showBrand?: boolean;
   brand?: React.ReactNode;
   title?: React.ReactNode;
+  style?: React.CSSProperties;
   showSidebarLeftToggle?: boolean;
   showPageControls?: boolean;
   showZoomControls?: boolean;
@@ -22,6 +23,7 @@ const Topbar: React.FC<TopbarProps> = ({
   showBrand = false,
   brand,
   title,
+  style,
   showSidebarLeftToggle = true,
   showPageControls = true,
   showZoomControls = true,
@@ -384,6 +386,7 @@ const Topbar: React.FC<TopbarProps> = ({
           ? "bg-[#1a1a1a] border-[#333] text-white"
           : "bg-white border-gray-200 text-gray-800"
       }`}
+      style={style}
     >
       <div className="flex items-center gap-2 min-w-0 z-10">
         {showSidebarLeftToggle && (

@@ -4,6 +4,7 @@ import { DocumentEngine } from "@papyrus-sdk/types";
 
 interface SidebarRightProps {
   engine: DocumentEngine;
+  style?: React.CSSProperties;
 }
 
 const withAlpha = (hex: string, alpha: number) => {
@@ -22,7 +23,7 @@ const withAlpha = (hex: string, alpha: number) => {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 };
 
-const SidebarRight: React.FC<SidebarRightProps> = ({ engine }) => {
+const SidebarRight: React.FC<SidebarRightProps> = ({ engine, style }) => {
   const {
     sidebarRightOpen,
     sidebarRightTab,
@@ -64,6 +65,7 @@ const SidebarRight: React.FC<SidebarRightProps> = ({ engine }) => {
       className={`papyrus-sidebar-right papyrus-theme absolute right-0 top-0 bottom-0 z-[120] w-[88vw] max-w-80 border-l flex flex-col h-full transition-colors duration-200 shadow-2xl ${
         isDark ? "bg-[#1a1a1a] border-[#333]" : "bg-white border-gray-200"
       }`}
+      style={style}
     >
       <div
         className={`p-4 border-b flex items-center justify-between shrink-0 ${
