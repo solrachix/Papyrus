@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useViewerStore } from "@papyrus-sdk/core";
 import { DocumentEngine, PageTheme } from "@papyrus-sdk/types";
@@ -32,6 +32,7 @@ const Topbar: React.FC<TopbarProps> = ({
   showUpload = true,
   showSearch = true,
 }) => {
+  const viewerState = useViewerStore();
   const {
     currentPage,
     pageCount,
@@ -44,7 +45,13 @@ const Topbar: React.FC<TopbarProps> = ({
     toggleSidebarLeft,
     toggleSidebarRight,
     triggerScrollToPage,
-  } = useViewerStore();
+  } = viewerState;
+  const mobileTopbarVisible =
+    (
+      viewerState as typeof viewerState & {
+        mobileTopbarVisible?: boolean;
+      }
+    ).mobileTopbarVisible ?? true;
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const zoomTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -52,6 +59,7 @@ const Topbar: React.FC<TopbarProps> = ({
   const [pageInput, setPageInput] = useState(currentPage.toString());
   const [showPageThemes, setShowPageThemes] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
   const pageDigits = Math.max(2, String(pageCount || 1).length);
   const isDark = uiTheme === "dark";
   const canUseDOM = typeof document !== "undefined";
@@ -74,6 +82,21 @@ const Topbar: React.FC<TopbarProps> = ({
   }, [hasMobileMenu]);
 
   useEffect(() => {
+    if (!canUseDOM || typeof window.matchMedia !== "function") return;
+    const mediaQuery = window.matchMedia("(max-width: 639px)");
+    const updateViewport = () => setIsMobileViewport(mediaQuery.matches);
+    updateViewport();
+
+    if (typeof mediaQuery.addEventListener === "function") {
+      mediaQuery.addEventListener("change", updateViewport);
+      return () => mediaQuery.removeEventListener("change", updateViewport);
+    }
+
+    mediaQuery.addListener(updateViewport);
+    return () => mediaQuery.removeListener(updateViewport);
+  }, [canUseDOM]);
+
+  useEffect(() => {
     if (!showMobileMenu || !canUseDOM) return;
     const previousOverflow = document.body.style.overflow;
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -88,6 +111,37 @@ const Topbar: React.FC<TopbarProps> = ({
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [showMobileMenu, canUseDOM]);
+
+  const topbarStyle = useMemo(() => {
+    const mergedStyle: React.CSSProperties = { ...(style ?? {}) };
+
+    if (!isMobileViewport) {
+      mergedStyle.transition =
+        "height 180ms ease, opacity 160ms ease, padding 180ms ease, border-width 180ms ease";
+      return mergedStyle;
+    }
+
+    mergedStyle.transition =
+      "height 180ms ease, opacity 160ms ease, padding 180ms ease, border-width 180ms ease";
+    mergedStyle.overflow = "hidden";
+
+    if (!mobileTopbarVisible) {
+      mergedStyle.height = 0;
+      mergedStyle.minHeight = 0;
+      mergedStyle.paddingTop = 0;
+      mergedStyle.paddingBottom = 0;
+      mergedStyle.borderBottomWidth = 0;
+      mergedStyle.opacity = 0;
+      mergedStyle.pointerEvents = "none";
+      return mergedStyle;
+    }
+
+    mergedStyle.height = 56;
+    mergedStyle.minHeight = 56;
+    mergedStyle.opacity = 1;
+    mergedStyle.pointerEvents = "auto";
+    return mergedStyle;
+  }, [isMobileViewport, mobileTopbarVisible, style]);
 
   const handleZoom = (delta: number) => {
     const baseZoom = pendingZoomRef.current ?? zoom;
@@ -386,7 +440,7 @@ const Topbar: React.FC<TopbarProps> = ({
           ? "bg-[#1a1a1a] border-[#333] text-white"
           : "bg-white border-gray-200 text-gray-800"
       }`}
-      style={style}
+      style={topbarStyle}
     >
       <div className="flex items-center gap-2 min-w-0 z-10">
         {showSidebarLeftToggle && (

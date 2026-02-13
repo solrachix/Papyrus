@@ -12,8 +12,12 @@ const MIN_ZOOM = 0.2;
 const MAX_ZOOM = 5;
 const WIDTH_SNAP_PX = 4;
 const WIDTH_HYSTERESIS_PX = 6;
+const MOBILE_HEADER_HIDE_DELTA_PX = 28;
+const MOBILE_HEADER_SHOW_DELTA_PX = 16;
+const MOBILE_HEADER_TOP_RESET_PX = 12;
 
 const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
+  const viewerState = useViewerStore();
   const {
     pageCount,
     currentPage,
@@ -26,7 +30,13 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
     annotationColor,
     setAnnotationColor,
     toolDockOpen,
-  } = useViewerStore();
+  } = viewerState;
+  const mobileTopbarVisible =
+    (
+      viewerState as typeof viewerState & {
+        mobileTopbarVisible?: boolean;
+      }
+    ).mobileTopbarVisible ?? true;
   const isDark = uiTheme === "dark";
   const viewerRef = useRef<HTMLDivElement>(null);
   const colorPickerRef = useRef<HTMLDivElement>(null);
@@ -36,6 +46,11 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
   const jumpRef = useRef(false);
   const jumpTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastWidthRef = useRef<number | null>(null);
+  const lastScrollTopRef = useRef(0);
+  const scrollDownAccumulatorRef = useRef(0);
+  const scrollUpAccumulatorRef = useRef(0);
+  const previousCurrentPageRef = useRef(currentPage);
+  const mobileTopbarVisibleRef = useRef(mobileTopbarVisible);
   const pinchRef = useRef<{
     active: boolean;
     startDistance: number;
@@ -59,6 +74,7 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
   >({});
   const [colorPickerOpen, setColorPickerOpen] = useState(false);
   const isCompact = availableWidth !== null && availableWidth < 820;
+  const isMobileViewport = availableWidth !== null && availableWidth < 640;
   const paddingY = isCompact ? "py-10" : "py-16";
   const toolDockPosition = isCompact ? "bottom-4" : "bottom-8";
   const colorPalette = [
@@ -71,6 +87,14 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
     "#8b5cf6",
     "#111827",
   ];
+
+  const setMobileTopbarVisibility = (visible: boolean) => {
+    if (mobileTopbarVisibleRef.current === visible) return;
+    mobileTopbarVisibleRef.current = visible;
+    (setDocumentState as (state: Record<string, unknown>) => void)({
+      mobileTopbarVisible: visible,
+    });
+  };
 
   useEffect(() => {
     if (!colorPickerOpen) return;
@@ -87,6 +111,10 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
   useEffect(() => {
     if (!toolDockOpen && colorPickerOpen) setColorPickerOpen(false);
   }, [toolDockOpen, colorPickerOpen]);
+
+  useEffect(() => {
+    mobileTopbarVisibleRef.current = mobileTopbarVisible;
+  }, [mobileTopbarVisible]);
 
   useEffect(
     () => () => {
@@ -153,6 +181,83 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
       observer.disconnect();
     };
   }, []);
+
+  useEffect(() => {
+    const root = viewerRef.current;
+    if (!root) return;
+
+    if (!isMobileViewport) {
+      lastScrollTopRef.current = root.scrollTop;
+      scrollDownAccumulatorRef.current = 0;
+      scrollUpAccumulatorRef.current = 0;
+      setMobileTopbarVisibility(true);
+      return;
+    }
+
+    lastScrollTopRef.current = root.scrollTop;
+    scrollDownAccumulatorRef.current = 0;
+    scrollUpAccumulatorRef.current = 0;
+
+    const handleScroll = () => {
+      const nextScrollTop = root.scrollTop;
+      const delta = nextScrollTop - lastScrollTopRef.current;
+      lastScrollTopRef.current = nextScrollTop;
+
+      if (Math.abs(delta) < 1) return;
+
+      if (nextScrollTop <= MOBILE_HEADER_TOP_RESET_PX) {
+        scrollDownAccumulatorRef.current = 0;
+        scrollUpAccumulatorRef.current = 0;
+        setMobileTopbarVisibility(true);
+        return;
+      }
+
+      if (delta > 0) {
+        scrollDownAccumulatorRef.current += delta;
+        scrollUpAccumulatorRef.current = 0;
+      } else {
+        scrollUpAccumulatorRef.current += -delta;
+        scrollDownAccumulatorRef.current = 0;
+      }
+
+      if (
+        scrollDownAccumulatorRef.current >= MOBILE_HEADER_HIDE_DELTA_PX &&
+        mobileTopbarVisibleRef.current
+      ) {
+        scrollDownAccumulatorRef.current = 0;
+        scrollUpAccumulatorRef.current = 0;
+        setMobileTopbarVisibility(false);
+        return;
+      }
+
+      if (
+        scrollUpAccumulatorRef.current >= MOBILE_HEADER_SHOW_DELTA_PX &&
+        !mobileTopbarVisibleRef.current
+      ) {
+        scrollDownAccumulatorRef.current = 0;
+        scrollUpAccumulatorRef.current = 0;
+        setMobileTopbarVisibility(true);
+      }
+    };
+
+    root.addEventListener("scroll", handleScroll, { passive: true });
+    return () => {
+      root.removeEventListener("scroll", handleScroll);
+    };
+  }, [isMobileViewport, setDocumentState]);
+
+  useEffect(() => {
+    const previousPage = previousCurrentPageRef.current;
+    previousCurrentPageRef.current = currentPage;
+
+    if (!isMobileViewport) return;
+
+    if (currentPage < previousPage && !mobileTopbarVisibleRef.current) {
+      scrollDownAccumulatorRef.current = 0;
+      scrollUpAccumulatorRef.current = 0;
+      setMobileTopbarVisibility(true);
+    }
+  }, [currentPage, isMobileViewport, setDocumentState]);
 
   useEffect(() => {
     let active = true;
