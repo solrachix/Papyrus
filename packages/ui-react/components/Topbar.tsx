@@ -107,7 +107,6 @@ const Topbar: React.FC<TopbarProps> = ({
     if (pageCount <= 0) return;
     const nextPage = Math.max(1, Math.min(pageCount, isNaN(page) ? 1 : page));
     engine.goToPage(nextPage);
-    setDocumentState({ currentPage: nextPage });
     triggerScrollToPage(nextPage - 1);
   };
 
@@ -157,7 +156,7 @@ const Topbar: React.FC<TopbarProps> = ({
             <div
               className={`absolute inset-x-0 bottom-0 rounded-t-2xl border-x border-t p-4 pb-6 shadow-2xl ${
                 isDark
-                  ? "bg-[#181a1f] border-[#343a46] text-[#e6e9ef]"
+                  ? "bg-[#1a1a1a] border-[#333] text-white"
                   : "bg-white border-gray-200 text-gray-900"
               }`}
             >
@@ -173,7 +172,7 @@ const Topbar: React.FC<TopbarProps> = ({
                 <button
                   className={`p-2 rounded-md ${
                     isDark
-                      ? "text-[#d9deea] hover:bg-white/10"
+                      ? "text-gray-200 hover:bg-white/10"
                       : "text-gray-700 hover:bg-gray-100"
                   }`}
                   onClick={() => setShowMobileMenu(false)}
@@ -200,13 +199,13 @@ const Topbar: React.FC<TopbarProps> = ({
                   <div
                     className={`rounded-xl border p-3 ${
                       isDark
-                        ? "bg-[#20242d] border-[#3a4252] text-[#e6e9ef]"
+                        ? "bg-[#2a2a2a] border-[#444] text-gray-100"
                         : "bg-gray-50 border-gray-200"
                     }`}
                   >
                     <div
                       className={`mb-2 text-xs ${
-                        isDark ? "text-[#b7c0d2]" : "text-gray-600"
+                        isDark ? "text-gray-300" : "text-gray-600"
                       }`}
                     >
                       Zoom
@@ -233,7 +232,7 @@ const Topbar: React.FC<TopbarProps> = ({
                       </button>
                       <span
                         className={`text-sm font-semibold ${
-                          isDark ? "text-[#e6e9ef]" : "text-gray-800"
+                          isDark ? "text-gray-100" : "text-gray-800"
                         }`}
                       >
                         {Math.round(zoom * 100)}%
@@ -265,13 +264,13 @@ const Topbar: React.FC<TopbarProps> = ({
                   <div
                     className={`rounded-xl border p-3 ${
                       isDark
-                        ? "bg-[#20242d] border-[#3a4252] text-[#e6e9ef]"
+                        ? "bg-[#2a2a2a] border-[#444] text-gray-100"
                         : "bg-gray-50 border-gray-200"
                     }`}
                   >
                     <div
                       className={`mb-2 text-xs ${
-                        isDark ? "text-[#b7c0d2]" : "text-gray-600"
+                        isDark ? "text-gray-300" : "text-gray-600"
                       }`}
                     >
                       Tema da página
@@ -287,7 +286,7 @@ const Topbar: React.FC<TopbarProps> = ({
                             pageTheme === theme.id
                               ? "text-white"
                               : isDark
-                              ? "text-[#dbe1ed] border-[#49556a]"
+                              ? "text-gray-300 border-[#444]"
                               : "text-gray-700 border-gray-300"
                           }`}
                           style={
@@ -313,7 +312,7 @@ const Topbar: React.FC<TopbarProps> = ({
                     }}
                     className={`w-full rounded-xl border px-3 py-3 text-left text-sm font-medium flex items-center gap-2 ${
                       isDark
-                        ? "bg-[#20242d] border-[#3a4252] text-[#e6e9ef]"
+                        ? "bg-[#2a2a2a] border-[#444] text-gray-100"
                         : "bg-gray-50 border-gray-200 text-gray-800"
                     }`}
                   >

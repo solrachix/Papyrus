@@ -357,7 +357,6 @@ const SidebarLeft: React.FC<SidebarLeftProps> = ({ engine }) => {
                 active={currentPage === idx + 1}
                 onClick={() => {
                   engine.goToPage(idx + 1);
-                  setDocumentState({ currentPage: idx + 1 });
                   triggerScrollToPage(idx);
                 }}
               />

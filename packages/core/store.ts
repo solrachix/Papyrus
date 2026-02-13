@@ -69,50 +69,57 @@ interface ViewerState {
   setAccentColor: (color: string) => void;
 }
 
-export const useViewerStore = create<ViewerState>((set, get) => ({
+const getDefaultViewerState = () => ({
   isLoaded: false,
   pageCount: 0,
   currentPage: 1,
   zoom: 1.0,
   rotation: 0,
-  viewMode: "continuous",
-  uiTheme: "light",
-  pageTheme: "normal",
-  locale: "en",
+  viewMode: "continuous" as ViewMode,
+  uiTheme: "light" as UITheme,
+  pageTheme: "normal" as PageTheme,
+  locale: "en" as Locale,
   accentColor: "#2563eb",
   annotationColor: "#fbbf24",
-  outline: [],
+  outline: [] as OutlineItem[],
   sidebarLeftOpen: true,
-  sidebarLeftTab: "thumbnails",
+  sidebarLeftTab: "thumbnails" as const,
   outlineSearchQuery: "",
   sidebarRightOpen: false,
-  sidebarRightTab: "search",
+  sidebarRightTab: "search" as const,
   searchQuery: "",
-  searchResults: [],
+  searchResults: [] as SearchResult[],
   activeSearchIndex: -1,
-  scrollToPageSignal: null,
-  annotations: [],
-  activeTool: "select",
-  selectedAnnotationId: null,
-  interactionMode: "pan",
+  scrollToPageSignal: null as number | null,
+  annotations: [] as Annotation[],
+  activeTool: "select" as const,
+  selectedAnnotationId: null as string | null,
+  interactionMode: "pan" as const,
   selectionActive: false,
   toolDockOpen: false,
+});
+
+export const useViewerStore = create<ViewerState>((set, get) => ({
+  ...getDefaultViewerState(),
 
   initializeStore: (config) =>
-    set((state) => ({
-      ...state,
-      currentPage: config.initialPage ?? state.currentPage,
-      zoom: config.initialZoom ?? state.zoom,
-      rotation: config.initialRotation ?? state.rotation,
-      viewMode: config.initialViewMode ?? state.viewMode,
-      uiTheme: config.initialUITheme ?? state.uiTheme,
-      pageTheme: config.initialPageTheme ?? state.pageTheme,
-      locale: config.initialLocale ?? state.locale,
-      accentColor: config.initialAccentColor ?? state.accentColor,
-      annotations: config.initialAnnotations ?? state.annotations,
-      sidebarLeftOpen: config.sidebarLeftOpen ?? state.sidebarLeftOpen,
-      sidebarRightOpen: config.sidebarRightOpen ?? state.sidebarRightOpen,
-    })),
+    set(() => {
+      const defaults = getDefaultViewerState();
+      return {
+        ...defaults,
+        currentPage: config.initialPage ?? defaults.currentPage,
+        zoom: config.initialZoom ?? defaults.zoom,
+        rotation: config.initialRotation ?? defaults.rotation,
+        viewMode: config.initialViewMode ?? defaults.viewMode,
+        uiTheme: config.initialUITheme ?? defaults.uiTheme,
+        pageTheme: config.initialPageTheme ?? defaults.pageTheme,
+        locale: config.initialLocale ?? defaults.locale,
+        accentColor: config.initialAccentColor ?? defaults.accentColor,
+        annotations: config.initialAnnotations ?? defaults.annotations,
+        sidebarLeftOpen: config.sidebarLeftOpen ?? defaults.sidebarLeftOpen,
+        sidebarRightOpen: config.sidebarRightOpen ?? defaults.sidebarRightOpen,
+      };
+    }),
 
   setDocumentState: (state) => {
     const oldPage = get().currentPage;
