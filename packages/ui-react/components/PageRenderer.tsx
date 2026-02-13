@@ -16,6 +16,8 @@ interface PageRendererProps {
   ) => void;
 }
 
+const SCALE_PRECISION = 1000;
+
 const PageRenderer: React.FC<PageRendererProps> = ({
   engine,
   pageIndex,
@@ -103,23 +105,24 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     if (!availableWidth || !pageSize?.width) return 1;
     const targetWidth = Math.max(0, availableWidth - 48);
     if (!targetWidth) return 1;
-    return Math.min(1, targetWidth / pageSize.width);
+    const rawScale = Math.min(1, targetWidth / pageSize.width);
+    return Math.round(rawScale * SCALE_PRECISION) / SCALE_PRECISION;
   }, [availableWidth, pageSize]);
 
   const displaySize = useMemo(() => {
     if (!pageSize) return null;
     const scale = zoom * fitScale;
     return {
-      width: pageSize.width * scale,
-      height: pageSize.height * scale,
+      width: Math.max(1, Math.round(pageSize.width * scale)),
+      height: Math.max(1, Math.round(pageSize.height * scale)),
     };
   }, [pageSize, zoom, fitScale]);
 
   useEffect(() => {
     if (!displaySize || !onMeasuredSize) return;
     onMeasuredSize(pageIndex, {
-      width: Math.round(displaySize.width),
-      height: Math.round(displaySize.height),
+      width: displaySize.width,
+      height: displaySize.height,
     });
   }, [displaySize, onMeasuredSize, pageIndex]);
 

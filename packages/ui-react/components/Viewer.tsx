@@ -9,6 +9,8 @@ interface ViewerProps {
 const BASE_OVERSCAN = 6;
 const MIN_ZOOM = 0.2;
 const MAX_ZOOM = 5;
+const WIDTH_SNAP_PX = 4;
+const WIDTH_HYSTERESIS_PX = 6;
 
 const Viewer: React.FC<ViewerProps> = ({ engine }) => {
   const {
@@ -95,31 +97,60 @@ const Viewer: React.FC<ViewerProps> = ({ engine }) => {
   );
 
   useEffect(() => {
-    const element = viewerRef.current;
-    if (!element) return;
+    const viewerElement = viewerRef.current;
+    if (!viewerElement) return;
+    const measurementTarget = viewerElement.parentElement ?? viewerElement;
+    let rafId: number | null = null;
+
+    const normalizeWidth = (rawWidth: number) =>
+      Math.max(0, Math.floor(rawWidth / WIDTH_SNAP_PX) * WIDTH_SNAP_PX);
 
     const updateWidth = () => {
       const rawWidth =
-        element.getBoundingClientRect?.().width ?? element.offsetWidth;
-      const nextWidth = Math.round(rawWidth);
+        measurementTarget.getBoundingClientRect?.().width ??
+        measurementTarget.clientWidth ??
+        measurementTarget.offsetWidth;
+      const nextWidth = normalizeWidth(rawWidth);
       if (nextWidth <= 0) return;
       const previousWidth = lastWidthRef.current;
-      if (previousWidth != null && Math.abs(nextWidth - previousWidth) < 2)
+      if (
+        previousWidth != null &&
+        Math.abs(nextWidth - previousWidth) < WIDTH_HYSTERESIS_PX
+      )
         return;
       lastWidthRef.current = nextWidth;
       setAvailableWidth(nextWidth);
     };
 
-    updateWidth();
+    const scheduleWidthUpdate = () => {
+      if (rafId != null) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        updateWidth();
+      });
+    };
+
+    scheduleWidthUpdate();
 
     if (typeof ResizeObserver === "undefined") {
-      window.addEventListener("resize", updateWidth);
-      return () => window.removeEventListener("resize", updateWidth);
+      window.addEventListener("resize", scheduleWidthUpdate);
+      window.visualViewport?.addEventListener("resize", scheduleWidthUpdate);
+      return () => {
+        if (rafId != null) cancelAnimationFrame(rafId);
+        window.removeEventListener("resize", scheduleWidthUpdate);
+        window.visualViewport?.removeEventListener(
+          "resize",
+          scheduleWidthUpdate
+        );
+      };
     }
 
-    const observer = new ResizeObserver(() => updateWidth());
-    observer.observe(element);
-    return () => observer.disconnect();
+    const observer = new ResizeObserver(() => scheduleWidthUpdate());
+    observer.observe(measurementTarget);
+    return () => {
+      if (rafId != null) cancelAnimationFrame(rafId);
+      observer.disconnect();
+    };
   }, []);
 
   useEffect(() => {

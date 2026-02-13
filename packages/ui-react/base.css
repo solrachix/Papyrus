@@ -54,6 +54,33 @@
   font-size: 14px;
 }
 
+/* Fallback responsive display helpers for hosts that don't emit dependency Tailwind utilities. */
+.papyrus-topbar .hidden {
+  display: none;
+}
+
+@media (min-width: 640px) {
+  .papyrus-topbar .sm\:inline {
+    display: inline !important;
+  }
+
+  .papyrus-topbar .sm\:inline-flex {
+    display: inline-flex !important;
+  }
+
+  .papyrus-topbar .sm\:block {
+    display: block !important;
+  }
+
+  .papyrus-topbar .sm\:flex {
+    display: flex !important;
+  }
+
+  .papyrus-topbar .sm\:hidden {
+    display: none !important;
+  }
+}
+
 @media (max-width: 720px) {
   .papyrus-topbar {
     flex-wrap: wrap;
