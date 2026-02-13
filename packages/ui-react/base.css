@@ -75,7 +75,9 @@
   background: var(--papyrus-canvas) !important;
   box-sizing: border-box;
   flex: 1 1 auto;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
   color: var(--papyrus-text);
 }
 
