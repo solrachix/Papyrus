@@ -47,6 +47,13 @@ export interface TextSelection {
   rects: { x: number; y: number; width: number; height: number }[];
 }
 
+export interface AnnotationReply {
+  id: string;
+  annotationId: string;
+  content: string;
+  createdAt: number;
+}
+
 export interface Annotation {
   id: string;
   type: 'highlight' | 'underline' | 'squiggly' | 'strikeout' | 'text' | 'comment' | 'ink';
@@ -57,6 +64,8 @@ export interface Annotation {
   path?: { x: number; y: number }[];
   color: string;
   createdAt: number;
+  updatedAt?: number;
+  replies?: AnnotationReply[];
 }
 
 export interface OutlineItem {
@@ -92,7 +101,9 @@ export enum PapyrusEventType {
   PAGE_CHANGED = 'PAGE_CHANGED',
   ZOOM_CHANGED = 'ZOOM_CHANGED',
   ANNOTATION_CREATED = 'ANNOTATION_CREATED',
+  ANNOTATION_UPDATED = 'ANNOTATION_UPDATED',
   ANNOTATION_DELETED = 'ANNOTATION_DELETED',
+  ANNOTATION_REPLY_ADDED = 'ANNOTATION_REPLY_ADDED',
   SEARCH_TRIGGERED = 'SEARCH_TRIGGERED',
   TEXT_SELECTED = 'TEXT_SELECTED',
 }
@@ -102,7 +113,13 @@ export interface EventPayloads {
   [PapyrusEventType.PAGE_CHANGED]: { pageNumber: number };
   [PapyrusEventType.ZOOM_CHANGED]: { zoom: number };
   [PapyrusEventType.ANNOTATION_CREATED]: { annotation: Annotation };
+  [PapyrusEventType.ANNOTATION_UPDATED]: { annotation: Annotation };
   [PapyrusEventType.ANNOTATION_DELETED]: { annotationId: string };
+  [PapyrusEventType.ANNOTATION_REPLY_ADDED]: {
+    annotationId: string;
+    reply: AnnotationReply;
+    annotation: Annotation;
+  };
   [PapyrusEventType.SEARCH_TRIGGERED]: { query: string };
   [PapyrusEventType.TEXT_SELECTED]: { text: string, pageIndex: number };
 }
@@ -123,19 +140,19 @@ export interface DocumentEngine {
   getZoom(): number;
   rotate(direction: 'clockwise' | 'counterclockwise'): void;
   getRotation(): number;
-  
-  /** 
+
+  /**
    * Renderiza o conteúdo visual da página.
    * target: HTMLCanvasElement no Web ou NativeHandle no RN.
    */
   renderPage(pageIndex: number, target: any, scale: number): Promise<void>;
-  
-  /** 
+
+  /**
    * Renderiza a camada de texto para seleção.
    * container: HTMLElement no Web ou GhostView no RN.
    */
   renderTextLayer(pageIndex: number, container: any, scale: number): Promise<void>;
-  
+
   getTextContent(pageIndex: number): Promise<TextItem[]>;
   getPageDimensions(pageIndex: number): Promise<{ width: number, height: number }>;
   searchText?(query: string): Promise<SearchResult[]>;

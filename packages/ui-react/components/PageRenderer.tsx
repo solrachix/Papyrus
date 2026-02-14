@@ -28,6 +28,10 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const htmlLayerRef = useRef<HTMLDivElement>(null);
   const textLayerRef = useRef<HTMLDivElement>(null);
+  const skipNextAnnotationSelectRef = useRef(false);
+  const skipSelectResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  );
 
   const [loading, setLoading] = useState(true);
   const [pageSize, setPageSize] = useState<{
@@ -55,6 +59,8 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     setDocumentState,
     annotations,
     addAnnotation,
+    addAnnotationReply,
+    updateAnnotation,
     activeTool,
     removeAnnotation,
     selectedAnnotationId,
@@ -80,6 +86,26 @@ const PageRenderer: React.FC<PageRendererProps> = ({
       Boolean(searchQuery?.trim()) &&
       searchResults.some((res) => res.pageIndex === pageIndex),
     [searchQuery, searchResults, pageIndex]
+  );
+
+  const suppressNextAnnotationSelect = () => {
+    skipNextAnnotationSelectRef.current = true;
+    if (skipSelectResetTimerRef.current) {
+      clearTimeout(skipSelectResetTimerRef.current);
+    }
+    skipSelectResetTimerRef.current = setTimeout(() => {
+      skipNextAnnotationSelectRef.current = false;
+      skipSelectResetTimerRef.current = null;
+    }, 0);
+  };
+
+  useEffect(
+    () => () => {
+      if (skipSelectResetTimerRef.current) {
+        clearTimeout(skipSelectResetTimerRef.current);
+      }
+    },
+    []
   );
 
   useEffect(() => {
@@ -273,6 +299,16 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   ]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
+    const target = e.target as HTMLElement | null;
+    const clickedInsideAnnotation = Boolean(
+      target?.closest("[data-papyrus-annotation-id]")
+    );
+    const clickedSelectionMenu = Boolean(
+      target?.closest("[data-papyrus-selection-menu]")
+    );
+    if (!clickedInsideAnnotation && !clickedSelectionMenu) {
+      setSelectedAnnotation(null);
+    }
     setSelectionMenu(null);
     if (activeTool === "ink") {
       const rect = containerRef.current?.getBoundingClientRect();
@@ -334,6 +370,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({
           x: Math.max(0, Math.min(1, p.x)),
           y: Math.max(0, Math.min(1, p.y)),
         }));
+        suppressNextAnnotationSelect();
         addAnnotation({
           id: Math.random().toString(36).substr(2, 9),
           pageIndex,
@@ -430,6 +467,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({
             height: Math.max(...ye) - Math.min(...ys),
           };
           if (textMarkupTools.has(activeTool)) {
+            suppressNextAnnotationSelect();
             addAnnotation({
               id: Math.random().toString(36).substr(2, 9),
               pageIndex,
@@ -466,6 +504,9 @@ const PageRenderer: React.FC<PageRendererProps> = ({
       if (currentRect.w > 5 && currentRect.h > 5) {
         const rect = containerRef.current?.getBoundingClientRect();
         if (rect) {
+          if (activeTool !== "text" && activeTool !== "comment") {
+            suppressNextAnnotationSelect();
+          }
           addAnnotation({
             id: Math.random().toString(36).substr(2, 9),
             pageIndex,
@@ -603,6 +644,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({
 
       {selectionMenu && (
         <div
+          data-papyrus-selection-menu="true"
           className="absolute z-[60] flex items-center gap-1 rounded-full border px-2 py-1 shadow-xl bg-white/95 backdrop-blur-md text-gray-700"
           style={{ left: selectionMenu.anchor.x, top: selectionMenu.anchor.y }}
         >
@@ -616,6 +658,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({
               key={action.id}
               className="text-[10px] font-bold px-2 py-1 rounded-full hover:bg-gray-100"
               onClick={() => {
+                suppressNextAnnotationSelect();
                 addAnnotation({
                   id: Math.random().toString(36).substr(2, 9),
                   pageIndex,
@@ -646,7 +689,15 @@ const PageRenderer: React.FC<PageRendererProps> = ({
               isSelected={selectedAnnotationId === ann.id}
               accentColor={accentColor}
               onDelete={() => removeAnnotation(ann.id)}
-              onSelect={() => setSelectedAnnotation(ann.id)}
+              onSelect={() => {
+                if (skipNextAnnotationSelectRef.current) {
+                  skipNextAnnotationSelectRef.current = false;
+                  return;
+                }
+                setSelectedAnnotation(ann.id);
+              }}
+              onUpdate={(updates) => updateAnnotation(ann.id, updates)}
+              onAddReply={(content) => addAnnotationReply(ann.id, content)}
             />
           ))}
       </div>
@@ -660,7 +711,17 @@ const AnnotationItem: React.FC<{
   accentColor: string;
   onDelete: () => void;
   onSelect: () => void;
-}> = ({ ann, isSelected, accentColor, onDelete, onSelect }) => {
+  onUpdate: (updates: Partial<Annotation>) => void;
+  onAddReply: (content: string) => void;
+}> = ({
+  ann,
+  isSelected,
+  accentColor,
+  onDelete,
+  onSelect,
+  onUpdate,
+  onAddReply,
+}) => {
   const isText = ann.type === "text" || ann.type === "comment";
   const isHighlight = ann.type === "highlight";
   const isMarkup =
@@ -670,6 +731,33 @@ const AnnotationItem: React.FC<{
     ann.type === "strikeout";
   const rects = ann.rects && ann.rects.length > 0 ? ann.rects : [ann.rect];
   const isInk = ann.type === "ink" && ann.path && ann.path.length > 1;
+  const [draftContent, setDraftContent] = useState(ann.content ?? "");
+  const [draftReply, setDraftReply] = useState("");
+
+  useEffect(() => {
+    setDraftContent(ann.content ?? "");
+  }, [ann.id, ann.content]);
+
+  useEffect(() => {
+    setDraftReply("");
+  }, [ann.id]);
+
+  const handleSaveContent = () => {
+    const nextContent = draftContent.trim();
+    const currentContent = (ann.content ?? "").trim();
+    if (nextContent === currentContent) return;
+    onUpdate({
+      content: nextContent,
+      updatedAt: Date.now(),
+    });
+  };
+
+  const handleReplySubmit = () => {
+    const nextReply = draftReply.trim();
+    if (!nextReply) return;
+    onAddReply(nextReply);
+    setDraftReply("");
+  };
 
   const renderMarkupRects = () => {
     if (!isMarkup) return null;
@@ -779,6 +867,7 @@ const AnnotationItem: React.FC<{
 
   return (
     <div
+      data-papyrus-annotation-id={ann.id}
       className={`absolute pointer-events-auto transition-all ${
         isSelected ? "shadow-xl z-30" : "z-10"
       }`}
@@ -803,15 +892,148 @@ const AnnotationItem: React.FC<{
     >
       {renderMarkupRects()}
       {renderInk()}
+      {isText && !isSelected && (
+        <button
+          type="button"
+          className="absolute -top-2 -right-2 h-6 w-6 rounded-full flex items-center justify-center shadow-lg"
+          style={{
+            background:
+              "var(--papyrus-surface-2-resolved, var(--papyrus-surface-2, #1f2937))",
+            border: "1px solid var(--papyrus-border-resolved, #374151)",
+            color: "var(--papyrus-text-resolved, #e5e7eb)",
+          }}
+          title="Abrir comentario"
+          aria-label="Abrir comentario"
+          onClick={(event) => {
+            event.stopPropagation();
+            onSelect();
+          }}
+        >
+          <svg
+            className="h-3.5 w-3.5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M8 10h.01M12 10h.01M16 10h.01M7 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-4l-4 4v-4z"
+            />
+          </svg>
+        </button>
+      )}
       {isText && isSelected && (
-        <div className="absolute top-full mt-2 w-64 bg-white shadow-2xl rounded-xl p-4 border border-gray-100 z-50">
+        <div
+          className="absolute top-full mt-2 w-72 rounded-xl p-3 z-50"
+          style={{
+            background:
+              "var(--papyrus-popover-resolved, var(--papyrus-popover, #ffffff))",
+            border: "1px solid var(--papyrus-border-resolved, #d1d5db)",
+            color: "var(--papyrus-text-resolved, #111827)",
+            boxShadow:
+              "0 20px 40px var(--papyrus-shadow-resolved, rgba(0, 0, 0, 0.3))",
+          }}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-[10px] font-bold uppercase tracking-wider opacity-70">
+              {ann.type === "comment" ? "Comentario" : "Nota"}
+            </span>
+            {ann.replies?.length ? (
+              <span className="text-[10px] opacity-70">
+                {ann.replies.length} resposta{ann.replies.length > 1 ? "s" : ""}
+              </span>
+            ) : null}
+          </div>
           <textarea
-            className="w-full bg-transparent border-none focus:ring-0 p-0 text-gray-800 text-xs font-medium"
-            placeholder="Escreva sua nota..."
+            className="w-full rounded-md border p-2 text-xs font-medium resize-none focus:outline-none"
+            style={{
+              background:
+                "var(--papyrus-surface-resolved, var(--papyrus-surface, #ffffff))",
+              borderColor: "var(--papyrus-border-resolved, #d1d5db)",
+              color: "var(--papyrus-text-resolved, #111827)",
+            }}
+            placeholder="Escreva seu comentario..."
             rows={3}
-            defaultValue={ann.content || ""}
+            value={draftContent}
+            onChange={(event) => setDraftContent(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                handleSaveContent();
+              }
+            }}
             autoFocus
           />
+          <div className="mt-2 flex justify-end">
+            <button
+              type="button"
+              className="rounded-md px-3 py-1.5 text-[11px] font-semibold text-white"
+              style={{ backgroundColor: accentColor }}
+              onClick={(event) => {
+                event.stopPropagation();
+                handleSaveContent();
+              }}
+            >
+              {(ann.content ?? "").trim() ? "Atualizar" : "Enviar"}
+            </button>
+          </div>
+
+          {ann.replies && ann.replies.length > 0 ? (
+            <div className="mt-3 space-y-2">
+              {ann.replies.map((reply) => (
+                <div
+                  key={reply.id}
+                  className="rounded-md border p-2"
+                  style={{
+                    background:
+                      "var(--papyrus-surface-resolved, var(--papyrus-surface, #ffffff))",
+                    borderColor: "var(--papyrus-border-resolved, #d1d5db)",
+                  }}
+                >
+                  <p className="text-xs">{reply.content}</p>
+                  <p className="mt-1 text-[10px] opacity-70">
+                    {new Date(reply.createdAt).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </p>
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          <div className="mt-3 flex items-center gap-2">
+            <input
+              type="text"
+              className="flex-1 rounded-md border px-2 py-1.5 text-xs focus:outline-none"
+              style={{
+                background:
+                  "var(--papyrus-surface-resolved, var(--papyrus-surface, #ffffff))",
+                borderColor: "var(--papyrus-border-resolved, #d1d5db)",
+                color: "var(--papyrus-text-resolved, #111827)",
+              }}
+              placeholder="Responder..."
+              value={draftReply}
+              onChange={(event) => setDraftReply(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  handleReplySubmit();
+                }
+              }}
+            />
+            <button
+              type="button"
+              className="rounded-md px-3 py-1.5 text-[11px] font-semibold text-white"
+              style={{ backgroundColor: accentColor }}
+              onClick={handleReplySubmit}
+            >
+              Responder
+            </button>
+          </div>
         </div>
       )}
       {isSelected && (

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useViewerStore, SearchService } from "@papyrus-sdk/core";
-import { DocumentEngine } from "@papyrus-sdk/types";
+import { Annotation, DocumentEngine } from "@papyrus-sdk/types";
 
 interface SidebarRightProps {
   engine: DocumentEngine;
@@ -36,10 +36,15 @@ const SidebarRight: React.FC<SidebarRightProps> = ({ engine, style }) => {
     triggerScrollToPage,
     annotations,
     accentColor,
+    updateAnnotation,
+    addAnnotationReply,
+    setSelectedAnnotation,
   } = useViewerStore();
 
   const [query, setQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
+  const [contentDrafts, setContentDrafts] = useState<Record<string, string>>({});
+  const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
   const searchService = new SearchService(engine);
   const isDark = uiTheme === "dark";
   const accentSoft = withAlpha(accentColor, 0.12);
@@ -55,6 +60,48 @@ const SidebarRight: React.FC<SidebarRightProps> = ({ engine, style }) => {
     const results = await searchService.search(query);
     setSearch(query, results);
     setIsSearching(false);
+  };
+
+  const jumpToAnnotation = (annotation: Annotation) => {
+    const page = annotation.pageIndex + 1;
+    engine.goToPage(page);
+    setDocumentState({ currentPage: page });
+    setSelectedAnnotation(annotation.id);
+    triggerScrollToPage(annotation.pageIndex);
+  };
+
+  const getContentDraft = (annotation: Annotation) => {
+    if (Object.prototype.hasOwnProperty.call(contentDrafts, annotation.id)) {
+      return contentDrafts[annotation.id];
+    }
+    return annotation.content ?? "";
+  };
+
+  const updateContentDraft = (annotationId: string, nextValue: string) => {
+    setContentDrafts((prev) => ({ ...prev, [annotationId]: nextValue }));
+  };
+
+  const submitContent = (annotation: Annotation) => {
+    const nextContent = getContentDraft(annotation).trim();
+    const currentContent = (annotation.content ?? "").trim();
+    if (nextContent === currentContent) return;
+    updateAnnotation(annotation.id, {
+      content: nextContent,
+      updatedAt: Date.now(),
+    });
+  };
+
+  const getReplyDraft = (annotationId: string) => replyDrafts[annotationId] ?? "";
+
+  const updateReplyDraft = (annotationId: string, nextValue: string) => {
+    setReplyDrafts((prev) => ({ ...prev, [annotationId]: nextValue }));
+  };
+
+  const submitReply = (annotationId: string) => {
+    const nextReply = getReplyDraft(annotationId).trim();
+    if (!nextReply) return;
+    addAnnotationReply(annotationId, nextReply);
+    setReplyDrafts((prev) => ({ ...prev, [annotationId]: "" }));
   };
 
   if (!sidebarRightOpen) return null;
@@ -274,44 +321,170 @@ const SidebarRight: React.FC<SidebarRightProps> = ({ engine, style }) => {
                 </p>
               </div>
             ) : (
-              annotations.map((ann) => (
-                <div
-                  key={ann.id}
-                  className={`p-4 rounded-xl border group transition-all cursor-pointer ${
-                    isDark
-                      ? "bg-[#222] border-[#333] hover:border-[#444]"
-                      : "bg-white border-gray-100 shadow-sm hover:shadow-md"
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center space-x-2">
-                      <div
-                        className="w-2.5 h-2.5 rounded-full"
-                        style={{ backgroundColor: ann.color }}
-                      />
-                      <span
-                        className="text-[10px] font-black"
-                        style={{ color: accentColor }}
-                      >
-                        P{ann.pageIndex + 1}
-                      </span>
+              annotations
+                .slice()
+                .sort(
+                  (a, b) =>
+                    (b.updatedAt ?? b.createdAt) - (a.updatedAt ?? a.createdAt)
+                )
+                .map((ann) => {
+                  const isCommentThread =
+                    ann.type === "comment" || ann.type === "text";
+                  const replies = ann.replies ?? [];
+                  const contentDraft = getContentDraft(ann);
+                  const replyDraft = getReplyDraft(ann.id);
+                  const hasExistingContent = Boolean((ann.content ?? "").trim());
+
+                  return (
+                    <div
+                      key={ann.id}
+                      className="rounded-xl border p-4 transition-colors"
+                      style={{
+                        background:
+                          "var(--papyrus-surface-2-resolved, var(--papyrus-surface-2, #1f2937))",
+                        borderColor:
+                          "var(--papyrus-border-resolved, var(--papyrus-border, #374151))",
+                        color:
+                          "var(--papyrus-text-resolved, var(--papyrus-text, #e5e7eb))",
+                      }}
+                    >
+                      <div className="mb-3 flex items-center justify-between">
+                        <div className="flex items-center space-x-2">
+                          <div
+                            className="h-2.5 w-2.5 rounded-full"
+                            style={{ backgroundColor: ann.color }}
+                          />
+                          <span
+                            className="text-[10px] font-black uppercase tracking-wide"
+                            style={{ color: accentColor }}
+                          >
+                            P{ann.pageIndex + 1}
+                          </span>
+                          <span className="text-[10px] font-semibold opacity-70 uppercase tracking-wide">
+                            {ann.type}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          className="rounded-md border px-2 py-1 text-[10px] font-semibold uppercase tracking-wide"
+                          onClick={() => jumpToAnnotation(ann)}
+                          style={{
+                            borderColor: accentColor,
+                            color: accentColor,
+                          }}
+                        >
+                          Ir para pagina
+                        </button>
+                      </div>
+
+                      {isCommentThread ? (
+                        <div className="space-y-2">
+                          <textarea
+                            className="w-full resize-none rounded-md border p-2 text-xs focus:outline-none"
+                            style={{
+                              background:
+                                "var(--papyrus-surface-resolved, var(--papyrus-surface, #111827))",
+                              borderColor:
+                                "var(--papyrus-border-resolved, var(--papyrus-border, #374151))",
+                              color:
+                                "var(--papyrus-text-resolved, var(--papyrus-text, #e5e7eb))",
+                            }}
+                            rows={3}
+                            placeholder="Escreva seu comentario..."
+                            value={contentDraft}
+                            onChange={(event) =>
+                              updateContentDraft(ann.id, event.target.value)
+                            }
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter" && !event.shiftKey) {
+                                event.preventDefault();
+                                submitContent(ann);
+                              }
+                            }}
+                          />
+                          <div className="flex justify-end">
+                            <button
+                              type="button"
+                              className="rounded-md px-3 py-1.5 text-[11px] font-semibold text-white"
+                              style={{ backgroundColor: accentColor }}
+                              onClick={() => submitContent(ann)}
+                            >
+                              {hasExistingContent
+                                ? "Atualizar comentario"
+                                : "Enviar comentario"}
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
+
+                      {replies.length > 0 ? (
+                        <div className="mt-3 space-y-2">
+                          {replies.map((reply) => (
+                            <div
+                              key={reply.id}
+                              className="rounded-md border p-2"
+                              style={{
+                                background:
+                                  "var(--papyrus-surface-resolved, var(--papyrus-surface, #111827))",
+                                borderColor:
+                                  "var(--papyrus-border-resolved, var(--papyrus-border, #374151))",
+                              }}
+                            >
+                              <p className="text-xs leading-relaxed">
+                                {reply.content}
+                              </p>
+                              <p className="mt-1 text-[10px] opacity-70">
+                                {new Date(reply.createdAt).toLocaleTimeString(
+                                  [],
+                                  {
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  }
+                                )}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+
+                      {isCommentThread ? (
+                        <div className="mt-3 flex items-center gap-2">
+                          <input
+                            type="text"
+                            className="flex-1 rounded-md border px-2 py-1.5 text-xs focus:outline-none"
+                            style={{
+                              background:
+                                "var(--papyrus-surface-resolved, var(--papyrus-surface, #111827))",
+                              borderColor:
+                                "var(--papyrus-border-resolved, var(--papyrus-border, #374151))",
+                              color:
+                                "var(--papyrus-text-resolved, var(--papyrus-text, #e5e7eb))",
+                            }}
+                            value={replyDraft}
+                            placeholder="Responder..."
+                            onChange={(event) =>
+                              updateReplyDraft(ann.id, event.target.value)
+                            }
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter") {
+                                event.preventDefault();
+                                submitReply(ann.id);
+                              }
+                            }}
+                          />
+                          <button
+                            type="button"
+                            className="rounded-md px-3 py-1.5 text-[11px] font-semibold text-white"
+                            style={{ backgroundColor: accentColor }}
+                            onClick={() => submitReply(ann.id)}
+                          >
+                            Responder
+                          </button>
+                        </div>
+                      ) : null}
                     </div>
-                    <span className="text-[9px] text-gray-400 font-bold">
-                      {new Date(ann.createdAt).toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </span>
-                  </div>
-                  <p
-                    className={`text-[11px] font-bold uppercase tracking-tight ${
-                      isDark ? "text-gray-200" : "text-gray-700"
-                    }`}
-                  >
-                    {ann.type}
-                  </p>
-                </div>
-              ))
+                  );
+                })
             )}
           </div>
         )}

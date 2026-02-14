@@ -2,6 +2,7 @@ import { create } from "zustand";
 import {
   ViewMode,
   Annotation,
+  AnnotationReply,
   SearchResult,
   UITheme,
   PageTheme,
@@ -57,6 +58,7 @@ interface ViewerState {
   toggleSidebarRight: (tab?: "search" | "annotations" | "pages") => void;
   addAnnotation: (annotation: Annotation) => void;
   updateAnnotation: (id: string, updates: Partial<Annotation>) => void;
+  addAnnotationReply: (annotationId: string, content: string) => void;
   removeAnnotation: (id: string) => void;
   setSelectedAnnotation: (id: string | null) => void;
   setSearch: (query: string, results: SearchResult[]) => void;
@@ -154,21 +156,72 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
   setAnnotationColor: (color) => set({ annotationColor: color }),
 
   addAnnotation: (ann) => {
+    const shouldAutoSelect = ann.type === "text" || ann.type === "comment";
     set((state) => ({
       annotations: [...state.annotations, ann],
-      selectedAnnotationId: ann.id,
+      selectedAnnotationId: shouldAutoSelect ? ann.id : state.selectedAnnotationId,
     }));
     papyrusEvents.emit(PapyrusEventType.ANNOTATION_CREATED, {
       annotation: ann,
     });
   },
 
-  updateAnnotation: (id, updates) =>
+  updateAnnotation: (id, updates) => {
+    let updatedAnnotation: Annotation | null = null;
     set((state) => ({
-      annotations: state.annotations.map((a) =>
-        a.id === id ? { ...a, ...updates } : a
-      ),
-    })),
+      annotations: state.annotations.map((a) => {
+        if (a.id !== id) return a;
+        updatedAnnotation = {
+          ...a,
+          ...updates,
+          updatedAt: Date.now(),
+        };
+        return updatedAnnotation;
+      }),
+    }));
+    if (updatedAnnotation) {
+      papyrusEvents.emit(PapyrusEventType.ANNOTATION_UPDATED, {
+        annotation: updatedAnnotation,
+      });
+    }
+  },
+
+  addAnnotationReply: (annotationId, content) => {
+    const nextContent = content.trim();
+    if (!nextContent) return;
+
+    const reply: AnnotationReply = {
+      id: Math.random().toString(36).slice(2, 11),
+      annotationId,
+      content: nextContent,
+      createdAt: Date.now(),
+    };
+
+    let updatedAnnotation: Annotation | null = null;
+    set((state) => ({
+      annotations: state.annotations.map((a) => {
+        if (a.id !== annotationId) return a;
+        const replies = [...(a.replies ?? []), reply];
+        updatedAnnotation = {
+          ...a,
+          replies,
+          updatedAt: Date.now(),
+        };
+        return updatedAnnotation;
+      }),
+    }));
+
+    if (updatedAnnotation) {
+      papyrusEvents.emit(PapyrusEventType.ANNOTATION_REPLY_ADDED, {
+        annotationId,
+        reply,
+        annotation: updatedAnnotation,
+      });
+      papyrusEvents.emit(PapyrusEventType.ANNOTATION_UPDATED, {
+        annotation: updatedAnnotation,
+      });
+    }
+  },
 
   removeAnnotation: (id) => {
     set((state) => ({

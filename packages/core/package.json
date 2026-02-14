@@ -1,6 +1,6 @@
 {
   "name": "@papyrus-sdk/core",
-  "version": "0.2.9",
+  "version": "0.2.10",
   "license": "MIT",
   "keywords": [
     "papyrus",
@@ -42,7 +42,7 @@
     "build": "tsup index.ts --dts --format cjs,esm --out-dir dist --clean --sourcemap"
   },
   "dependencies": {
-    "@papyrus-sdk/types": "0.2.1",
+    "@papyrus-sdk/types": "0.2.6",
     "zustand": "^5.0.0"
   }
 }
