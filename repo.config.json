@@ -2,5 +2,6 @@
   "project_name": "Papyrus PDF SDK",
   "type": "sdk",
   "template_url": "./docs/public/og.png",
-  "logo_url": "./docs/public/og.png"
+  "logo_url": "./docs/public/og.png",
+  "readme_path": "./README.pt-BR.md"
 }
