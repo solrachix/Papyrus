@@ -1,6 +1,6 @@
 {
   "project_name": "Papyrus PDF SDK",
-  "type": "web",
+  "type": "sdk",
   "template_url": "./docs/public/og.png",
   "logo_url": "./docs/public/og.png"
 }
