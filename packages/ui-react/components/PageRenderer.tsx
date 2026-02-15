@@ -298,8 +298,17 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     textLayerVersion,
   ]);
 
-  const handleMouseDown = (e: React.MouseEvent) => {
-    const target = e.target as HTMLElement | null;
+  const getTouchPoint = (event: React.TouchEvent) => {
+    const touch = event.touches[0] ?? event.changedTouches[0];
+    if (!touch) return null;
+    return { x: touch.clientX, y: touch.clientY };
+  };
+
+  const handlePointerDown = (
+    clientX: number,
+    clientY: number,
+    target: HTMLElement | null
+  ) => {
     const clickedInsideAnnotation = Boolean(
       target?.closest("[data-papyrus-annotation-id]")
     );
@@ -313,8 +322,8 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     if (activeTool === "ink") {
       const rect = containerRef.current?.getBoundingClientRect();
       if (!rect) return;
-      const x = (e.clientX - rect.left) / rect.width;
-      const y = (e.clientY - rect.top) / rect.height;
+      const x = (clientX - rect.left) / rect.width;
+      const y = (clientY - rect.top) / rect.height;
       setIsInkDrawing(true);
       setInkPoints([{ x, y }]);
       return;
@@ -324,18 +333,18 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     if (!rect) return;
 
     setIsDragging(true);
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
     setStartPos({ x, y });
     setCurrentRect({ x, y, w: 0, h: 0 });
   };
 
-  const handleMouseMove = (e: React.MouseEvent) => {
+  const handlePointerMove = (clientX: number, clientY: number) => {
     if (isInkDrawing) {
       const rect = containerRef.current?.getBoundingClientRect();
       if (!rect) return;
-      const x = (e.clientX - rect.left) / rect.width;
-      const y = (e.clientY - rect.top) / rect.height;
+      const x = (clientX - rect.left) / rect.width;
+      const y = (clientY - rect.top) / rect.height;
       setInkPoints((prev) => [...prev, { x, y }]);
       return;
     }
@@ -343,8 +352,8 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     const rect = containerRef.current?.getBoundingClientRect();
     if (!rect) return;
 
-    const currentX = e.clientX - rect.left;
-    const currentY = e.clientY - rect.top;
+    const currentX = clientX - rect.left;
+    const currentY = clientY - rect.top;
 
     setCurrentRect({
       x: Math.min(startPos.x, currentX),
@@ -354,7 +363,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     });
   };
 
-  const handleMouseUp = (e: React.MouseEvent) => {
+  const handlePointerUp = () => {
     if (isInkDrawing) {
       setIsInkDrawing(false);
       if (inkPoints.length > 1) {
@@ -541,6 +550,43 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     }
   };
 
+  const handleMouseDown = (e: React.MouseEvent) => {
+    handlePointerDown(e.clientX, e.clientY, e.target as HTMLElement | null);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    handlePointerMove(e.clientX, e.clientY);
+  };
+
+  const handleMouseUp = () => {
+    handlePointerUp();
+  };
+
+  const handleTouchStart = (event: React.TouchEvent) => {
+    if (event.touches.length > 1) return;
+    const point = getTouchPoint(event);
+    if (!point) return;
+    handlePointerDown(point.x, point.y, event.target as HTMLElement | null);
+    if ((activeTool === "ink" || !canSelectText) && event.cancelable) {
+      event.preventDefault();
+    }
+  };
+
+  const handleTouchMove = (event: React.TouchEvent) => {
+    if (event.touches.length > 1) return;
+    const point = getTouchPoint(event);
+    if (!point) return;
+    handlePointerMove(point.x, point.y);
+    if ((isInkDrawing || isDragging) && event.cancelable) {
+      event.preventDefault();
+    }
+  };
+
+  const handleTouchEnd = (event: React.TouchEvent) => {
+    if (event.touches.length > 0) return;
+    handlePointerUp();
+  };
+
   const getPageFilter = () => {
     switch (pageTheme) {
       case "sepia":
@@ -560,10 +606,23 @@ const PageRenderer: React.FC<PageRendererProps> = ({
       className={`relative inline-block shadow-2xl bg-white mb-10 ${
         canSelectText ? "" : "no-select cursor-crosshair"
       }`}
-      style={{ scrollMarginTop: "20px", minHeight: "100px" }}
+      style={{
+        scrollMarginTop: "20px",
+        minHeight: "100px",
+        touchAction:
+          activeTool === "ink" ||
+          activeTool === "text" ||
+          activeTool === "comment"
+            ? "none"
+            : "auto",
+      }}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      onTouchCancel={handleTouchEnd}
     >
       {loading && (
         <div className="absolute inset-0 bg-gray-50 flex items-center justify-center z-10 animate-pulse">

@@ -12,9 +12,12 @@ const MIN_ZOOM = 0.2;
 const MAX_ZOOM = 5;
 const WIDTH_SNAP_PX = 4;
 const WIDTH_HYSTERESIS_PX = 6;
+const HEIGHT_SNAP_PX = 4;
+const HEIGHT_HYSTERESIS_PX = 6;
 const MOBILE_HEADER_HIDE_DELTA_PX = 28;
 const MOBILE_HEADER_SHOW_DELTA_PX = 16;
 const MOBILE_HEADER_TOP_RESET_PX = 12;
+const MOBILE_LANDSCAPE_MAX_HEIGHT_PX = 500;
 
 const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
   const viewerState = useViewerStore();
@@ -46,6 +49,7 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
   const jumpRef = useRef(false);
   const jumpTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastWidthRef = useRef<number | null>(null);
+  const lastHeightRef = useRef<number | null>(null);
   const lastScrollTopRef = useRef(0);
   const scrollDownAccumulatorRef = useRef(0);
   const scrollUpAccumulatorRef = useRef(0);
@@ -65,6 +69,7 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
     rafId: null,
   });
   const [availableWidth, setAvailableWidth] = useState<number | null>(null);
+  const [availableHeight, setAvailableHeight] = useState<number | null>(null);
   const [basePageSize, setBasePageSize] = useState<{
     width: number;
     height: number;
@@ -73,8 +78,18 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
     Record<number, { width: number; height: number }>
   >({});
   const [colorPickerOpen, setColorPickerOpen] = useState(false);
-  const isCompact = availableWidth !== null && availableWidth < 820;
-  const isMobileViewport = availableWidth !== null && availableWidth < 640;
+  const isLandscape =
+    availableWidth !== null &&
+    availableHeight !== null &&
+    availableWidth > availableHeight;
+  const isLandscapeShort =
+    isLandscape &&
+    availableHeight !== null &&
+    availableHeight <= MOBILE_LANDSCAPE_MAX_HEIGHT_PX;
+  const isCompact =
+    availableWidth !== null && (availableWidth < 820 || isLandscapeShort);
+  const isMobileViewport =
+    availableWidth !== null && (availableWidth < 640 || isLandscapeShort);
   const paddingY = isCompact ? "py-10" : "py-16";
   const toolDockPosition = isCompact ? "bottom-4" : "bottom-8";
   const colorPalette = [
@@ -133,29 +148,45 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
 
     const normalizeWidth = (rawWidth: number) =>
       Math.max(0, Math.floor(rawWidth / WIDTH_SNAP_PX) * WIDTH_SNAP_PX);
+    const normalizeHeight = (rawHeight: number) =>
+      Math.max(0, Math.floor(rawHeight / HEIGHT_SNAP_PX) * HEIGHT_SNAP_PX);
 
-    const updateWidth = () => {
+    const updateSize = () => {
       const rawWidth =
         measurementTarget.getBoundingClientRect?.().width ??
         measurementTarget.clientWidth ??
         measurementTarget.offsetWidth;
+      const rawHeight =
+        measurementTarget.getBoundingClientRect?.().height ??
+        measurementTarget.clientHeight ??
+        measurementTarget.offsetHeight;
       const nextWidth = normalizeWidth(rawWidth);
-      if (nextWidth <= 0) return;
+      const nextHeight = normalizeHeight(rawHeight);
+      if (nextWidth <= 0 || nextHeight <= 0) return;
       const previousWidth = lastWidthRef.current;
-      if (
-        previousWidth != null &&
-        Math.abs(nextWidth - previousWidth) < WIDTH_HYSTERESIS_PX
-      )
-        return;
-      lastWidthRef.current = nextWidth;
-      setAvailableWidth(nextWidth);
+      const previousHeight = lastHeightRef.current;
+      const widthChanged =
+        previousWidth == null ||
+        Math.abs(nextWidth - previousWidth) >= WIDTH_HYSTERESIS_PX;
+      const heightChanged =
+        previousHeight == null ||
+        Math.abs(nextHeight - previousHeight) >= HEIGHT_HYSTERESIS_PX;
+      if (!widthChanged && !heightChanged) return;
+      if (widthChanged) {
+        lastWidthRef.current = nextWidth;
+        setAvailableWidth(nextWidth);
+      }
+      if (heightChanged) {
+        lastHeightRef.current = nextHeight;
+        setAvailableHeight(nextHeight);
+      }
     };
 
     const scheduleWidthUpdate = () => {
       if (rafId != null) cancelAnimationFrame(rafId);
       rafId = requestAnimationFrame(() => {
         rafId = null;
-        updateWidth();
+        updateSize();
       });
     };
 

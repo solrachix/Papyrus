@@ -18,6 +18,9 @@ interface TopbarProps {
   showSearch?: boolean;
 }
 
+const MOBILE_LANDSCAPE_MAX_HEIGHT_PX = 500;
+const MOBILE_VIEWPORT_QUERY = `(max-width: 639px), (orientation: landscape) and (max-height: ${MOBILE_LANDSCAPE_MAX_HEIGHT_PX}px)`;
+
 const Topbar: React.FC<TopbarProps> = ({
   engine,
   showBrand = false,
@@ -83,7 +86,7 @@ const Topbar: React.FC<TopbarProps> = ({
 
   useEffect(() => {
     if (!canUseDOM || typeof window.matchMedia !== "function") return;
-    const mediaQuery = window.matchMedia("(max-width: 639px)");
+    const mediaQuery = window.matchMedia(MOBILE_VIEWPORT_QUERY);
     const updateViewport = () => setIsMobileViewport(mediaQuery.matches);
     updateViewport();
 
