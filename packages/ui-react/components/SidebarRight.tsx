@@ -43,10 +43,15 @@ const SidebarRight: React.FC<SidebarRightProps> = ({ engine, style }) => {
 
   const [query, setQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
-  const [contentDrafts, setContentDrafts] = useState<Record<string, string>>({});
+  const [contentDrafts, setContentDrafts] = useState<Record<string, string>>(
+    {}
+  );
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
   const searchService = new SearchService(engine);
   const isDark = uiTheme === "dark";
+  const renderTargetType = engine.getRenderTargetType?.() ?? "canvas";
+  const isSingleViewportMode =
+    renderTargetType === "element" || renderTargetType === "webview";
   const accentSoft = withAlpha(accentColor, 0.12);
   const resultsCount = searchResults.length;
 
@@ -65,9 +70,13 @@ const SidebarRight: React.FC<SidebarRightProps> = ({ engine, style }) => {
   const jumpToAnnotation = (annotation: Annotation) => {
     const page = annotation.pageIndex + 1;
     engine.goToPage(page);
-    setDocumentState({ currentPage: page });
+    if (isSingleViewportMode) {
+      setDocumentState({ currentPage: page, scrollToPageSignal: null });
+    } else {
+      setDocumentState({ currentPage: page });
+      triggerScrollToPage(annotation.pageIndex);
+    }
     setSelectedAnnotation(annotation.id);
-    triggerScrollToPage(annotation.pageIndex);
   };
 
   const getContentDraft = (annotation: Annotation) => {
@@ -91,7 +100,8 @@ const SidebarRight: React.FC<SidebarRightProps> = ({ engine, style }) => {
     });
   };
 
-  const getReplyDraft = (annotationId: string) => replyDrafts[annotationId] ?? "";
+  const getReplyDraft = (annotationId: string) =>
+    replyDrafts[annotationId] ?? "";
 
   const updateReplyDraft = (annotationId: string, nextValue: string) => {
     setReplyDrafts((prev) => ({ ...prev, [annotationId]: nextValue }));
@@ -227,11 +237,19 @@ const SidebarRight: React.FC<SidebarRightProps> = ({ engine, style }) => {
                   onClick={() => {
                     const page = res.pageIndex + 1;
                     engine.goToPage(page);
-                    setDocumentState({
-                      activeSearchIndex: idx,
-                      currentPage: page,
-                    });
-                    triggerScrollToPage(res.pageIndex);
+                    if (isSingleViewportMode) {
+                      setDocumentState({
+                        activeSearchIndex: idx,
+                        currentPage: page,
+                        scrollToPageSignal: null,
+                      });
+                    } else {
+                      setDocumentState({
+                        activeSearchIndex: idx,
+                        currentPage: page,
+                      });
+                      triggerScrollToPage(res.pageIndex);
+                    }
                   }}
                   className={`p-4 rounded-xl border-2 cursor-pointer transition-all group hover:scale-[1.02] ${
                     idx === activeSearchIndex
@@ -333,7 +351,9 @@ const SidebarRight: React.FC<SidebarRightProps> = ({ engine, style }) => {
                   const replies = ann.replies ?? [];
                   const contentDraft = getContentDraft(ann);
                   const replyDraft = getReplyDraft(ann.id);
-                  const hasExistingContent = Boolean((ann.content ?? "").trim());
+                  const hasExistingContent = Boolean(
+                    (ann.content ?? "").trim()
+                  );
 
                   return (
                     <div

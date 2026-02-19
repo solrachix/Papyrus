@@ -10,6 +10,7 @@ interface PageRendererProps {
   engine: DocumentEngine;
   pageIndex: number;
   availableWidth?: number;
+  availableHeight?: number;
   onMeasuredSize?: (
     pageIndex: number,
     size: { width: number; height: number }
@@ -22,6 +23,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   engine,
   pageIndex,
   availableWidth,
+  availableHeight,
   onMeasuredSize,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -73,6 +75,20 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   } = useViewerStore();
   const renderTargetType = engine.getRenderTargetType?.() ?? "canvas";
   const isElementRender = renderTargetType === "element";
+  const isLandscape =
+    typeof availableWidth === "number" &&
+    typeof availableHeight === "number" &&
+    availableWidth > availableHeight;
+  const isLandscapeShort =
+    isLandscape &&
+    typeof availableHeight === "number" &&
+    availableHeight <= 500;
+  const isMobileElementViewport =
+    isElementRender &&
+    typeof availableWidth === "number" &&
+    (availableWidth <= 768 || isLandscapeShort);
+  const renderZoomDependency = isElementRender ? 1 : zoom;
+  const renderRotationDependency = isElementRender ? 0 : rotation;
   const textMarkupTools = new Set([
     "highlight",
     "underline",
@@ -109,6 +125,12 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   );
 
   useEffect(() => {
+    if (!isElementRender) return;
+    // Single-viewport EPUB reuses one renderer; clear stale size between sections.
+    setPageSize(null);
+  }, [isElementRender, pageIndex]);
+
+  useEffect(() => {
     let active = true;
     const loadSize = async () => {
       try {
@@ -128,12 +150,13 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   }, [engine, pageIndex]);
 
   const fitScale = useMemo(() => {
+    if (isElementRender && isMobileElementViewport) return 1;
     if (!availableWidth || !pageSize?.width) return 1;
     const targetWidth = Math.max(0, availableWidth - 48);
     if (!targetWidth) return 1;
     const rawScale = Math.min(1, targetWidth / pageSize.width);
     return Math.round(rawScale * SCALE_PRECISION) / SCALE_PRECISION;
-  }, [availableWidth, pageSize]);
+  }, [isElementRender, isMobileElementViewport, availableWidth, pageSize]);
 
   const displaySize = useMemo(() => {
     if (!pageSize) return null;
@@ -182,6 +205,19 @@ const PageRenderer: React.FC<PageRendererProps> = ({
         // A UI solicita renderização passando o "alvo" (Canvas/Div).
         // Ela não sabe se o motor usa PDF.js ou se está gerando um bitmap.
         await engine.renderPage(pageIndex, renderTarget, canvasRenderScale);
+        const measuredSize = await engine.getPageDimensions(pageIndex);
+        if (measuredSize.width > 0 && measuredSize.height > 0 && active) {
+          setPageSize((prev) => {
+            if (
+              prev &&
+              prev.width === measuredSize.width &&
+              prev.height === measuredSize.height
+            ) {
+              return prev;
+            }
+            return measuredSize;
+          });
+        }
 
         if (!isElementRender && !pageSize && canvasRef.current) {
           const denom = canvasRenderScale * Math.max(zoom, 0.01);
@@ -228,13 +264,25 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   }, [
     engine,
     pageIndex,
-    zoom,
-    rotation,
     isElementRender,
+    availableWidth,
     fitScale,
     displaySize,
     pageSize,
+    renderZoomDependency,
+    renderRotationDependency,
   ]);
+
+  useEffect(() => {
+    if (!isElementRender || pageSize) return;
+    const target = htmlLayerRef.current;
+    if (!target) return;
+    const measuredWidth = target.clientWidth || target.scrollWidth || 0;
+    const measuredHeight = target.clientHeight || target.scrollHeight || 0;
+    if (measuredWidth > 0 && measuredHeight > 0) {
+      setPageSize({ width: measuredWidth, height: measuredHeight });
+    }
+  }, [isElementRender, pageSize, textLayerVersion]);
 
   useEffect(() => {
     if (isElementRender) return;
@@ -600,15 +648,34 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     }
   };
 
+  const elementScale = zoom * fitScale;
+  const elementBaseWidth = isElementRender
+    ? isMobileElementViewport && availableWidth != null
+      ? Math.max(260, Math.round(availableWidth))
+      : pageSize?.width ?? 640
+    : pageSize?.width ?? 640;
+  const elementBaseHeight = pageSize?.height ?? (isElementRender ? 700 : 900);
+  const elementContainerStyle = isElementRender
+    ? {
+        width: `${Math.max(1, Math.round(elementBaseWidth * elementScale))}px`,
+        height: `${Math.max(
+          1,
+          Math.round(elementBaseHeight * elementScale)
+        )}px`,
+      }
+    : undefined;
+
   return (
     <div
       ref={containerRef}
-      className={`relative inline-block shadow-2xl bg-white mb-10 ${
-        canSelectText ? "" : "no-select cursor-crosshair"
-      }`}
+      className={`relative inline-block shadow-2xl bg-white ${
+        isMobileElementViewport ? "mb-0" : "mb-10"
+      } ${canSelectText ? "" : "no-select cursor-crosshair"}`}
       style={{
         scrollMarginTop: "20px",
         minHeight: "100px",
+        overflow: "hidden",
+        ...elementContainerStyle,
         touchAction:
           activeTool === "ink" ||
           activeTool === "text" ||
@@ -646,6 +713,10 @@ const PageRenderer: React.FC<PageRendererProps> = ({
         style={{
           filter: getPageFilter(),
           display: isElementRender ? "block" : "none",
+          width: `${elementBaseWidth}px`,
+          height: `${elementBaseHeight}px`,
+          transform: `scale(${elementScale})`,
+          transformOrigin: "top left",
         }}
       />
 

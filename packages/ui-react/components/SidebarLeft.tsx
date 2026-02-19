@@ -23,6 +23,14 @@ const withAlpha = (hex: string, alpha: number) => {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 };
 
+const isEpubDebugEnabled = () => {
+  try {
+    return Boolean((globalThis as any)?.__PAPYRUS_EPUB_DEBUG__);
+  } catch {
+    return false;
+  }
+};
+
 const Thumbnail: React.FC<{
   engine: DocumentEngine;
   pageIndex: number;
@@ -35,7 +43,9 @@ const Thumbnail: React.FC<{
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const htmlRef = useRef<HTMLDivElement>(null);
   const accentSoft = withAlpha(accentColor, 0.12);
-  const renderTargetType = engine.getRenderTargetType?.() ?? "canvas";
+  const renderTargetType =
+    (engine.getRenderTargetType?.() as string | undefined) ?? "canvas";
+  const isElementRender = renderTargetType === "element";
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
@@ -62,14 +72,15 @@ const Thumbnail: React.FC<{
   }, []);
 
   useEffect(() => {
-    if (renderTargetType === "element" || !isVisible) return;
-    const target = canvasRef.current;
+    if (!isVisible || isElementRender) return;
+    const target =
+      renderTargetType === "element" ? htmlRef.current : canvasRef.current;
     if (target) {
       engine.renderPage(pageIndex, target, 0.15).catch((err) => {
         console.error("[Papyrus] Thumbnail render failed:", err);
       });
     }
-  }, [engine, pageIndex, renderTargetType, isVisible]);
+  }, [engine, pageIndex, renderTargetType, isVisible, isElementRender]);
 
   return (
     <div
@@ -90,11 +101,22 @@ const Thumbnail: React.FC<{
             isDark ? "border-[#333]" : "border-gray-200"
           }`}
         >
+          <div
+            className={`w-[90px] h-[120px] items-center justify-center text-[10px] font-black tracking-wider ${
+              isElementRender ? "flex" : "hidden"
+            } ${
+              isDark
+                ? "bg-[#1f1f1f] text-gray-300"
+                : "bg-gray-100 text-gray-500"
+            }`}
+          >
+            CAP
+          </div>
           <canvas
             ref={canvasRef}
             className="max-w-full h-auto bg-white"
             style={{
-              display: renderTargetType === "element" ? "none" : "block",
+              display: isElementRender ? "none" : "block",
             }}
           />
           <div
@@ -103,16 +125,10 @@ const Thumbnail: React.FC<{
             style={{
               width: 90,
               height: 120,
-              display: renderTargetType === "element" ? "block" : "none",
+              display: "none",
               overflow: "hidden",
             }}
-          >
-            {renderTargetType === "element" && (
-              <div className="w-full h-full flex items-center justify-center text-[10px] font-semibold text-gray-500">
-                HTML
-              </div>
-            )}
-          </div>
+          />
         </div>
         <span
           className={`text-[11px] font-bold ${
@@ -134,9 +150,13 @@ const OutlineNode: React.FC<{
   accentColor: string;
   depth?: number;
 }> = ({ item, engine, isDark, accentColor, depth = 0 }) => {
-  const { triggerScrollToPage, outlineSearchQuery } = useViewerStore();
+  const { triggerScrollToPage, outlineSearchQuery, setDocumentState } =
+    useViewerStore();
   const [expanded, setExpanded] = useState(true);
   const accentSoft = withAlpha(accentColor, 0.2);
+  const renderTargetType = engine.getRenderTargetType?.() ?? "canvas";
+  const isSingleViewportMode =
+    renderTargetType === "element" || renderTargetType === "webview";
 
   const matchesSearch =
     outlineSearchQuery === "" ||
@@ -149,10 +169,68 @@ const OutlineNode: React.FC<{
     return null;
 
   const handleClick = () => {
-    if (item.pageIndex >= 0) {
-      engine.goToPage(item.pageIndex + 1);
-      triggerScrollToPage(item.pageIndex);
-    }
+    void (async () => {
+      if (item.pageIndex < 0 && !item.dest) return;
+
+      let targetPageIndex = item.pageIndex;
+      let navigatedByDestination = false;
+      const destinationEngine = engine as DocumentEngine & {
+        goToDestination?: (dest: any) => Promise<number | null>;
+      };
+
+      if (
+        isSingleViewportMode &&
+        item.dest &&
+        typeof destinationEngine.goToDestination === "function"
+      ) {
+        try {
+          if (isEpubDebugEnabled()) {
+            console.log("[EPUBUI] toc-click", {
+              title: item.title,
+              dest: item.dest,
+              pageIndex: item.pageIndex,
+            });
+          }
+          const resolved = await destinationEngine.goToDestination(item.dest);
+          if (isEpubDebugEnabled()) {
+            console.log("[EPUBUI] toc-resolved", {
+              title: item.title,
+              resolved,
+            });
+          }
+          if (resolved != null) targetPageIndex = resolved;
+          navigatedByDestination = true;
+        } catch {
+          // Fallback to generic page navigation below.
+        }
+      }
+
+      if (item.dest && (!navigatedByDestination || targetPageIndex < 0)) {
+        try {
+          const resolved = await engine.getPageIndex(item.dest);
+          if (resolved != null) targetPageIndex = resolved;
+        } catch {
+          // Keep fallback index when destination resolution fails.
+        }
+      }
+
+      if (navigatedByDestination && isSingleViewportMode) {
+        const page =
+          targetPageIndex >= 0 ? targetPageIndex + 1 : engine.getCurrentPage();
+        setDocumentState({ currentPage: page, scrollToPageSignal: null });
+        return;
+      }
+
+      if (targetPageIndex < 0) return;
+      const page = targetPageIndex + 1;
+
+      engine.goToPage(page);
+      if (isSingleViewportMode) {
+        setDocumentState({ currentPage: page, scrollToPageSignal: null });
+      } else {
+        triggerScrollToPage(targetPageIndex);
+      }
+    })();
   };
 
   return (
@@ -240,6 +318,26 @@ const SidebarLeft: React.FC<SidebarLeftProps> = ({ engine, style }) => {
     accentColor,
   } = useViewerStore();
   const isDark = uiTheme === "dark";
+  const renderTargetType = engine.getRenderTargetType?.() ?? "canvas";
+  const prefersSummaryByDefault =
+    renderTargetType === "element" || renderTargetType === "webview";
+  const autoSummaryKeyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!prefersSummaryByDefault) return;
+    if (sidebarLeftTab !== "thumbnails") return;
+    if (pageCount <= 0) return;
+    const docKey = `${pageCount}:${outline.length}`;
+    if (autoSummaryKeyRef.current === docKey) return;
+    autoSummaryKeyRef.current = docKey;
+    setSidebarLeftTab("summary");
+  }, [
+    prefersSummaryByDefault,
+    sidebarLeftTab,
+    pageCount,
+    outline.length,
+    setSidebarLeftTab,
+  ]);
 
   if (!sidebarLeftOpen) return null;
 
@@ -358,8 +456,16 @@ const SidebarLeft: React.FC<SidebarLeftProps> = ({ engine, style }) => {
                 accentColor={accentColor}
                 active={currentPage === idx + 1}
                 onClick={() => {
-                  engine.goToPage(idx + 1);
-                  triggerScrollToPage(idx);
+                  const page = idx + 1;
+                  engine.goToPage(page);
+                  if (prefersSummaryByDefault) {
+                    setDocumentState({
+                      currentPage: page,
+                      scrollToPageSignal: null,
+                    });
+                  } else {
+                    triggerScrollToPage(idx);
+                  }
                 }}
               />
             ))}

@@ -13,6 +13,9 @@
   --papyrus-popover-fallback: #ffffff;
   --papyrus-shadow-fallback: rgba(15, 23, 42, 0.08);
   --papyrus-selection-bg-fallback: rgba(30, 64, 175, 0.5);
+  --papyrus-scrollbar-track-fallback: rgba(148, 163, 184, 0.1);
+  --papyrus-scrollbar-thumb-fallback: rgba(100, 116, 139, 0.45);
+  --papyrus-scrollbar-thumb-hover-fallback: rgba(71, 85, 105, 0.65);
   --papyrus-bg-resolved: var(--papyrus-bg, var(--papyrus-bg-fallback));
   --papyrus-surface-resolved: var(
     --papyrus-surface,
@@ -54,6 +57,18 @@
     --papyrus-selection-bg,
     var(--papyrus-selection-bg-fallback)
   );
+  --papyrus-scrollbar-track-resolved: var(
+    --papyrus-scrollbar-track,
+    var(--papyrus-scrollbar-track-fallback)
+  );
+  --papyrus-scrollbar-thumb-resolved: var(
+    --papyrus-scrollbar-thumb,
+    var(--papyrus-scrollbar-thumb-fallback)
+  );
+  --papyrus-scrollbar-thumb-hover-resolved: var(
+    --papyrus-scrollbar-thumb-hover,
+    var(--papyrus-scrollbar-thumb-hover-fallback)
+  );
   color: var(--papyrus-text-resolved);
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
 }
@@ -73,6 +88,9 @@
   --papyrus-popover-fallback: #1f1f1f;
   --papyrus-shadow-fallback: rgba(0, 0, 0, 0.4);
   --papyrus-selection-bg-fallback: rgba(96, 165, 250, 0.5);
+  --papyrus-scrollbar-track-fallback: rgba(15, 23, 42, 0.18);
+  --papyrus-scrollbar-thumb-fallback: rgba(148, 163, 184, 0.48);
+  --papyrus-scrollbar-thumb-hover-fallback: rgba(203, 213, 225, 0.68);
 }
 
 .papyrus-topbar,
@@ -220,8 +238,54 @@
 }
 
 .papyrus-sidebar-left .custom-scrollbar,
-.papyrus-sidebar-right .custom-scrollbar {
+.papyrus-sidebar-right .custom-scrollbar,
+.papyrus-epub-scroll-host {
   overflow-y: auto;
+}
+
+/*.papyrus-theme {
+  --papyrus-scrollbar-thumb: rgba(255, 0, 0, 0.9);
+  --papyrus-scrollbar-thumb-hover: rgba(255, 0, 0, 1);
+  --papyrus-scrollbar-track: rgba(255, 0, 0, 0.25);
+}*/
+
+/*
+.papyrus-theme .custom-scrollbar,
+.papyrus-theme .papyrus-epub-scroll-host {
+  scrollbar-width: thin;
+  scrollbar-color: var(--papyrus-scrollbar-thumb-resolved)
+    var(--papyrus-scrollbar-track-resolved);
+  scrollbar-gutter: stable;
+}
+*/
+.papyrus-theme .custom-scrollbar::-webkit-scrollbar,
+.papyrus-theme .papyrus-epub-scroll-host::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.papyrus-theme .custom-scrollbar::-webkit-scrollbar-track,
+.papyrus-theme .papyrus-epub-scroll-host::-webkit-scrollbar-track {
+  background: var(--papyrus-scrollbar-track-resolved);
+  border-radius: 999px;
+}
+
+.papyrus-theme .custom-scrollbar::-webkit-scrollbar-thumb,
+.papyrus-theme .papyrus-epub-scroll-host::-webkit-scrollbar-thumb {
+  background: var(--papyrus-scrollbar-thumb-resolved);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.papyrus-theme .custom-scrollbar::-webkit-scrollbar-thumb:hover,
+.papyrus-theme .papyrus-epub-scroll-host::-webkit-scrollbar-thumb:hover {
+  background: var(--papyrus-scrollbar-thumb-hover-resolved);
+  background-clip: padding-box;
+}
+
+.papyrus-theme .papyrus-epub-scroll-host::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .papyrus-viewer .page-container {

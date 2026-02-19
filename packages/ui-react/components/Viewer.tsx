@@ -7,6 +7,21 @@ interface ViewerProps {
   engine: DocumentEngine;
   style?: React.CSSProperties;
 }
+const withAlpha = (hex: string, alpha: number) => {
+  const normalized = hex.replace("#", "").trim();
+  const value =
+    normalized.length === 3
+      ? normalized
+          .split("")
+          .map((c) => c + c)
+          .join("")
+      : normalized;
+  if (value.length !== 6) return hex;
+  const r = parseInt(value.slice(0, 2), 16);
+  const g = parseInt(value.slice(2, 4), 16);
+  const b = parseInt(value.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
 const BASE_OVERSCAN = 6;
 const MIN_ZOOM = 0.2;
 const MAX_ZOOM = 5;
@@ -29,6 +44,7 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
     uiTheme,
     scrollToPageSignal,
     setDocumentState,
+    triggerScrollToPage,
     accentColor,
     annotationColor,
     setAnnotationColor,
@@ -41,7 +57,11 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
       }
     ).mobileTopbarVisible ?? true;
   const isDark = uiTheme === "dark";
+  const renderTargetType = engine.getRenderTargetType?.() ?? "canvas";
+  const isSingleViewportMode =
+    renderTargetType === "element" || renderTargetType === "webview";
   const viewerRef = useRef<HTMLDivElement>(null);
+  const singleNavInFlightRef = useRef(false);
   const colorPickerRef = useRef<HTMLDivElement>(null);
   const pageRefs = useRef<Array<HTMLDivElement | null>>([]);
   const intersectionRatiosRef = useRef<Record<number, number>>({});
@@ -70,6 +90,12 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
   });
   const [availableWidth, setAvailableWidth] = useState<number | null>(null);
   const [availableHeight, setAvailableHeight] = useState<number | null>(null);
+  const [viewerBounds, setViewerBounds] = useState<{
+    left: number;
+    width: number;
+    top: number;
+    height: number;
+  } | null>(null);
   const [basePageSize, setBasePageSize] = useState<{
     width: number;
     height: number;
@@ -90,7 +116,12 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
     availableWidth !== null && (availableWidth < 820 || isLandscapeShort);
   const isMobileViewport =
     availableWidth !== null && (availableWidth < 640 || isLandscapeShort);
-  const paddingY = isCompact ? "py-10" : "py-16";
+  const paddingY =
+    isSingleViewportMode && isMobileViewport
+      ? "py-0"
+      : isCompact
+      ? "py-10"
+      : "py-16";
   const toolDockPosition = isCompact ? "bottom-4" : "bottom-8";
   const colorPalette = [
     "#fbbf24",
@@ -102,6 +133,69 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
     "#8b5cf6",
     "#111827",
   ];
+  const destinationNavEngine = engine as DocumentEngine & {
+    goToAdjacentDestination?: (delta: number) => Promise<number | null>;
+    getDestinationNavigationState?: () => {
+      hasPrev: boolean;
+      hasNext: boolean;
+    };
+  };
+  const canUseDestinationNavigation =
+    isSingleViewportMode &&
+    typeof destinationNavEngine.goToAdjacentDestination === "function";
+  const destinationNavigationState =
+    isSingleViewportMode &&
+    typeof destinationNavEngine.getDestinationNavigationState === "function"
+      ? destinationNavEngine.getDestinationNavigationState()
+      : null;
+  const canGoPrev = destinationNavigationState?.hasPrev ?? currentPage > 1;
+  const canGoNext =
+    destinationNavigationState?.hasNext ?? currentPage < pageCount;
+  const viewerOverflowClass = isSingleViewportMode
+    ? "overflow-hidden"
+    : "overflow-y-scroll overflow-x-hidden";
+
+  const navigateBy = (delta: number) => {
+    if (pageCount <= 0) return;
+    if (canUseDestinationNavigation) {
+      if (singleNavInFlightRef.current) return;
+      singleNavInFlightRef.current = true;
+      void (async () => {
+        try {
+          const resolved = await destinationNavEngine.goToAdjacentDestination!(
+            delta
+          );
+          if (resolved == null) return;
+          setDocumentState({
+            currentPage: resolved + 1,
+            scrollToPageSignal: null,
+          });
+        } finally {
+          singleNavInFlightRef.current = false;
+        }
+      })();
+      return;
+    }
+
+    const enginePage = Number(engine.getCurrentPage?.());
+    const normalizedEnginePage =
+      Number.isFinite(enginePage) && enginePage >= 1
+        ? Math.floor(enginePage)
+        : null;
+    const basePage =
+      normalizedEnginePage != null &&
+      Math.abs(normalizedEnginePage - currentPage) <= 1
+        ? normalizedEnginePage
+        : currentPage;
+    const clampedPage = Math.max(1, Math.min(pageCount, basePage + delta));
+    if (clampedPage === basePage) return;
+    engine.goToPage(clampedPage);
+    if (isSingleViewportMode) {
+      setDocumentState({ currentPage: clampedPage, scrollToPageSignal: null });
+      return;
+    }
+    triggerScrollToPage(clampedPage - 1);
+  };
 
   const setMobileTopbarVisibility = (visible: boolean) => {
     if (mobileTopbarVisibleRef.current === visible) return;
@@ -214,10 +308,53 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
   }, []);
 
   useEffect(() => {
+    if (!isSingleViewportMode) return;
+    const viewerElement = viewerRef.current;
+    if (!viewerElement) return;
+
+    let rafId: number | null = null;
+    const updateBounds = () => {
+      const rect = viewerElement.getBoundingClientRect();
+      setViewerBounds({
+        left: rect.left,
+        width: rect.width,
+        top: rect.top,
+        height: rect.height,
+      });
+    };
+    const scheduleUpdate = () => {
+      if (rafId != null) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        updateBounds();
+      });
+    };
+
+    updateBounds();
+    viewerElement.addEventListener("scroll", scheduleUpdate, { passive: true });
+    window.addEventListener("resize", scheduleUpdate);
+    window.addEventListener("scroll", scheduleUpdate, { passive: true });
+
+    let observer: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined") {
+      observer = new ResizeObserver(() => scheduleUpdate());
+      observer.observe(viewerElement);
+    }
+
+    return () => {
+      if (rafId != null) cancelAnimationFrame(rafId);
+      viewerElement.removeEventListener("scroll", scheduleUpdate);
+      window.removeEventListener("resize", scheduleUpdate);
+      window.removeEventListener("scroll", scheduleUpdate);
+      observer?.disconnect();
+    };
+  }, [isSingleViewportMode]);
+
+  useEffect(() => {
     const root = viewerRef.current;
     if (!root) return;
 
-    if (!isMobileViewport) {
+    if (isSingleViewportMode || !isMobileViewport) {
       lastScrollTopRef.current = root.scrollTop;
       scrollDownAccumulatorRef.current = 0;
       scrollUpAccumulatorRef.current = 0;
@@ -275,7 +412,7 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
     return () => {
       root.removeEventListener("scroll", handleScroll);
     };
-  }, [isMobileViewport, setDocumentState]);
+  }, [isSingleViewportMode, isMobileViewport, setDocumentState]);
 
   useEffect(() => {
     const previousPage = previousCurrentPageRef.current;
@@ -310,6 +447,20 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
 
   useEffect(() => {
     if (scrollToPageSignal == null) return;
+    if (isSingleViewportMode) {
+      const nextPageIndex = Math.max(
+        0,
+        Math.min(Math.max(pageCount - 1, 0), scrollToPageSignal)
+      );
+      const root = viewerRef.current;
+      if (root) root.scrollTop = 0;
+      setDocumentState({
+        currentPage: nextPageIndex + 1,
+        scrollToPageSignal: null,
+      });
+      return;
+    }
+
     const root = viewerRef.current;
     const target = pageRefs.current[scrollToPageSignal];
     if (root) {
@@ -351,6 +502,7 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
     setDocumentState({ scrollToPageSignal: null });
   }, [
     scrollToPageSignal,
+    isSingleViewportMode,
     setDocumentState,
     basePageSize,
     availableWidth,
@@ -359,11 +511,63 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
   ]);
 
   useEffect(() => {
+    if (!isSingleViewportMode) return;
+    const root = viewerRef.current;
+    if (!root) return;
+    // Chapter/section navigation should always start from the top viewport.
+    root.scrollTop = 0;
+  }, [isSingleViewportMode, currentPage]);
+
+  useEffect(() => {
     // Size cache must follow current zoom, otherwise virtual placeholders may jump.
     setPageSizes({});
   }, [zoom]);
 
   useEffect(() => {
+    if (pageCount <= 1) return;
+    const handleKeyNavigation = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return;
+      if (event.altKey || event.ctrlKey || event.metaKey) return;
+
+      const target = event.target as HTMLElement | null;
+      if (target) {
+        const tag = target.tagName;
+        const isEditable =
+          tag === "INPUT" ||
+          tag === "TEXTAREA" ||
+          tag === "SELECT" ||
+          target.isContentEditable ||
+          target.getAttribute("contenteditable") === "true";
+        if (isEditable) return;
+      }
+
+      if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        if (!canGoPrev) return;
+        navigateBy(-1);
+        return;
+      }
+
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+        if (!canGoNext) return;
+        navigateBy(1);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyNavigation);
+    return () => window.removeEventListener("keydown", handleKeyNavigation);
+  }, [
+    currentPage,
+    pageCount,
+    triggerScrollToPage,
+    engine,
+    canGoPrev,
+    canGoNext,
+  ]);
+
+  useEffect(() => {
+    if (isSingleViewportMode) return;
     const root = viewerRef.current;
     if (!root) return;
     const flushCurrentPage = () => {
@@ -418,12 +622,20 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
       pageElements.forEach((el) => observer.unobserve(el));
       observer.disconnect();
     };
-  }, [pageCount, setDocumentState, currentPage]);
+  }, [pageCount, setDocumentState, currentPage, isSingleViewportMode]);
 
+  const safeCurrentPageIndex = Math.max(
+    0,
+    Math.min(Math.max(pageCount - 1, 0), currentPage - 1)
+  );
   const virtualOverscan = zoom > 1.35 ? 4 : BASE_OVERSCAN;
-  const virtualAnchor = currentPage - 1;
-  const virtualStart = Math.max(0, virtualAnchor - virtualOverscan);
-  const virtualEnd = Math.min(pageCount - 1, virtualAnchor + virtualOverscan);
+  const virtualAnchor = safeCurrentPageIndex;
+  const virtualStart = isSingleViewportMode
+    ? safeCurrentPageIndex
+    : Math.max(0, virtualAnchor - virtualOverscan);
+  const virtualEnd = isSingleViewportMode
+    ? safeCurrentPageIndex
+    : Math.min(pageCount - 1, virtualAnchor + virtualOverscan);
   const fallbackSize = useMemo(() => {
     if (basePageSize && availableWidth) {
       const fitScale = Math.min(
@@ -447,7 +659,24 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
       return availableWidth ? Math.max(680, availableWidth * 1.3) : 1100;
     return Math.round(heights.reduce((sum, h) => sum + h, 0) / heights.length);
   }, [pageSizes, availableWidth]);
-  const pages = Array.from({ length: pageCount }).map((_, i) => i);
+  const pages = isSingleViewportMode
+    ? pageCount > 0
+      ? [safeCurrentPageIndex]
+      : []
+    : Array.from({ length: pageCount }).map((_, i) => i);
+  const viewerStyle = useMemo<React.CSSProperties>(
+    () =>
+      isSingleViewportMode
+        ? {
+            ...(style ?? {}),
+            overflow: "hidden",
+            overflowY: "hidden",
+            overflowX: "hidden",
+            overscrollBehavior: "none",
+          }
+        : style ?? {},
+    [isSingleViewportMode, style]
+  );
   const handlePageMeasured = (
     pageIndex: number,
     size: { width: number; height: number }
@@ -558,26 +787,29 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
       onTouchCancel={handleTouchEnd}
-      className={`papyrus-viewer papyrus-theme min-w-0 w-full flex-1 overflow-y-scroll overflow-x-hidden flex flex-col items-center ${paddingY} relative custom-scrollbar scroll-smooth ${
+      className={`papyrus-viewer papyrus-theme min-h-0 min-w-0 w-full flex-1 ${viewerOverflowClass} flex flex-col items-center ${paddingY} relative custom-scrollbar scroll-smooth ${
         isDark ? "bg-[#121212]" : "bg-[#e9ecef]"
       }`}
-      style={style}
+      style={viewerStyle}
     >
       <div className="flex flex-col items-center gap-6 w-full min-w-0">
         {pages.map((idx) => (
           <div
-            key={idx}
+            key={isSingleViewportMode ? "single-viewport" : idx}
             ref={(element) => {
               pageRefs.current[idx] = element;
             }}
             data-page-index={idx}
-            className="page-container"
+            className={`page-container ${
+              isSingleViewportMode ? "relative" : ""
+            }`}
           >
             {idx >= virtualStart && idx <= virtualEnd ? (
               <PageRenderer
                 engine={engine}
                 pageIndex={idx}
                 availableWidth={availableWidth ?? undefined}
+                availableHeight={availableHeight ?? undefined}
                 onMeasuredSize={handlePageMeasured}
               />
             ) : (
@@ -598,6 +830,92 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
           </div>
         ))}
       </div>
+      {isSingleViewportMode && pageCount > 1 && viewerBounds && (
+        <div
+          className="pointer-events-none fixed z-[75] flex items-center justify-between px-1.5 sm:px-2.5"
+          style={{
+            left: viewerBounds.left,
+            width: viewerBounds.width,
+            top: viewerBounds.top + viewerBounds.height / 2,
+            transform: "translateY(-50%)",
+          }}
+        >
+          <button
+            onClick={() => navigateBy(-1)}
+            disabled={!canGoPrev}
+            className={`pointer-events-auto h-12 w-9 sm:h-14 sm:w-10 rounded-lg border backdrop-blur-md transition-all ${
+              !canGoPrev
+                ? "opacity-40 cursor-not-allowed"
+                : "hover:scale-[1.03] active:scale-95"
+            } ${
+              isDark
+                ? "bg-[#111827]/85 text-gray-100"
+                : "bg-white/90 text-gray-700"
+            }`}
+            style={{
+              borderColor: withAlpha(accentColor, isDark ? 0.45 : 0.3),
+              color: !canGoPrev ? undefined : accentColor,
+              boxShadow: `0 10px 24px ${withAlpha(
+                accentColor,
+                isDark ? 0.18 : 0.12
+              )}`,
+            }}
+            aria-label="Capítulo anterior"
+            title="Capítulo anterior"
+          >
+            <svg
+              className="w-5 h-5 mx-auto"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M15 19l-7-7 7-7"
+              />
+            </svg>
+          </button>
+          <button
+            onClick={() => navigateBy(1)}
+            disabled={!canGoNext}
+            className={`pointer-events-auto h-12 w-9 sm:h-14 sm:w-10 rounded-lg border backdrop-blur-md transition-all ${
+              !canGoNext
+                ? "opacity-40 cursor-not-allowed"
+                : "hover:scale-[1.03] active:scale-95"
+            } ${
+              isDark
+                ? "bg-[#111827]/85 text-gray-100"
+                : "bg-white/90 text-gray-700"
+            }`}
+            style={{
+              borderColor: withAlpha(accentColor, isDark ? 0.45 : 0.3),
+              color: !canGoNext ? undefined : accentColor,
+              boxShadow: `0 10px 24px ${withAlpha(
+                accentColor,
+                isDark ? 0.18 : 0.12
+              )}`,
+            }}
+            aria-label="Próximo capítulo"
+            title="Próximo capítulo"
+          >
+            <svg
+              className="w-5 h-5 mx-auto"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9 5l7 7-7 7"
+              />
+            </svg>
+          </button>
+        </div>
+      )}
       {toolDockOpen && (
         <div
           className={`papyrus-tool-dock sticky ${toolDockPosition} w-full flex justify-center pointer-events-none z-[70]`}

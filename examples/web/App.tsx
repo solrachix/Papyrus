@@ -61,6 +61,16 @@ const createInitialConfig = (
 type EngineKind = "pdf" | "epub" | "text";
 type UITheme = "light" | "dark";
 
+const parseEngineKindFromLocation = (): EngineKind => {
+  if (typeof window === "undefined") return "pdf";
+  const params = new URLSearchParams(window.location.search);
+  const fromQuery = (params.get("engine") || "").toLowerCase();
+  if (fromQuery === "pdf" || fromQuery === "epub" || fromQuery === "text") {
+    return fromQuery;
+  }
+  return "pdf";
+};
+
 type DemoMessage = {
   source?: string;
   action?: string;
@@ -353,7 +363,7 @@ const PapyrusViewer: React.FC<{
       }`}
     >
       <Topbar engine={engine} style={themeVars} {...topbarProps} />
-      <div className="relative flex flex-1 overflow-hidden">
+      <div className="relative flex flex-1 min-h-0 overflow-hidden">
         <SidebarLeft engine={engine} style={themeVars} />
         <Viewer engine={engine} style={themeVars} />
         <SidebarRight engine={engine} style={themeVars} />
@@ -363,7 +373,9 @@ const PapyrusViewer: React.FC<{
 };
 
 const RenderPage: React.FC = () => {
-  const [engineKind, setEngineKind] = useState<EngineKind>("pdf");
+  const [engineKind, setEngineKind] = useState<EngineKind>(
+    parseEngineKindFromLocation
+  );
   const [useRemotePdf, setUseRemotePdf] = useState(false);
   const [remotePdfUrl, setRemotePdfUrl] = useState(REMOTE_PDF_URL);
   const isEmbedded = useMemo(
@@ -378,6 +390,13 @@ const RenderPage: React.FC = () => {
     [isEmbedded]
   );
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    url.searchParams.set("engine", engineKind);
+    window.history.replaceState(null, "", `${url.pathname}${url.search}`);
+  }, [engineKind]);
+
   return (
     <PapyrusViewer
       engineKind={engineKind}
@@ -386,8 +405,8 @@ const RenderPage: React.FC = () => {
       remotePdfUrl={remotePdfUrl}
       initialConfig={initialConfig}
       topbarProps={{ title: "Papyrus Demo" }}
-      className="bg-gray-100 h-screen"
-      loadingClassName="h-screen"
+      className="bg-gray-100 h-[100dvh]"
+      loadingClassName="h-[100dvh]"
     />
   );
 };

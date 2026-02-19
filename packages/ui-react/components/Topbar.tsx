@@ -65,6 +65,9 @@ const Topbar: React.FC<TopbarProps> = ({
   const [isMobileViewport, setIsMobileViewport] = useState(false);
   const pageDigits = Math.max(2, String(pageCount || 1).length);
   const isDark = uiTheme === "dark";
+  const renderTargetType = engine.getRenderTargetType?.() ?? "canvas";
+  const isSingleViewportMode =
+    renderTargetType === "element" || renderTargetType === "webview";
   const canUseDOM = typeof document !== "undefined";
   const hasMobileMenu =
     showZoomControls || showPageThemeSelector || showUIToggle || showUpload;
@@ -166,6 +169,10 @@ const Topbar: React.FC<TopbarProps> = ({
     if (pageCount <= 0) return;
     const nextPage = Math.max(1, Math.min(pageCount, isNaN(page) ? 1 : page));
     engine.goToPage(nextPage);
+    if (isSingleViewportMode) {
+      setDocumentState({ currentPage: nextPage, scrollToPageSignal: null });
+      return;
+    }
     triggerScrollToPage(nextPage - 1);
   };
 
