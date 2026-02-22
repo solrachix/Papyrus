@@ -3,5 +3,16 @@
   "type": "sdk",
   "template_url": "./docs/public/og.png",
   "logo_url": "./docs/public/og.png",
-  "readme_path": "./README.pt-BR.md"
+  "readme_path": "./README.pt-BR.md",
+  "description_pt": "SDK open source de PDF/EPUB/TXT para leitores web e mobile, com engines plugaveis e UI pronta.",
+  "links": [
+    {
+      "url": "https://solrachix.github.io/Papyrus",
+      "label": "Site"
+    },
+    {
+      "url": "https://www.npmjs.com/org/papyrus-sdk",
+      "label": "NPM"
+    }
+  ]
 }
