@@ -38,3 +38,6 @@ docs/.vitepress/.temp
 **/android/.gradle/*
 **/android/.externalNativeBuild/*
 **/android/local.properties
+
+# Local temp
+tmp/
