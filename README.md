@@ -13,6 +13,11 @@ Papyrus is a modular open source PDF/EPUB/TXT SDK built to power document-heavy 
 
 Supports PDF, EPUB, and TXT. On mobile, EPUB/TXT render via a WebView runtime while PDF stays native.
 
+## Examples
+- Web demo: `examples/web`
+- React Native: `examples/mobile`
+- Build packages: `pnpm -r --filter "./packages/**" --sort --workspace-concurrency=1 build`
+
 ## Docs
 - [Configuration guide](docs/CONFIGURATION.md)
 - [Event hooks](docs/CONFIGURATION.md#event-hooks)
@@ -91,11 +96,6 @@ papyrusEvents.on(PapyrusEventType.DOCUMENT_LOADED, ({ pageCount }) => {
 // <Viewer engine={engine} />
 // <SidebarRight engine={engine} />
 ```
-
-## Examples
-- Web demo: `examples/web`
-- React Native: `examples/mobile`
-- Build packages: `pnpm -r --filter "./packages/**" --sort --workspace-concurrency=1 build`
 
 ## Contributing
 See `CONTRIBUTING.md`.
