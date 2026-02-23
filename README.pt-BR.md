@@ -13,6 +13,10 @@ Papyrus e um SDK open source de PDF/EPUB/TXT feito para produtos com documentos 
 
 Suporta PDF, EPUB e TXT. No mobile, EPUB/TXT renderizam via WebView enquanto PDF fica nativo.
 
+## Exemplos
+- Demo web: `examples/web`
+- React Native: `examples/mobile`
+
 ## Documentacao
 - [Guia de configuracao](docs/CONFIGURATION.pt-BR.md)
 - [Event hooks](docs/CONFIGURATION.pt-BR.md#event-hooks)
@@ -92,12 +96,9 @@ papyrusEvents.on(PapyrusEventType.DOCUMENT_LOADED, ({ pageCount }) => {
 // <SidebarRight engine={engine} />
 ```
 
-## Exemplos
-- Demo web: `examples/web`
-- React Native: `examples/mobile`
-
 ## Contribuicao
 Veja `CONTRIBUTING.md`.
 
 ## Licenca
 MIT. Veja `LICENSE`.
+
