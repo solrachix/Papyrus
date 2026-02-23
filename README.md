@@ -1,11 +1,8 @@
 # Papyrus PDF SDK
 > Open source PDF/EPUB/TXT SDK for web and mobile document readers.
 
-[![Engine: PDF.js](https://img.shields.io/badge/Engine-PDF.js-orange.svg)](https://mozilla.github.io/pdf.js/)
-[![Framework: React](https://img.shields.io/badge/Framework-React-blue.svg)](https://reactjs.org/)
-[![npm](https://img.shields.io/npm/v/@papyrus-sdk/ui-react)](https://www.npmjs.com/package/@papyrus-sdk/ui-react)
-[![npm](https://img.shields.io/npm/v/@papyrus-sdk/engine-pdfjs)](https://www.npmjs.com/package/@papyrus-sdk/engine-pdfjs)
-[![npm](https://img.shields.io/npm/v/@papyrus-sdk/core)](https://www.npmjs.com/package/@papyrus-sdk/core)
+[![Engine: PDF.js](https://img.shields.io/badge/Engine-PDF.js-2563EB?style=for-the-badge)](https://mozilla.github.io/pdf.js/) [![UI: React](https://img.shields.io/badge/UI-React-2563EB?style=for-the-badge&logo=react&logoColor=white)](https://reactjs.org/) [![UI: React Native](https://img.shields.io/badge/UI-React%20Native-2563EB?style=for-the-badge&logo=react&logoColor=white)](https://reactnative.dev/)
+[![npm](https://img.shields.io/npm/v/@papyrus-sdk/ui-react?style=for-the-badge&logo=npm&logoColor=white&color=2563EB)](https://www.npmjs.com/package/@papyrus-sdk/ui-react) [![npm](https://img.shields.io/npm/v/@papyrus-sdk/engine-pdfjs?style=for-the-badge&logo=npm&logoColor=white&color=2563EB)](https://www.npmjs.com/package/@papyrus-sdk/engine-pdfjs) [![npm](https://img.shields.io/npm/v/@papyrus-sdk/core?style=for-the-badge&logo=npm&logoColor=white&color=2563EB)](https://www.npmjs.com/package/@papyrus-sdk/core)
 
 Read this in: English | [Portuguese (Brazil)](README.pt-BR.md)
 
@@ -102,4 +99,3 @@ See `CONTRIBUTING.md`.
 
 ## License
 MIT. See `LICENSE`.
-
