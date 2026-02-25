@@ -33,3 +33,29 @@ await engine.load({ type: 'pdf', source: { uri: 'https://example.com/book.pdf' }
   style={{ width: 120, height: 180 }}
 />
 ```
+
+## Mobile Performance Baseline (Audit Step)
+
+Enable runtime diagnostics before rendering the viewer:
+
+```ts
+(globalThis as any).__PAPYRUS_MOBILE_PERF__ = {
+  enabled: true,
+  sampleMemory: true,
+};
+```
+
+With diagnostics enabled, the native viewer emits structured logs such as:
+
+- `[Papyrus Perf][Viewer] document.ready` with initial load time.
+- `[Papyrus Perf][Viewer] scroll.*` with frame-gap and dropped-frame estimates.
+- `[Papyrus Perf][RightSheet] memory.thumbnails.*` for memory snapshots when opening thumbnails.
+- `[Papyrus Perf][CoreStore] setDocumentState.burst` when state updates happen in bursts.
+
+Recommended baseline run:
+
+1. Load a large PDF (1000+ pages).
+2. Record `document.ready` for initial load.
+3. Scroll quickly for 10-15 seconds and capture `scroll.*` logs.
+4. Open thumbnails and capture `memory.thumbnails.*`.
+5. Jump between distant pages and check for `setDocumentState.burst`.

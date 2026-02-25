@@ -1,4 +1,10 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   View,
   StyleSheet,
@@ -10,12 +16,23 @@ import {
   useWindowDimensions,
   type LayoutChangeEvent,
   type GestureResponderEvent,
-} from 'react-native';
-import { useViewerStore } from '@papyrus-sdk/core';
-import { Annotation, DocumentEngine, TextSelection } from '@papyrus-sdk/types';
-import { PapyrusPageView, type PapyrusPageViewProps } from '@papyrus-sdk/engine-native';
+} from "react-native";
+import { useViewerStore } from "@papyrus-sdk/core";
+import { Annotation, DocumentEngine, TextSelection } from "@papyrus-sdk/types";
+import {
+  PapyrusPageView,
+  type PapyrusPageViewProps,
+} from "@papyrus-sdk/engine-native";
+import {
+  createBurstMonitor,
+  isMobilePerfEnabled,
+  logPerfEvent,
+  perfNow,
+} from "../perf/mobilePerf";
 
-type PageViewComponentType = React.ComponentType<PapyrusPageViewProps & React.RefAttributes<any>>;
+type PageViewComponentType = React.ComponentType<
+  PapyrusPageViewProps & React.RefAttributes<any>
+>;
 
 interface PageRendererProps {
   engine: DocumentEngine;
@@ -38,10 +55,18 @@ const PageRenderer: React.FC<PageRendererProps> = ({
 }) => {
   const viewRef = useRef<any>(null);
   const [layout, setLayout] = useState({ width: 0, height: 0 });
-  const [pageSize, setPageSize] = useState<{ width: number; height: number } | null>(null);
+  const [pageSize, setPageSize] = useState<{
+    width: number;
+    height: number;
+  } | null>(null);
   const { width: windowWidth } = useWindowDimensions();
-  const isAndroid = Platform.OS === 'android';
-  const isNative = Platform.OS === 'android' || Platform.OS === 'ios';
+  const isAndroid = Platform.OS === "android";
+  const isNative = Platform.OS === "android" || Platform.OS === "ios";
+  const perfEnabled = isMobilePerfEnabled();
+  const renderCountRef = useRef(0);
+  const setStateBurstRef = useRef(
+    createBurstMonitor("PageRenderer", "setDocumentState", 18, 700)
+  );
 
   const {
     zoom,
@@ -60,6 +85,20 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     setSelectionActive,
   } = useViewerStore();
 
+  const setDocumentStateTracked = useCallback(
+    (state: Parameters<typeof setDocumentState>[0], reason: string) => {
+      if (perfEnabled) {
+        setStateBurstRef.current({
+          reason,
+          page: pageIndex + 1,
+          keys: Object.keys(state).join(","),
+        });
+      }
+      setDocumentState(state);
+    },
+    [pageIndex, perfEnabled, setDocumentState]
+  );
+
   const pageAnnotations = useMemo(
     () => annotations.filter((ann) => ann.pageIndex === pageIndex),
     [annotations, pageIndex]
@@ -73,16 +112,60 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     [searchResults, pageIndex]
   );
 
-  const [selectionRect, setSelectionRect] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
-  const [selectionRects, setSelectionRects] = useState<Array<{ x: number; y: number; width: number; height: number }>>([]);
-  const [selectionBounds, setSelectionBounds] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
-  const [selectionText, setSelectionText] = useState('');
+  renderCountRef.current += 1;
+  if (
+    perfEnabled &&
+    (renderCountRef.current === 1 || renderCountRef.current % 20 === 0)
+  ) {
+    logPerfEvent("PageRenderer", "render", {
+      page: pageIndex + 1,
+      renderCount: renderCountRef.current,
+      zoom,
+      rotation,
+      annotationCount: pageAnnotations.length,
+      searchHits: pageSearchHits.length,
+    });
+  }
+
+  const [selectionRect, setSelectionRect] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const [selectionRects, setSelectionRects] = useState<
+    Array<{ x: number; y: number; width: number; height: number }>
+  >([]);
+  const [selectionBounds, setSelectionBounds] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const [selectionText, setSelectionText] = useState("");
   const [isSelecting, setIsSelecting] = useState(false);
   const selectionStart = useRef<{ x: number; y: number } | null>(null);
-  const selectionRectRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
-  const selectionBoundsRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
-  const selectionBoundsStart = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
-  const lastTapRef = useRef<{ time: number; x: number; y: number } | null>(null);
+  const selectionRectRef = useRef<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const selectionBoundsRef = useRef<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const selectionBoundsStart = useRef<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const lastTapRef = useRef<{ time: number; x: number; y: number } | null>(
+    null
+  );
   const pinchRef = useRef<{ distance: number; zoom: number } | null>(null);
 
   useEffect(() => {
@@ -90,24 +173,66 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     const viewTag = findNodeHandle(viewRef.current);
     if (viewTag) {
       const renderScale = isNative ? scale / Math.max(zoom, 0.5) : scale;
-      void engine.renderPage(pageIndex, viewTag, renderScale);
+      const startedAt = perfEnabled ? perfNow() : 0;
+      void Promise.resolve(engine.renderPage(pageIndex, viewTag, renderScale))
+        .then(() => {
+          if (!perfEnabled) return;
+          const renderDurationMs = perfNow() - startedAt;
+          if (renderDurationMs >= 40) {
+            logPerfEvent("PageRenderer", "renderPage.slow", {
+              page: pageIndex + 1,
+              renderDurationMs: Math.round(renderDurationMs * 100) / 100,
+              layoutWidth: layout.width,
+              layoutHeight: layout.height,
+              renderScale: Math.round(renderScale * 100) / 100,
+            });
+          }
+        })
+        .catch((error: unknown) => {
+          logPerfEvent("PageRenderer", "renderPage.error", {
+            page: pageIndex + 1,
+            message: error instanceof Error ? error.message : String(error),
+          });
+        });
     }
-  }, [engine, pageIndex, scale, zoom, rotation, layout.width, layout.height, isNative]);
+  }, [
+    engine,
+    pageIndex,
+    scale,
+    zoom,
+    rotation,
+    layout.width,
+    layout.height,
+    isNative,
+    perfEnabled,
+  ]);
 
   useEffect(() => {
     let active = true;
     const loadDimensions = async () => {
+      const startedAt = perfEnabled ? perfNow() : 0;
       const dims = await engine.getPageDimensions(pageIndex);
       if (!active) return;
       if (dims.width > 0 && dims.height > 0) {
         setPageSize({ width: dims.width, height: dims.height });
+      }
+      if (perfEnabled) {
+        const durationMs = perfNow() - startedAt;
+        if (durationMs >= 20 || pageIndex === 0) {
+          logPerfEvent("PageRenderer", "pageDimensions", {
+            page: pageIndex + 1,
+            durationMs: Math.round(durationMs * 100) / 100,
+            width: dims.width,
+            height: dims.height,
+          });
+        }
       }
     };
     void loadDimensions();
     return () => {
       active = false;
     };
-  }, [engine, pageIndex]);
+  }, [engine, pageIndex, perfEnabled]);
 
   const handleLayout = (event: LayoutChangeEvent) => {
     const { width, height } = event.nativeEvent.layout;
@@ -116,21 +241,30 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     }
   };
 
-  const addAnnotationAt = (x: number, y: number, width: number, height: number, type: Annotation['type']) => {
+  const addAnnotationAt = (
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    type: Annotation["type"]
+  ) => {
     addAnnotation({
       id: Math.random().toString(36).slice(2, 9),
       pageIndex,
       type,
       rect: { x, y, width, height },
       color: annotationColor,
-      content: type === 'text' || type === 'comment' ? '' : undefined,
+      content: type === "text" || type === "comment" ? "" : undefined,
       createdAt: Date.now(),
     });
   };
 
-  const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+  const clamp = (value: number, min: number, max: number) =>
+    Math.min(max, Math.max(min, value));
 
-  const getBoundsFromRects = (rects: Array<{ x: number; y: number; width: number; height: number }>) => {
+  const getBoundsFromRects = (
+    rects: Array<{ x: number; y: number; width: number; height: number }>
+  ) => {
     let minX = 1;
     let minY = 1;
     let maxX = 0;
@@ -156,7 +290,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     setSelectionRects([]);
     setSelectionBounds(null);
     selectionBoundsRef.current = null;
-    setSelectionText('');
+    setSelectionText("");
     setIsSelecting(false);
     selectionStart.current = null;
     selectionBoundsStart.current = null;
@@ -169,7 +303,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({
       return;
     }
     setSelectionRects(selection.rects);
-    setSelectionText(selection.text || '');
+    setSelectionText(selection.text || "");
     const bounds = getBoundsFromRects(selection.rects);
     if (!bounds) {
       clearSelection();
@@ -180,7 +314,12 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     setSelectionActive(true);
   };
 
-  const selectFromBounds = async (bounds: { x: number; y: number; width: number; height: number }) => {
+  const selectFromBounds = async (bounds: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }) => {
     const selection = await engine.selectText?.(pageIndex, bounds);
     applySelectionResult(selection ?? null);
   };
@@ -200,26 +339,34 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     await selectFromBounds(bounds);
   };
 
-  const getTouchDistance = (touches: Array<{ pageX: number; pageY: number }>) => {
+  const getTouchDistance = (
+    touches: Array<{ pageX: number; pageY: number }>
+  ) => {
     if (touches.length < 2) return 0;
     const [a, b] = touches;
     return Math.hypot(b.pageX - a.pageX, b.pageY - a.pageY);
   };
 
-  const shouldHandlePinch = (touches: Array<{ pageX: number; pageY: number }>) => isNative && touches.length === 2;
+  const shouldHandlePinch = (
+    touches: Array<{ pageX: number; pageY: number }>
+  ) => isNative && touches.length === 2;
 
-  const handlePinchStart = (touches: Array<{ pageX: number; pageY: number }>) => {
+  const handlePinchStart = (
+    touches: Array<{ pageX: number; pageY: number }>
+  ) => {
     if (!shouldHandlePinch(touches)) return;
     pinchRef.current = { distance: getTouchDistance(touches), zoom };
   };
 
-  const handlePinchMove = (touches: Array<{ pageX: number; pageY: number }>) => {
+  const handlePinchMove = (
+    touches: Array<{ pageX: number; pageY: number }>
+  ) => {
     if (!shouldHandlePinch(touches) || !pinchRef.current) return;
     const distance = getTouchDistance(touches);
     if (!distance) return;
     const scale = distance / pinchRef.current.distance;
     const nextZoom = clamp(pinchRef.current.zoom * scale, 0.5, 4.0);
-    setDocumentState({ zoom: nextZoom });
+    setDocumentStateTracked({ zoom: nextZoom }, "pinchMove");
     engine.setZoom(nextZoom);
   };
 
@@ -249,7 +396,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     }
   };
 
-  const selectionEnabled = Platform.OS === 'web';
+  const selectionEnabled = Platform.OS === "web";
   void selectionText;
 
   const panResponder = useMemo(
@@ -275,7 +422,12 @@ const PageRenderer: React.FC<PageRendererProps> = ({
           const top = Math.max(0, Math.min(start.y, currentY));
           const right = Math.min(layout.width, Math.max(start.x, currentX));
           const bottom = Math.min(layout.height, Math.max(start.y, currentY));
-          const rect = { x: left, y: top, width: right - left, height: bottom - top };
+          const rect = {
+            x: left,
+            y: top,
+            width: right - left,
+            height: bottom - top,
+          };
           selectionRectRef.current = rect;
           setSelectionRect(rect);
         },
@@ -319,7 +471,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     };
   }, [selectionBounds, layout.width, layout.height]);
 
-  const createHandleResponder = (handle: 'start' | 'end') =>
+  const createHandleResponder = (handle: "start" | "end") =>
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
@@ -334,7 +486,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({
         const minSize = 0.01;
         let next = { ...start };
 
-        if (handle === 'start') {
+        if (handle === "start") {
           const newX = clamp(start.x + dx, 0, start.x + start.width - minSize);
           const newY = clamp(start.y + dy, 0, start.y + start.height - minSize);
           next = {
@@ -369,21 +521,27 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     });
 
   const startHandleResponder = useMemo(
-    () => createHandleResponder('start'),
+    () => createHandleResponder("start"),
     [layout.width, layout.height, engine, pageIndex]
   );
 
   const endHandleResponder = useMemo(
-    () => createHandleResponder('end'),
+    () => createHandleResponder("end"),
     [layout.width, layout.height, engine, pageIndex]
   );
 
-  const applySelection = (type: 'highlight' | 'strikeout' | 'comment') => {
+  const applySelection = (type: "highlight" | "strikeout" | "comment") => {
     if (selectionRects.length === 0) return;
 
-    if (type === 'comment') {
+    if (type === "comment") {
       const first = selectionRects[0];
-      addAnnotationAt(first.x, first.y, Math.max(0.08, first.width), Math.max(0.06, first.height), 'comment');
+      addAnnotationAt(
+        first.x,
+        first.y,
+        Math.max(0.08, first.width),
+        Math.max(0.06, first.height),
+        "comment"
+      );
       clearSelection();
       return;
     }
@@ -396,11 +554,11 @@ const PageRenderer: React.FC<PageRendererProps> = ({
 
   const themeOverlayStyle = useMemo(() => {
     switch (pageTheme) {
-      case 'sepia':
+      case "sepia":
         return styles.themeSepia;
-      case 'dark':
+      case "dark":
         return styles.themeDark;
-      case 'high-contrast':
+      case "high-contrast":
         return styles.themeContrast;
       default:
         return styles.themeNone;
@@ -408,12 +566,15 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   }, [pageTheme]);
 
   const aspectRatio =
-    pageSize && pageSize.width > 0 && pageSize.height > 0 ? pageSize.width / pageSize.height : 0.77;
+    pageSize && pageSize.width > 0 && pageSize.height > 0
+      ? pageSize.width / pageSize.height
+      : 0.77;
   const containerWidth = availableWidth ?? windowWidth;
   const baseWidth = containerWidth * 0.92;
   const pageWidth = isNative ? baseWidth * zoom : baseWidth;
   const pageHeight = pageWidth / aspectRatio;
-  const hasActiveSelection = selectionRects.length > 0 || !!selectionBounds || isSelecting;
+  const hasActiveSelection =
+    selectionRects.length > 0 || !!selectionBounds || isSelecting;
   const scrollEnabled = isNative && zoom > 1 && !hasActiveSelection;
 
   return (
@@ -421,22 +582,37 @@ const PageRenderer: React.FC<PageRendererProps> = ({
       horizontal
       scrollEnabled={scrollEnabled}
       showsHorizontalScrollIndicator={false}
-      contentContainerStyle={[styles.scrollContent, { paddingHorizontal: horizontalPadding }]}
+      contentContainerStyle={[
+        styles.scrollContent,
+        { paddingHorizontal: horizontalPadding },
+      ]}
     >
       <Pressable
         {...panResponder.panHandlers}
-        style={[styles.container, { width: pageWidth, height: pageHeight, marginBottom: spacing }]}
+        style={[
+          styles.container,
+          { width: pageWidth, height: pageHeight, marginBottom: spacing },
+        ]}
         onLayout={handleLayout}
         onPress={handlePress}
-        onStartShouldSetResponder={(event) => shouldHandlePinch(event.nativeEvent.touches)}
-        onMoveShouldSetResponder={(event) => shouldHandlePinch(event.nativeEvent.touches)}
-        onResponderGrant={(event) => handlePinchStart(event.nativeEvent.touches)}
+        onStartShouldSetResponder={(event) =>
+          shouldHandlePinch(event.nativeEvent.touches)
+        }
+        onMoveShouldSetResponder={(event) =>
+          shouldHandlePinch(event.nativeEvent.touches)
+        }
+        onResponderGrant={(event) =>
+          handlePinchStart(event.nativeEvent.touches)
+        }
         onResponderMove={(event) => handlePinchMove(event.nativeEvent.touches)}
         onResponderRelease={handlePinchEnd}
         onResponderTerminate={handlePinchEnd}
       >
         <PageViewComponent ref={viewRef} style={styles.page} />
-        <View pointerEvents="none" style={[styles.themeOverlay, themeOverlayStyle]} />
+        <View
+          pointerEvents="none"
+          style={[styles.themeOverlay, themeOverlayStyle]}
+        />
         <View pointerEvents="box-none" style={styles.selectionLayer}>
           <View pointerEvents="none">
             {selectionRects.map((rect, index) => {
@@ -446,7 +622,12 @@ const PageRenderer: React.FC<PageRendererProps> = ({
                 width: `${rect.width * 100}%`,
                 height: `${rect.height * 100}%`,
               } as const;
-              return <View key={`sel-${index}`} style={[styles.selectionHighlight, style]} />;
+              return (
+                <View
+                  key={`sel-${index}`}
+                  style={[styles.selectionHighlight, style]}
+                />
+              );
             })}
           </View>
           {selectionBoundsPx ? (
@@ -465,11 +646,17 @@ const PageRenderer: React.FC<PageRendererProps> = ({
             >
               <View
                 {...startHandleResponder.panHandlers}
-                style={[styles.selectionHandle, { left: -8, top: -8, borderColor: accentColor }]}
+                style={[
+                  styles.selectionHandle,
+                  { left: -8, top: -8, borderColor: accentColor },
+                ]}
               />
               <View
                 {...endHandleResponder.panHandlers}
-                style={[styles.selectionHandle, { right: -8, bottom: -8, borderColor: accentColor }]}
+                style={[
+                  styles.selectionHandle,
+                  { right: -8, bottom: -8, borderColor: accentColor },
+                ]}
               />
             </View>
           ) : null}
@@ -506,9 +693,15 @@ const PageRenderer: React.FC<PageRendererProps> = ({
                   key={`${index}-${rectIndex}`}
                   style={[
                     styles.searchHighlight,
-                    { borderColor: accentColor, backgroundColor: `${accentColor}26` },
+                    {
+                      borderColor: accentColor,
+                      backgroundColor: `${accentColor}26`,
+                    },
                     isActive && styles.searchHighlightActive,
-                    isActive && { borderColor: accentColor, backgroundColor: `${accentColor}40` },
+                    isActive && {
+                      borderColor: accentColor,
+                      backgroundColor: `${accentColor}40`,
+                    },
                     highlightStyle,
                   ]}
                 />
@@ -524,9 +717,11 @@ const PageRenderer: React.FC<PageRendererProps> = ({
               top: `${ann.rect.y * 100}%`,
               width: `${ann.rect.width * 100}%`,
               height: `${ann.rect.height * 100}%`,
-              backgroundColor: ann.type === 'highlight' ? `${ann.color}66` : 'transparent',
-              borderBottomWidth: ann.type === 'strikeout' ? 3 : 0,
-              borderBottomColor: ann.type === 'strikeout' ? ann.color : 'transparent',
+              backgroundColor:
+                ann.type === "highlight" ? `${ann.color}66` : "transparent",
+              borderBottomWidth: ann.type === "strikeout" ? 3 : 0,
+              borderBottomColor:
+                ann.type === "strikeout" ? ann.color : "transparent",
             } as const;
 
             return (
@@ -540,13 +735,23 @@ const PageRenderer: React.FC<PageRendererProps> = ({
                   isSelected && { borderColor: accentColor },
                 ]}
               >
-                {(ann.type === 'comment' || ann.type === 'text') && (
-                  <View style={[styles.annotationBadge, { borderColor: ann.color }]}>
-                    <View style={[styles.annotationDot, { backgroundColor: ann.color }]} />
+                {(ann.type === "comment" || ann.type === "text") && (
+                  <View
+                    style={[styles.annotationBadge, { borderColor: ann.color }]}
+                  >
+                    <View
+                      style={[
+                        styles.annotationDot,
+                        { backgroundColor: ann.color },
+                      ]}
+                    />
                   </View>
                 )}
                 {isSelected && (
-                  <Pressable onPress={() => removeAnnotation(ann.id)} style={styles.deleteButton}>
+                  <Pressable
+                    onPress={() => removeAnnotation(ann.id)}
+                    style={styles.deleteButton}
+                  >
                     <View style={styles.deleteDot} />
                   </Pressable>
                 )}
@@ -562,20 +767,40 @@ const PageRenderer: React.FC<PageRendererProps> = ({
               {
                 left: selectionBoundsPx.x,
                 top:
-                  selectionBoundsPx.y + selectionBoundsPx.height + 8 > layout.height - 56
+                  selectionBoundsPx.y + selectionBoundsPx.height + 8 >
+                  layout.height - 56
                     ? Math.max(8, selectionBoundsPx.y - 52)
                     : selectionBoundsPx.y + selectionBoundsPx.height + 8,
               },
             ]}
           >
-            <Pressable onPress={() => applySelection('comment')} style={styles.selectionAction}>
+            <Pressable
+              onPress={() => applySelection("comment")}
+              style={styles.selectionAction}
+            >
               <View style={styles.selectionActionDot} />
             </Pressable>
-            <Pressable onPress={() => applySelection('highlight')} style={styles.selectionAction}>
-              <View style={[styles.selectionSwatch, { backgroundColor: annotationColor }]} />
+            <Pressable
+              onPress={() => applySelection("highlight")}
+              style={styles.selectionAction}
+            >
+              <View
+                style={[
+                  styles.selectionSwatch,
+                  { backgroundColor: annotationColor },
+                ]}
+              />
             </Pressable>
-            <Pressable onPress={() => applySelection('strikeout')} style={[styles.selectionAction, styles.selectionActionLast]}>
-              <View style={[styles.selectionStrike, { backgroundColor: annotationColor }]} />
+            <Pressable
+              onPress={() => applySelection("strikeout")}
+              style={[styles.selectionAction, styles.selectionActionLast]}
+            >
+              <View
+                style={[
+                  styles.selectionStrike,
+                  { backgroundColor: annotationColor },
+                ]}
+              />
             </Pressable>
           </View>
         ) : null}
@@ -586,13 +811,13 @@ const PageRenderer: React.FC<PageRendererProps> = ({
 
 const styles = StyleSheet.create({
   scrollContent: {
-    alignItems: 'center',
+    alignItems: "center",
   },
   container: {
-    alignSelf: 'center',
+    alignSelf: "center",
     borderRadius: 14,
-    backgroundColor: '#ffffff',
-    shadowColor: '#000000',
+    backgroundColor: "#ffffff",
+    shadowColor: "#000000",
     shadowOpacity: 0.12,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 6 },
@@ -600,97 +825,97 @@ const styles = StyleSheet.create({
   },
   page: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#ffffff',
+    backgroundColor: "#ffffff",
     borderRadius: 14,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   annotationLayer: {
-    position: 'absolute',
+    position: "absolute",
     left: 0,
     top: 0,
     right: 0,
     bottom: 0,
   },
   searchLayer: {
-    position: 'absolute',
+    position: "absolute",
     left: 0,
     top: 0,
     right: 0,
     bottom: 0,
   },
   selectionLayer: {
-    position: 'absolute',
+    position: "absolute",
     left: 0,
     top: 0,
     right: 0,
     bottom: 0,
   },
   selectionHighlight: {
-    position: 'absolute',
-    backgroundColor: 'rgba(245, 158, 11, 0.28)',
+    position: "absolute",
+    backgroundColor: "rgba(245, 158, 11, 0.28)",
     borderRadius: 4,
   },
   selectionOutline: {
-    position: 'absolute',
+    position: "absolute",
     borderWidth: 2,
-    borderStyle: 'dashed',
-    borderColor: 'rgba(37, 99, 235, 0.9)',
+    borderStyle: "dashed",
+    borderColor: "rgba(37, 99, 235, 0.9)",
     borderRadius: 6,
   },
   selectionHandle: {
-    position: 'absolute',
+    position: "absolute",
     width: 16,
     height: 16,
     borderRadius: 8,
-    backgroundColor: '#ffffff',
+    backgroundColor: "#ffffff",
     borderWidth: 2,
-    borderColor: '#2563eb',
+    borderColor: "#2563eb",
   },
   searchHighlight: {
-    position: 'absolute',
-    backgroundColor: 'rgba(59, 130, 246, 0.2)',
+    position: "absolute",
+    backgroundColor: "rgba(59, 130, 246, 0.2)",
     borderWidth: 1,
-    borderColor: 'rgba(59, 130, 246, 0.35)',
+    borderColor: "rgba(59, 130, 246, 0.35)",
     borderRadius: 4,
   },
   searchHighlightActive: {
-    backgroundColor: 'rgba(59, 130, 246, 0.35)',
-    borderColor: '#3b82f6',
+    backgroundColor: "rgba(59, 130, 246, 0.35)",
+    borderColor: "#3b82f6",
   },
   themeOverlay: {
     ...StyleSheet.absoluteFillObject,
     borderRadius: 14,
   },
   themeNone: {
-    backgroundColor: 'transparent',
+    backgroundColor: "transparent",
   },
   themeSepia: {
-    backgroundColor: 'rgba(244, 236, 216, 0.35)',
+    backgroundColor: "rgba(244, 236, 216, 0.35)",
   },
   themeDark: {
-    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+    backgroundColor: "rgba(0, 0, 0, 0.2)",
   },
   themeContrast: {
-    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+    backgroundColor: "rgba(0, 0, 0, 0.35)",
   },
   annotation: {
-    position: 'absolute',
+    position: "absolute",
   },
   annotationSelected: {
     borderWidth: 1,
-    borderColor: '#3b82f6',
+    borderColor: "#3b82f6",
   },
   annotationBadge: {
-    position: 'absolute',
+    position: "absolute",
     left: 4,
     top: 4,
     width: 14,
     height: 14,
     borderRadius: 7,
     borderWidth: 1,
-    backgroundColor: '#ffffff',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#ffffff",
+    alignItems: "center",
+    justifyContent: "center",
   },
   annotationDot: {
     width: 6,
@@ -698,38 +923,38 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   deleteButton: {
-    position: 'absolute',
+    position: "absolute",
     right: -8,
     top: -8,
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: '#ef4444',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#ef4444",
+    alignItems: "center",
+    justifyContent: "center",
   },
   deleteDot: {
     width: 8,
     height: 2,
-    backgroundColor: '#ffffff',
+    backgroundColor: "#ffffff",
     borderRadius: 2,
   },
   selectionToolbar: {
-    position: 'absolute',
+    position: "absolute",
     paddingHorizontal: 10,
     paddingVertical: 8,
     borderRadius: 14,
-    backgroundColor: '#111827',
-    flexDirection: 'row',
-    alignItems: 'center',
+    backgroundColor: "#111827",
+    flexDirection: "row",
+    alignItems: "center",
   },
   selectionAction: {
     width: 28,
     height: 28,
     borderRadius: 10,
-    backgroundColor: '#1f2937',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#1f2937",
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: 10,
   },
   selectionActionLast: {
@@ -739,14 +964,14 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#f9fafb',
+    backgroundColor: "#f9fafb",
   },
   selectionSwatch: {
     width: 14,
     height: 14,
     borderRadius: 7,
     borderWidth: 1,
-    borderColor: '#ffffff',
+    borderColor: "#ffffff",
   },
   selectionStrike: {
     width: 14,
