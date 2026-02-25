@@ -26,6 +26,7 @@ target 'PapyrusMobile' do
 
   # Explicit local pod for the workspace package so autolinking isn't required.
   pod 'PapyrusNativeEngine', :path => '../../../packages/engine-native/ios'
+  pod 'react-native-document-picker', :path => '../../../node_modules/react-native-document-picker'
 
   target 'PapyrusMobileTests' do
     inherit! :complete

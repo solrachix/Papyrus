@@ -13,6 +13,27 @@ import {
 } from "@papyrus-sdk/types";
 import { papyrusEvents } from "./services/event-emitter";
 
+const perfNow = () =>
+  typeof performance !== "undefined" && typeof performance.now === "function"
+    ? performance.now()
+    : Date.now();
+
+const isMobilePerfEnabled = () => {
+  const perfGlobal = (globalThis as Record<string, unknown>)
+    .__PAPYRUS_MOBILE_PERF__;
+  if (perfGlobal === true) return true;
+  if (!perfGlobal || typeof perfGlobal !== "object") return false;
+  return (perfGlobal as { enabled?: boolean }).enabled ?? true;
+};
+
+const logStorePerf = (event: string, payload: Record<string, unknown>) => {
+  if (!isMobilePerfEnabled()) return;
+  console.log(`[Papyrus Perf][CoreStore] ${event}`, payload);
+};
+
+let setDocumentStateWindowStart = 0;
+let setDocumentStateCallsInWindow = 0;
+
 interface ViewerState {
   isLoaded: boolean;
   pageCount: number;
@@ -124,6 +145,26 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
     }),
 
   setDocumentState: (state) => {
+    if (isMobilePerfEnabled()) {
+      const now = perfNow();
+      if (
+        setDocumentStateWindowStart === 0 ||
+        now - setDocumentStateWindowStart > 1000
+      ) {
+        setDocumentStateWindowStart = now;
+        setDocumentStateCallsInWindow = 0;
+      }
+
+      setDocumentStateCallsInWindow += 1;
+      if (setDocumentStateCallsInWindow === 12) {
+        logStorePerf("setDocumentState.burst", {
+          calls: setDocumentStateCallsInWindow,
+          windowMs: Math.round(now - setDocumentStateWindowStart),
+          keys: Object.keys(state),
+        });
+      }
+    }
+
     const oldPage = get().currentPage;
     const oldZoom = get().zoom;
 
@@ -159,7 +200,9 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
     const shouldAutoSelect = ann.type === "text" || ann.type === "comment";
     set((state) => ({
       annotations: [...state.annotations, ann],
-      selectedAnnotationId: shouldAutoSelect ? ann.id : state.selectedAnnotationId,
+      selectedAnnotationId: shouldAutoSelect
+        ? ann.id
+        : state.selectedAnnotationId,
     }));
     papyrusEvents.emit(PapyrusEventType.ANNOTATION_CREATED, {
       annotation: ann,

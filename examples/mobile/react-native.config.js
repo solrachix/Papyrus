@@ -5,6 +5,12 @@ module.exports = {
     '@papyrus-sdk/engine-native': {
       root: path.resolve(__dirname, '../../packages/engine-native'),
     },
+    'react-native-document-picker': {
+      root: path.resolve(
+        __dirname,
+        '../../node_modules/react-native-document-picker',
+      ),
+    },
     'react-native-webview': {
       root: path.resolve(__dirname, '../../node_modules/react-native-webview'),
     },

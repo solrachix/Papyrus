@@ -11,6 +11,7 @@ import com.facebook.react.defaults.DefaultReactNativeHost
 import com.facebook.react.shell.MainReactPackage
 import com.facebook.react.soloader.OpenSourceMergedSoMapping
 import com.facebook.soloader.SoLoader
+import com.reactnativedocumentpicker.RNDocumentPickerPackage
 import com.horcrux.svg.SvgPackage
 import com.papyrus.engine.PapyrusPackage
 import com.reactnativecommunity.webview.RNCWebViewPackage
@@ -25,6 +26,7 @@ class MainApplication : Application(), ReactApplication {
                 PapyrusPackage(),
                 SvgPackage(),
                 RNCWebViewPackage(),
+                RNDocumentPickerPackage(),
             )
 
         override fun getJSMainModuleName(): String = "index"
