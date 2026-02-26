@@ -260,7 +260,25 @@ const App: React.FC = () => {
           <ActivityIndicator size="small" color={ACCENT_COLOR} />
         </View>
       )}
-      <Topbar engine={engine} onOpenSettings={() => setSettingsOpen(true)} />
+      <Topbar
+        engine={engine}
+        title="Papyrus Mobile"
+        logo={
+          <View
+            style={[
+              styles.headerLogo,
+              uiTheme === 'dark' && styles.headerLogoDark,
+              {borderColor: accentColor},
+            ]}>
+            <Text style={[styles.headerLogoText, {color: accentColor}]}>
+              PB
+            </Text>
+          </View>
+        }
+        onLogoPress={() => setSettingsOpen(true)}
+        logoAccessibilityLabel="Abrir configurações"
+        onOpenSettings={() => setSettingsOpen(true)}
+      />
       <View style={[styles.typeBar, uiTheme === 'dark' && styles.typeBarDark]}>
         {(['pdf', 'epub', 'text'] as const).map(type => {
           const isActive = type === activeType;
@@ -375,6 +393,23 @@ const styles = StyleSheet.create({
   },
   openButtonText: {
     letterSpacing: 0.6,
+  },
+  headerLogo: {
+    width: 26,
+    height: 26,
+    borderRadius: 8,
+    borderWidth: 1,
+    backgroundColor: '#eff6ff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerLogoDark: {
+    backgroundColor: '#111827',
+  },
+  headerLogoText: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.2,
   },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,

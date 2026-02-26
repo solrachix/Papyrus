@@ -34,6 +34,24 @@ await engine.load({ type: 'pdf', source: { uri: 'https://example.com/book.pdf' }
 />
 ```
 
+## Topbar Customization
+
+`Topbar` supports replacing the default "Papyrus" text and logo.
+
+```tsx
+<Topbar
+  engine={engine}
+  title="My Reader"
+  logo={<MyLogoIcon />}
+  onLogoPress={() => navigation.goBack()}
+  onOpenSettings={() => setSettingsOpen(true)}
+/>
+```
+
+- `title`: replaces the default brand text.
+- `logo`: custom logo node (can be icon, image, or even a `Pressable`).
+- `onLogoPress`: optional callback to make the logo area act like a button.
+
 ## Mobile Performance Baseline (Audit Step)
 
 Enable runtime diagnostics before rendering the viewer:

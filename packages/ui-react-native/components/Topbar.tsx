@@ -11,12 +11,23 @@ import { useViewerStore } from "@papyrus-sdk/core";
 import { IconSettings, IconChevronLeft, IconChevronRight } from "../icons";
 import { DocumentEngine } from "@papyrus-sdk/types";
 
-interface TopbarProps {
+export interface TopbarProps {
   engine: DocumentEngine;
   onOpenSettings?: () => void;
+  title?: string;
+  logo?: React.ReactNode;
+  onLogoPress?: () => void;
+  logoAccessibilityLabel?: string;
 }
 
-const Topbar: React.FC<TopbarProps> = ({ engine, onOpenSettings }) => {
+const Topbar: React.FC<TopbarProps> = ({
+  engine,
+  onOpenSettings,
+  title,
+  logo,
+  onLogoPress,
+  logoAccessibilityLabel = "Logo",
+}) => {
   const {
     currentPage,
     pageCount,
@@ -64,15 +75,34 @@ const Topbar: React.FC<TopbarProps> = ({ engine, onOpenSettings }) => {
     setJumpModalOpen(false);
   };
 
+  const defaultLogo = (
+    <View style={[styles.logoBadge, { backgroundColor: accentColor }]}>
+      <Text style={styles.logoText}>P</Text>
+    </View>
+  );
+  const logoElement = logo ?? defaultLogo;
+
   return (
     <>
       <View style={[styles.container, isDark && styles.containerDark]}>
         <View style={styles.leftGroup}>
-          <View style={[styles.logoBadge, { backgroundColor: accentColor }]}>
-            <Text style={styles.logoText}>P</Text>
-          </View>
-          <Text style={[styles.brandText, isDark && styles.brandTextDark]}>
-            Papyrus
+          {onLogoPress ? (
+            <Pressable
+              onPress={onLogoPress}
+              accessibilityRole="button"
+              accessibilityLabel={logoAccessibilityLabel}
+              style={styles.logoSlot}
+            >
+              {logoElement}
+            </Pressable>
+          ) : (
+            <View style={styles.logoSlot}>{logoElement}</View>
+          )}
+          <Text
+            numberOfLines={1}
+            style={[styles.brandText, isDark && styles.brandTextDark]}
+          >
+            {title ?? "Papyrus"}
           </Text>
         </View>
 
@@ -207,7 +237,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#2563eb",
+  },
+  logoSlot: {
     marginRight: 8,
+    borderRadius: 10,
   },
   logoText: {
     color: "#ffffff",
@@ -218,6 +251,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "800",
     color: "#111827",
+    flexShrink: 1,
   },
   brandTextDark: {
     color: "#f9fafb",
