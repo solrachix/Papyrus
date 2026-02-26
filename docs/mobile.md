@@ -21,6 +21,7 @@ Papyrus mobile uses React Native UI plus a native engine bridge for PDF renderin
 - PDF rendering stays native (Android PDFium + iOS PDFKit).
 - EPUB/TXT render inside a WebView runtime (epub.js + DOM) while keeping the same UI shell.
 - Text search and selection are handled per engine.
+- Visual annotation tools (highlight/underline/squiggly/strikeout/ink) are currently PDF-only.
 - UI is built in React Native and mirrors web flows.
 - Expo prebuild is supported via `@papyrus-sdk/expo-plugin`.
 
@@ -47,6 +48,7 @@ For small screens, keep this interaction baseline:
 Layout behavior:
 
 - Thumbnail and search side panels should open as overlays, not push the page rendering sideways.
+- Header and bottom navigation can auto-hide while scrolling down, and reappear when scrolling up.
 - Viewer should support pinch-to-zoom (two-finger gesture) on touch devices.
 - Annotation dock should start closed and open only via explicit action (pencil button).
 - If the dock closes, nested popovers (for example color picker) should close too.
@@ -87,6 +89,42 @@ resolver: {
 ```
 
 When loading EPUB/TXT, render `<Viewer />` before awaiting `engine.load(...)` so the WebView runtime can initialize.
+
+## Performance tuning flags (RN UI)
+
+`@papyrus-sdk/ui-react-native` exposes tuning props for large documents:
+
+```tsx
+<Viewer
+  engine={engine}
+  virtualWindowSize={8}
+  maxToRenderPerBatch={6}
+  removeClippedSubviews
+/>
+
+<RightSheet engine={engine} thumbsInitialCount={4} />
+```
+
+- `virtualWindowSize` (`Viewer`): FlatList window size.
+- `maxToRenderPerBatch` (`Viewer`): items rendered per batch.
+- `removeClippedSubviews` (`Viewer`): detaches offscreen rows.
+- `thumbsInitialCount` (`RightSheet`): initial thumbnail render count.
+
+## Performance tips (mobile)
+
+- Keep `Viewer` mounted before `engine.load(...)` for EPUB/TXT.
+- Prefer URI-based source for local files (`{ uri: 'file:///...' }`).
+- Start with smaller list windows on mid-tier Android when docs are large (500+ pages).
+
+## Large files (EPUB/PDF) troubleshooting
+
+- Do not convert large local files to base64 on the RN bridge (high OOM risk).
+- Use URI load path and let the runtime fetch/open EPUB as `ArrayBuffer`.
+- Current timeout defaults:
+  - WebView bridge `load` response: `180000ms`
+  - Runtime `epub.open` / `epub.ready`: `180000ms`
+  - Runtime `epub.display`: `30000ms`
+- On ~4GB Android devices, large EPUBs may have visible first-open delay due to zip parse + spine setup.
 
 ## Notes
 

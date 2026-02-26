@@ -52,6 +52,11 @@ Goal: bring the web performance improvements (virtualization stability, faster t
 ## 8) Documentation
 - Update native docs with tuning flags.
 - Add “Performance tips (mobile)” section.
+- Add “Large files (EPUB/PDF)” troubleshooting section:
+  - avoid converting large local files to base64 on RN bridge (OOM risk)
+  - prefer URI-based load with runtime-side fetch/ArrayBuffer path
+  - document fallback strategy, timeout knobs, and expected memory behavior on mid-tier devices
+- Status: done in `packages/ui-react-native/README.md`, `docs/mobile.md`, and `docs/MOBILE.pt-BR.md`.
 
 ## 9) Annotation parity (web → native)
 - Extend native annotation model usage to support:
@@ -63,6 +68,7 @@ Goal: bring the web performance improvements (virtualization stability, faster t
   - highlight/underline/squiggly/strikeout using rects
   - ink paths as SVG or canvas overlay
 - Ensure annotations serialize/restore correctly.
+- Status: implemented in `packages/ui-react-native/components/PageRenderer.tsx`, `packages/ui-react-native/components/ToolDock.tsx`, and `packages/ui-react-native/strings.ts`.
 
 ## 10) Mobile UX baseline parity (web → native)
 - Header:
@@ -70,6 +76,9 @@ Goal: bring the web performance improvements (virtualization stability, faster t
   - center: page controls centered
   - right: search button next to `...` overflow
 - Keep long branding hidden on small screens to preserve title/control space.
+- Mobile chrome behavior:
+  - hide header + bottom bar while scrolling down through pages
+  - show header + bottom bar when user scrolls up with hysteresis threshold
 - `...` quick-actions modal:
   - zoom controls (`-`, `%`, `+`)
   - page theme buttons
@@ -79,6 +88,7 @@ Goal: bring the web performance improvements (virtualization stability, faster t
   - keep modal open after theme changes
 - Side sheets/panels should open as overlay (must not push page render area).
 - Viewer should support pinch-to-zoom (two-finger gesture) on touch screens.
+- Pending: two-finger zoom still needs fix on native PDF pages; currently it works in WebView modes (EPUB/TXT) but not reliably in PDF.
 - Annotation dock should start closed by default and open only on explicit user action.
 - Close nested popovers (e.g. color picker) when annotation dock closes.
 - Ensure quick-actions modal/bottom sheet is above annotation dock (z-index/layer priority).

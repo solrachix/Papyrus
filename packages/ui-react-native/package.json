@@ -1,6 +1,6 @@
 {
   "name": "@papyrus-sdk/ui-react-native",
-  "version": "0.2.9",
+  "version": "0.2.10",
   "license": "MIT",
   "keywords": [
     "papyrus",
@@ -42,7 +42,7 @@
     "build": "tsup"
   },
   "dependencies": {
-    "@papyrus-sdk/engine-native": "0.2.7",
+    "@papyrus-sdk/engine-native": "0.2.8",
     "react-native-svg": "^15.5.0"
   },
   "peerDependencies": {

@@ -18,6 +18,7 @@ import {
   type LayoutChangeEvent,
   type GestureResponderEvent,
 } from "react-native";
+import Svg, { Path as SvgPath } from "react-native-svg";
 import { useViewerStore } from "@papyrus-sdk/core";
 import { Annotation, DocumentEngine, TextSelection } from "@papyrus-sdk/types";
 import {
@@ -45,6 +46,97 @@ interface PageRendererProps {
   spacing?: number;
 }
 
+type NormalizedRect = { x: number; y: number; width: number; height: number };
+
+type TextMarkupType = "highlight" | "underline" | "squiggly" | "strikeout";
+
+const TEXT_MARKUP_TOOLS = new Set<TextMarkupType>([
+  "highlight",
+  "underline",
+  "squiggly",
+  "strikeout",
+]);
+
+const withAlpha = (hex: string, alpha: number) => {
+  const normalized = hex.replace("#", "").trim();
+  const value =
+    normalized.length === 3
+      ? normalized
+          .split("")
+          .map((c) => c + c)
+          .join("")
+      : normalized;
+  if (value.length !== 6) return hex;
+  const r = parseInt(value.slice(0, 2), 16);
+  const g = parseInt(value.slice(2, 4), 16);
+  const b = parseInt(value.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
+
+const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
+
+const getRectKey = (rect: NormalizedRect) =>
+  `${Math.round(rect.x * 10000)}-${Math.round(rect.y * 10000)}-${Math.round(
+    rect.width * 10000
+  )}-${Math.round(rect.height * 10000)}`;
+
+const mergeSelectionRects = (
+  inputRects: NormalizedRect[]
+): NormalizedRect[] => {
+  if (!inputRects.length) return [];
+  const uniqueRects = inputRects
+    .filter((rect) => rect.width > 0 && rect.height > 0)
+    .map((rect) => ({
+      x: clamp01(rect.x),
+      y: clamp01(rect.y),
+      width: clamp01(rect.width),
+      height: clamp01(rect.height),
+    }))
+    .filter((rect, index, list) => {
+      const key = getRectKey(rect);
+      return (
+        list.findIndex((candidate) => getRectKey(candidate) === key) === index
+      );
+    })
+    .sort((a, b) => (a.y === b.y ? a.x - b.x : a.y - b.y));
+
+  return uniqueRects.reduce<NormalizedRect[]>((acc, rect) => {
+    const mergeTarget = acc.find((candidate) => {
+      const closeY =
+        Math.abs(candidate.y - rect.y) < 0.002 &&
+        Math.abs(candidate.height - rect.height) < 0.002;
+      const overlaps =
+        rect.x <= candidate.x + candidate.width + 0.002 &&
+        rect.x + rect.width >= candidate.x - 0.002;
+      return closeY && overlaps;
+    });
+    if (!mergeTarget) {
+      acc.push({ ...rect });
+      return acc;
+    }
+    const left = Math.min(mergeTarget.x, rect.x);
+    const right = Math.max(
+      mergeTarget.x + mergeTarget.width,
+      rect.x + rect.width
+    );
+    mergeTarget.x = left;
+    mergeTarget.width = right - left;
+    return acc;
+  }, []);
+};
+
+const buildSquigglyPath = (segments = 16) => {
+  let path = "M 0 6";
+  for (let index = 1; index <= segments; index += 1) {
+    const x = (index / segments) * 100;
+    const y = index % 2 === 0 ? 6 : 2;
+    path += ` L ${x} ${y}`;
+  }
+  return path;
+};
+
+const SQUIGGLY_PATH = buildSquigglyPath();
+
 const PageRenderer: React.FC<PageRendererProps> = ({
   engine,
   pageIndex,
@@ -61,7 +153,6 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     height: number;
   } | null>(null);
   const { width: windowWidth } = useWindowDimensions();
-  const isAndroid = Platform.OS === "android";
   const isNative = Platform.OS === "android" || Platform.OS === "ios";
   const perfEnabled = isMobilePerfEnabled();
   const renderCountRef = useRef(0);
@@ -76,6 +167,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   const annotationColor = useViewerStore((state) => state.annotationColor);
   const addAnnotation = useViewerStore((state) => state.addAnnotation);
   const setDocumentState = useViewerStore((state) => state.setDocumentState);
+  const activeTool = useViewerStore((state) => state.activeTool);
   const accentColor = useViewerStore((state) => state.accentColor);
   const selectedAnnotationId = useViewerStore(
     (state) => state.selectedAnnotationId
@@ -102,6 +194,17 @@ const PageRenderer: React.FC<PageRendererProps> = ({
       setDocumentState(state);
     },
     [pageIndex, perfEnabled, setDocumentState]
+  );
+
+  const logSelectionPerf = useCallback(
+    (event: string, payload: Record<string, unknown>) => {
+      if (!perfEnabled) return;
+      logPerfEvent("PageRenderer", event, {
+        page: pageIndex + 1,
+        ...payload,
+      });
+    },
+    [pageIndex, perfEnabled]
   );
 
   const pageAnnotations = useMemo(
@@ -172,6 +275,13 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     null
   );
   const pinchRef = useRef<{ distance: number; zoom: number } | null>(null);
+  const isPinchingRef = useRef(false);
+  const pinchLogZoomRef = useRef(zoom);
+  const [isInkDrawing, setIsInkDrawing] = useState(false);
+  const [inkPoints, setInkPoints] = useState<Array<{ x: number; y: number }>>(
+    []
+  );
+  const inkPointsRef = useRef<Array<{ x: number; y: number }>>([]);
 
   useEffect(() => {
     if (!layout.width || !layout.height) return;
@@ -251,15 +361,31 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     y: number,
     width: number,
     height: number,
-    type: Annotation["type"]
+    type: Annotation["type"],
+    extras?: Partial<Pick<Annotation, "rects" | "path" | "content">>
   ) => {
+    const rect = {
+      x: clamp01(x),
+      y: clamp01(y),
+      width: clamp01(width),
+      height: clamp01(height),
+    };
+    logSelectionPerf("annotation.add", {
+      type,
+      rect,
+      rectCount: extras?.rects?.length ?? 0,
+    });
     addAnnotation({
       id: Math.random().toString(36).slice(2, 9),
       pageIndex,
       type,
-      rect: { x, y, width, height },
+      rect,
+      rects: extras?.rects,
+      path: extras?.path,
       color: annotationColor,
-      content: type === "text" || type === "comment" ? "" : undefined,
+      content:
+        extras?.content ??
+        (type === "text" || type === "comment" ? "" : undefined),
       createdAt: Date.now(),
     });
   };
@@ -289,6 +415,17 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     };
   };
 
+  useEffect(() => {
+    inkPointsRef.current = inkPoints;
+  }, [inkPoints]);
+
+  useEffect(() => {
+    if (activeTool === "ink") return;
+    setIsInkDrawing(false);
+    setInkPoints([]);
+    inkPointsRef.current = [];
+  }, [activeTool]);
+
   const clearSelection = () => {
     setSelectionRect(null);
     selectionRectRef.current = null;
@@ -299,21 +436,70 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     setIsSelecting(false);
     selectionStart.current = null;
     selectionBoundsStart.current = null;
+    lastTapRef.current = null;
     setSelectionActive(false);
+  };
+
+  useEffect(() => {
+    if (activeTool === "select") return;
+    clearSelection();
+  }, [activeTool]);
+
+  const stopPressPropagation = (event: GestureResponderEvent) => {
+    event.stopPropagation?.();
   };
 
   const applySelectionResult = (selection: TextSelection | null) => {
     if (!selection || !selection.rects || selection.rects.length === 0) {
+      logSelectionPerf("selection.empty", {
+        tool: activeTool,
+      });
       clearSelection();
       return;
     }
-    setSelectionRects(selection.rects);
-    setSelectionText(selection.text || "");
-    const bounds = getBoundsFromRects(selection.rects);
+    const mergedRects = mergeSelectionRects(selection.rects);
+    if (mergedRects.length === 0) {
+      logSelectionPerf("selection.merged.empty", {
+        tool: activeTool,
+        sourceRectCount: selection.rects.length,
+      });
+      clearSelection();
+      return;
+    }
+    const bounds = getBoundsFromRects(mergedRects);
     if (!bounds) {
+      logSelectionPerf("selection.bounds.empty", {
+        tool: activeTool,
+        mergedRectCount: mergedRects.length,
+      });
       clearSelection();
       return;
     }
+    const selectedText = selection.text || "";
+    logSelectionPerf("selection.ready", {
+      tool: activeTool,
+      sourceRectCount: selection.rects.length,
+      mergedRectCount: mergedRects.length,
+      bounds,
+      textLength: selectedText.length,
+    });
+    if (TEXT_MARKUP_TOOLS.has(activeTool as TextMarkupType)) {
+      addAnnotationAt(
+        bounds.x,
+        bounds.y,
+        bounds.width,
+        bounds.height,
+        activeTool as TextMarkupType,
+        {
+          rects: mergedRects,
+          content: selectedText,
+        }
+      );
+      clearSelection();
+      return;
+    }
+    setSelectionRects(mergedRects);
+    setSelectionText(selectedText);
     setSelectionBounds(bounds);
     selectionBoundsRef.current = bounds;
     setSelectionActive(true);
@@ -360,7 +546,14 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     touches: Array<{ pageX: number; pageY: number }>
   ) => {
     if (!shouldHandlePinch(touches)) return;
-    pinchRef.current = { distance: getTouchDistance(touches), zoom };
+    const distance = getTouchDistance(touches);
+    pinchRef.current = { distance, zoom };
+    pinchLogZoomRef.current = zoom;
+    logSelectionPerf("pinch.start", {
+      tool: activeTool,
+      distance: Math.round(distance * 100) / 100,
+      zoom: Math.round(zoom * 100) / 100,
+    });
   };
 
   const handlePinchMove = (
@@ -373,22 +566,60 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     const nextZoom = clamp(pinchRef.current.zoom * scale, 0.5, 4.0);
     setDocumentStateTracked({ zoom: nextZoom }, "pinchMove");
     engine.setZoom(nextZoom);
+    if (Math.abs(nextZoom - pinchLogZoomRef.current) >= 0.12) {
+      pinchLogZoomRef.current = nextZoom;
+      logSelectionPerf("pinch.move", {
+        tool: activeTool,
+        distance: Math.round(distance * 100) / 100,
+        zoom: Math.round(nextZoom * 100) / 100,
+      });
+    }
   };
 
   const handlePinchEnd = () => {
+    if (isPinchingRef.current || pinchRef.current) {
+      logSelectionPerf("pinch.end", {
+        tool: activeTool,
+        zoom: Math.round(zoom * 100) / 100,
+      });
+    }
     pinchRef.current = null;
   };
 
   const handlePress = (event: GestureResponderEvent) => {
     if (!layout.width || !layout.height) return;
+    const { locationX, locationY } = event.nativeEvent;
     if (selectionRects.length > 0 || selectionBounds) {
+      const selectionPx =
+        selectionBounds && layout.width && layout.height
+          ? {
+              x: selectionBounds.x * layout.width,
+              y: selectionBounds.y * layout.height,
+              width: selectionBounds.width * layout.width,
+              height: selectionBounds.height * layout.height,
+            }
+          : null;
+      if (selectionPx) {
+        const toolbarTop =
+          selectionPx.y + selectionPx.height + 8 > layout.height - 56
+            ? Math.max(8, selectionPx.y - 52)
+            : selectionPx.y + selectionPx.height + 8;
+        const withinSelectionUi =
+          locationX >= selectionPx.x - 24 &&
+          locationX <= selectionPx.x + Math.max(220, selectionPx.width) + 24 &&
+          locationY >= Math.min(selectionPx.y, toolbarTop) - 24 &&
+          locationY <=
+            Math.max(selectionPx.y + selectionPx.height, toolbarTop + 56) + 24;
+        if (withinSelectionUi) {
+          return;
+        }
+      }
       clearSelection();
       return;
     }
     setSelectedAnnotation(null);
-    if (!isNative) return;
+    if (!isNative || activeTool === "ink") return;
 
-    const { locationX, locationY } = event.nativeEvent;
     const now = Date.now();
     const lastTap = lastTapRef.current;
     lastTapRef.current = { time: now, x: locationX, y: locationY };
@@ -396,20 +627,118 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     if (!lastTap) return;
     const timeDelta = now - lastTap.time;
     const distance = Math.hypot(locationX - lastTap.x, locationY - lastTap.y);
-    if (timeDelta < 280 && distance < 24) {
+    if (timeDelta < 280 && distance < 24 && activeTool === "select") {
       void selectAtPoint(locationX, locationY);
     }
   };
 
-  const selectionEnabled = Platform.OS === "web";
-  void selectionText;
+  const selectionEnabled =
+    Platform.OS === "web" ||
+    (isNative &&
+      (activeTool === "select" ||
+        TEXT_MARKUP_TOOLS.has(activeTool as TextMarkupType)));
+  const inkEnabled = isNative && activeTool === "ink";
+  const pinchEnabled = isNative;
+
+  const toNormalizedPoint = (x: number, y: number) => {
+    if (!layout.width || !layout.height) return null;
+    return {
+      x: clamp01(x / layout.width),
+      y: clamp01(y / layout.height),
+    };
+  };
+
+  const beginInkDrawing = (x: number, y: number) => {
+    const point = toNormalizedPoint(x, y);
+    if (!point) return;
+    clearSelection();
+    setIsInkDrawing(true);
+    setInkPoints([point]);
+    inkPointsRef.current = [point];
+  };
+
+  const pushInkPoint = (x: number, y: number) => {
+    const point = toNormalizedPoint(x, y);
+    if (!point) return;
+    const previous = inkPointsRef.current[inkPointsRef.current.length - 1];
+    if (previous) {
+      const distance = Math.hypot(point.x - previous.x, point.y - previous.y);
+      if (distance < 0.0008) return;
+    }
+    setInkPoints((prev) => [...prev, point]);
+    inkPointsRef.current = [...inkPointsRef.current, point];
+  };
+
+  const finishInkDrawing = () => {
+    const points = inkPointsRef.current;
+    if (points.length === 0) return;
+    setIsInkDrawing(false);
+    setInkPoints([]);
+    inkPointsRef.current = [];
+    if (points.length < 2) return;
+
+    const xs = points.map((point) => point.x);
+    const ys = points.map((point) => point.y);
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    const minY = Math.min(...ys);
+    const maxY = Math.max(...ys);
+    addAnnotationAt(
+      minX,
+      minY,
+      Math.max(0.0005, maxX - minX),
+      Math.max(0.0005, maxY - minY),
+      "ink",
+      { path: points }
+    );
+  };
 
   const panResponder = useMemo(
     () =>
       PanResponder.create({
-        onStartShouldSetPanResponder: () => selectionEnabled,
-        onMoveShouldSetPanResponder: () => selectionEnabled,
+        onStartShouldSetPanResponder: (event) => {
+          const touches = event.nativeEvent.touches ?? [];
+          return (
+            (pinchEnabled && shouldHandlePinch(touches)) ||
+            selectionEnabled ||
+            inkEnabled
+          );
+        },
+        onMoveShouldSetPanResponder: (event) => {
+          const touches = event.nativeEvent.touches ?? [];
+          return (
+            (pinchEnabled && shouldHandlePinch(touches)) ||
+            selectionEnabled ||
+            inkEnabled
+          );
+        },
+        onStartShouldSetPanResponderCapture: (event) => {
+          const touches = event.nativeEvent.touches ?? [];
+          return pinchEnabled && shouldHandlePinch(touches);
+        },
+        onMoveShouldSetPanResponderCapture: (event) => {
+          const touches = event.nativeEvent.touches ?? [];
+          return pinchEnabled && shouldHandlePinch(touches);
+        },
         onPanResponderGrant: (event) => {
+          const touches = event.nativeEvent.touches ?? [];
+          if (pinchEnabled && shouldHandlePinch(touches)) {
+            isPinchingRef.current = true;
+            setIsSelecting(false);
+            selectionStart.current = null;
+            handlePinchStart(touches);
+            return;
+          }
+          isPinchingRef.current = false;
+
+          if (inkEnabled) {
+            beginInkDrawing(
+              event.nativeEvent.locationX,
+              event.nativeEvent.locationY
+            );
+            return;
+          }
+
           if (!selectionEnabled || !layout.width || !layout.height) return;
           const { locationX, locationY } = event.nativeEvent;
           selectionStart.current = { x: locationX, y: locationY };
@@ -418,7 +747,29 @@ const PageRenderer: React.FC<PageRendererProps> = ({
           selectionRectRef.current = rect;
           setSelectionRect(rect);
         },
-        onPanResponderMove: (_, gestureState) => {
+        onPanResponderMove: (event, gestureState) => {
+          const touches = event.nativeEvent.touches ?? [];
+          if (
+            pinchEnabled &&
+            (shouldHandlePinch(touches) || isPinchingRef.current)
+          ) {
+            if (shouldHandlePinch(touches)) {
+              if (!isPinchingRef.current) {
+                isPinchingRef.current = true;
+                handlePinchStart(touches);
+              }
+              handlePinchMove(touches);
+            }
+            return;
+          }
+
+          if (inkEnabled) {
+            pushInkPoint(
+              event.nativeEvent.locationX,
+              event.nativeEvent.locationY
+            );
+            return;
+          }
           if (!selectionEnabled || !selectionStart.current) return;
           const start = selectionStart.current;
           const currentX = start.x + gestureState.dx;
@@ -437,6 +788,17 @@ const PageRenderer: React.FC<PageRendererProps> = ({
           setSelectionRect(rect);
         },
         onPanResponderRelease: async () => {
+          if (isPinchingRef.current) {
+            isPinchingRef.current = false;
+            handlePinchEnd();
+            return;
+          }
+
+          if (inkEnabled) {
+            finishInkDrawing();
+            return;
+          }
+
           const rect = selectionRectRef.current;
           if (!selectionEnabled || !rect || !layout.width || !layout.height) {
             setIsSelecting(false);
@@ -462,8 +824,30 @@ const PageRenderer: React.FC<PageRendererProps> = ({
           await selectFromBounds(normalized);
           setSelectionRect(null);
         },
+        onPanResponderTerminate: () => {
+          if (isPinchingRef.current) {
+            isPinchingRef.current = false;
+            handlePinchEnd();
+            return;
+          }
+
+          if (inkEnabled) {
+            finishInkDrawing();
+            return;
+          }
+          setIsSelecting(false);
+          selectionStart.current = null;
+        },
       }),
-    [selectionEnabled, layout.width, layout.height, engine, pageIndex]
+    [
+      selectionEnabled,
+      inkEnabled,
+      pinchEnabled,
+      layout.width,
+      layout.height,
+      annotationColor,
+      zoom,
+    ]
   );
 
   const selectionBoundsPx = useMemo(() => {
@@ -535,24 +919,32 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     [layout.width, layout.height, engine, pageIndex]
   );
 
-  const applySelection = (type: "highlight" | "strikeout" | "comment") => {
+  const applySelection = (type: TextMarkupType | "comment") => {
     if (selectionRects.length === 0) return;
+    const mergedRects = mergeSelectionRects(selectionRects);
+    const bounds = getBoundsFromRects(mergedRects);
+    if (!bounds || mergedRects.length === 0) {
+      clearSelection();
+      return;
+    }
 
     if (type === "comment") {
-      const first = selectionRects[0];
+      const first = mergedRects[0];
       addAnnotationAt(
         first.x,
         first.y,
         Math.max(0.08, first.width),
         Math.max(0.06, first.height),
-        "comment"
+        "comment",
+        { content: selectionText }
       );
       clearSelection();
       return;
     }
 
-    selectionRects.forEach((rect) => {
-      addAnnotationAt(rect.x, rect.y, rect.width, rect.height, type);
+    addAnnotationAt(bounds.x, bounds.y, bounds.width, bounds.height, type, {
+      rects: mergedRects,
+      content: selectionText,
     });
     clearSelection();
   };
@@ -580,7 +972,8 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   const pageHeight = pageWidth / aspectRatio;
   const hasActiveSelection =
     selectionRects.length > 0 || !!selectionBounds || isSelecting;
-  const scrollEnabled = isNative && zoom > 1 && !hasActiveSelection;
+  const scrollEnabled =
+    isNative && zoom > 1 && !hasActiveSelection && !isInkDrawing;
 
   return (
     <ScrollView
@@ -600,18 +993,6 @@ const PageRenderer: React.FC<PageRendererProps> = ({
         ]}
         onLayout={handleLayout}
         onPress={handlePress}
-        onStartShouldSetResponder={(event) =>
-          shouldHandlePinch(event.nativeEvent.touches)
-        }
-        onMoveShouldSetResponder={(event) =>
-          shouldHandlePinch(event.nativeEvent.touches)
-        }
-        onResponderGrant={(event) =>
-          handlePinchStart(event.nativeEvent.touches)
-        }
-        onResponderMove={(event) => handlePinchMove(event.nativeEvent.touches)}
-        onResponderRelease={handlePinchEnd}
-        onResponderTerminate={handlePinchEnd}
       >
         <PageViewComponent ref={viewRef} style={styles.page} />
         <View
@@ -714,57 +1095,210 @@ const PageRenderer: React.FC<PageRendererProps> = ({
             });
           })}
         </View>
+        {isInkDrawing && inkPoints.length > 1 ? (
+          <View pointerEvents="none" style={styles.inkPreviewLayer}>
+            <Svg
+              width="100%"
+              height="100%"
+              viewBox="0 0 1 1"
+              preserveAspectRatio="none"
+            >
+              <SvgPath
+                d={inkPoints
+                  .map(
+                    (point, pointIndex) =>
+                      `${pointIndex === 0 ? "M" : "L"} ${point.x} ${point.y}`
+                  )
+                  .join(" ")}
+                fill="none"
+                stroke={annotationColor}
+                strokeWidth={0.006}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </Svg>
+          </View>
+        ) : null}
         <View pointerEvents="box-none" style={styles.annotationLayer}>
           {pageAnnotations.map((ann) => {
             const isSelected = selectedAnnotationId === ann.id;
-            const style = {
+            const isText = ann.type === "comment" || ann.type === "text";
+            const isInk =
+              ann.type === "ink" &&
+              Array.isArray(ann.path) &&
+              ann.path.length > 1;
+            const isMarkup = TEXT_MARKUP_TOOLS.has(ann.type as TextMarkupType);
+            const rects =
+              ann.rects && ann.rects.length > 0 ? ann.rects : [ann.rect];
+            const hitTargetStyle = {
               left: `${ann.rect.x * 100}%`,
               top: `${ann.rect.y * 100}%`,
               width: `${ann.rect.width * 100}%`,
               height: `${ann.rect.height * 100}%`,
-              backgroundColor:
-                ann.type === "highlight" ? `${ann.color}66` : "transparent",
-              borderBottomWidth: ann.type === "strikeout" ? 3 : 0,
-              borderBottomColor:
-                ann.type === "strikeout" ? ann.color : "transparent",
             } as const;
 
             return (
-              <Pressable
+              <View
                 key={ann.id}
-                onPress={() => setSelectedAnnotation(ann.id)}
-                style={[
-                  styles.annotation,
-                  style,
-                  isSelected && styles.annotationSelected,
-                  isSelected && { borderColor: accentColor },
-                ]}
+                pointerEvents="box-none"
+                style={styles.annotationGroup}
               >
-                {(ann.type === "comment" || ann.type === "text") && (
-                  <View
-                    style={[styles.annotationBadge, { borderColor: ann.color }]}
+                {isMarkup
+                  ? rects.map((rect, rectIndex) => {
+                      const rectStyle = {
+                        left: `${rect.x * 100}%`,
+                        top: `${rect.y * 100}%`,
+                        width: `${rect.width * 100}%`,
+                        height: `${rect.height * 100}%`,
+                      } as const;
+
+                      if (ann.type === "highlight") {
+                        return (
+                          <View
+                            key={`${ann.id}-mark-${rectIndex}`}
+                            pointerEvents="none"
+                            style={[
+                              styles.annotationMarkupRect,
+                              rectStyle,
+                              { backgroundColor: withAlpha(ann.color, 0.38) },
+                            ]}
+                          />
+                        );
+                      }
+
+                      if (ann.type === "underline") {
+                        return (
+                          <View
+                            key={`${ann.id}-mark-${rectIndex}`}
+                            pointerEvents="none"
+                            style={[styles.annotationLineContainer, rectStyle]}
+                          >
+                            <View
+                              style={[
+                                styles.annotationUnderlineLine,
+                                { backgroundColor: ann.color },
+                              ]}
+                            />
+                          </View>
+                        );
+                      }
+
+                      if (ann.type === "strikeout") {
+                        return (
+                          <View
+                            key={`${ann.id}-mark-${rectIndex}`}
+                            pointerEvents="none"
+                            style={[styles.annotationLineContainer, rectStyle]}
+                          >
+                            <View
+                              style={[
+                                styles.annotationStrikeLine,
+                                { backgroundColor: ann.color },
+                              ]}
+                            />
+                          </View>
+                        );
+                      }
+
+                      return (
+                        <View
+                          key={`${ann.id}-mark-${rectIndex}`}
+                          pointerEvents="none"
+                          style={[styles.annotationLineContainer, rectStyle]}
+                        >
+                          <View style={styles.annotationSquigglyWrap}>
+                            <Svg
+                              width="100%"
+                              height="100%"
+                              viewBox="0 0 100 8"
+                              preserveAspectRatio="none"
+                            >
+                              <SvgPath
+                                d={SQUIGGLY_PATH}
+                                fill="none"
+                                stroke={ann.color}
+                                strokeWidth={1.8}
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </Svg>
+                          </View>
+                        </View>
+                      );
+                    })
+                  : null}
+                {isInk && ann.path ? (
+                  <Svg
+                    pointerEvents="none"
+                    style={styles.inkAnnotationLayer}
+                    width="100%"
+                    height="100%"
+                    viewBox="0 0 1 1"
+                    preserveAspectRatio="none"
                   >
+                    <SvgPath
+                      d={ann.path
+                        .map(
+                          (point, pointIndex) =>
+                            `${pointIndex === 0 ? "M" : "L"} ${point.x} ${
+                              point.y
+                            }`
+                        )
+                        .join(" ")}
+                      fill="none"
+                      stroke={ann.color}
+                      strokeWidth={0.006}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </Svg>
+                ) : null}
+                <Pressable
+                  onPress={(event) => {
+                    stopPressPropagation(event);
+                    setSelectedAnnotation(ann.id);
+                  }}
+                  style={[
+                    styles.annotation,
+                    hitTargetStyle,
+                    isSelected && styles.annotationSelected,
+                    isSelected && { borderColor: accentColor },
+                  ]}
+                >
+                  {isText && (
                     <View
                       style={[
-                        styles.annotationDot,
-                        { backgroundColor: ann.color },
+                        styles.annotationBadge,
+                        { borderColor: ann.color },
                       ]}
-                    />
-                  </View>
-                )}
-                {isSelected && (
-                  <Pressable
-                    onPress={() => removeAnnotation(ann.id)}
-                    style={styles.deleteButton}
-                  >
-                    <View style={styles.deleteDot} />
-                  </Pressable>
-                )}
-              </Pressable>
+                    >
+                      <View
+                        style={[
+                          styles.annotationDot,
+                          { backgroundColor: ann.color },
+                        ]}
+                      />
+                    </View>
+                  )}
+                  {isSelected && (
+                    <Pressable
+                      onPress={(event) => {
+                        stopPressPropagation(event);
+                        removeAnnotation(ann.id);
+                      }}
+                      style={styles.deleteButton}
+                    >
+                      <View style={styles.deleteDot} />
+                    </Pressable>
+                  )}
+                </Pressable>
+              </View>
             );
           })}
         </View>
-        {selectionRects.length > 0 && selectionBoundsPx ? (
+        {selectionRects.length > 0 &&
+        selectionBoundsPx &&
+        activeTool === "select" ? (
           <View
             pointerEvents="box-none"
             style={[
@@ -780,13 +1314,19 @@ const PageRenderer: React.FC<PageRendererProps> = ({
             ]}
           >
             <Pressable
-              onPress={() => applySelection("comment")}
+              onPress={(event) => {
+                stopPressPropagation(event);
+                applySelection("comment");
+              }}
               style={styles.selectionAction}
             >
               <View style={styles.selectionActionDot} />
             </Pressable>
             <Pressable
-              onPress={() => applySelection("highlight")}
+              onPress={(event) => {
+                stopPressPropagation(event);
+                applySelection("highlight");
+              }}
               style={styles.selectionAction}
             >
               <View
@@ -797,7 +1337,49 @@ const PageRenderer: React.FC<PageRendererProps> = ({
               />
             </Pressable>
             <Pressable
-              onPress={() => applySelection("strikeout")}
+              onPress={(event) => {
+                stopPressPropagation(event);
+                applySelection("underline");
+              }}
+              style={styles.selectionAction}
+            >
+              <View
+                style={[
+                  styles.selectionUnderline,
+                  { backgroundColor: annotationColor },
+                ]}
+              />
+            </Pressable>
+            <Pressable
+              onPress={(event) => {
+                stopPressPropagation(event);
+                applySelection("squiggly");
+              }}
+              style={styles.selectionAction}
+            >
+              <View style={styles.selectionSquigglyWrap}>
+                <Svg
+                  width="100%"
+                  height="100%"
+                  viewBox="0 0 100 8"
+                  preserveAspectRatio="none"
+                >
+                  <SvgPath
+                    d={SQUIGGLY_PATH}
+                    fill="none"
+                    stroke={annotationColor}
+                    strokeWidth={1.8}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </Svg>
+              </View>
+            </Pressable>
+            <Pressable
+              onPress={(event) => {
+                stopPressPropagation(event);
+                applySelection("strikeout");
+              }}
               style={[styles.selectionAction, styles.selectionActionLast]}
             >
               <View
@@ -841,7 +1423,17 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
   },
+  annotationGroup: {
+    ...StyleSheet.absoluteFillObject,
+  },
   searchLayer: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    right: 0,
+    bottom: 0,
+  },
+  inkPreviewLayer: {
     position: "absolute",
     left: 0,
     top: 0,
@@ -905,6 +1497,40 @@ const styles = StyleSheet.create({
   },
   annotation: {
     position: "absolute",
+  },
+  inkAnnotationLayer: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  annotationMarkupRect: {
+    position: "absolute",
+    borderRadius: 2,
+  },
+  annotationLineContainer: {
+    position: "absolute",
+  },
+  annotationUnderlineLine: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 2,
+    borderRadius: 2,
+  },
+  annotationStrikeLine: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: "50%",
+    marginTop: -1,
+    height: 2,
+    borderRadius: 2,
+  },
+  annotationSquigglyWrap: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 8,
   },
   annotationSelected: {
     borderWidth: 1,
@@ -977,6 +1603,15 @@ const styles = StyleSheet.create({
     borderRadius: 7,
     borderWidth: 1,
     borderColor: "#ffffff",
+  },
+  selectionUnderline: {
+    width: 14,
+    height: 2,
+    borderRadius: 2,
+  },
+  selectionSquigglyWrap: {
+    width: 14,
+    height: 8,
   },
   selectionStrike: {
     width: 14,

@@ -35,6 +35,7 @@ const Topbar: React.FC<TopbarProps> = ({
     setDocumentState,
     triggerScrollToPage,
     accentColor,
+    mobileChromeVisible,
   } = useViewerStore();
   const [pageLabel, setPageLabel] = useState(`${currentPage}`);
   const [jumpModalOpen, setJumpModalOpen] = useState(false);
@@ -81,6 +82,8 @@ const Topbar: React.FC<TopbarProps> = ({
     </View>
   );
   const logoElement = logo ?? defaultLogo;
+
+  if (!mobileChromeVisible) return null;
 
   return (
     <>

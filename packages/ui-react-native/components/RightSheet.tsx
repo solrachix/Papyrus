@@ -35,8 +35,9 @@ import {
   sampleMemory,
 } from "../perf/mobilePerf";
 
-interface RightSheetProps {
+export interface RightSheetProps {
   engine: DocumentEngine;
+  thumbsInitialCount?: number;
 }
 
 const withAlpha = (hex: string, alpha: number) => {
@@ -68,6 +69,17 @@ const areNumberSetsEqual = (a: Set<number>, b: Set<number>) => {
     if (!b.has(value)) return false;
   }
   return true;
+};
+
+const resolvePositiveInt = (
+  value: number | undefined,
+  fallback: number,
+  min: number,
+  max: number
+) => {
+  if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
+  const rounded = Math.round(value);
+  return Math.max(min, Math.min(max, rounded));
 };
 
 const PageThumbnail: React.FC<{
@@ -205,7 +217,10 @@ const OutlineNode: React.FC<{
   );
 };
 
-const RightSheet: React.FC<RightSheetProps> = ({ engine }) => {
+const RightSheet: React.FC<RightSheetProps> = ({
+  engine,
+  thumbsInitialCount,
+}) => {
   const {
     sidebarRightOpen,
     sidebarRightTab,
@@ -264,6 +279,24 @@ const RightSheet: React.FC<RightSheetProps> = ({ engine }) => {
   const [visibleThumbnailPages, setVisibleThumbnailPages] = useState<
     Set<number>
   >(() => new Set());
+  const resolvedThumbsInitialCount = useMemo(
+    () =>
+      resolvePositiveInt(
+        thumbsInitialCount,
+        THUMBNAILS_INITIAL_NUM_TO_RENDER,
+        2,
+        24
+      ),
+    [thumbsInitialCount]
+  );
+  const resolvedThumbsPrewarmCount =
+    thumbsInitialCount === undefined
+      ? THUMBNAILS_PREWARM_COUNT
+      : Math.max(resolvedThumbsInitialCount, resolvedThumbsInitialCount * 2);
+  const normalizedThumbsInitialCount = Math.min(
+    resolvedThumbsInitialCount,
+    resolvedThumbsPrewarmCount
+  );
 
   const closeSheet = useCallback(() => {
     toggleSidebarRight();
@@ -336,12 +369,20 @@ const RightSheet: React.FC<RightSheetProps> = ({ engine }) => {
       tab: sidebarRightTab,
       pageCount,
       currentPage,
+      thumbsInitialCount: normalizedThumbsInitialCount,
     });
     sampleMemory("RightSheet", "open", {
       tab: sidebarRightTab,
       pageCount,
     });
-  }, [perfEnabled, sidebarRightOpen]);
+  }, [
+    currentPage,
+    pageCount,
+    perfEnabled,
+    normalizedThumbsInitialCount,
+    sidebarRightOpen,
+    sidebarRightTab,
+  ]);
 
   useEffect(() => {
     if (!perfEnabled || !sidebarRightOpen) return;
@@ -385,7 +426,7 @@ const RightSheet: React.FC<RightSheetProps> = ({ engine }) => {
     if (pageCount <= 0) return;
 
     const initialVisible = new Set<number>();
-    const initialCount = Math.min(pageCount, THUMBNAILS_PREWARM_COUNT);
+    const initialCount = Math.min(pageCount, resolvedThumbsPrewarmCount);
     for (let i = 0; i < initialCount; i += 1) {
       initialVisible.add(i);
       ensureThumbnailDimensions(i);
@@ -407,6 +448,7 @@ const RightSheet: React.FC<RightSheetProps> = ({ engine }) => {
     ensureThumbnailDimensions,
     pageCount,
     pagesMode,
+    resolvedThumbsPrewarmCount,
     sidebarRightOpen,
     sidebarRightTab,
   ]);
@@ -544,7 +586,7 @@ const RightSheet: React.FC<RightSheetProps> = ({ engine }) => {
       const shouldRenderPreview =
         useNativePreview &&
         (visibleThumbnailPages.has(item) ||
-          item < THUMBNAILS_PREWARM_COUNT ||
+          item < resolvedThumbsPrewarmCount ||
           Math.abs(item + 1 - currentPage) <= 1);
       return (
         <PageThumbnail
@@ -572,6 +614,7 @@ const RightSheet: React.FC<RightSheetProps> = ({ engine }) => {
       getThumbnailFrameHeight,
       handleThumbnailPress,
       isDark,
+      resolvedThumbsPrewarmCount,
       useNativePreview,
       visibleThumbnailPages,
       zoom,
@@ -689,7 +732,7 @@ const RightSheet: React.FC<RightSheetProps> = ({ engine }) => {
                   contentContainerStyle={styles.thumbGrid}
                   columnWrapperStyle={styles.thumbRow}
                   showsVerticalScrollIndicator={false}
-                  initialNumToRender={THUMBNAILS_INITIAL_NUM_TO_RENDER}
+                  initialNumToRender={normalizedThumbsInitialCount}
                   windowSize={THUMBNAILS_WINDOW_SIZE}
                   maxToRenderPerBatch={THUMBNAILS_MAX_TO_RENDER_PER_BATCH}
                   updateCellsBatchingPeriod={

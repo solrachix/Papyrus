@@ -27,8 +27,11 @@ import {
   sampleMemory,
 } from "../perf/mobilePerf";
 
-interface ViewerProps {
+export interface ViewerProps {
   engine: DocumentEngine;
+  virtualWindowSize?: number;
+  maxToRenderPerBatch?: number;
+  removeClippedSubviews?: boolean;
 }
 
 const LIST_TOP_PADDING = 18;
@@ -42,14 +45,37 @@ const FLATLIST_UPDATE_CELLS_BATCHING_PERIOD = 40;
 const FLATLIST_INITIAL_NUM_TO_RENDER = 6;
 const SCROLL_RETRY_DELAY_MS = 120;
 const SCROLL_MAX_RETRIES = 10;
+const MOBILE_CHROME_HIDE_DELTA = 28;
+const MOBILE_CHROME_SHOW_DELTA = 22;
+const MOBILE_CHROME_SHOW_DELAY_MS = 180;
+const MOBILE_CHROME_TOP_RESET = 16;
 
-const Viewer: React.FC<ViewerProps> = ({ engine }) => {
+const resolvePositiveInt = (
+  value: number | undefined,
+  fallback: number,
+  min: number,
+  max: number
+) => {
+  if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
+  const rounded = Math.round(value);
+  return Math.max(min, Math.min(max, rounded));
+};
+
+const Viewer: React.FC<ViewerProps> = ({
+  engine,
+  virtualWindowSize,
+  maxToRenderPerBatch,
+  removeClippedSubviews,
+}) => {
   const pageCount = useViewerStore((state) => state.pageCount);
   const currentPage = useViewerStore((state) => state.currentPage);
   const scrollToPageSignal = useViewerStore(
     (state) => state.scrollToPageSignal
   );
   const setDocumentState = useViewerStore((state) => state.setDocumentState);
+  const mobileChromeVisible = useViewerStore(
+    (state) => state.mobileChromeVisible
+  );
   const uiTheme = useViewerStore((state) => state.uiTheme);
   const viewMode = useViewerStore((state) => state.viewMode);
   const zoom = useViewerStore((state) => state.zoom);
@@ -83,7 +109,29 @@ const Viewer: React.FC<ViewerProps> = ({ engine }) => {
   const pendingScrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null
   );
+  const pendingChromeShowTimeoutRef = useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
+  const chromeVisibleRef = useRef(mobileChromeVisible);
+  const lastScrollOffsetYRef = useRef(0);
+  const scrollDownAccumRef = useRef(0);
+  const scrollUpAccumRef = useRef(0);
   const [layoutRevision, setLayoutRevision] = useState(0);
+  const resolvedWindowSize = useMemo(
+    () => resolvePositiveInt(virtualWindowSize, FLATLIST_WINDOW_SIZE, 2, 30),
+    [virtualWindowSize]
+  );
+  const resolvedMaxToRenderPerBatch = useMemo(
+    () =>
+      resolvePositiveInt(
+        maxToRenderPerBatch,
+        FLATLIST_MAX_TO_RENDER_PER_BATCH,
+        1,
+        30
+      ),
+    [maxToRenderPerBatch]
+  );
+  const resolvedRemoveClippedSubviews = removeClippedSubviews ?? true;
 
   renderCounterRef.current({
     pageCount,
@@ -125,6 +173,13 @@ const Viewer: React.FC<ViewerProps> = ({ engine }) => {
     pendingScrollAttemptsRef.current = 0;
     clearPendingScrollRetry();
   }, [clearPendingScrollRetry]);
+
+  const clearPendingChromeShow = useCallback(() => {
+    if (pendingChromeShowTimeoutRef.current) {
+      clearTimeout(pendingChromeShowTimeoutRef.current);
+      pendingChromeShowTimeoutRef.current = null;
+    }
+  }, []);
 
   const scheduleScrollRetry = useCallback(
     (reason: string) => {
@@ -171,8 +226,9 @@ const Viewer: React.FC<ViewerProps> = ({ engine }) => {
         clearTimeout(layoutRefreshTimeoutRef.current);
       }
       clearPendingScrollRetry();
+      clearPendingChromeShow();
     },
-    [clearPendingScrollRetry]
+    [clearPendingChromeShow, clearPendingScrollRetry]
   );
 
   const ensurePageDimensions = useCallback(
@@ -224,12 +280,25 @@ const Viewer: React.FC<ViewerProps> = ({ engine }) => {
 
   useEffect(() => {
     if (!perfEnabled) return;
-    logPerfEvent("Viewer", "mount", { viewMode, renderTargetType });
+    logPerfEvent("Viewer", "mount", {
+      viewMode,
+      renderTargetType,
+      virtualWindowSize: resolvedWindowSize,
+      maxToRenderPerBatch: resolvedMaxToRenderPerBatch,
+      removeClippedSubviews: resolvedRemoveClippedSubviews,
+    });
     sampleMemory("Viewer", "mount", { pageCount });
     return () => {
       logPerfEvent("Viewer", "unmount");
     };
-  }, [perfEnabled]);
+  }, [
+    perfEnabled,
+    renderTargetType,
+    resolvedMaxToRenderPerBatch,
+    resolvedRemoveClippedSubviews,
+    resolvedWindowSize,
+    viewMode,
+  ]);
 
   useEffect(() => {
     if (!perfEnabled || readyLoggedRef.current || pageCount <= 0) return;
@@ -260,6 +329,96 @@ const Viewer: React.FC<ViewerProps> = ({ engine }) => {
       setDocumentState(state);
     },
     [perfEnabled, setDocumentState]
+  );
+
+  useEffect(() => {
+    chromeVisibleRef.current = mobileChromeVisible;
+  }, [mobileChromeVisible]);
+
+  const setMobileChromeVisible = useCallback(
+    (visible: boolean, reason: string) => {
+      if (chromeVisibleRef.current === visible) return;
+      chromeVisibleRef.current = visible;
+      setDocumentStateTracked({ mobileChromeVisible: visible }, reason);
+    },
+    [setDocumentStateTracked]
+  );
+
+  const resetMobileChromeTracking = useCallback(
+    (showChrome: boolean, reason: string) => {
+      lastScrollOffsetYRef.current = 0;
+      scrollDownAccumRef.current = 0;
+      scrollUpAccumRef.current = 0;
+      clearPendingChromeShow();
+      if (showChrome) {
+        setMobileChromeVisible(true, reason);
+      }
+    },
+    [clearPendingChromeShow, setMobileChromeVisible]
+  );
+
+  const trackMobileChromeByOffset = useCallback(
+    (offsetY: number, reasonPrefix: string) => {
+      if (isWebView) return;
+      if (pageCount <= 0) return;
+
+      const safeOffset = Math.max(0, offsetY);
+      const delta = safeOffset - lastScrollOffsetYRef.current;
+      lastScrollOffsetYRef.current = safeOffset;
+
+      if (safeOffset <= MOBILE_CHROME_TOP_RESET) {
+        scrollDownAccumRef.current = 0;
+        scrollUpAccumRef.current = 0;
+        clearPendingChromeShow();
+        setMobileChromeVisible(true, `${reasonPrefix}.top`);
+        return;
+      }
+
+      if (Math.abs(delta) < 1) return;
+
+      if (delta > 0) {
+        scrollDownAccumRef.current += delta;
+        scrollUpAccumRef.current = 0;
+        clearPendingChromeShow();
+        if (
+          scrollDownAccumRef.current >= MOBILE_CHROME_HIDE_DELTA &&
+          chromeVisibleRef.current
+        ) {
+          scrollDownAccumRef.current = 0;
+          setMobileChromeVisible(false, `${reasonPrefix}.hide`);
+        }
+        return;
+      }
+
+      scrollUpAccumRef.current += -delta;
+      scrollDownAccumRef.current = 0;
+      if (
+        scrollUpAccumRef.current >= MOBILE_CHROME_SHOW_DELTA &&
+        !chromeVisibleRef.current
+      ) {
+        if (!pendingChromeShowTimeoutRef.current) {
+          pendingChromeShowTimeoutRef.current = setTimeout(() => {
+            pendingChromeShowTimeoutRef.current = null;
+            scrollUpAccumRef.current = 0;
+            if (!chromeVisibleRef.current) {
+              setMobileChromeVisible(true, `${reasonPrefix}.show`);
+            }
+          }, MOBILE_CHROME_SHOW_DELAY_MS);
+        }
+      }
+    },
+    [clearPendingChromeShow, isWebView, pageCount, setMobileChromeVisible]
+  );
+
+  useEffect(() => {
+    resetMobileChromeTracking(true, "mobileChrome.reset");
+  }, [isSingle, isWebView, pageCount, resetMobileChromeTracking]);
+
+  useEffect(
+    () => () => {
+      setDocumentState({ mobileChromeVisible: true });
+    },
+    [setDocumentState]
   );
 
   const columnGap = 12;
@@ -517,6 +676,24 @@ const Viewer: React.FC<ViewerProps> = ({ engine }) => {
     ]
   );
 
+  const handleViewerScroll = useCallback(
+    (
+      event: {
+        nativeEvent?: { contentOffset?: { y?: number }; timestamp?: unknown };
+      },
+      mode: "single" | "continuous"
+    ) => {
+      const offsetY = event.nativeEvent?.contentOffset?.y ?? 0;
+      trackMobileChromeByOffset(offsetY, `scroll.${mode}`);
+      if (!perfEnabled) return;
+      const timestampValue = event.nativeEvent?.timestamp;
+      const timestamp =
+        typeof timestampValue === "number" ? timestampValue : undefined;
+      scrollMonitorRef.current.track(timestamp);
+    },
+    [perfEnabled, trackMobileChromeByOffset]
+  );
+
   const keyExtractor = useCallback(
     (item: number | { left: number; right: number | null }) => {
       if (typeof item === "number") return `page-${item}`;
@@ -583,20 +760,7 @@ const Viewer: React.FC<ViewerProps> = ({ engine }) => {
           contentContainerStyle={styles.singleContent}
           showsVerticalScrollIndicator={false}
           scrollEnabled
-          onScroll={
-            perfEnabled
-              ? (event) => {
-                  const timestampValue = (
-                    event.nativeEvent as unknown as { timestamp?: unknown }
-                  ).timestamp;
-                  const timestamp =
-                    typeof timestampValue === "number"
-                      ? timestampValue
-                      : undefined;
-                  scrollMonitorRef.current.track(timestamp);
-                }
-              : undefined
-          }
+          onScroll={(event) => handleViewerScroll(event, "single")}
           onScrollBeginDrag={
             perfEnabled
               ? () => {
@@ -627,7 +791,7 @@ const Viewer: React.FC<ViewerProps> = ({ engine }) => {
                 }
               : undefined
           }
-          scrollEventThrottle={perfEnabled ? 16 : undefined}
+          scrollEventThrottle={16}
         >
           <PageRenderer
             engine={engine}
@@ -645,10 +809,10 @@ const Viewer: React.FC<ViewerProps> = ({ engine }) => {
         ref={listRef}
         data={isDouble ? rows : pages}
         initialNumToRender={FLATLIST_INITIAL_NUM_TO_RENDER}
-        windowSize={FLATLIST_WINDOW_SIZE}
-        maxToRenderPerBatch={FLATLIST_MAX_TO_RENDER_PER_BATCH}
+        windowSize={resolvedWindowSize}
+        maxToRenderPerBatch={resolvedMaxToRenderPerBatch}
         updateCellsBatchingPeriod={FLATLIST_UPDATE_CELLS_BATCHING_PERIOD}
-        removeClippedSubviews
+        removeClippedSubviews={resolvedRemoveClippedSubviews}
         getItemLayout={getItemLayout}
         keyExtractor={keyExtractor}
         contentContainerStyle={styles.listContent}
@@ -688,20 +852,7 @@ const Viewer: React.FC<ViewerProps> = ({ engine }) => {
             });
           }
         }}
-        onScroll={
-          perfEnabled
-            ? (event) => {
-                const timestampValue = (
-                  event.nativeEvent as unknown as { timestamp?: unknown }
-                ).timestamp;
-                const timestamp =
-                  typeof timestampValue === "number"
-                    ? timestampValue
-                    : undefined;
-                scrollMonitorRef.current.track(timestamp);
-              }
-            : undefined
-        }
+        onScroll={(event) => handleViewerScroll(event, "continuous")}
         onScrollBeginDrag={
           perfEnabled
             ? () => {
@@ -732,7 +883,7 @@ const Viewer: React.FC<ViewerProps> = ({ engine }) => {
               }
             : undefined
         }
-        scrollEventThrottle={perfEnabled ? 16 : undefined}
+        scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
       />
     </View>

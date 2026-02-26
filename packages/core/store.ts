@@ -70,6 +70,7 @@ interface ViewerState {
   interactionMode: "pan" | "select";
   selectionActive: boolean;
   toolDockOpen: boolean;
+  mobileChromeVisible: boolean;
 
   initializeStore: (config: PapyrusConfig) => void;
   setDocumentState: (state: Partial<ViewerState>) => void;
@@ -120,6 +121,7 @@ const getDefaultViewerState = () => ({
   interactionMode: "pan" as const,
   selectionActive: false,
   toolDockOpen: false,
+  mobileChromeVisible: true,
 });
 
 export const useViewerStore = create<ViewerState>((set, get) => ({

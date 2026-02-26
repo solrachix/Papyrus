@@ -52,6 +52,38 @@ await engine.load({ type: 'pdf', source: { uri: 'https://example.com/book.pdf' }
 - `logo`: custom logo node (can be icon, image, or even a `Pressable`).
 - `onLogoPress`: optional callback to make the logo area act like a button.
 
+## Mobile Tuning Flags
+
+Performance tuning props are available on `Viewer` and `RightSheet`:
+
+```tsx
+<Viewer
+  engine={engine}
+  virtualWindowSize={8}
+  maxToRenderPerBatch={6}
+  removeClippedSubviews
+/>
+
+<RightSheet engine={engine} thumbsInitialCount={4} />
+```
+
+- `virtualWindowSize` (`Viewer`): FlatList window size. Default: `8`.
+- `maxToRenderPerBatch` (`Viewer`): max items per render batch. Default: `6`.
+- `removeClippedSubviews` (`Viewer`): detach offscreen rows. Default: `true`.
+- `thumbsInitialCount` (`RightSheet`): initial thumbnails rendered when opening pages tab. Default: `4`.
+
+Recommended starting points:
+
+- Mid-range Android + large docs (500+ pages): `virtualWindowSize={6}`, `maxToRenderPerBatch={4}`, `thumbsInitialCount={3}`.
+- High-end devices: keep defaults (`8`, `6`, `4`) and tune only if you observe jank or memory pressure.
+
+## Performance Tips (Mobile)
+
+- Keep `Viewer` mounted before calling `engine.load(...)` for EPUB/TXT, so the WebView runtime is already ready.
+- Prefer URI loads (`{ uri }`) for local files instead of pre-converting content to base64.
+- For long documents, reduce `virtualWindowSize` and `maxToRenderPerBatch` first; then tune thumbnail pre-render count.
+- On Android mid-tier devices (around 4 GB RAM), expect temporary memory spikes while parsing EPUB archives and generating first render.
+
 ## Mobile Performance Baseline (Audit Step)
 
 Enable runtime diagnostics before rendering the viewer:
@@ -77,3 +109,15 @@ Recommended baseline run:
 3. Scroll quickly for 10-15 seconds and capture `scroll.*` logs.
 4. Open thumbnails and capture `memory.thumbnails.*`.
 5. Jump between distant pages and check for `setDocumentState.burst`.
+
+## Large Files (EPUB/PDF) Troubleshooting
+
+If large files fail to load or crash on mobile:
+
+- Avoid RN bridge base64 conversion for large local files (OOM risk). Use `{ uri: 'file:///...' }`.
+- EPUB on mobile WebView now fetches local URI content inside the runtime and opens from `ArrayBuffer`.
+- If you see timeout errors:
+  - WebView engine request timeout for `load`: `180000ms`
+  - Runtime EPUB open/ready timeout: `180000ms`
+  - Runtime EPUB display timeout: `30000ms`
+- For very large EPUBs, first-open can take longer on mid-tier Android. This is expected due to zip parsing and spine bootstrapping.

@@ -48,6 +48,9 @@ const SAMPLE_TEXT =
   'Papyrus SDK\\n\\nThis is a text sample rendered by the mobile WebView runtime.';
 
 const ACCENT_COLOR = '#2563eb';
+const VIEWER_VIRTUAL_WINDOW_SIZE = 8;
+const VIEWER_MAX_TO_RENDER_PER_BATCH = 6;
+const THUMBS_INITIAL_COUNT = 4;
 const INITIAL_SDK_CONFIG: PapyrusConfig = {
   initialUITheme: 'dark',
   initialPageTheme: 'sepia',
@@ -121,14 +124,6 @@ const App: React.FC = () => {
       throw new Error(`Failed to load local text (${response.status})`);
     }
     return response.text();
-  };
-
-  const loadBytesFromUri = async (uri: string) => {
-    const response = await fetch(uri);
-    if (!response.ok) {
-      throw new Error(`Failed to load local binary (${response.status})`);
-    }
-    return response.arrayBuffer();
   };
 
   const loadDocumentFromSource = async (
@@ -228,14 +223,17 @@ const App: React.FC = () => {
       }
 
       if (docType === 'text') {
-        const text = await loadTextFromUri(uri);
-        await loadDocumentFromSource('text', text);
+        try {
+          await loadDocumentFromSource('text', {uri});
+        } catch {
+          const text = await loadTextFromUri(uri);
+          await loadDocumentFromSource('text', text);
+        }
         return;
       }
 
       if (docType === 'epub') {
-        const buffer = await loadBytesFromUri(uri);
-        await loadDocumentFromSource('epub', {data: new Uint8Array(buffer)});
+        await loadDocumentFromSource('epub', {uri});
         return;
       }
 
@@ -322,11 +320,16 @@ const App: React.FC = () => {
         </Pressable>
       </View>
       <View style={styles.viewer}>
-        <Viewer engine={engine} />
-        <ToolDock />
+        <Viewer
+          engine={engine}
+          virtualWindowSize={VIEWER_VIRTUAL_WINDOW_SIZE}
+          maxToRenderPerBatch={VIEWER_MAX_TO_RENDER_PER_BATCH}
+          removeClippedSubviews
+        />
+        {activeType === 'pdf' ? <ToolDock /> : null}
       </View>
       <BottomBar />
-      <RightSheet engine={engine} />
+      <RightSheet engine={engine} thumbsInitialCount={THUMBS_INITIAL_COUNT} />
       <SettingsSheet
         engine={engine}
         visible={settingsOpen}

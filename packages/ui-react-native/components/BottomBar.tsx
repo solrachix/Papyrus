@@ -1,44 +1,55 @@
-import React from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { useViewerStore } from '@papyrus-sdk/core';
-import { getStrings } from '../strings';
-import { IconDocument, IconGrid, IconSearch, IconComment } from '../icons';
+import React from "react";
+import { View, Text, Pressable, StyleSheet } from "react-native";
+import { useViewerStore } from "@papyrus-sdk/core";
+import { getStrings } from "../strings";
+import { IconDocument, IconGrid, IconSearch, IconComment } from "../icons";
 
 const BottomBar: React.FC = () => {
-  const { sidebarRightOpen, sidebarRightTab, toggleSidebarRight, setDocumentState, uiTheme, locale, accentColor } = useViewerStore();
-  const isDark = uiTheme === 'dark';
+  const {
+    sidebarRightOpen,
+    sidebarRightTab,
+    toggleSidebarRight,
+    setDocumentState,
+    uiTheme,
+    locale,
+    accentColor,
+    mobileChromeVisible,
+  } = useViewerStore();
+  const isDark = uiTheme === "dark";
   const t = getStrings(locale);
 
-  const isActive = (tab: 'pages' | 'search' | 'annotations') =>
+  const isActive = (tab: "pages" | "search" | "annotations") =>
     sidebarRightOpen && sidebarRightTab === tab;
 
   const iconColor = (active: boolean) => {
-    if (active) return '#ffffff';
-    return isDark ? '#e5e7eb' : '#111827';
+    if (active) return "#ffffff";
+    return isDark ? "#e5e7eb" : "#111827";
   };
+
+  if (!mobileChromeVisible) return null;
 
   return (
     <View style={[styles.container, isDark && styles.containerDark]}>
       <Pressable
-        onPress={() => toggleSidebarRight('pages')}
-        style={[styles.item, isActive('pages') && styles.itemActive]}
+        onPress={() => toggleSidebarRight("pages")}
+        style={[styles.item, isActive("pages") && styles.itemActive]}
       >
         <View
           style={[
             styles.itemIcon,
             isDark && styles.itemIconDark,
-            isActive('pages') && styles.itemIconActive,
-            isActive('pages') && { backgroundColor: accentColor },
+            isActive("pages") && styles.itemIconActive,
+            isActive("pages") && { backgroundColor: accentColor },
           ]}
         >
-          <IconGrid size={16} color={iconColor(isActive('pages'))} />
+          <IconGrid size={16} color={iconColor(isActive("pages"))} />
         </View>
         <Text
           style={[
             styles.itemLabel,
             isDark && styles.itemLabelDark,
-            isActive('pages') && styles.itemLabelActive,
-            isActive('pages') && { color: accentColor },
+            isActive("pages") && styles.itemLabelActive,
+            isActive("pages") && { color: accentColor },
           ]}
         >
           {t.pages}
@@ -46,25 +57,25 @@ const BottomBar: React.FC = () => {
       </Pressable>
 
       <Pressable
-        onPress={() => toggleSidebarRight('search')}
-        style={[styles.item, isActive('search') && styles.itemActive]}
+        onPress={() => toggleSidebarRight("search")}
+        style={[styles.item, isActive("search") && styles.itemActive]}
       >
         <View
           style={[
             styles.itemIcon,
             isDark && styles.itemIconDark,
-            isActive('search') && styles.itemIconActive,
-            isActive('search') && { backgroundColor: accentColor },
+            isActive("search") && styles.itemIconActive,
+            isActive("search") && { backgroundColor: accentColor },
           ]}
         >
-          <IconSearch size={16} color={iconColor(isActive('search'))} />
+          <IconSearch size={16} color={iconColor(isActive("search"))} />
         </View>
         <Text
           style={[
             styles.itemLabel,
             isDark && styles.itemLabelDark,
-            isActive('search') && styles.itemLabelActive,
-            isActive('search') && { color: accentColor },
+            isActive("search") && styles.itemLabelActive,
+            isActive("search") && { color: accentColor },
           ]}
         >
           {t.search}
@@ -98,25 +109,25 @@ const BottomBar: React.FC = () => {
       </Pressable>
 
       <Pressable
-        onPress={() => toggleSidebarRight('annotations')}
-        style={[styles.item, isActive('annotations') && styles.itemActive]}
+        onPress={() => toggleSidebarRight("annotations")}
+        style={[styles.item, isActive("annotations") && styles.itemActive]}
       >
         <View
           style={[
             styles.itemIcon,
             isDark && styles.itemIconDark,
-            isActive('annotations') && styles.itemIconActive,
-            isActive('annotations') && { backgroundColor: accentColor },
+            isActive("annotations") && styles.itemIconActive,
+            isActive("annotations") && { backgroundColor: accentColor },
           ]}
         >
-          <IconComment size={16} color={iconColor(isActive('annotations'))} />
+          <IconComment size={16} color={iconColor(isActive("annotations"))} />
         </View>
         <Text
           style={[
             styles.itemLabel,
             isDark && styles.itemLabelDark,
-            isActive('annotations') && styles.itemLabelActive,
-            isActive('annotations') && { color: accentColor },
+            isActive("annotations") && styles.itemLabelActive,
+            isActive("annotations") && { color: accentColor },
           ]}
         >
           {t.notes}
@@ -128,21 +139,21 @@ const BottomBar: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-around",
+    alignItems: "center",
     paddingVertical: 10,
     paddingHorizontal: 12,
-    backgroundColor: '#ffffff',
+    backgroundColor: "#ffffff",
     borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
+    borderTopColor: "#e5e7eb",
   },
   containerDark: {
-    backgroundColor: '#0f1115',
-    borderTopColor: '#1f2937',
+    backgroundColor: "#0f1115",
+    borderTopColor: "#1f2937",
   },
   item: {
-    alignItems: 'center',
+    alignItems: "center",
     paddingHorizontal: 6,
   },
   itemActive: {
@@ -152,29 +163,29 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 10,
-    backgroundColor: '#e5e7eb',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#e5e7eb",
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: 4,
   },
   itemIconDark: {
-    backgroundColor: '#111827',
-    color: '#e5e7eb',
+    backgroundColor: "#111827",
+    color: "#e5e7eb",
   },
   itemIconActive: {
-    backgroundColor: '#2563eb',
-    color: '#ffffff',
+    backgroundColor: "#2563eb",
+    color: "#ffffff",
   },
   itemLabel: {
     fontSize: 10,
-    fontWeight: '700',
-    color: '#6b7280',
+    fontWeight: "700",
+    color: "#6b7280",
   },
   itemLabelDark: {
-    color: '#9ca3af',
+    color: "#9ca3af",
   },
   itemLabelActive: {
-    color: '#2563eb',
+    color: "#2563eb",
   },
 });
 
