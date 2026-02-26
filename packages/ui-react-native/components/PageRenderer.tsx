@@ -1,4 +1,5 @@
 import React, {
+  memo,
   useCallback,
   useEffect,
   useMemo,
@@ -68,22 +69,26 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     createBurstMonitor("PageRenderer", "setDocumentState", 18, 700)
   );
 
-  const {
-    zoom,
-    rotation,
-    pageTheme,
-    annotations,
-    annotationColor,
-    addAnnotation,
-    setDocumentState,
-    accentColor,
-    selectedAnnotationId,
-    setSelectedAnnotation,
-    removeAnnotation,
-    searchResults,
-    activeSearchIndex,
-    setSelectionActive,
-  } = useViewerStore();
+  const zoom = useViewerStore((state) => state.zoom);
+  const rotation = useViewerStore((state) => state.rotation);
+  const pageTheme = useViewerStore((state) => state.pageTheme);
+  const annotations = useViewerStore((state) => state.annotations);
+  const annotationColor = useViewerStore((state) => state.annotationColor);
+  const addAnnotation = useViewerStore((state) => state.addAnnotation);
+  const setDocumentState = useViewerStore((state) => state.setDocumentState);
+  const accentColor = useViewerStore((state) => state.accentColor);
+  const selectedAnnotationId = useViewerStore(
+    (state) => state.selectedAnnotationId
+  );
+  const setSelectedAnnotation = useViewerStore(
+    (state) => state.setSelectedAnnotation
+  );
+  const removeAnnotation = useViewerStore((state) => state.removeAnnotation);
+  const searchResults = useViewerStore((state) => state.searchResults);
+  const activeSearchIndex = useViewerStore((state) => state.activeSearchIndex);
+  const setSelectionActive = useViewerStore(
+    (state) => state.setSelectionActive
+  );
 
   const setDocumentStateTracked = useCallback(
     (state: Parameters<typeof setDocumentState>[0], reason: string) => {
@@ -980,4 +985,16 @@ const styles = StyleSheet.create({
   },
 });
 
-export default PageRenderer;
+const arePageRendererPropsEqual = (
+  previous: Readonly<PageRendererProps>,
+  next: Readonly<PageRendererProps>
+) =>
+  previous.engine === next.engine &&
+  previous.pageIndex === next.pageIndex &&
+  previous.scale === next.scale &&
+  previous.PageViewComponent === next.PageViewComponent &&
+  previous.availableWidth === next.availableWidth &&
+  previous.horizontalPadding === next.horizontalPadding &&
+  previous.spacing === next.spacing;
+
+export default memo(PageRenderer, arePageRendererPropsEqual);

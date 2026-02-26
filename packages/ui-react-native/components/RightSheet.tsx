@@ -20,6 +20,7 @@ import {
   UIManager,
   findNodeHandle,
   type LayoutChangeEvent,
+  type ViewToken,
 } from "react-native";
 import { useViewerStore, SearchService } from "@papyrus-sdk/core";
 import { DocumentEngine, OutlineItem } from "@papyrus-sdk/types";
@@ -54,6 +55,21 @@ const withAlpha = (hex: string, alpha: number) => {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 };
 
+const THUMBNAILS_INITIAL_NUM_TO_RENDER = 4;
+const THUMBNAILS_WINDOW_SIZE = 5;
+const THUMBNAILS_MAX_TO_RENDER_PER_BATCH = 6;
+const THUMBNAILS_UPDATE_CELLS_BATCHING_PERIOD = 40;
+const THUMBNAILS_PREWARM_COUNT = 8;
+const THUMBNAILS_DEFAULT_ASPECT_RATIO = 1.28;
+
+const areNumberSetsEqual = (a: Set<number>, b: Set<number>) => {
+  if (a.size !== b.size) return false;
+  for (const value of a) {
+    if (!b.has(value)) return false;
+  }
+  return true;
+};
+
 const PageThumbnail: React.FC<{
   engine: DocumentEngine;
   pageIndex: number;
@@ -65,6 +81,7 @@ const PageThumbnail: React.FC<{
   frameHeight: number;
   accentColor: string;
   useNativePreview: boolean;
+  shouldRenderPreview: boolean;
   onPress: () => void;
 }> = ({
   engine,
@@ -77,19 +94,27 @@ const PageThumbnail: React.FC<{
   frameHeight,
   accentColor,
   useNativePreview,
+  shouldRenderPreview,
   onPress,
 }) => {
   const viewRef = useRef<any>(null);
   const [layoutReady, setLayoutReady] = useState(false);
 
   useEffect(() => {
-    if (!layoutReady || !useNativePreview) return;
+    if (!layoutReady || !useNativePreview || !shouldRenderPreview) return;
     const viewTag = findNodeHandle(viewRef.current);
     if (!viewTag) return;
     const isNative = Platform.OS === "android" || Platform.OS === "ios";
     const renderScale = isNative ? 2.0 / Math.max(zoom, 0.5) : 2.0;
     void engine.renderPage(pageIndex, viewTag, renderScale);
-  }, [engine, pageIndex, layoutReady, useNativePreview, zoom]);
+  }, [
+    engine,
+    pageIndex,
+    layoutReady,
+    shouldRenderPreview,
+    useNativePreview,
+    zoom,
+  ]);
 
   const handleLayout = (event: LayoutChangeEvent) => {
     if (event.nativeEvent.layout.width && event.nativeEvent.layout.height) {
@@ -112,7 +137,7 @@ const PageThumbnail: React.FC<{
         onLayout={handleLayout}
         style={[styles.thumbFrame, { width: frameWidth, height: frameHeight }]}
       >
-        {useNativePreview ? (
+        {useNativePreview && shouldRenderPreview ? (
           <PapyrusPageView ref={viewRef} style={styles.thumbView} />
         ) : (
           <View
@@ -223,14 +248,74 @@ const RightSheet: React.FC<RightSheetProps> = ({ engine }) => {
   const gridPadding = 16;
   const cardWidth = (windowWidth - gridPadding * 2 - gridGutter) / 2;
   const frameWidth = cardWidth - 16;
-  const frameHeight = frameWidth * 1.28;
   const renderTarget = engine.getRenderTargetType?.();
   const hasNativePageView = Boolean(
     UIManager.getViewManagerConfig?.("PapyrusPageView")
   );
   const useNativePreview = renderTarget !== "webview" && hasNativePageView;
+  const thumbnailDimensionsCacheRef = useRef<
+    Map<number, { width: number; height: number }>
+  >(new Map());
+  const thumbnailDimensionsPendingRef = useRef<Set<number>>(new Set());
+  const thumbnailRefreshTimeoutRef = useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
+  const [thumbnailLayoutRevision, setThumbnailLayoutRevision] = useState(0);
+  const [visibleThumbnailPages, setVisibleThumbnailPages] = useState<
+    Set<number>
+  >(() => new Set());
 
-  const closeSheet = () => toggleSidebarRight();
+  const closeSheet = useCallback(() => {
+    toggleSidebarRight();
+  }, [toggleSidebarRight]);
+
+  const scheduleThumbnailLayoutRefresh = useCallback(() => {
+    if (thumbnailRefreshTimeoutRef.current) return;
+    thumbnailRefreshTimeoutRef.current = setTimeout(() => {
+      thumbnailRefreshTimeoutRef.current = null;
+      setThumbnailLayoutRevision((value) => value + 1);
+    }, 80);
+  }, []);
+
+  const ensureThumbnailDimensions = useCallback(
+    (pageIndex: number) => {
+      if (pageIndex < 0 || pageIndex >= pageCount) return;
+      if (thumbnailDimensionsCacheRef.current.has(pageIndex)) return;
+      if (thumbnailDimensionsPendingRef.current.has(pageIndex)) return;
+
+      thumbnailDimensionsPendingRef.current.add(pageIndex);
+      void engine
+        .getPageDimensions(pageIndex)
+        .then((dims) => {
+          if (dims.width <= 0 || dims.height <= 0) return;
+          thumbnailDimensionsCacheRef.current.set(pageIndex, {
+            width: dims.width,
+            height: dims.height,
+          });
+          scheduleThumbnailLayoutRefresh();
+        })
+        .finally(() => {
+          thumbnailDimensionsPendingRef.current.delete(pageIndex);
+        });
+    },
+    [engine, pageCount, scheduleThumbnailLayoutRefresh]
+  );
+
+  const getThumbnailFrameHeight = useCallback(
+    (pageIndex: number) => {
+      const dims = thumbnailDimensionsCacheRef.current.get(pageIndex);
+      const ratio =
+        !dims || dims.width <= 0 || dims.height <= 0
+          ? THUMBNAILS_DEFAULT_ASPECT_RATIO
+          : dims.height / dims.width;
+      const estimatedHeight = frameWidth * ratio;
+      return Math.max(
+        frameWidth * 0.9,
+        Math.min(frameWidth * 1.7, estimatedHeight)
+      );
+    },
+    [frameWidth, thumbnailLayoutRevision]
+  );
 
   const setDocumentStateTracked = useCallback(
     (state: Parameters<typeof setDocumentState>[0], reason: string) => {
@@ -279,6 +364,52 @@ const RightSheet: React.FC<RightSheetProps> = ({ engine }) => {
     }, 1200);
     return () => clearTimeout(timeout);
   }, [pageCount, pagesMode, perfEnabled, sidebarRightOpen, sidebarRightTab]);
+
+  useEffect(
+    () => () => {
+      if (thumbnailRefreshTimeoutRef.current) {
+        clearTimeout(thumbnailRefreshTimeoutRef.current);
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (sidebarRightOpen) return;
+    setVisibleThumbnailPages(new Set());
+  }, [sidebarRightOpen]);
+
+  useEffect(() => {
+    if (!sidebarRightOpen || sidebarRightTab !== "pages") return;
+    if (pagesMode !== "thumbnails") return;
+    if (pageCount <= 0) return;
+
+    const initialVisible = new Set<number>();
+    const initialCount = Math.min(pageCount, THUMBNAILS_PREWARM_COUNT);
+    for (let i = 0; i < initialCount; i += 1) {
+      initialVisible.add(i);
+      ensureThumbnailDimensions(i);
+    }
+
+    const currentIndex = Math.max(0, currentPage - 1);
+    const start = Math.max(0, currentIndex - 2);
+    const end = Math.min(pageCount - 1, currentIndex + 2);
+    for (let i = start; i <= end; i += 1) {
+      initialVisible.add(i);
+      ensureThumbnailDimensions(i);
+    }
+
+    setVisibleThumbnailPages((previous) =>
+      previous.size === 0 ? initialVisible : previous
+    );
+  }, [
+    currentPage,
+    ensureThumbnailDimensions,
+    pageCount,
+    pagesMode,
+    sidebarRightOpen,
+    sidebarRightTab,
+  ]);
 
   const handleSearch = async () => {
     const trimmed = query.trim();
@@ -375,6 +506,77 @@ const RightSheet: React.FC<RightSheetProps> = ({ engine }) => {
       </Text>
     );
   };
+
+  const onThumbnailsViewableItemsChanged = useCallback(
+    ({ viewableItems }: { viewableItems: Array<ViewToken> }) => {
+      const nextVisible = new Set<number>();
+      viewableItems.forEach((token) => {
+        if (typeof token.item !== "number") return;
+        const pageIndex = token.item;
+        nextVisible.add(pageIndex);
+        ensureThumbnailDimensions(pageIndex);
+        ensureThumbnailDimensions(pageIndex - 1);
+        ensureThumbnailDimensions(pageIndex + 1);
+      });
+
+      setVisibleThumbnailPages((previous) =>
+        areNumberSetsEqual(previous, nextVisible) ? previous : nextVisible
+      );
+    },
+    [ensureThumbnailDimensions]
+  );
+
+  const handleThumbnailPress = useCallback(
+    (pageIndex: number) => {
+      engine.goToPage(pageIndex + 1);
+      setDocumentStateTracked(
+        { currentPage: pageIndex + 1 },
+        "thumbnail.press"
+      );
+      triggerScrollToPage(pageIndex);
+      closeSheet();
+    },
+    [closeSheet, engine, setDocumentStateTracked, triggerScrollToPage]
+  );
+
+  const renderThumbnailItem = useCallback(
+    ({ item }: { item: number }) => {
+      const shouldRenderPreview =
+        useNativePreview &&
+        (visibleThumbnailPages.has(item) ||
+          item < THUMBNAILS_PREWARM_COUNT ||
+          Math.abs(item + 1 - currentPage) <= 1);
+      return (
+        <PageThumbnail
+          engine={engine}
+          pageIndex={item}
+          isActive={item + 1 === currentPage}
+          isDark={isDark}
+          zoom={zoom}
+          cardWidth={cardWidth}
+          frameWidth={frameWidth}
+          frameHeight={getThumbnailFrameHeight(item)}
+          accentColor={accentColor}
+          useNativePreview={useNativePreview}
+          shouldRenderPreview={shouldRenderPreview}
+          onPress={() => handleThumbnailPress(item)}
+        />
+      );
+    },
+    [
+      accentColor,
+      cardWidth,
+      currentPage,
+      engine,
+      frameWidth,
+      getThumbnailFrameHeight,
+      handleThumbnailPress,
+      isDark,
+      useNativePreview,
+      visibleThumbnailPages,
+      zoom,
+    ]
+  );
 
   if (!sidebarRightOpen) return null;
 
@@ -487,30 +689,16 @@ const RightSheet: React.FC<RightSheetProps> = ({ engine }) => {
                   contentContainerStyle={styles.thumbGrid}
                   columnWrapperStyle={styles.thumbRow}
                   showsVerticalScrollIndicator={false}
-                  initialNumToRender={6}
-                  renderItem={({ item }) => (
-                    <PageThumbnail
-                      engine={engine}
-                      pageIndex={item}
-                      isActive={item + 1 === currentPage}
-                      isDark={isDark}
-                      zoom={zoom}
-                      cardWidth={cardWidth}
-                      frameWidth={frameWidth}
-                      frameHeight={frameHeight}
-                      accentColor={accentColor}
-                      useNativePreview={useNativePreview}
-                      onPress={() => {
-                        engine.goToPage(item + 1);
-                        setDocumentStateTracked(
-                          { currentPage: item + 1 },
-                          "thumbnail.press"
-                        );
-                        triggerScrollToPage(item);
-                        closeSheet();
-                      }}
-                    />
-                  )}
+                  initialNumToRender={THUMBNAILS_INITIAL_NUM_TO_RENDER}
+                  windowSize={THUMBNAILS_WINDOW_SIZE}
+                  maxToRenderPerBatch={THUMBNAILS_MAX_TO_RENDER_PER_BATCH}
+                  updateCellsBatchingPeriod={
+                    THUMBNAILS_UPDATE_CELLS_BATCHING_PERIOD
+                  }
+                  removeClippedSubviews
+                  viewabilityConfig={{ itemVisiblePercentThreshold: 20 }}
+                  onViewableItemsChanged={onThumbnailsViewableItemsChanged}
+                  renderItem={renderThumbnailItem}
                 />
               ) : (
                 <ScrollView

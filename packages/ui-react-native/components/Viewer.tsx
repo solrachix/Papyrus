@@ -44,15 +44,15 @@ const SCROLL_RETRY_DELAY_MS = 120;
 const SCROLL_MAX_RETRIES = 10;
 
 const Viewer: React.FC<ViewerProps> = ({ engine }) => {
-  const {
-    pageCount,
-    currentPage,
-    scrollToPageSignal,
-    setDocumentState,
-    uiTheme,
-    viewMode,
-    zoom,
-  } = useViewerStore();
+  const pageCount = useViewerStore((state) => state.pageCount);
+  const currentPage = useViewerStore((state) => state.currentPage);
+  const scrollToPageSignal = useViewerStore(
+    (state) => state.scrollToPageSignal
+  );
+  const setDocumentState = useViewerStore((state) => state.setDocumentState);
+  const uiTheme = useViewerStore((state) => state.uiTheme);
+  const viewMode = useViewerStore((state) => state.viewMode);
+  const zoom = useViewerStore((state) => state.zoom);
   const listRef = useRef<FlatList<any>>(null);
   const isDark = uiTheme === "dark";
   const { width: windowWidth } = useWindowDimensions();
@@ -517,6 +517,57 @@ const Viewer: React.FC<ViewerProps> = ({ engine }) => {
     ]
   );
 
+  const keyExtractor = useCallback(
+    (item: number | { left: number; right: number | null }) => {
+      if (typeof item === "number") return `page-${item}`;
+      return `row-${item.left}`;
+    },
+    []
+  );
+
+  const renderItem = useCallback(
+    ({ item }: { item: number | { left: number; right: number | null } }) => {
+      if (isDouble) {
+        const row = item as { left: number; right: number | null };
+        return (
+          <View style={[styles.row, { paddingHorizontal: horizontalPadding }]}>
+            <View style={{ width: columnWidth }}>
+              <PageRenderer
+                engine={engine}
+                pageIndex={row.left}
+                availableWidth={columnWidth}
+                horizontalPadding={8}
+                spacing={DOUBLE_PAGE_SPACING}
+              />
+            </View>
+            {row.right !== null ? (
+              <View style={{ width: columnWidth }}>
+                <PageRenderer
+                  engine={engine}
+                  pageIndex={row.right}
+                  availableWidth={columnWidth}
+                  horizontalPadding={8}
+                  spacing={DOUBLE_PAGE_SPACING}
+                />
+              </View>
+            ) : (
+              <View style={{ width: columnWidth }} />
+            )}
+          </View>
+        );
+      }
+
+      return (
+        <PageRenderer
+          engine={engine}
+          pageIndex={item as number}
+          spacing={CONTINUOUS_PAGE_SPACING}
+        />
+      );
+    },
+    [columnWidth, engine, horizontalPadding, isDouble]
+  );
+
   if (isWebView) {
     return (
       <View style={[styles.container, isDark && styles.containerDark]}>
@@ -599,46 +650,9 @@ const Viewer: React.FC<ViewerProps> = ({ engine }) => {
         updateCellsBatchingPeriod={FLATLIST_UPDATE_CELLS_BATCHING_PERIOD}
         removeClippedSubviews
         getItemLayout={getItemLayout}
-        keyExtractor={(item) =>
-          isDouble ? `row-${item.left}` : `page-${item}`
-        }
+        keyExtractor={keyExtractor}
         contentContainerStyle={styles.listContent}
-        renderItem={({ item }) =>
-          isDouble ? (
-            <View
-              style={[styles.row, { paddingHorizontal: horizontalPadding }]}
-            >
-              <View style={{ width: columnWidth }}>
-                <PageRenderer
-                  engine={engine}
-                  pageIndex={item.left}
-                  availableWidth={columnWidth}
-                  horizontalPadding={8}
-                  spacing={DOUBLE_PAGE_SPACING}
-                />
-              </View>
-              {item.right !== null ? (
-                <View style={{ width: columnWidth }}>
-                  <PageRenderer
-                    engine={engine}
-                    pageIndex={item.right}
-                    availableWidth={columnWidth}
-                    horizontalPadding={8}
-                    spacing={DOUBLE_PAGE_SPACING}
-                  />
-                </View>
-              ) : (
-                <View style={{ width: columnWidth }} />
-              )}
-            </View>
-          ) : (
-            <PageRenderer
-              engine={engine}
-              pageIndex={item}
-              spacing={CONTINUOUS_PAGE_SPACING}
-            />
-          )
-        }
+        renderItem={renderItem}
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={{ itemVisiblePercentThreshold: 60 }}
         scrollEnabled
