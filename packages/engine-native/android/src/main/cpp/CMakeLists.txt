@@ -7,6 +7,7 @@ add_library(papyrus_text SHARED
 )
 
 target_compile_options(papyrus_text PRIVATE -Wall -Werror)
+target_link_options(papyrus_text PRIVATE "-Wl,-z,max-page-size=16384")
 set_target_properties(papyrus_text PROPERTIES
   CXX_STANDARD 17
   CXX_STANDARD_REQUIRED YES

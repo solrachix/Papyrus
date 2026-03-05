@@ -185,8 +185,7 @@ const App: React.FC = () => {
     const documentPickerModule = (() => {
       try {
         // Lazy load prevents startup crash if native module is missing.
-        const mod = require('react-native-document-picker');
-        return mod?.default ?? mod;
+        return require('@react-native-documents/picker');
       } catch (error) {
         console.error('[Papyrus RN] Document picker module unavailable', error);
         return null;
@@ -199,17 +198,17 @@ const App: React.FC = () => {
     }
 
     try {
-      const result = await documentPickerModule.pickSingle({
+      const picks = await documentPickerModule.pick({
         type: [
           documentPickerModule.types.pdf,
           'application/epub+zip',
           documentPickerModule.types.plainText,
         ],
-        copyTo: 'cachesDirectory',
         mode: 'import',
       });
+      const result = Array.isArray(picks) ? picks[0] : picks;
 
-      const uri = result.fileCopyUri ?? result.uri;
+      const uri = result?.uri;
       if (!uri) return;
 
       const docType = inferDocumentType(result.name, result.type, uri);
@@ -239,7 +238,12 @@ const App: React.FC = () => {
 
       await loadDocumentFromSource('pdf', {uri});
     } catch (err) {
-      if (documentPickerModule.isCancel(err)) return;
+      if (
+        documentPickerModule.isErrorWithCode?.(err) &&
+        err?.code === documentPickerModule.errorCodes?.OPERATION_CANCELED
+      ) {
+        return;
+      }
       console.error('[Papyrus RN] Document picker failed', err);
     } finally {
       setIsPicking(false);

@@ -5,12 +5,13 @@ def safeExtGet(prop, fallback) {
 }
 
 android {
-  compileSdkVersion safeExtGet('compileSdkVersion', 34)
+  compileSdkVersion safeExtGet('compileSdkVersion', 35)
+  ndkVersion safeExtGet('ndkVersion', '26.1.10909125')
   namespace 'com.papyrus.engine'
 
   defaultConfig {
     minSdkVersion safeExtGet('minSdkVersion', 21)
-    targetSdkVersion safeExtGet('targetSdkVersion', 34)
+    targetSdkVersion safeExtGet('targetSdkVersion', 35)
     consumerProguardFiles 'consumer-rules.pro'
     externalNativeBuild {
       cmake {
@@ -34,7 +35,7 @@ android {
 
 dependencies {
   implementation 'com.facebook.react:react-android'
-  implementation('com.github.barteksc:pdfium-android:1.9.0') {
+  implementation('io.github.oothp:pdfium-android:1.9.5-beta01') {
     exclude group: 'com.android.support'
   }
 }

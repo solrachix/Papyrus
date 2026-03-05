@@ -5,7 +5,7 @@ buildscript {
         buildToolsVersion = "35.0.0"
         minSdkVersion = 24
         compileSdkVersion = 35
-        targetSdkVersion = 34
+        targetSdkVersion = 35
         ndkVersion = "26.1.10909125"
         kotlinVersion = "1.9.24"
     }
@@ -36,7 +36,7 @@ tasks.register("generateAutolinkingConfig") {
     outputs.file(autolinkingConfigFile)
     doLast {
         def config = [
-            reactNativeVersion: "0.76.0",
+            reactNativeVersion: "0.81.0",
             dependencies: [:],
             project: [
                 android: [
@@ -60,6 +60,9 @@ gradle.projectsEvaluated {
         dependsOn(tasks.named("generateAutolinkingConfig"))
     }
     project(":app").tasks.matching { it.name == "generateAutolinkingNewArchitectureFiles" }.configureEach {
+        dependsOn(tasks.named("generateAutolinkingConfig"))
+    }
+    project(":app").tasks.matching { it.name == "generateReactNativeEntryPoint" }.configureEach {
         dependsOn(tasks.named("generateAutolinkingConfig"))
     }
 }
