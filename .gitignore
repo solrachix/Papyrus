@@ -41,4 +41,5 @@ docs/.vitepress/.temp
 
 # Local temp
 tmp/
+.worktrees
 .worktrees/
