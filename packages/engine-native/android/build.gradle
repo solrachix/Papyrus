@@ -38,4 +38,5 @@ dependencies {
   implementation('io.github.oothp:pdfium-android:1.9.5-beta01') {
     exclude group: 'com.android.support'
   }
+  testImplementation 'junit:junit:4.13.2'
 }
