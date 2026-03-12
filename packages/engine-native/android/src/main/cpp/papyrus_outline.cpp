@@ -112,6 +112,11 @@ static jobjectArray BuildOutline(JNIEnv *env, FPDF_DOCUMENT doc) {
   return BuildOutlineItems(env, doc, nullptr, itemClass, ctor);
 }
 
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_papyrus_engine_PapyrusOutline_nativeIsOutlineSupported(JNIEnv *, jclass) {
+  return LoadPdfium() ? JNI_TRUE : JNI_FALSE;
+}
+
 extern "C" JNIEXPORT jobjectArray JNICALL
 Java_com_papyrus_engine_PapyrusOutline_nativeGetOutline(JNIEnv *env, jclass, jlong docPtr) {
   if (!LoadPdfium()) return nullptr;
