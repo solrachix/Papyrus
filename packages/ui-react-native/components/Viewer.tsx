@@ -13,6 +13,7 @@ import {
   useWindowDimensions,
   type ViewToken,
 } from "react-native";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { useViewerStore } from "@papyrus-sdk/core";
 import { DocumentEngine } from "@papyrus-sdk/types";
 import PageRenderer from "./PageRenderer";
@@ -26,6 +27,18 @@ import {
   perfNow,
   sampleMemory,
 } from "../perf/mobilePerf";
+import {
+  getSelectionEdgeAutoscroll,
+  shouldEnableViewerScroll,
+} from "../gesture/selectionInteraction";
+import {
+  DEFAULT_PINCH_ZOOM_BOUNDS,
+  resolveAnchoredViewportOffset,
+  resolveClampedScrollOffset,
+  resolvePinchGestureZoom,
+  resolvePinchPreviewScale,
+  sanitizePinchPreviewScale,
+} from "../gesture/pinchZoom";
 
 export interface ViewerProps {
   engine: DocumentEngine;
@@ -49,6 +62,8 @@ const MOBILE_CHROME_HIDE_DELTA = 28;
 const MOBILE_CHROME_SHOW_DELTA = 22;
 const MOBILE_CHROME_SHOW_DELAY_MS = 180;
 const MOBILE_CHROME_TOP_RESET = 16;
+const SELECTION_EDGE_THRESHOLD_PX = 48;
+const SELECTION_EDGE_MAX_STEP_PX = 24;
 
 const resolvePositiveInt = (
   value: number | undefined,
@@ -59,6 +74,26 @@ const resolvePositiveInt = (
   if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
   const rounded = Math.round(value);
   return Math.max(min, Math.min(max, rounded));
+};
+
+type PendingPinchAnchorRestore = {
+  finalZoom: number;
+  focalY: number;
+  viewerScrollOffsetY: number;
+  pageIndex: number;
+  startPageOffsetY: number;
+  startPageHeight: number;
+  startPageWidth: number;
+  startPageScrollX: number;
+  pageViewportWidth: number;
+  pageHorizontalPadding: number;
+  pageViewportContentOffsetX: number;
+};
+
+type HorizontalScrollRestoreRequest = {
+  pageIndex: number;
+  requestId: number;
+  offsetX: number;
 };
 
 const Viewer: React.FC<ViewerProps> = ({
@@ -117,6 +152,27 @@ const Viewer: React.FC<ViewerProps> = ({
   const scrollDownAccumRef = useRef(0);
   const scrollUpAccumRef = useRef(0);
   const [layoutRevision, setLayoutRevision] = useState(0);
+  const [selectionDragActive, setSelectionDragActive] = useState(false);
+  const selectionDragActiveRef = useRef(false);
+  const [gestureScrollLockActive, setGestureScrollLockActive] = useState(false);
+  const gestureScrollLockActiveRef = useRef(false);
+  const [pinchPreviewScale, setPinchPreviewScale] = useState(1);
+  const [lastPinchEndedAt, setLastPinchEndedAt] = useState<number | null>(null);
+  const [horizontalScrollRestore, setHorizontalScrollRestore] =
+    useState<HorizontalScrollRestoreRequest | null>(null);
+  const pinchGestureActiveRef = useRef(false);
+  const pinchStartZoomRef = useRef(1);
+  const pinchPreviewZoomRef = useRef(1);
+  const pinchFocalPointRef = useRef({ x: 0, y: 0 });
+  const pinchUpdateLoggedAtRef = useRef(0);
+  const horizontalScrollOffsetsRef = useRef<Map<number, number>>(new Map());
+  const pendingPinchAnchorRestoreRef = useRef<PendingPinchAnchorRestore | null>(
+    null
+  );
+  const pinchAnchorRestoreFrameRef = useRef<number | null>(null);
+  const nextHorizontalRestoreRequestIdRef = useRef(0);
+  const viewerFrameRef = useRef({ y: 0, height: 0 });
+  const viewerContentHeightRef = useRef(0);
   const resolvedWindowSize = useMemo(
     () => resolvePositiveInt(virtualWindowSize, FLATLIST_WINDOW_SIZE, 2, 30),
     [virtualWindowSize]
@@ -224,6 +280,9 @@ const Viewer: React.FC<ViewerProps> = ({
     () => () => {
       if (layoutRefreshTimeoutRef.current) {
         clearTimeout(layoutRefreshTimeoutRef.current);
+      }
+      if (pinchAnchorRestoreFrameRef.current !== null) {
+        cancelAnimationFrame(pinchAnchorRestoreFrameRef.current);
       }
       clearPendingScrollRetry();
       clearPendingChromeShow();
@@ -426,6 +485,613 @@ const Viewer: React.FC<ViewerProps> = ({
   const columnWidth = isDouble
     ? (windowWidth - horizontalPadding * 2 - columnGap) / 2
     : windowWidth;
+
+  const getPageWidthForZoom = useCallback(
+    (pageIndex: number, zoomValue: number) => {
+      const safeZoom = Math.max(zoomValue, 0.25);
+      const baseWidth = isDouble ? columnWidth * 0.92 : windowWidth * 0.92;
+      return baseWidth * safeZoom;
+    },
+    [columnWidth, isDouble, windowWidth]
+  );
+
+  const getPageHeightForZoom = useCallback(
+    (pageIndex: number, zoomValue: number) =>
+      getPageWidthForZoom(pageIndex, zoomValue) / getPageAspectRatio(pageIndex),
+    [getPageAspectRatio, getPageWidthForZoom]
+  );
+
+  const getPageViewportMetrics = useCallback(
+    (pageIndex: number) => {
+      if (isDouble) {
+        const isRight = pageIndex % 2 === 1;
+        return {
+          viewportWidth: columnWidth,
+          horizontalPadding: 8,
+          viewportOffsetX:
+            horizontalPadding + (isRight ? columnWidth + columnGap : 0),
+        };
+      }
+      return {
+        viewportWidth: windowWidth,
+        horizontalPadding: 16,
+        viewportOffsetX: 0,
+      };
+    },
+    [columnGap, columnWidth, horizontalPadding, isDouble, windowWidth]
+  );
+
+  const getPageLayoutForZoom = useCallback(
+    (pageIndex: number, zoomValue: number) => {
+      if (isSingle) {
+        const pageHeight = getPageHeightForZoom(pageIndex, zoomValue);
+        return {
+          pageOffsetY: 18,
+          pageHeight,
+          totalContentHeight: 18 + pageHeight + 140,
+        };
+      }
+
+      if (isDouble) {
+        let offsetY = LIST_TOP_PADDING;
+        for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
+          const row = rows[rowIndex];
+          const leftHeight = getPageHeightForZoom(row.left, zoomValue);
+          const rightHeight =
+            row.right === null
+              ? leftHeight
+              : getPageHeightForZoom(row.right, zoomValue);
+          const rowLength =
+            Math.max(leftHeight, rightHeight) + DOUBLE_PAGE_SPACING;
+          if (row.left === pageIndex || row.right === pageIndex) {
+            let totalContentHeight = LIST_TOP_PADDING;
+            for (
+              let totalRowIndex = 0;
+              totalRowIndex < rows.length;
+              totalRowIndex += 1
+            ) {
+              const totalRow = rows[totalRowIndex];
+              const totalLeftHeight = getPageHeightForZoom(
+                totalRow.left,
+                zoomValue
+              );
+              const totalRightHeight =
+                totalRow.right === null
+                  ? totalLeftHeight
+                  : getPageHeightForZoom(totalRow.right, zoomValue);
+              totalContentHeight +=
+                Math.max(totalLeftHeight, totalRightHeight) +
+                DOUBLE_PAGE_SPACING;
+            }
+            totalContentHeight += LIST_BOTTOM_PADDING;
+            return {
+              pageOffsetY: offsetY,
+              pageHeight: getPageHeightForZoom(pageIndex, zoomValue),
+              totalContentHeight,
+            };
+          }
+          offsetY += rowLength;
+        }
+      }
+
+      let offsetY = LIST_TOP_PADDING;
+      for (
+        let currentPageIndex = 0;
+        currentPageIndex < pageCount;
+        currentPageIndex += 1
+      ) {
+        const currentPageHeight = getPageHeightForZoom(
+          currentPageIndex,
+          zoomValue
+        );
+        if (currentPageIndex === pageIndex) {
+          let totalContentHeight = LIST_TOP_PADDING;
+          for (
+            let totalPageIndex = 0;
+            totalPageIndex < pageCount;
+            totalPageIndex += 1
+          ) {
+            totalContentHeight +=
+              getPageHeightForZoom(totalPageIndex, zoomValue) +
+              CONTINUOUS_PAGE_SPACING;
+          }
+          totalContentHeight += LIST_BOTTOM_PADDING;
+          return {
+            pageOffsetY: offsetY,
+            pageHeight: currentPageHeight,
+            totalContentHeight,
+          };
+        }
+        offsetY += currentPageHeight + CONTINUOUS_PAGE_SPACING;
+      }
+
+      return {
+        pageOffsetY: LIST_TOP_PADDING,
+        pageHeight: getPageHeightForZoom(pageIndex, zoomValue),
+        totalContentHeight:
+          LIST_TOP_PADDING +
+          getPageHeightForZoom(pageIndex, zoomValue) +
+          CONTINUOUS_PAGE_SPACING +
+          LIST_BOTTOM_PADDING,
+      };
+    },
+    [getPageHeightForZoom, isDouble, isSingle, pageCount, rows]
+  );
+
+  const resolvePinchAnchorPageIndex = useCallback(
+    (
+      focalX: number,
+      focalY: number,
+      zoomValue: number,
+      scrollOffsetY = lastScrollOffsetYRef.current
+    ) => {
+      if (isSingle) {
+        return Math.max(0, currentPage - 1);
+      }
+
+      const contentY = Math.max(0, scrollOffsetY + focalY);
+      if (isDouble) {
+        let offsetY = LIST_TOP_PADDING;
+        for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
+          const row = rows[rowIndex];
+          const leftHeight = getPageHeightForZoom(row.left, zoomValue);
+          const rightHeight =
+            row.right === null
+              ? leftHeight
+              : getPageHeightForZoom(row.right, zoomValue);
+          const rowLength =
+            Math.max(leftHeight, rightHeight) + DOUBLE_PAGE_SPACING;
+          if (contentY <= offsetY + rowLength || rowIndex === rows.length - 1) {
+            const isRight =
+              row.right !== null &&
+              focalX > horizontalPadding + columnWidth + columnGap / 2;
+            return isRight ? row.right! : row.left;
+          }
+          offsetY += rowLength;
+        }
+        return rows[rows.length - 1]?.left ?? 0;
+      }
+
+      let offsetY = LIST_TOP_PADDING;
+      for (let pageIndex = 0; pageIndex < pageCount; pageIndex += 1) {
+        const pageLength =
+          getPageHeightForZoom(pageIndex, zoomValue) + CONTINUOUS_PAGE_SPACING;
+        if (contentY <= offsetY + pageLength || pageIndex === pageCount - 1) {
+          return pageIndex;
+        }
+        offsetY += pageLength;
+      }
+      return Math.max(0, pageCount - 1);
+    },
+    [
+      columnGap,
+      columnWidth,
+      currentPage,
+      getPageHeightForZoom,
+      horizontalPadding,
+      isDouble,
+      isSingle,
+      pageCount,
+      rows,
+    ]
+  );
+
+  const resolvedViewerScrollEnabled = shouldEnableViewerScroll({
+    selectionDragActive,
+    gestureScrollLockActive,
+  });
+
+  const setViewerScrollEnabledNative = useCallback((enabled: boolean) => {
+    const scrollNode = listRef.current as unknown as {
+      setNativeProps?: (props: { scrollEnabled: boolean }) => void;
+    } | null;
+    scrollNode?.setNativeProps?.({ scrollEnabled: enabled });
+  }, []);
+
+  const syncViewerScrollEnabled = useCallback(
+    (
+      nextSelectionDragActive = selectionDragActiveRef.current,
+      nextGestureScrollLockActive = gestureScrollLockActiveRef.current
+    ) => {
+      setViewerScrollEnabledNative(
+        shouldEnableViewerScroll({
+          selectionDragActive: nextSelectionDragActive,
+          gestureScrollLockActive: nextGestureScrollLockActive,
+        })
+      );
+    },
+    [setViewerScrollEnabledNative]
+  );
+
+  const handleGestureScrollLockChange = useCallback(
+    (active: boolean) => {
+      if (gestureScrollLockActiveRef.current === active) return;
+      gestureScrollLockActiveRef.current = active;
+      setGestureScrollLockActive(active);
+      syncViewerScrollEnabled(selectionDragActiveRef.current, active);
+    },
+    [syncViewerScrollEnabled]
+  );
+
+  const handlePinchPreviewScaleChange = useCallback((scale: number) => {
+    const nextScale = sanitizePinchPreviewScale(scale);
+    setPinchPreviewScale((current) => {
+      if (Math.abs(current - nextScale) < 0.0005) {
+        return current;
+      }
+      return nextScale;
+    });
+  }, []);
+
+  const resetViewerPinchPreview = useCallback(() => {
+    pinchPreviewZoomRef.current = pinchStartZoomRef.current;
+    handlePinchPreviewScaleChange(1);
+  }, [handlePinchPreviewScaleChange]);
+
+  const beginViewerPinch = useCallback(
+    (focalX: number, focalY: number) => {
+      pinchGestureActiveRef.current = true;
+      pinchStartZoomRef.current = zoom;
+      pinchPreviewZoomRef.current = zoom;
+      pinchFocalPointRef.current = { x: focalX, y: focalY };
+      pinchUpdateLoggedAtRef.current = 0;
+      setLastPinchEndedAt(null);
+      handlePinchPreviewScaleChange(1);
+      handleGestureScrollLockChange(true);
+      if (perfEnabled) {
+        logPerfEvent("Viewer", "pinch.start", {
+          zoom: Math.round(zoom * 100) / 100,
+        });
+      }
+    },
+    [
+      handleGestureScrollLockChange,
+      handlePinchPreviewScaleChange,
+      perfEnabled,
+      zoom,
+    ]
+  );
+
+  const updateViewerPinch = useCallback(
+    (scaleFactor: number, focalX: number, focalY: number) => {
+      if (!pinchGestureActiveRef.current) return;
+      pinchFocalPointRef.current = { x: focalX, y: focalY };
+      const nextZoom = resolvePinchGestureZoom(
+        pinchStartZoomRef.current,
+        scaleFactor
+      );
+      pinchPreviewZoomRef.current = nextZoom;
+      handlePinchPreviewScaleChange(
+        resolvePinchPreviewScale(pinchStartZoomRef.current, nextZoom)
+      );
+      if (!perfEnabled) return;
+      const now = Date.now();
+      if (now - pinchUpdateLoggedAtRef.current < 120) return;
+      pinchUpdateLoggedAtRef.current = now;
+      logPerfEvent("Viewer", "pinch.update", {
+        scale: Math.round(scaleFactor * 1000) / 1000,
+        nextZoom: Math.round(nextZoom * 100) / 100,
+      });
+    },
+    [handlePinchPreviewScaleChange, perfEnabled]
+  );
+
+  const finishViewerPinch = useCallback(() => {
+    if (!pinchGestureActiveRef.current) return;
+    pinchGestureActiveRef.current = false;
+    const focalX = pinchFocalPointRef.current.x;
+    const focalY = pinchFocalPointRef.current.y;
+    const viewerScrollOffsetY = lastScrollOffsetYRef.current;
+    const finalZoom = resolvePinchGestureZoom(
+      pinchPreviewZoomRef.current || pinchStartZoomRef.current,
+      1,
+      DEFAULT_PINCH_ZOOM_BOUNDS
+    );
+    setLastPinchEndedAt(Date.now());
+    if (Math.abs(finalZoom - zoom) >= 0.001) {
+      const anchorPageIndex = resolvePinchAnchorPageIndex(
+        focalX,
+        focalY,
+        zoom,
+        viewerScrollOffsetY
+      );
+      const { pageOffsetY: startPageOffsetY, pageHeight: startPageHeight } =
+        getPageLayoutForZoom(anchorPageIndex, zoom);
+      const startPageWidth = getPageWidthForZoom(anchorPageIndex, zoom);
+      const {
+        viewportWidth: pageViewportWidth,
+        horizontalPadding: pageHorizontalPadding,
+        viewportOffsetX,
+      } = getPageViewportMetrics(anchorPageIndex);
+      const pageViewportContentWidth = Math.max(
+        0,
+        pageViewportWidth - pageHorizontalPadding * 2
+      );
+      pendingPinchAnchorRestoreRef.current = {
+        finalZoom,
+        focalY,
+        viewerScrollOffsetY,
+        pageIndex: anchorPageIndex,
+        startPageOffsetY,
+        startPageHeight,
+        startPageWidth,
+        startPageScrollX:
+          horizontalScrollOffsetsRef.current.get(anchorPageIndex) ?? 0,
+        pageViewportWidth,
+        pageHorizontalPadding,
+        pageViewportContentOffsetX: Math.max(
+          0,
+          Math.min(
+            pageViewportContentWidth,
+            focalX - viewportOffsetX - pageHorizontalPadding
+          )
+        ),
+      };
+      setDocumentStateTracked({ zoom: finalZoom }, "pinch.viewerEnd");
+      engine.setZoom(finalZoom);
+    } else {
+      pendingPinchAnchorRestoreRef.current = null;
+    }
+    resetViewerPinchPreview();
+    handleGestureScrollLockChange(false);
+    if (perfEnabled) {
+      logPerfEvent("Viewer", "pinch.end", {
+        finalZoom: Math.round(finalZoom * 100) / 100,
+        page: pendingPinchAnchorRestoreRef.current?.pageIndex ?? null,
+      });
+    }
+  }, [
+    engine,
+    getPageLayoutForZoom,
+    getPageViewportMetrics,
+    getPageWidthForZoom,
+    handleGestureScrollLockChange,
+    perfEnabled,
+    resetViewerPinchPreview,
+    resolvePinchAnchorPageIndex,
+    setDocumentStateTracked,
+    zoom,
+  ]);
+
+  const handlePageHorizontalScrollOffsetChange = useCallback(
+    (pageIndex: number, offsetX: number) => {
+      horizontalScrollOffsetsRef.current.set(pageIndex, Math.max(0, offsetX));
+      const pageWidth = getPageWidthForZoom(pageIndex, zoom);
+      const { viewportWidth, horizontalPadding } =
+        getPageViewportMetrics(pageIndex);
+      const pageViewportWidth = Math.max(
+        0,
+        viewportWidth - horizontalPadding * 2
+      );
+      const nextOffsetX = resolveClampedScrollOffset(
+        offsetX,
+        pageWidth,
+        pageViewportWidth
+      );
+      setHorizontalScrollRestore((current) => {
+        if (current && Math.abs(current.offsetX - nextOffsetX) < 0.5) {
+          return current;
+        }
+        const requestId = nextHorizontalRestoreRequestIdRef.current + 1;
+        nextHorizontalRestoreRequestIdRef.current = requestId;
+        return {
+          pageIndex,
+          requestId,
+          offsetX: nextOffsetX,
+        };
+      });
+    },
+    [getPageViewportMetrics, getPageWidthForZoom, zoom]
+  );
+
+  const viewerPinchGesture = useMemo(
+    () =>
+      Gesture.Pinch()
+        .enabled(!isWebView && pageCount > 0)
+        .onTouchesDown((event) => {
+          if ((event.allTouches?.length ?? 0) >= 2) {
+            handleGestureScrollLockChange(true);
+          }
+        })
+        .onTouchesUp((event) => {
+          if (
+            (event.allTouches?.length ?? 0) < 2 &&
+            !pinchGestureActiveRef.current
+          ) {
+            handleGestureScrollLockChange(false);
+          }
+        })
+        .runOnJS(true)
+        .onStart((event) => {
+          beginViewerPinch(event.focalX, event.focalY);
+        })
+        .onUpdate((event) => {
+          updateViewerPinch(event.scale, event.focalX, event.focalY);
+        })
+        .onEnd(() => {
+          finishViewerPinch();
+        })
+        .onFinalize(() => {
+          finishViewerPinch();
+          resetViewerPinchPreview();
+          handleGestureScrollLockChange(false);
+        }),
+    [
+      beginViewerPinch,
+      finishViewerPinch,
+      handleGestureScrollLockChange,
+      isWebView,
+      pageCount,
+      resetViewerPinchPreview,
+      updateViewerPinch,
+    ]
+  );
+
+  useEffect(() => {
+    selectionDragActiveRef.current = selectionDragActive;
+    syncViewerScrollEnabled(
+      selectionDragActive,
+      gestureScrollLockActiveRef.current
+    );
+  }, [selectionDragActive, syncViewerScrollEnabled]);
+
+  useEffect(() => {
+    const pendingRestore = pendingPinchAnchorRestoreRef.current;
+    if (!pendingRestore) return;
+    if (Math.abs(pendingRestore.finalZoom - zoom) >= 0.001) return;
+
+    if (pinchAnchorRestoreFrameRef.current !== null) {
+      cancelAnimationFrame(pinchAnchorRestoreFrameRef.current);
+    }
+
+    pinchAnchorRestoreFrameRef.current = requestAnimationFrame(() => {
+      pinchAnchorRestoreFrameRef.current = null;
+
+      const {
+        pageOffsetY: endPageOffsetY,
+        pageHeight: endPageHeight,
+        totalContentHeight: endContentHeight,
+      } = getPageLayoutForZoom(pendingRestore.pageIndex, zoom);
+      const viewerViewportHeight = viewerFrameRef.current.height;
+      const nextScrollY = resolveAnchoredViewportOffset({
+        viewportOffset: pendingRestore.focalY,
+        startScrollOffset: pendingRestore.viewerScrollOffsetY,
+        startItemOffset: pendingRestore.startPageOffsetY,
+        startItemLength: pendingRestore.startPageHeight,
+        endItemOffset: endPageOffsetY,
+        endItemLength: endPageHeight,
+        viewportLength: viewerViewportHeight,
+        endContentLength: endContentHeight,
+      });
+
+      if (isSingle) {
+        (listRef.current as unknown as ScrollView | null)?.scrollTo?.({
+          y: nextScrollY,
+          animated: false,
+        });
+      } else {
+        listRef.current?.scrollToOffset({
+          offset: nextScrollY,
+          animated: false,
+        });
+      }
+      lastScrollOffsetYRef.current = nextScrollY;
+
+      const endPageWidth = getPageWidthForZoom(pendingRestore.pageIndex, zoom);
+      const pageViewportContentWidth = Math.max(
+        0,
+        pendingRestore.pageViewportWidth -
+          pendingRestore.pageHorizontalPadding * 2
+      );
+      const nextOffsetX = resolveAnchoredViewportOffset({
+        viewportOffset: pendingRestore.pageViewportContentOffsetX,
+        startScrollOffset: pendingRestore.startPageScrollX,
+        startItemOffset: 0,
+        startItemLength: pendingRestore.startPageWidth,
+        endItemOffset: 0,
+        endItemLength: endPageWidth,
+        viewportLength: pageViewportContentWidth,
+        endContentLength: endPageWidth,
+      });
+      const requestId = nextHorizontalRestoreRequestIdRef.current + 1;
+      nextHorizontalRestoreRequestIdRef.current = requestId;
+      setHorizontalScrollRestore({
+        pageIndex: pendingRestore.pageIndex,
+        requestId,
+        offsetX: nextOffsetX,
+      });
+      pendingPinchAnchorRestoreRef.current = null;
+
+      if (perfEnabled) {
+        logPerfEvent("Viewer", "pinch.anchorRestore", {
+          page: pendingRestore.pageIndex + 1,
+          scrollY: Math.round(nextScrollY * 100) / 100,
+          scrollX: Math.round(nextOffsetX * 100) / 100,
+          zoom: Math.round(zoom * 100) / 100,
+        });
+      }
+    });
+
+    return () => {
+      if (pinchAnchorRestoreFrameRef.current !== null) {
+        cancelAnimationFrame(pinchAnchorRestoreFrameRef.current);
+        pinchAnchorRestoreFrameRef.current = null;
+      }
+    };
+  }, [getPageLayoutForZoom, getPageWidthForZoom, isSingle, perfEnabled, zoom]);
+
+  useEffect(() => {
+    if (zoom > 1) return;
+    setHorizontalScrollRestore((current) => {
+      if (!current || Math.abs(current.offsetX) < 0.5) {
+        return current;
+      }
+      const requestId = nextHorizontalRestoreRequestIdRef.current + 1;
+      nextHorizontalRestoreRequestIdRef.current = requestId;
+      return {
+        pageIndex: current.pageIndex,
+        requestId,
+        offsetX: 0,
+      };
+    });
+  }, [zoom]);
+
+  const captureViewerFrame = useCallback((node: unknown) => {
+    const measurable = node as {
+      measureInWindow?: (
+        callback: (x: number, y: number, width: number, height: number) => void
+      ) => void;
+    } | null;
+    measurable?.measureInWindow?.((_, y, __, height) => {
+      viewerFrameRef.current = { y, height };
+    });
+  }, []);
+
+  const scrollViewerBy = useCallback(
+    (deltaY: number) => {
+      if (!Number.isFinite(deltaY) || deltaY === 0) return 0;
+      const viewportHeight = viewerFrameRef.current.height;
+      const maxOffset = Math.max(
+        0,
+        viewerContentHeightRef.current - viewportHeight
+      );
+      const nextOffset = Math.max(
+        0,
+        Math.min(maxOffset, lastScrollOffsetYRef.current + deltaY)
+      );
+      const appliedDelta = nextOffset - lastScrollOffsetYRef.current;
+      if (appliedDelta === 0) return 0;
+      lastScrollOffsetYRef.current = nextOffset;
+      if (isSingle) {
+        (listRef.current as unknown as ScrollView | null)?.scrollTo?.({
+          y: nextOffset,
+          animated: false,
+        });
+        return appliedDelta;
+      }
+      listRef.current?.scrollToOffset({ offset: nextOffset, animated: false });
+      return appliedDelta;
+    },
+    [isSingle]
+  );
+
+  const handleSelectionVerticalAutoscroll = useCallback(
+    (absoluteY: number) => {
+      const frame = viewerFrameRef.current;
+      if (!Number.isFinite(absoluteY) || frame.height <= 0) return 0;
+      const relativeY = absoluteY - frame.y;
+      const { dy } = getSelectionEdgeAutoscroll({
+        x: SELECTION_EDGE_THRESHOLD_PX,
+        y: relativeY,
+        width: SELECTION_EDGE_THRESHOLD_PX * 2,
+        height: frame.height,
+        threshold: SELECTION_EDGE_THRESHOLD_PX,
+        maxStep: SELECTION_EDGE_MAX_STEP_PX,
+      });
+      return scrollViewerBy(dy);
+    },
+    [scrollViewerBy]
+  );
 
   const listLayoutMetrics = useMemo(() => {
     const offsets: number[] = [];
@@ -715,6 +1381,16 @@ const Viewer: React.FC<ViewerProps> = ({
                 availableWidth={columnWidth}
                 horizontalPadding={8}
                 spacing={DOUBLE_PAGE_SPACING}
+                onSelectionDragActiveChange={setSelectionDragActive}
+                gestureScrollLockActive={gestureScrollLockActive}
+                lastPinchEndedAt={lastPinchEndedAt}
+                onHorizontalScrollOffsetChange={
+                  handlePageHorizontalScrollOffsetChange
+                }
+                horizontalScrollRestore={horizontalScrollRestore}
+                requestSelectionVerticalAutoscroll={
+                  handleSelectionVerticalAutoscroll
+                }
               />
             </View>
             {row.right !== null ? (
@@ -725,6 +1401,16 @@ const Viewer: React.FC<ViewerProps> = ({
                   availableWidth={columnWidth}
                   horizontalPadding={8}
                   spacing={DOUBLE_PAGE_SPACING}
+                  onSelectionDragActiveChange={setSelectionDragActive}
+                  gestureScrollLockActive={gestureScrollLockActive}
+                  lastPinchEndedAt={lastPinchEndedAt}
+                  onHorizontalScrollOffsetChange={
+                    handlePageHorizontalScrollOffsetChange
+                  }
+                  horizontalScrollRestore={horizontalScrollRestore}
+                  requestSelectionVerticalAutoscroll={
+                    handleSelectionVerticalAutoscroll
+                  }
                 />
               </View>
             ) : (
@@ -739,10 +1425,28 @@ const Viewer: React.FC<ViewerProps> = ({
           engine={engine}
           pageIndex={item as number}
           spacing={CONTINUOUS_PAGE_SPACING}
+          onSelectionDragActiveChange={setSelectionDragActive}
+          gestureScrollLockActive={gestureScrollLockActive}
+          lastPinchEndedAt={lastPinchEndedAt}
+          onHorizontalScrollOffsetChange={
+            handlePageHorizontalScrollOffsetChange
+          }
+          horizontalScrollRestore={horizontalScrollRestore}
+          requestSelectionVerticalAutoscroll={handleSelectionVerticalAutoscroll}
         />
       );
     },
-    [columnWidth, engine, horizontalPadding, isDouble]
+    [
+      columnWidth,
+      engine,
+      handlePageHorizontalScrollOffsetChange,
+      handleSelectionVerticalAutoscroll,
+      gestureScrollLockActive,
+      horizontalScrollRestore,
+      horizontalPadding,
+      isDouble,
+      lastPinchEndedAt,
+    ]
   );
 
   if (isWebView) {
@@ -756,136 +1460,182 @@ const Viewer: React.FC<ViewerProps> = ({
   if (isSingle) {
     return (
       <View style={[styles.container, isDark && styles.containerDark]}>
-        <ScrollView
-          contentContainerStyle={styles.singleContent}
-          showsVerticalScrollIndicator={false}
-          scrollEnabled
-          onScroll={(event) => handleViewerScroll(event, "single")}
-          onScrollBeginDrag={
-            perfEnabled
-              ? () => {
-                  scrollMonitorRef.current.begin("single.beginDrag");
+        <GestureDetector gesture={viewerPinchGesture}>
+          <View
+            style={[
+              styles.gestureSurface,
+              { transform: [{ scale: pinchPreviewScale }] },
+            ]}
+          >
+            <ScrollView
+              ref={(node) => {
+                captureViewerFrame(node);
+                listRef.current = node as unknown as FlatList<any>;
+              }}
+              contentContainerStyle={styles.singleContent}
+              showsVerticalScrollIndicator={false}
+              scrollEnabled={resolvedViewerScrollEnabled}
+              onLayout={() =>
+                captureViewerFrame(listRef.current as unknown as ScrollView)
+              }
+              onContentSizeChange={(_, height) => {
+                viewerContentHeightRef.current = height;
+              }}
+              onScroll={(event) => handleViewerScroll(event, "single")}
+              onScrollBeginDrag={
+                perfEnabled
+                  ? () => {
+                      scrollMonitorRef.current.begin("single.beginDrag");
+                    }
+                  : undefined
+              }
+              onMomentumScrollBegin={
+                perfEnabled
+                  ? () => {
+                      scrollMonitorRef.current.begin("single.momentumBegin");
+                    }
+                  : undefined
+              }
+              onScrollEndDrag={
+                perfEnabled
+                  ? () => {
+                      scrollMonitorRef.current.end("single.endDrag");
+                      sampleMemory("Viewer", "single.endDrag", { pageCount });
+                    }
+                  : undefined
+              }
+              onMomentumScrollEnd={
+                perfEnabled
+                  ? () => {
+                      scrollMonitorRef.current.end("single.momentumEnd");
+                      sampleMemory("Viewer", "single.momentumEnd", {
+                        pageCount,
+                      });
+                    }
+                  : undefined
+              }
+              scrollEventThrottle={16}
+            >
+              <PageRenderer
+                engine={engine}
+                pageIndex={Math.max(0, currentPage - 1)}
+                spacing={32}
+                onSelectionDragActiveChange={setSelectionDragActive}
+                gestureScrollLockActive={gestureScrollLockActive}
+                lastPinchEndedAt={lastPinchEndedAt}
+                onHorizontalScrollOffsetChange={
+                  handlePageHorizontalScrollOffsetChange
                 }
-              : undefined
-          }
-          onMomentumScrollBegin={
-            perfEnabled
-              ? () => {
-                  scrollMonitorRef.current.begin("single.momentumBegin");
+                horizontalScrollRestore={horizontalScrollRestore}
+                requestSelectionVerticalAutoscroll={
+                  handleSelectionVerticalAutoscroll
                 }
-              : undefined
-          }
-          onScrollEndDrag={
-            perfEnabled
-              ? () => {
-                  scrollMonitorRef.current.end("single.endDrag");
-                  sampleMemory("Viewer", "single.endDrag", { pageCount });
-                }
-              : undefined
-          }
-          onMomentumScrollEnd={
-            perfEnabled
-              ? () => {
-                  scrollMonitorRef.current.end("single.momentumEnd");
-                  sampleMemory("Viewer", "single.momentumEnd", { pageCount });
-                }
-              : undefined
-          }
-          scrollEventThrottle={16}
-        >
-          <PageRenderer
-            engine={engine}
-            pageIndex={Math.max(0, currentPage - 1)}
-            spacing={32}
-          />
-        </ScrollView>
+              />
+            </ScrollView>
+          </View>
+        </GestureDetector>
       </View>
     );
   }
 
   return (
     <View style={[styles.container, isDark && styles.containerDark]}>
-      <FlatList
-        ref={listRef}
-        data={isDouble ? rows : pages}
-        initialNumToRender={FLATLIST_INITIAL_NUM_TO_RENDER}
-        windowSize={resolvedWindowSize}
-        maxToRenderPerBatch={resolvedMaxToRenderPerBatch}
-        updateCellsBatchingPeriod={FLATLIST_UPDATE_CELLS_BATCHING_PERIOD}
-        removeClippedSubviews={resolvedRemoveClippedSubviews}
-        getItemLayout={getItemLayout}
-        keyExtractor={keyExtractor}
-        contentContainerStyle={styles.listContent}
-        renderItem={renderItem}
-        onViewableItemsChanged={onViewableItemsChanged}
-        viewabilityConfig={{ itemVisiblePercentThreshold: 60 }}
-        scrollEnabled
-        onScrollToIndexFailed={({ index, averageItemLength }) => {
-          const dataLength = isDouble ? rows.length : pages.length;
-          if (index < 0 || index >= dataLength) return;
-          pendingScrollIndexRef.current = index;
-          const offset = Math.max(0, getFallbackOffsetForIndex(index));
-          listRef.current?.scrollToOffset({ offset, animated: false });
+      <GestureDetector gesture={viewerPinchGesture}>
+        <View
+          style={[
+            styles.gestureSurface,
+            { transform: [{ scale: pinchPreviewScale }] },
+          ]}
+        >
+          <FlatList
+            ref={listRef}
+            data={isDouble ? rows : pages}
+            initialNumToRender={FLATLIST_INITIAL_NUM_TO_RENDER}
+            windowSize={resolvedWindowSize}
+            maxToRenderPerBatch={resolvedMaxToRenderPerBatch}
+            updateCellsBatchingPeriod={FLATLIST_UPDATE_CELLS_BATCHING_PERIOD}
+            removeClippedSubviews={resolvedRemoveClippedSubviews}
+            getItemLayout={getItemLayout}
+            keyExtractor={keyExtractor}
+            contentContainerStyle={styles.listContent}
+            renderItem={renderItem}
+            onViewableItemsChanged={onViewableItemsChanged}
+            viewabilityConfig={{ itemVisiblePercentThreshold: 60 }}
+            scrollEnabled={resolvedViewerScrollEnabled}
+            onLayout={() => captureViewerFrame(listRef.current)}
+            onContentSizeChange={(_, height) => {
+              viewerContentHeightRef.current = height;
+            }}
+            onScrollToIndexFailed={({ index, averageItemLength }) => {
+              const dataLength = isDouble ? rows.length : pages.length;
+              if (index < 0 || index >= dataLength) return;
+              pendingScrollIndexRef.current = index;
+              const offset = Math.max(0, getFallbackOffsetForIndex(index));
+              listRef.current?.scrollToOffset({ offset, animated: false });
 
-          if (!isDouble) {
-            ensurePageDimensions(index);
-          } else {
-            const row = rows[index];
-            if (row) {
-              ensurePageDimensions(row.left);
-              if (row.right !== null) {
-                ensurePageDimensions(row.right);
+              if (!isDouble) {
+                ensurePageDimensions(index);
+              } else {
+                const row = rows[index];
+                if (row) {
+                  ensurePageDimensions(row.left);
+                  if (row.right !== null) {
+                    ensurePageDimensions(row.right);
+                  }
+                }
               }
+
+              scheduleScrollRetry("onScrollToIndexFailed");
+
+              if (perfEnabled) {
+                logPerfEvent("Viewer", "scrollToIndexFailed", {
+                  index,
+                  averageItemLength,
+                  fallbackOffset: offset,
+                  fallbackSource: "cached-item-layout",
+                  itemCount: dataLength,
+                  retryAttempt: pendingScrollAttemptsRef.current,
+                });
+              }
+            }}
+            onScroll={(event) => handleViewerScroll(event, "continuous")}
+            onScrollBeginDrag={
+              perfEnabled
+                ? () => {
+                    scrollMonitorRef.current.begin("continuous.beginDrag");
+                  }
+                : undefined
             }
-          }
-
-          scheduleScrollRetry("onScrollToIndexFailed");
-
-          if (perfEnabled) {
-            logPerfEvent("Viewer", "scrollToIndexFailed", {
-              index,
-              averageItemLength,
-              fallbackOffset: offset,
-              fallbackSource: "cached-item-layout",
-              itemCount: dataLength,
-              retryAttempt: pendingScrollAttemptsRef.current,
-            });
-          }
-        }}
-        onScroll={(event) => handleViewerScroll(event, "continuous")}
-        onScrollBeginDrag={
-          perfEnabled
-            ? () => {
-                scrollMonitorRef.current.begin("continuous.beginDrag");
-              }
-            : undefined
-        }
-        onMomentumScrollBegin={
-          perfEnabled
-            ? () => {
-                scrollMonitorRef.current.begin("continuous.momentumBegin");
-              }
-            : undefined
-        }
-        onScrollEndDrag={
-          perfEnabled
-            ? () => {
-                scrollMonitorRef.current.end("continuous.endDrag");
-                sampleMemory("Viewer", "continuous.endDrag", { pageCount });
-              }
-            : undefined
-        }
-        onMomentumScrollEnd={
-          perfEnabled
-            ? () => {
-                scrollMonitorRef.current.end("continuous.momentumEnd");
-                sampleMemory("Viewer", "continuous.momentumEnd", { pageCount });
-              }
-            : undefined
-        }
-        scrollEventThrottle={16}
-        showsVerticalScrollIndicator={false}
-      />
+            onMomentumScrollBegin={
+              perfEnabled
+                ? () => {
+                    scrollMonitorRef.current.begin("continuous.momentumBegin");
+                  }
+                : undefined
+            }
+            onScrollEndDrag={
+              perfEnabled
+                ? () => {
+                    scrollMonitorRef.current.end("continuous.endDrag");
+                    sampleMemory("Viewer", "continuous.endDrag", { pageCount });
+                  }
+                : undefined
+            }
+            onMomentumScrollEnd={
+              perfEnabled
+                ? () => {
+                    scrollMonitorRef.current.end("continuous.momentumEnd");
+                    sampleMemory("Viewer", "continuous.momentumEnd", {
+                      pageCount,
+                    });
+                  }
+                : undefined
+            }
+            scrollEventThrottle={16}
+            showsVerticalScrollIndicator={false}
+          />
+        </View>
+      </GestureDetector>
     </View>
   );
 };
@@ -897,6 +1647,9 @@ const styles = StyleSheet.create({
   },
   containerDark: {
     backgroundColor: "#0f1115",
+  },
+  gestureSurface: {
+    flex: 1,
   },
   listContent: {
     paddingTop: LIST_TOP_PADDING,

@@ -15,9 +15,11 @@ import {
   Platform,
   findNodeHandle,
   useWindowDimensions,
+  type ScrollView as ScrollViewType,
   type LayoutChangeEvent,
   type GestureResponderEvent,
 } from "react-native";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Svg, { Path as SvgPath } from "react-native-svg";
 import { useViewerStore } from "@papyrus-sdk/core";
 import { Annotation, DocumentEngine, TextSelection } from "@papyrus-sdk/types";
@@ -25,12 +27,15 @@ import {
   PapyrusPageView,
   type PapyrusPageViewProps,
 } from "@papyrus-sdk/engine-native";
+import { isMobilePerfEnabled, logPerfEvent, perfNow } from "../perf/mobilePerf";
 import {
-  createBurstMonitor,
-  isMobilePerfEnabled,
-  logPerfEvent,
-  perfNow,
-} from "../perf/mobilePerf";
+  resolveClampedScrollOffset,
+  shouldSuppressPressAfterPinch,
+} from "../gesture/pinchZoom";
+import {
+  getSelectionEdgeAutoscroll,
+  shouldEnableSelectionDrag,
+} from "../gesture/selectionInteraction";
 
 type PageViewComponentType = React.ComponentType<
   PapyrusPageViewProps & React.RefAttributes<any>
@@ -44,6 +49,15 @@ interface PageRendererProps {
   availableWidth?: number;
   horizontalPadding?: number;
   spacing?: number;
+  onSelectionDragActiveChange?: (active: boolean) => void;
+  gestureScrollLockActive?: boolean;
+  lastPinchEndedAt?: number | null;
+  onHorizontalScrollOffsetChange?: (pageIndex: number, offsetX: number) => void;
+  horizontalScrollRestore?: {
+    requestId: number;
+    offsetX: number;
+  } | null;
+  requestSelectionVerticalAutoscroll?: (absoluteY: number) => number;
 }
 
 type NormalizedRect = { x: number; y: number; width: number; height: number };
@@ -136,6 +150,9 @@ const buildSquigglyPath = (segments = 16) => {
 };
 
 const SQUIGGLY_PATH = buildSquigglyPath();
+const SELECTION_EDGE_THRESHOLD_PX = 48;
+const SELECTION_EDGE_MAX_STEP_PX = 24;
+const SELECTION_AUTOSCROLL_INTERVAL_MS = 16;
 
 const PageRenderer: React.FC<PageRendererProps> = ({
   engine,
@@ -145,8 +162,15 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   availableWidth,
   horizontalPadding = 16,
   spacing = 24,
+  onSelectionDragActiveChange,
+  gestureScrollLockActive = false,
+  lastPinchEndedAt = null,
+  onHorizontalScrollOffsetChange,
+  horizontalScrollRestore = null,
+  requestSelectionVerticalAutoscroll,
 }) => {
   const viewRef = useRef<any>(null);
+  const pageScrollRef = useRef<ScrollViewType | null>(null);
   const [layout, setLayout] = useState({ width: 0, height: 0 });
   const [pageSize, setPageSize] = useState<{
     width: number;
@@ -156,9 +180,19 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   const isNative = Platform.OS === "android" || Platform.OS === "ios";
   const perfEnabled = isMobilePerfEnabled();
   const renderCountRef = useRef(0);
-  const setStateBurstRef = useRef(
-    createBurstMonitor("PageRenderer", "setDocumentState", 18, 700)
-  );
+  const inkDrawingActiveRef = useRef(false);
+  const horizontalScrollOffsetRef = useRef(0);
+  const selectionDragActiveRef = useRef(false);
+  const selectionDragPointRef = useRef<{
+    absoluteY: number;
+    x: number;
+    y: number;
+  } | null>(null);
+  const lastAppliedHorizontalRestoreRef = useRef<number | null>(null);
+  const selectionAutoscrollIntervalRef = useRef<ReturnType<
+    typeof setInterval
+  > | null>(null);
+  const rawTouchMoveLoggedAtRef = useRef(0);
 
   const zoom = useViewerStore((state) => state.zoom);
   const rotation = useViewerStore((state) => state.rotation);
@@ -166,8 +200,8 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   const annotations = useViewerStore((state) => state.annotations);
   const annotationColor = useViewerStore((state) => state.annotationColor);
   const addAnnotation = useViewerStore((state) => state.addAnnotation);
-  const setDocumentState = useViewerStore((state) => state.setDocumentState);
   const activeTool = useViewerStore((state) => state.activeTool);
+  const interactionMode = useViewerStore((state) => state.interactionMode);
   const accentColor = useViewerStore((state) => state.accentColor);
   const selectedAnnotationId = useViewerStore(
     (state) => state.selectedAnnotationId
@@ -182,20 +216,6 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     (state) => state.setSelectionActive
   );
 
-  const setDocumentStateTracked = useCallback(
-    (state: Parameters<typeof setDocumentState>[0], reason: string) => {
-      if (perfEnabled) {
-        setStateBurstRef.current({
-          reason,
-          page: pageIndex + 1,
-          keys: Object.keys(state).join(","),
-        });
-      }
-      setDocumentState(state);
-    },
-    [pageIndex, perfEnabled, setDocumentState]
-  );
-
   const logSelectionPerf = useCallback(
     (event: string, payload: Record<string, unknown>) => {
       if (!perfEnabled) return;
@@ -205,6 +225,66 @@ const PageRenderer: React.FC<PageRendererProps> = ({
       });
     },
     [pageIndex, perfEnabled]
+  );
+
+  const logGestureDebug = useCallback(
+    (event: string, payload: Record<string, unknown>) => {
+      if (!perfEnabled || !isNative) return;
+      logPerfEvent("PageRenderer", `gesture.${event}`, {
+        page: pageIndex + 1,
+        activeTool,
+        interactionMode,
+        pinchActive: gestureScrollLockActive,
+        gestureLockActive: gestureScrollLockActive,
+        selectionEnabled:
+          Platform.OS === "web" ||
+          (isNative &&
+            shouldEnableSelectionDrag({
+              activeTool,
+              interactionMode,
+            })),
+        zoom: Math.round(zoom * 100) / 100,
+        ...payload,
+      });
+    },
+    [activeTool, interactionMode, isNative, pageIndex, perfEnabled, zoom]
+  );
+
+  const logRawTouchDebug = useCallback(
+    (phase: "start" | "move" | "end" | "cancel", event: any) => {
+      if (!perfEnabled || !isNative) return;
+      const touches = Array.isArray(event?.nativeEvent?.touches)
+        ? event.nativeEvent.touches.length
+        : 0;
+      const changedTouches = Array.isArray(event?.nativeEvent?.changedTouches)
+        ? event.nativeEvent.changedTouches.length
+        : 0;
+      if (phase === "move") {
+        if (touches < 2 && !gestureScrollLockActive) return;
+        const now = Date.now();
+        if (now - rawTouchMoveLoggedAtRef.current < 120) return;
+        rawTouchMoveLoggedAtRef.current = now;
+      }
+      logGestureDebug(`touch.${phase}`, {
+        touches,
+        changedTouches,
+        target: event?.nativeEvent?.target ?? null,
+        locationX: Math.round((event?.nativeEvent?.locationX ?? 0) * 100) / 100,
+        locationY: Math.round((event?.nativeEvent?.locationY ?? 0) * 100) / 100,
+        pageX: Math.round((event?.nativeEvent?.pageX ?? 0) * 100) / 100,
+        pageY: Math.round((event?.nativeEvent?.pageY ?? 0) * 100) / 100,
+      });
+    },
+    [isNative, logGestureDebug, perfEnabled]
+  );
+
+  const setSelectionDragState = useCallback(
+    (active: boolean) => {
+      if (selectionDragActiveRef.current === active) return;
+      selectionDragActiveRef.current = active;
+      onSelectionDragActiveChange?.(active);
+    },
+    [onSelectionDragActiveChange]
   );
 
   const pageAnnotations = useMemo(
@@ -271,12 +351,6 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     width: number;
     height: number;
   } | null>(null);
-  const lastTapRef = useRef<{ time: number; x: number; y: number } | null>(
-    null
-  );
-  const pinchRef = useRef<{ distance: number; zoom: number } | null>(null);
-  const isPinchingRef = useRef(false);
-  const pinchLogZoomRef = useRef(zoom);
   const [isInkDrawing, setIsInkDrawing] = useState(false);
   const [inkPoints, setInkPoints] = useState<Array<{ x: number; y: number }>>(
     []
@@ -421,12 +495,36 @@ const PageRenderer: React.FC<PageRendererProps> = ({
 
   useEffect(() => {
     if (activeTool === "ink") return;
+    inkDrawingActiveRef.current = false;
     setIsInkDrawing(false);
     setInkPoints([]);
     inkPointsRef.current = [];
   }, [activeTool]);
 
-  const clearSelection = () => {
+  const pageViewportWidth = Math.max(
+    0,
+    (availableWidth ?? windowWidth) - horizontalPadding * 2
+  );
+  const selectionEnabled =
+    Platform.OS === "web" ||
+    (isNative &&
+      shouldEnableSelectionDrag({
+        activeTool,
+        interactionMode,
+      }));
+  const inkEnabled = isNative && activeTool === "ink";
+
+  const stopSelectionAutoscroll = useCallback(() => {
+    if (selectionAutoscrollIntervalRef.current) {
+      clearInterval(selectionAutoscrollIntervalRef.current);
+      selectionAutoscrollIntervalRef.current = null;
+    }
+  }, []);
+
+  const clearSelection = useCallback(() => {
+    stopSelectionAutoscroll();
+    selectionDragPointRef.current = null;
+    setSelectionDragState(false);
     setSelectionRect(null);
     selectionRectRef.current = null;
     setSelectionRects([]);
@@ -436,14 +534,21 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     setIsSelecting(false);
     selectionStart.current = null;
     selectionBoundsStart.current = null;
-    lastTapRef.current = null;
     setSelectionActive(false);
-  };
+  }, [setSelectionActive, setSelectionDragState, stopSelectionAutoscroll]);
 
   useEffect(() => {
     if (activeTool === "select") return;
     clearSelection();
   }, [activeTool]);
+
+  useEffect(
+    () => () => {
+      stopSelectionAutoscroll();
+      setSelectionDragState(false);
+    },
+    [setSelectionDragState, stopSelectionAutoscroll]
+  );
 
   const stopPressPropagation = (event: GestureResponderEvent) => {
     event.stopPropagation?.();
@@ -530,63 +635,221 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     await selectFromBounds(bounds);
   };
 
-  const getTouchDistance = (
-    touches: Array<{ pageX: number; pageY: number }>
-  ) => {
-    if (touches.length < 2) return 0;
-    const [a, b] = touches;
-    return Math.hypot(b.pageX - a.pageX, b.pageY - a.pageY);
-  };
+  const cancelSelectionDrag = useCallback(() => {
+    stopSelectionAutoscroll();
+    selectionDragPointRef.current = null;
+    setSelectionDragState(false);
+    setIsSelecting(false);
+    selectionStart.current = null;
+    selectionRectRef.current = null;
+    setSelectionRect(null);
+  }, [setSelectionDragState, stopSelectionAutoscroll]);
 
-  const shouldHandlePinch = (
-    touches: Array<{ pageX: number; pageY: number }>
-  ) => isNative && touches.length === 2;
+  const updateSelectionRectFromPoint = useCallback(
+    (x: number, y: number) => {
+      const start = selectionStart.current;
+      if (!start || !layout.width || !layout.height) return;
+      const left = Math.max(0, Math.min(start.x, x));
+      const top = Math.max(0, Math.min(start.y, y));
+      const right = Math.min(layout.width, Math.max(start.x, x));
+      const bottom = Math.min(layout.height, Math.max(start.y, y));
+      const rect = {
+        x: left,
+        y: top,
+        width: right - left,
+        height: bottom - top,
+      };
+      selectionRectRef.current = rect;
+      setSelectionRect(rect);
+    },
+    [layout.height, layout.width]
+  );
 
-  const handlePinchStart = (
-    touches: Array<{ pageX: number; pageY: number }>
-  ) => {
-    if (!shouldHandlePinch(touches)) return;
-    const distance = getTouchDistance(touches);
-    pinchRef.current = { distance, zoom };
-    pinchLogZoomRef.current = zoom;
-    logSelectionPerf("pinch.start", {
-      tool: activeTool,
-      distance: Math.round(distance * 100) / 100,
-      zoom: Math.round(zoom * 100) / 100,
+  const applySelectionEdgeAutoscroll = useCallback(() => {
+    const point = selectionDragPointRef.current;
+    if (!point || !selectionStart.current || !layout.width || !layout.height) {
+      stopSelectionAutoscroll();
+      return;
+    }
+
+    const visibleX = point.x - horizontalScrollOffsetRef.current;
+    const { dx } = getSelectionEdgeAutoscroll({
+      x: visibleX,
+      y: SELECTION_EDGE_THRESHOLD_PX,
+      width: pageViewportWidth,
+      height: SELECTION_EDGE_THRESHOLD_PX * 2,
+      threshold: SELECTION_EDGE_THRESHOLD_PX,
+      maxStep: SELECTION_EDGE_MAX_STEP_PX,
     });
-  };
 
-  const handlePinchMove = (
-    touches: Array<{ pageX: number; pageY: number }>
-  ) => {
-    if (!shouldHandlePinch(touches) || !pinchRef.current) return;
-    const distance = getTouchDistance(touches);
-    if (!distance) return;
-    const scale = distance / pinchRef.current.distance;
-    const nextZoom = clamp(pinchRef.current.zoom * scale, 0.5, 4.0);
-    setDocumentStateTracked({ zoom: nextZoom }, "pinchMove");
-    engine.setZoom(nextZoom);
-    if (Math.abs(nextZoom - pinchLogZoomRef.current) >= 0.12) {
-      pinchLogZoomRef.current = nextZoom;
-      logSelectionPerf("pinch.move", {
-        tool: activeTool,
-        distance: Math.round(distance * 100) / 100,
-        zoom: Math.round(nextZoom * 100) / 100,
-      });
+    let appliedDx = 0;
+    if (dx !== 0 && pageViewportWidth > 0) {
+      const maxOffsetX = Math.max(0, layout.width - pageViewportWidth);
+      const nextOffsetX = clamp(
+        horizontalScrollOffsetRef.current + dx,
+        0,
+        maxOffsetX
+      );
+      appliedDx = nextOffsetX - horizontalScrollOffsetRef.current;
+      if (appliedDx !== 0) {
+        horizontalScrollOffsetRef.current = nextOffsetX;
+        pageScrollRef.current?.scrollTo({ x: nextOffsetX, animated: false });
+      }
     }
-  };
 
-  const handlePinchEnd = () => {
-    if (isPinchingRef.current || pinchRef.current) {
-      logSelectionPerf("pinch.end", {
-        tool: activeTool,
-        zoom: Math.round(zoom * 100) / 100,
-      });
+    const appliedDy =
+      requestSelectionVerticalAutoscroll?.(point.absoluteY) ?? 0;
+    if (appliedDx === 0 && appliedDy === 0) {
+      stopSelectionAutoscroll();
+      return;
     }
-    pinchRef.current = null;
-  };
+
+    const nextX = clamp(point.x + appliedDx, 0, layout.width);
+    const nextY = clamp(point.y + appliedDy, 0, layout.height);
+    selectionDragPointRef.current = {
+      absoluteY: point.absoluteY,
+      x: nextX,
+      y: nextY,
+    };
+    updateSelectionRectFromPoint(nextX, nextY);
+  }, [
+    layout.height,
+    layout.width,
+    pageViewportWidth,
+    requestSelectionVerticalAutoscroll,
+    stopSelectionAutoscroll,
+    updateSelectionRectFromPoint,
+  ]);
+
+  const ensureSelectionAutoscroll = useCallback(() => {
+    if (selectionAutoscrollIntervalRef.current) return;
+    selectionAutoscrollIntervalRef.current = setInterval(
+      applySelectionEdgeAutoscroll,
+      SELECTION_AUTOSCROLL_INTERVAL_MS
+    );
+  }, [applySelectionEdgeAutoscroll]);
+
+  const beginSelectionDrag = useCallback(
+    (x: number, y: number, absoluteY: number) => {
+      if (
+        !selectionEnabled ||
+        !layout.width ||
+        !layout.height ||
+        selectionRects.length > 0 ||
+        selectionBounds
+      ) {
+        return;
+      }
+      const start = {
+        x: clamp(x, 0, layout.width),
+        y: clamp(y, 0, layout.height),
+      };
+      selectionStart.current = start;
+      selectionDragPointRef.current = { absoluteY, ...start };
+      setSelectionDragState(true);
+      setIsSelecting(true);
+      const rect = { x: start.x, y: start.y, width: 0, height: 0 };
+      selectionRectRef.current = rect;
+      setSelectionRect(rect);
+    },
+    [
+      layout.height,
+      layout.width,
+      selectionBounds,
+      selectionEnabled,
+      selectionRects.length,
+      setSelectionDragState,
+    ]
+  );
+
+  const updateSelectionDrag = useCallback(
+    (x: number, y: number, absoluteY: number) => {
+      if (!selectionEnabled || !selectionStart.current) return;
+      const nextX = clamp(x, 0, layout.width);
+      const nextY = clamp(y, 0, layout.height);
+      selectionDragPointRef.current = {
+        absoluteY,
+        x: nextX,
+        y: nextY,
+      };
+      updateSelectionRectFromPoint(nextX, nextY);
+      ensureSelectionAutoscroll();
+    },
+    [
+      ensureSelectionAutoscroll,
+      layout.height,
+      layout.width,
+      selectionEnabled,
+      updateSelectionRectFromPoint,
+    ]
+  );
+
+  const finishSelectionDrag = useCallback(async () => {
+    stopSelectionAutoscroll();
+    selectionDragPointRef.current = null;
+    setSelectionDragState(false);
+
+    const rect = selectionRectRef.current;
+    if (!selectionEnabled || !rect || !layout.width || !layout.height) {
+      setIsSelecting(false);
+      selectionStart.current = null;
+      return;
+    }
+    setIsSelecting(false);
+    selectionStart.current = null;
+
+    const minSize = 6;
+    if (rect.width < minSize || rect.height < minSize) {
+      clearSelection();
+      return;
+    }
+
+    const normalized = {
+      x: rect.x / layout.width,
+      y: rect.y / layout.height,
+      width: rect.width / layout.width,
+      height: rect.height / layout.height,
+    };
+
+    await selectFromBounds(normalized);
+    setSelectionRect(null);
+  }, [
+    clearSelection,
+    layout.height,
+    layout.width,
+    selectionEnabled,
+    setSelectionDragState,
+    stopSelectionAutoscroll,
+  ]);
+
+  const handleDoubleTap = useCallback(
+    (x: number, y: number) => {
+      if (shouldSuppressPressAfterPinch(lastPinchEndedAt)) {
+        return;
+      }
+      if (
+        !isNative ||
+        activeTool !== "select" ||
+        selectionRects.length > 0 ||
+        selectionBounds
+      ) {
+        return;
+      }
+      void selectAtPoint(x, y);
+    },
+    [
+      activeTool,
+      isNative,
+      lastPinchEndedAt,
+      selectionBounds,
+      selectionRects.length,
+    ]
+  );
 
   const handlePress = (event: GestureResponderEvent) => {
+    if (shouldSuppressPressAfterPinch(lastPinchEndedAt)) {
+      return;
+    }
     if (!layout.width || !layout.height) return;
     const { locationX, locationY } = event.nativeEvent;
     if (selectionRects.length > 0 || selectionBounds) {
@@ -618,27 +881,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({
       return;
     }
     setSelectedAnnotation(null);
-    if (!isNative || activeTool === "ink") return;
-
-    const now = Date.now();
-    const lastTap = lastTapRef.current;
-    lastTapRef.current = { time: now, x: locationX, y: locationY };
-
-    if (!lastTap) return;
-    const timeDelta = now - lastTap.time;
-    const distance = Math.hypot(locationX - lastTap.x, locationY - lastTap.y);
-    if (timeDelta < 280 && distance < 24 && activeTool === "select") {
-      void selectAtPoint(locationX, locationY);
-    }
   };
-
-  const selectionEnabled =
-    Platform.OS === "web" ||
-    (isNative &&
-      (activeTool === "select" ||
-        TEXT_MARKUP_TOOLS.has(activeTool as TextMarkupType)));
-  const inkEnabled = isNative && activeTool === "ink";
-  const pinchEnabled = isNative;
 
   const toNormalizedPoint = (x: number, y: number) => {
     if (!layout.width || !layout.height) return null;
@@ -652,6 +895,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     const point = toNormalizedPoint(x, y);
     if (!point) return;
     clearSelection();
+    inkDrawingActiveRef.current = true;
     setIsInkDrawing(true);
     setInkPoints([point]);
     inkPointsRef.current = [point];
@@ -672,6 +916,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   const finishInkDrawing = () => {
     const points = inkPointsRef.current;
     if (points.length === 0) return;
+    inkDrawingActiveRef.current = false;
     setIsInkDrawing(false);
     setInkPoints([]);
     inkPointsRef.current = [];
@@ -697,40 +942,18 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     () =>
       PanResponder.create({
         onStartShouldSetPanResponder: (event) => {
+          if (isNative) return false;
           const touches = event.nativeEvent.touches ?? [];
-          return (
-            (pinchEnabled && shouldHandlePinch(touches)) ||
-            selectionEnabled ||
-            inkEnabled
-          );
+          if (touches.length !== 1) return false;
+          return inkEnabled;
         },
         onMoveShouldSetPanResponder: (event) => {
+          if (isNative) return false;
           const touches = event.nativeEvent.touches ?? [];
-          return (
-            (pinchEnabled && shouldHandlePinch(touches)) ||
-            selectionEnabled ||
-            inkEnabled
-          );
-        },
-        onStartShouldSetPanResponderCapture: (event) => {
-          const touches = event.nativeEvent.touches ?? [];
-          return pinchEnabled && shouldHandlePinch(touches);
-        },
-        onMoveShouldSetPanResponderCapture: (event) => {
-          const touches = event.nativeEvent.touches ?? [];
-          return pinchEnabled && shouldHandlePinch(touches);
+          if (touches.length !== 1) return false;
+          return selectionEnabled || inkEnabled;
         },
         onPanResponderGrant: (event) => {
-          const touches = event.nativeEvent.touches ?? [];
-          if (pinchEnabled && shouldHandlePinch(touches)) {
-            isPinchingRef.current = true;
-            setIsSelecting(false);
-            selectionStart.current = null;
-            handlePinchStart(touches);
-            return;
-          }
-          isPinchingRef.current = false;
-
           if (inkEnabled) {
             beginInkDrawing(
               event.nativeEvent.locationX,
@@ -738,31 +961,13 @@ const PageRenderer: React.FC<PageRendererProps> = ({
             );
             return;
           }
-
-          if (!selectionEnabled || !layout.width || !layout.height) return;
-          const { locationX, locationY } = event.nativeEvent;
-          selectionStart.current = { x: locationX, y: locationY };
-          setIsSelecting(true);
-          const rect = { x: locationX, y: locationY, width: 0, height: 0 };
-          selectionRectRef.current = rect;
-          setSelectionRect(rect);
+          beginSelectionDrag(
+            event.nativeEvent.locationX,
+            event.nativeEvent.locationY,
+            event.nativeEvent.pageY ?? event.nativeEvent.locationY
+          );
         },
-        onPanResponderMove: (event, gestureState) => {
-          const touches = event.nativeEvent.touches ?? [];
-          if (
-            pinchEnabled &&
-            (shouldHandlePinch(touches) || isPinchingRef.current)
-          ) {
-            if (shouldHandlePinch(touches)) {
-              if (!isPinchingRef.current) {
-                isPinchingRef.current = true;
-                handlePinchStart(touches);
-              }
-              handlePinchMove(touches);
-            }
-            return;
-          }
-
+        onPanResponderMove: (event) => {
           if (inkEnabled) {
             pushInkPoint(
               event.nativeEvent.locationX,
@@ -770,84 +975,122 @@ const PageRenderer: React.FC<PageRendererProps> = ({
             );
             return;
           }
-          if (!selectionEnabled || !selectionStart.current) return;
-          const start = selectionStart.current;
-          const currentX = start.x + gestureState.dx;
-          const currentY = start.y + gestureState.dy;
-          const left = Math.max(0, Math.min(start.x, currentX));
-          const top = Math.max(0, Math.min(start.y, currentY));
-          const right = Math.min(layout.width, Math.max(start.x, currentX));
-          const bottom = Math.min(layout.height, Math.max(start.y, currentY));
-          const rect = {
-            x: left,
-            y: top,
-            width: right - left,
-            height: bottom - top,
-          };
-          selectionRectRef.current = rect;
-          setSelectionRect(rect);
+          updateSelectionDrag(
+            event.nativeEvent.locationX,
+            event.nativeEvent.locationY,
+            event.nativeEvent.pageY ?? event.nativeEvent.locationY
+          );
         },
         onPanResponderRelease: async () => {
-          if (isPinchingRef.current) {
-            isPinchingRef.current = false;
-            handlePinchEnd();
-            return;
-          }
-
           if (inkEnabled) {
             finishInkDrawing();
             return;
           }
-
-          const rect = selectionRectRef.current;
-          if (!selectionEnabled || !rect || !layout.width || !layout.height) {
-            setIsSelecting(false);
-            selectionStart.current = null;
-            return;
-          }
-          setIsSelecting(false);
-          selectionStart.current = null;
-
-          const minSize = 6;
-          if (rect.width < minSize || rect.height < minSize) {
-            clearSelection();
-            return;
-          }
-
-          const normalized = {
-            x: rect.x / layout.width,
-            y: rect.y / layout.height,
-            width: rect.width / layout.width,
-            height: rect.height / layout.height,
-          };
-
-          await selectFromBounds(normalized);
-          setSelectionRect(null);
+          await finishSelectionDrag();
         },
         onPanResponderTerminate: () => {
-          if (isPinchingRef.current) {
-            isPinchingRef.current = false;
-            handlePinchEnd();
-            return;
-          }
-
           if (inkEnabled) {
             finishInkDrawing();
             return;
           }
-          setIsSelecting(false);
-          selectionStart.current = null;
+          cancelSelectionDrag();
         },
       }),
     [
-      selectionEnabled,
+      beginSelectionDrag,
+      cancelSelectionDrag,
+      finishSelectionDrag,
+      isNative,
       inkEnabled,
-      pinchEnabled,
-      layout.width,
-      layout.height,
-      annotationColor,
-      zoom,
+      beginInkDrawing,
+      finishInkDrawing,
+      pushInkPoint,
+      selectionEnabled,
+      updateSelectionDrag,
     ]
+  );
+
+  const selectionGesture = useMemo(
+    () =>
+      Gesture.Pan()
+        .enabled(
+          isNative &&
+            selectionEnabled &&
+            selectionRects.length === 0 &&
+            !selectionBounds
+        )
+        .maxPointers(1)
+        .minDistance(4)
+        .runOnJS(true)
+        .onStart((event) => {
+          beginSelectionDrag(event.x, event.y, event.absoluteY);
+        })
+        .onUpdate((event) => {
+          updateSelectionDrag(event.x, event.y, event.absoluteY);
+        })
+        .onEnd(() => {
+          void finishSelectionDrag();
+        })
+        .onFinalize(() => {
+          if (selectionDragActiveRef.current) {
+            cancelSelectionDrag();
+          }
+        }),
+    [
+      beginSelectionDrag,
+      cancelSelectionDrag,
+      finishSelectionDrag,
+      isNative,
+      selectionBounds,
+      selectionEnabled,
+      selectionRects.length,
+      updateSelectionDrag,
+    ]
+  );
+
+  const inkGesture = useMemo(
+    () =>
+      Gesture.Pan()
+        .enabled(isNative && inkEnabled)
+        .maxPointers(1)
+        .minDistance(0)
+        .runOnJS(true)
+        .onStart((event) => {
+          beginInkDrawing(event.x, event.y);
+        })
+        .onUpdate((event) => {
+          pushInkPoint(event.x, event.y);
+        })
+        .onEnd(() => {
+          finishInkDrawing();
+        })
+        .onFinalize(() => {
+          if (inkDrawingActiveRef.current) {
+            finishInkDrawing();
+          }
+        }),
+    [beginInkDrawing, finishInkDrawing, inkEnabled, isNative, pushInkPoint]
+  );
+
+  const doubleTapGesture = useMemo(
+    () =>
+      Gesture.Tap()
+        .enabled(isNative && activeTool === "select")
+        .numberOfTaps(2)
+        .maxDistance(24)
+        .maxDelay(280)
+        .maxDuration(250)
+        .runOnJS(true)
+        .onEnd((event, success) => {
+          if (!success) return;
+          handleDoubleTap(event.x, event.y);
+        }),
+    [activeTool, handleDoubleTap, isNative]
+  );
+
+  const contentGesture = useMemo(
+    () => Gesture.Simultaneous(selectionGesture, inkGesture, doubleTapGesture),
+    [doubleTapGesture, inkGesture, selectionGesture]
   );
 
   const selectionBoundsPx = useMemo(() => {
@@ -973,425 +1216,494 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   const hasActiveSelection =
     selectionRects.length > 0 || !!selectionBounds || isSelecting;
   const scrollEnabled =
-    isNative && zoom > 1 && !hasActiveSelection && !isInkDrawing;
+    isNative &&
+    zoom > 1 &&
+    !hasActiveSelection &&
+    !isInkDrawing &&
+    !gestureScrollLockActive;
+
+  useEffect(() => {
+    if (!horizontalScrollRestore) return;
+    if (
+      lastAppliedHorizontalRestoreRef.current ===
+      horizontalScrollRestore.requestId
+    ) {
+      return;
+    }
+    const nextOffsetX = resolveClampedScrollOffset(
+      horizontalScrollRestore.offsetX,
+      pageWidth,
+      pageViewportWidth
+    );
+    lastAppliedHorizontalRestoreRef.current = horizontalScrollRestore.requestId;
+    horizontalScrollOffsetRef.current = nextOffsetX;
+    pageScrollRef.current?.scrollTo({ x: nextOffsetX, animated: false });
+    onHorizontalScrollOffsetChange?.(pageIndex, nextOffsetX);
+  }, [
+    horizontalScrollRestore,
+    onHorizontalScrollOffsetChange,
+    pageIndex,
+    pageViewportWidth,
+    pageWidth,
+  ]);
 
   return (
     <ScrollView
+      ref={pageScrollRef}
       horizontal
       scrollEnabled={scrollEnabled}
       showsHorizontalScrollIndicator={false}
+      onScroll={(event) => {
+        const nextOffsetX = event.nativeEvent.contentOffset?.x ?? 0;
+        horizontalScrollOffsetRef.current = nextOffsetX;
+      }}
+      onScrollEndDrag={() => {
+        onHorizontalScrollOffsetChange?.(
+          pageIndex,
+          horizontalScrollOffsetRef.current
+        );
+      }}
+      onMomentumScrollEnd={() => {
+        onHorizontalScrollOffsetChange?.(
+          pageIndex,
+          horizontalScrollOffsetRef.current
+        );
+      }}
+      scrollEventThrottle={16}
       contentContainerStyle={[
         styles.scrollContent,
         { paddingHorizontal: horizontalPadding },
       ]}
     >
-      <Pressable
-        {...panResponder.panHandlers}
-        style={[
-          styles.container,
-          { width: pageWidth, height: pageHeight, marginBottom: spacing },
-        ]}
-        onLayout={handleLayout}
-        onPress={handlePress}
-      >
-        <PageViewComponent ref={viewRef} style={styles.page} />
-        <View
-          pointerEvents="none"
-          style={[styles.themeOverlay, themeOverlayStyle]}
-        />
-        <View pointerEvents="box-none" style={styles.selectionLayer}>
-          <View pointerEvents="none">
-            {selectionRects.map((rect, index) => {
-              const style = {
-                left: `${rect.x * 100}%`,
-                top: `${rect.y * 100}%`,
-                width: `${rect.width * 100}%`,
-                height: `${rect.height * 100}%`,
+      <GestureDetector gesture={contentGesture}>
+        <Pressable
+          {...panResponder.panHandlers}
+          style={[
+            styles.container,
+            {
+              width: pageWidth,
+              height: pageHeight,
+              marginBottom: spacing,
+            },
+          ]}
+          onLayout={handleLayout}
+          onTouchStart={(event) => logRawTouchDebug("start", event)}
+          onTouchMove={(event) => logRawTouchDebug("move", event)}
+          onTouchEnd={(event) => logRawTouchDebug("end", event)}
+          onTouchCancel={(event) => logRawTouchDebug("cancel", event)}
+          onPress={handlePress}
+        >
+          <PageViewComponent
+            ref={viewRef}
+            pointerEvents="none"
+            style={styles.page}
+          />
+          <View
+            pointerEvents="none"
+            style={[styles.themeOverlay, themeOverlayStyle]}
+          />
+          <View pointerEvents="box-none" style={styles.selectionLayer}>
+            <View pointerEvents="none">
+              {selectionRects.map((rect, index) => {
+                const style = {
+                  left: `${rect.x * 100}%`,
+                  top: `${rect.y * 100}%`,
+                  width: `${rect.width * 100}%`,
+                  height: `${rect.height * 100}%`,
+                } as const;
+                return (
+                  <View
+                    key={`sel-${index}`}
+                    style={[styles.selectionHighlight, style]}
+                  />
+                );
+              })}
+            </View>
+            {selectionBoundsPx ? (
+              <View
+                pointerEvents="box-none"
+                style={[
+                  styles.selectionOutline,
+                  {
+                    left: selectionBoundsPx.x,
+                    top: selectionBoundsPx.y,
+                    width: selectionBoundsPx.width,
+                    height: selectionBoundsPx.height,
+                    borderColor: accentColor,
+                  },
+                ]}
+              >
+                <View
+                  {...startHandleResponder.panHandlers}
+                  style={[
+                    styles.selectionHandle,
+                    { left: -8, top: -8, borderColor: accentColor },
+                  ]}
+                />
+                <View
+                  {...endHandleResponder.panHandlers}
+                  style={[
+                    styles.selectionHandle,
+                    { right: -8, bottom: -8, borderColor: accentColor },
+                  ]}
+                />
+              </View>
+            ) : null}
+            {isSelecting && selectionRect ? (
+              <View
+                pointerEvents="none"
+                style={[
+                  styles.selectionOutline,
+                  {
+                    left: selectionRect.x,
+                    top: selectionRect.y,
+                    width: selectionRect.width,
+                    height: selectionRect.height,
+                    borderColor: accentColor,
+                  },
+                ]}
+              />
+            ) : null}
+          </View>
+          <View pointerEvents="none" style={styles.searchLayer}>
+            {pageSearchHits.map(({ result, index }) => {
+              if (!result.rects || result.rects.length === 0) return null;
+              return result.rects.map((rect, rectIndex) => {
+                if (rect.width <= 0 || rect.height <= 0) return null;
+                const isActive = index === activeSearchIndex;
+                const highlightStyle = {
+                  left: `${rect.x * 100}%`,
+                  top: `${rect.y * 100}%`,
+                  width: `${rect.width * 100}%`,
+                  height: `${rect.height * 100}%`,
+                } as const;
+                return (
+                  <View
+                    key={`${index}-${rectIndex}`}
+                    style={[
+                      styles.searchHighlight,
+                      {
+                        borderColor: accentColor,
+                        backgroundColor: `${accentColor}26`,
+                      },
+                      isActive && styles.searchHighlightActive,
+                      isActive && {
+                        borderColor: accentColor,
+                        backgroundColor: `${accentColor}40`,
+                      },
+                      highlightStyle,
+                    ]}
+                  />
+                );
+              });
+            })}
+          </View>
+          {isInkDrawing && inkPoints.length > 1 ? (
+            <View pointerEvents="none" style={styles.inkPreviewLayer}>
+              <Svg
+                width="100%"
+                height="100%"
+                viewBox="0 0 1 1"
+                preserveAspectRatio="none"
+              >
+                <SvgPath
+                  d={inkPoints
+                    .map(
+                      (point, pointIndex) =>
+                        `${pointIndex === 0 ? "M" : "L"} ${point.x} ${point.y}`
+                    )
+                    .join(" ")}
+                  fill="none"
+                  stroke={annotationColor}
+                  strokeWidth={0.006}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </Svg>
+            </View>
+          ) : null}
+          <View pointerEvents="box-none" style={styles.annotationLayer}>
+            {pageAnnotations.map((ann) => {
+              const isSelected = selectedAnnotationId === ann.id;
+              const isText = ann.type === "comment" || ann.type === "text";
+              const isInk =
+                ann.type === "ink" &&
+                Array.isArray(ann.path) &&
+                ann.path.length > 1;
+              const isMarkup = TEXT_MARKUP_TOOLS.has(
+                ann.type as TextMarkupType
+              );
+              const rects =
+                ann.rects && ann.rects.length > 0 ? ann.rects : [ann.rect];
+              const hitTargetStyle = {
+                left: `${ann.rect.x * 100}%`,
+                top: `${ann.rect.y * 100}%`,
+                width: `${ann.rect.width * 100}%`,
+                height: `${ann.rect.height * 100}%`,
               } as const;
+
               return (
                 <View
-                  key={`sel-${index}`}
-                  style={[styles.selectionHighlight, style]}
-                />
+                  key={ann.id}
+                  pointerEvents="box-none"
+                  style={styles.annotationGroup}
+                >
+                  {isMarkup
+                    ? rects.map((rect, rectIndex) => {
+                        const rectStyle = {
+                          left: `${rect.x * 100}%`,
+                          top: `${rect.y * 100}%`,
+                          width: `${rect.width * 100}%`,
+                          height: `${rect.height * 100}%`,
+                        } as const;
+
+                        if (ann.type === "highlight") {
+                          return (
+                            <View
+                              key={`${ann.id}-mark-${rectIndex}`}
+                              pointerEvents="none"
+                              style={[
+                                styles.annotationMarkupRect,
+                                rectStyle,
+                                { backgroundColor: withAlpha(ann.color, 0.38) },
+                              ]}
+                            />
+                          );
+                        }
+
+                        if (ann.type === "underline") {
+                          return (
+                            <View
+                              key={`${ann.id}-mark-${rectIndex}`}
+                              pointerEvents="none"
+                              style={[
+                                styles.annotationLineContainer,
+                                rectStyle,
+                              ]}
+                            >
+                              <View
+                                style={[
+                                  styles.annotationUnderlineLine,
+                                  { backgroundColor: ann.color },
+                                ]}
+                              />
+                            </View>
+                          );
+                        }
+
+                        if (ann.type === "strikeout") {
+                          return (
+                            <View
+                              key={`${ann.id}-mark-${rectIndex}`}
+                              pointerEvents="none"
+                              style={[
+                                styles.annotationLineContainer,
+                                rectStyle,
+                              ]}
+                            >
+                              <View
+                                style={[
+                                  styles.annotationStrikeLine,
+                                  { backgroundColor: ann.color },
+                                ]}
+                              />
+                            </View>
+                          );
+                        }
+
+                        return (
+                          <View
+                            key={`${ann.id}-mark-${rectIndex}`}
+                            pointerEvents="none"
+                            style={[styles.annotationLineContainer, rectStyle]}
+                          >
+                            <View style={styles.annotationSquigglyWrap}>
+                              <Svg
+                                width="100%"
+                                height="100%"
+                                viewBox="0 0 100 8"
+                                preserveAspectRatio="none"
+                              >
+                                <SvgPath
+                                  d={SQUIGGLY_PATH}
+                                  fill="none"
+                                  stroke={ann.color}
+                                  strokeWidth={1.8}
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                              </Svg>
+                            </View>
+                          </View>
+                        );
+                      })
+                    : null}
+                  {isInk && ann.path ? (
+                    <Svg
+                      pointerEvents="none"
+                      style={styles.inkAnnotationLayer}
+                      width="100%"
+                      height="100%"
+                      viewBox="0 0 1 1"
+                      preserveAspectRatio="none"
+                    >
+                      <SvgPath
+                        d={ann.path
+                          .map(
+                            (point, pointIndex) =>
+                              `${pointIndex === 0 ? "M" : "L"} ${point.x} ${
+                                point.y
+                              }`
+                          )
+                          .join(" ")}
+                        fill="none"
+                        stroke={ann.color}
+                        strokeWidth={0.006}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </Svg>
+                  ) : null}
+                  <Pressable
+                    onPress={(event) => {
+                      stopPressPropagation(event);
+                      setSelectedAnnotation(ann.id);
+                    }}
+                    style={[
+                      styles.annotation,
+                      hitTargetStyle,
+                      isSelected && styles.annotationSelected,
+                      isSelected && { borderColor: accentColor },
+                    ]}
+                  >
+                    {isText && (
+                      <View
+                        style={[
+                          styles.annotationBadge,
+                          { borderColor: ann.color },
+                        ]}
+                      >
+                        <View
+                          style={[
+                            styles.annotationDot,
+                            { backgroundColor: ann.color },
+                          ]}
+                        />
+                      </View>
+                    )}
+                    {isSelected && (
+                      <Pressable
+                        onPress={(event) => {
+                          stopPressPropagation(event);
+                          removeAnnotation(ann.id);
+                        }}
+                        style={styles.deleteButton}
+                      >
+                        <View style={styles.deleteDot} />
+                      </Pressable>
+                    )}
+                  </Pressable>
+                </View>
               );
             })}
           </View>
-          {selectionBoundsPx ? (
+          {selectionRects.length > 0 &&
+          selectionBoundsPx &&
+          activeTool === "select" ? (
             <View
               pointerEvents="box-none"
               style={[
-                styles.selectionOutline,
+                styles.selectionToolbar,
                 {
                   left: selectionBoundsPx.x,
-                  top: selectionBoundsPx.y,
-                  width: selectionBoundsPx.width,
-                  height: selectionBoundsPx.height,
-                  borderColor: accentColor,
+                  top:
+                    selectionBoundsPx.y + selectionBoundsPx.height + 8 >
+                    layout.height - 56
+                      ? Math.max(8, selectionBoundsPx.y - 52)
+                      : selectionBoundsPx.y + selectionBoundsPx.height + 8,
                 },
               ]}
             >
-              <View
-                {...startHandleResponder.panHandlers}
-                style={[
-                  styles.selectionHandle,
-                  { left: -8, top: -8, borderColor: accentColor },
-                ]}
-              />
-              <View
-                {...endHandleResponder.panHandlers}
-                style={[
-                  styles.selectionHandle,
-                  { right: -8, bottom: -8, borderColor: accentColor },
-                ]}
-              />
-            </View>
-          ) : null}
-          {isSelecting && selectionRect ? (
-            <View
-              pointerEvents="none"
-              style={[
-                styles.selectionOutline,
-                {
-                  left: selectionRect.x,
-                  top: selectionRect.y,
-                  width: selectionRect.width,
-                  height: selectionRect.height,
-                  borderColor: accentColor,
-                },
-              ]}
-            />
-          ) : null}
-        </View>
-        <View pointerEvents="none" style={styles.searchLayer}>
-          {pageSearchHits.map(({ result, index }) => {
-            if (!result.rects || result.rects.length === 0) return null;
-            return result.rects.map((rect, rectIndex) => {
-              if (rect.width <= 0 || rect.height <= 0) return null;
-              const isActive = index === activeSearchIndex;
-              const highlightStyle = {
-                left: `${rect.x * 100}%`,
-                top: `${rect.y * 100}%`,
-                width: `${rect.width * 100}%`,
-                height: `${rect.height * 100}%`,
-              } as const;
-              return (
+              <Pressable
+                onPress={(event) => {
+                  stopPressPropagation(event);
+                  applySelection("comment");
+                }}
+                style={styles.selectionAction}
+              >
+                <View style={styles.selectionActionDot} />
+              </Pressable>
+              <Pressable
+                onPress={(event) => {
+                  stopPressPropagation(event);
+                  applySelection("highlight");
+                }}
+                style={styles.selectionAction}
+              >
                 <View
-                  key={`${index}-${rectIndex}`}
                   style={[
-                    styles.searchHighlight,
-                    {
-                      borderColor: accentColor,
-                      backgroundColor: `${accentColor}26`,
-                    },
-                    isActive && styles.searchHighlightActive,
-                    isActive && {
-                      borderColor: accentColor,
-                      backgroundColor: `${accentColor}40`,
-                    },
-                    highlightStyle,
+                    styles.selectionSwatch,
+                    { backgroundColor: annotationColor },
                   ]}
                 />
-              );
-            });
-          })}
-        </View>
-        {isInkDrawing && inkPoints.length > 1 ? (
-          <View pointerEvents="none" style={styles.inkPreviewLayer}>
-            <Svg
-              width="100%"
-              height="100%"
-              viewBox="0 0 1 1"
-              preserveAspectRatio="none"
-            >
-              <SvgPath
-                d={inkPoints
-                  .map(
-                    (point, pointIndex) =>
-                      `${pointIndex === 0 ? "M" : "L"} ${point.x} ${point.y}`
-                  )
-                  .join(" ")}
-                fill="none"
-                stroke={annotationColor}
-                strokeWidth={0.006}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </Svg>
-          </View>
-        ) : null}
-        <View pointerEvents="box-none" style={styles.annotationLayer}>
-          {pageAnnotations.map((ann) => {
-            const isSelected = selectedAnnotationId === ann.id;
-            const isText = ann.type === "comment" || ann.type === "text";
-            const isInk =
-              ann.type === "ink" &&
-              Array.isArray(ann.path) &&
-              ann.path.length > 1;
-            const isMarkup = TEXT_MARKUP_TOOLS.has(ann.type as TextMarkupType);
-            const rects =
-              ann.rects && ann.rects.length > 0 ? ann.rects : [ann.rect];
-            const hitTargetStyle = {
-              left: `${ann.rect.x * 100}%`,
-              top: `${ann.rect.y * 100}%`,
-              width: `${ann.rect.width * 100}%`,
-              height: `${ann.rect.height * 100}%`,
-            } as const;
-
-            return (
-              <View
-                key={ann.id}
-                pointerEvents="box-none"
-                style={styles.annotationGroup}
+              </Pressable>
+              <Pressable
+                onPress={(event) => {
+                  stopPressPropagation(event);
+                  applySelection("underline");
+                }}
+                style={styles.selectionAction}
               >
-                {isMarkup
-                  ? rects.map((rect, rectIndex) => {
-                      const rectStyle = {
-                        left: `${rect.x * 100}%`,
-                        top: `${rect.y * 100}%`,
-                        width: `${rect.width * 100}%`,
-                        height: `${rect.height * 100}%`,
-                      } as const;
-
-                      if (ann.type === "highlight") {
-                        return (
-                          <View
-                            key={`${ann.id}-mark-${rectIndex}`}
-                            pointerEvents="none"
-                            style={[
-                              styles.annotationMarkupRect,
-                              rectStyle,
-                              { backgroundColor: withAlpha(ann.color, 0.38) },
-                            ]}
-                          />
-                        );
-                      }
-
-                      if (ann.type === "underline") {
-                        return (
-                          <View
-                            key={`${ann.id}-mark-${rectIndex}`}
-                            pointerEvents="none"
-                            style={[styles.annotationLineContainer, rectStyle]}
-                          >
-                            <View
-                              style={[
-                                styles.annotationUnderlineLine,
-                                { backgroundColor: ann.color },
-                              ]}
-                            />
-                          </View>
-                        );
-                      }
-
-                      if (ann.type === "strikeout") {
-                        return (
-                          <View
-                            key={`${ann.id}-mark-${rectIndex}`}
-                            pointerEvents="none"
-                            style={[styles.annotationLineContainer, rectStyle]}
-                          >
-                            <View
-                              style={[
-                                styles.annotationStrikeLine,
-                                { backgroundColor: ann.color },
-                              ]}
-                            />
-                          </View>
-                        );
-                      }
-
-                      return (
-                        <View
-                          key={`${ann.id}-mark-${rectIndex}`}
-                          pointerEvents="none"
-                          style={[styles.annotationLineContainer, rectStyle]}
-                        >
-                          <View style={styles.annotationSquigglyWrap}>
-                            <Svg
-                              width="100%"
-                              height="100%"
-                              viewBox="0 0 100 8"
-                              preserveAspectRatio="none"
-                            >
-                              <SvgPath
-                                d={SQUIGGLY_PATH}
-                                fill="none"
-                                stroke={ann.color}
-                                strokeWidth={1.8}
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              />
-                            </Svg>
-                          </View>
-                        </View>
-                      );
-                    })
-                  : null}
-                {isInk && ann.path ? (
+                <View
+                  style={[
+                    styles.selectionUnderline,
+                    { backgroundColor: annotationColor },
+                  ]}
+                />
+              </Pressable>
+              <Pressable
+                onPress={(event) => {
+                  stopPressPropagation(event);
+                  applySelection("squiggly");
+                }}
+                style={styles.selectionAction}
+              >
+                <View style={styles.selectionSquigglyWrap}>
                   <Svg
-                    pointerEvents="none"
-                    style={styles.inkAnnotationLayer}
                     width="100%"
                     height="100%"
-                    viewBox="0 0 1 1"
+                    viewBox="0 0 100 8"
                     preserveAspectRatio="none"
                   >
                     <SvgPath
-                      d={ann.path
-                        .map(
-                          (point, pointIndex) =>
-                            `${pointIndex === 0 ? "M" : "L"} ${point.x} ${
-                              point.y
-                            }`
-                        )
-                        .join(" ")}
+                      d={SQUIGGLY_PATH}
                       fill="none"
-                      stroke={ann.color}
-                      strokeWidth={0.006}
+                      stroke={annotationColor}
+                      strokeWidth={1.8}
                       strokeLinecap="round"
                       strokeLinejoin="round"
                     />
                   </Svg>
-                ) : null}
-                <Pressable
-                  onPress={(event) => {
-                    stopPressPropagation(event);
-                    setSelectedAnnotation(ann.id);
-                  }}
+                </View>
+              </Pressable>
+              <Pressable
+                onPress={(event) => {
+                  stopPressPropagation(event);
+                  applySelection("strikeout");
+                }}
+                style={[styles.selectionAction, styles.selectionActionLast]}
+              >
+                <View
                   style={[
-                    styles.annotation,
-                    hitTargetStyle,
-                    isSelected && styles.annotationSelected,
-                    isSelected && { borderColor: accentColor },
+                    styles.selectionStrike,
+                    { backgroundColor: annotationColor },
                   ]}
-                >
-                  {isText && (
-                    <View
-                      style={[
-                        styles.annotationBadge,
-                        { borderColor: ann.color },
-                      ]}
-                    >
-                      <View
-                        style={[
-                          styles.annotationDot,
-                          { backgroundColor: ann.color },
-                        ]}
-                      />
-                    </View>
-                  )}
-                  {isSelected && (
-                    <Pressable
-                      onPress={(event) => {
-                        stopPressPropagation(event);
-                        removeAnnotation(ann.id);
-                      }}
-                      style={styles.deleteButton}
-                    >
-                      <View style={styles.deleteDot} />
-                    </Pressable>
-                  )}
-                </Pressable>
-              </View>
-            );
-          })}
-        </View>
-        {selectionRects.length > 0 &&
-        selectionBoundsPx &&
-        activeTool === "select" ? (
-          <View
-            pointerEvents="box-none"
-            style={[
-              styles.selectionToolbar,
-              {
-                left: selectionBoundsPx.x,
-                top:
-                  selectionBoundsPx.y + selectionBoundsPx.height + 8 >
-                  layout.height - 56
-                    ? Math.max(8, selectionBoundsPx.y - 52)
-                    : selectionBoundsPx.y + selectionBoundsPx.height + 8,
-              },
-            ]}
-          >
-            <Pressable
-              onPress={(event) => {
-                stopPressPropagation(event);
-                applySelection("comment");
-              }}
-              style={styles.selectionAction}
-            >
-              <View style={styles.selectionActionDot} />
-            </Pressable>
-            <Pressable
-              onPress={(event) => {
-                stopPressPropagation(event);
-                applySelection("highlight");
-              }}
-              style={styles.selectionAction}
-            >
-              <View
-                style={[
-                  styles.selectionSwatch,
-                  { backgroundColor: annotationColor },
-                ]}
-              />
-            </Pressable>
-            <Pressable
-              onPress={(event) => {
-                stopPressPropagation(event);
-                applySelection("underline");
-              }}
-              style={styles.selectionAction}
-            >
-              <View
-                style={[
-                  styles.selectionUnderline,
-                  { backgroundColor: annotationColor },
-                ]}
-              />
-            </Pressable>
-            <Pressable
-              onPress={(event) => {
-                stopPressPropagation(event);
-                applySelection("squiggly");
-              }}
-              style={styles.selectionAction}
-            >
-              <View style={styles.selectionSquigglyWrap}>
-                <Svg
-                  width="100%"
-                  height="100%"
-                  viewBox="0 0 100 8"
-                  preserveAspectRatio="none"
-                >
-                  <SvgPath
-                    d={SQUIGGLY_PATH}
-                    fill="none"
-                    stroke={annotationColor}
-                    strokeWidth={1.8}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </Svg>
-              </View>
-            </Pressable>
-            <Pressable
-              onPress={(event) => {
-                stopPressPropagation(event);
-                applySelection("strikeout");
-              }}
-              style={[styles.selectionAction, styles.selectionActionLast]}
-            >
-              <View
-                style={[
-                  styles.selectionStrike,
-                  { backgroundColor: annotationColor },
-                ]}
-              />
-            </Pressable>
-          </View>
-        ) : null}
-      </Pressable>
+                />
+              </Pressable>
+            </View>
+          ) : null}
+        </Pressable>
+      </GestureDetector>
     </ScrollView>
   );
 };
@@ -1630,6 +1942,17 @@ const arePageRendererPropsEqual = (
   previous.PageViewComponent === next.PageViewComponent &&
   previous.availableWidth === next.availableWidth &&
   previous.horizontalPadding === next.horizontalPadding &&
-  previous.spacing === next.spacing;
+  previous.spacing === next.spacing &&
+  previous.onSelectionDragActiveChange === next.onSelectionDragActiveChange &&
+  previous.gestureScrollLockActive === next.gestureScrollLockActive &&
+  previous.lastPinchEndedAt === next.lastPinchEndedAt &&
+  previous.onHorizontalScrollOffsetChange ===
+    next.onHorizontalScrollOffsetChange &&
+  previous.horizontalScrollRestore?.requestId ===
+    next.horizontalScrollRestore?.requestId &&
+  previous.horizontalScrollRestore?.offsetX ===
+    next.horizontalScrollRestore?.offsetX &&
+  previous.requestSelectionVerticalAutoscroll ===
+    next.requestSelectionVerticalAutoscroll;
 
 export default memo(PageRenderer, arePageRendererPropsEqual);

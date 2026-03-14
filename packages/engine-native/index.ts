@@ -263,14 +263,14 @@ const resolvePapyrusPageView = (): PapyrusPageViewComponent => {
   try {
     return requireNativeViewManager<PapyrusPageViewProps>(
       "PapyrusPageView"
-    ) as PapyrusPageViewComponent;
+    ) as unknown as PapyrusPageViewComponent;
   } catch {
     try {
       return requireNativeComponent<PapyrusPageViewProps>(
         "PapyrusPageView"
-      ) as PapyrusPageViewComponent;
+      ) as unknown as PapyrusPageViewComponent;
     } catch {
-      return View as PapyrusPageViewComponent;
+      return View as unknown as PapyrusPageViewComponent;
     }
   }
 };

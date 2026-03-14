@@ -3,6 +3,10 @@ import { View, Text, Pressable, StyleSheet } from "react-native";
 import { useViewerStore } from "@papyrus-sdk/core";
 import { getStrings } from "../strings";
 import { IconEdit } from "../icons";
+import {
+  getToolDockDismissState,
+  isToolDockToolSelected,
+} from "../gesture/selectionInteraction";
 
 const COLOR_SWATCHES = [
   "#fbbf24",
@@ -35,6 +39,7 @@ const ToolDock: React.FC = () => {
     setAnnotationColor,
     accentColor,
     activeTool,
+    interactionMode,
     toolDockOpen,
     setDocumentState,
   } = useViewerStore();
@@ -50,7 +55,14 @@ const ToolDock: React.FC = () => {
               {t.tools}
             </Text>
             <Pressable
-              onPress={() => setDocumentState({ toolDockOpen: false })}
+              onPress={() =>
+                setDocumentState(
+                  getToolDockDismissState({
+                    activeTool,
+                    interactionMode,
+                  })
+                )
+              }
               style={[styles.closeButton, isDark && styles.closeButtonDark]}
             >
               <Text
@@ -63,7 +75,11 @@ const ToolDock: React.FC = () => {
 
           <View style={styles.toolsRow}>
             {TOOL_OPTIONS.map((tool) => {
-              const isSelected = activeTool === tool.id;
+              const isSelected = isToolDockToolSelected({
+                toolId: tool.id,
+                activeTool,
+                interactionMode,
+              });
               const label =
                 tool.label === "note"
                   ? t.note
@@ -81,7 +97,21 @@ const ToolDock: React.FC = () => {
               return (
                 <Pressable
                   key={tool.id}
-                  onPress={() => setDocumentState({ activeTool: tool.id })}
+                  onPress={() => {
+                    if (tool.id === "select") {
+                      const shouldArmSelection =
+                        activeTool !== "select" || interactionMode !== "select";
+                      setDocumentState({
+                        activeTool: "select",
+                        interactionMode: shouldArmSelection ? "select" : "pan",
+                      });
+                      return;
+                    }
+                    setDocumentState({
+                      activeTool: tool.id,
+                      interactionMode: "pan",
+                    });
+                  }}
                   style={[
                     styles.toolButton,
                     isDark && styles.toolButtonDark,

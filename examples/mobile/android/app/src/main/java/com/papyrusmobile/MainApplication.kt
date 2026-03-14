@@ -15,6 +15,7 @@ import com.reactnativedocumentpicker.RNDocumentPickerPackage
 import com.horcrux.svg.SvgPackage
 import com.papyrus.engine.PapyrusPackage
 import com.reactnativecommunity.webview.RNCWebViewPackage
+import com.swmansion.gesturehandler.RNGestureHandlerPackage
 
 class MainApplication : Application(), ReactApplication {
 
@@ -24,6 +25,7 @@ class MainApplication : Application(), ReactApplication {
             listOf(
                 MainReactPackage(),
                 PapyrusPackage(),
+                RNGestureHandlerPackage(),
                 SvgPackage(),
                 RNCWebViewPackage(),
                 RNDocumentPickerPackage(),
