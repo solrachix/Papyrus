@@ -114,6 +114,7 @@ The redesign is governed by these operating principles:
 - `Reading first`: the document is the primary surface.
 - `Context over permanence`: controls appear because the user expressed intent, not because they exist.
 - `Format-aware by default`: PDF emphasizes pages, zoom, thumbnails, and annotations; EPUB emphasizes sections, progress, and typography; TXT emphasizes simplicity.
+- `PDF: page-first; EPUB: section-first; TXT: progress-first`: these are normative interaction priorities, not loose guidance.
 - `Cross-platform parity, not pixel parity`: the shell must behave equivalently across Web and React Native, while allowing platform-native implementations under the hood.
 - `Capability-aware UX`: the shell only exposes flows that the active engine and document can support reliably.
 - `Stable anchors before premium polish`: overlays that depend on geometry and selection must wait for trustworthy anchoring contracts.
@@ -156,6 +157,12 @@ Platform interpretation:
 - `Tablet`: same shell language with optional semi-pinned contextual surface.
 - `Web desktop`: floating islands plus a lighter utility panel instead of rigid bars and full-time sidebars.
 
+Legacy sidebar destination:
+
+- `Phone`: legacy sidebars are removed as a structural layout pattern and replaced by sheets or overlays.
+- `Tablet`: legacy sidebars may survive only as contextual utility surfaces, never as the default fixed reading layout.
+- `Web desktop`: outline and thumbnails may exist as optional utility surfaces, but must not open as fixed structural chrome by default.
+
 ### Platform and engine reality
 
 The shell is shared, but engine execution remains platform-specific.
@@ -172,6 +179,10 @@ Current execution baseline:
 Implication:
 
 `PDFKit` is both a benchmark and a real implementation for PDF on iOS, but it does not define the shell. The shell must depend on Papyrus-owned contracts so it remains coherent across Android, Web, EPUB, and TXT.
+
+iOS-specific note:
+
+high-refinement PDF interactions on iOS may use `PDFKit`-specific optimizations or affordances where that improves quality, provided the shell contract, capability model, and user-facing flow ownership remain in Papyrus rather than in engine-specific UI logic.
 
 ### Experience slices
 
@@ -362,12 +373,73 @@ Behavior:
 - use section-aware navigation rather than forced page metaphors;
 - make theme and text controls easier to reach;
 - prefer section or progress semantics over absolute page counts.
+- treat outline as more central than thumbnails in primary navigation design.
 
 #### TXT
 
 - keep the shell intentionally minimal;
 - emphasize theme, font size, search, and linear progress;
 - hide advanced affordances like thumbnails and premium annotation flows by default.
+
+### Platform visibility matrix
+
+The shell should make visibility decisions explicit by device class so phase-1 implementation does not drift back into a prettier version of the legacy layout.
+
+#### Phone
+
+Always visible:
+
+- back or close affordance when the host provides one;
+- short title or document label;
+- overflow trigger.
+
+Contextual:
+
+- search;
+- jump;
+- annotate in later phases only.
+
+Hidden until intent:
+
+- outline;
+- thumbnails;
+- info;
+- document actions.
+
+#### Tablet
+
+Always visible:
+
+- minimal top controls;
+- current document context.
+
+Contextual:
+
+- lightweight utility surface when explicitly opened;
+- search and jump;
+- outline or thumbnails only when the user asks for them.
+
+Hidden until intent:
+
+- secondary actions and metadata-heavy flows.
+
+#### Desktop
+
+Always visible:
+
+- minimal top controls;
+- utility toggle when the host layout needs it.
+
+Contextual:
+
+- search;
+- jump;
+- outline and thumbnails as optional utility surfaces.
+
+Hidden until intent:
+
+- less frequent actions;
+- info and document actions outside the overflow or utility path.
 
 ### Visual system guardrails
 
