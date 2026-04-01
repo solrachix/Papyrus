@@ -7,9 +7,15 @@ import {
   UITheme,
   PageTheme,
   OutlineItem,
+  ActiveSurface,
+  CapabilityState,
+  DocumentLocation,
   PapyrusEventType,
   PapyrusConfig,
   Locale,
+  MobilePrimaryDestination,
+  MobileShellState,
+  ReadingMode,
 } from "@papyrus-sdk/types";
 import { papyrusEvents } from "./services/event-emitter";
 
@@ -71,6 +77,14 @@ interface ViewerState {
   selectionActive: boolean;
   toolDockOpen: boolean;
   mobileChromeVisible: boolean;
+  readingMode: ReadingMode;
+  activeSurface: ActiveSurface;
+  documentLocation: DocumentLocation;
+  capabilityState: CapabilityState;
+  activeMobileDestination: MobilePrimaryDestination;
+  mobileKeyboardOpen: boolean;
+  mobileDockVisible: boolean;
+  mobileProgressPillVisible: boolean;
 
   initializeStore: (config: PapyrusConfig) => void;
   setDocumentState: (state: Partial<ViewerState>) => void;
@@ -91,7 +105,20 @@ interface ViewerState {
   setInteractionMode: (mode: "pan" | "select") => void;
   setSelectionActive: (active: boolean) => void;
   setAccentColor: (color: string) => void;
+  openActiveSurface: (surface: Exclude<ActiveSurface, "none">) => void;
+  closeActiveSurface: () => void;
+  setDocumentLocation: (location: DocumentLocation) => void;
+  setCapabilityState: (capabilityState: CapabilityState) => void;
+  openMobileDestination: (destination: MobilePrimaryDestination) => void;
+  closeMobileDestination: () => void;
+  setMobileKeyboardOpen: (open: boolean) => void;
 }
+
+const getDefaultCapabilityState = (): CapabilityState => ({
+  status: "unknown",
+  values: {},
+  errors: [],
+});
 
 const getDefaultViewerState = () => ({
   isLoaded: false,
@@ -122,7 +149,38 @@ const getDefaultViewerState = () => ({
   selectionActive: false,
   toolDockOpen: false,
   mobileChromeVisible: true,
+  readingMode: "focus" as ReadingMode,
+  activeSurface: "none" as ActiveSurface,
+  documentLocation: {
+    kind: "page" as const,
+    label: "1/0",
+    primaryValue: 1,
+    secondaryValue: 0,
+  } satisfies DocumentLocation,
+  capabilityState: getDefaultCapabilityState(),
+  activeMobileDestination: "none" as MobilePrimaryDestination,
+  mobileKeyboardOpen: false,
+  mobileDockVisible: true,
+  mobileProgressPillVisible: true,
 });
+
+const deriveMobileShellState = ({
+  activeMobileDestination,
+  mobileKeyboardOpen,
+}: Pick<
+  ViewerState,
+  "activeMobileDestination" | "mobileKeyboardOpen"
+>): MobileShellState => {
+  const keyboardOwnsSurface =
+    mobileKeyboardOpen && activeMobileDestination === "search";
+
+  return {
+    activeMobileDestination,
+    mobileKeyboardOpen,
+    mobileDockVisible: !keyboardOwnsSurface,
+    mobileProgressPillVisible: !keyboardOwnsSurface,
+  };
+};
 
 export const useViewerStore = create<ViewerState>((set, get) => ({
   ...getDefaultViewerState(),
@@ -170,7 +228,22 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
     const oldPage = get().currentPage;
     const oldZoom = get().zoom;
 
-    set((prev) => ({ ...prev, ...state }));
+    set((prev) => {
+      const nextState = { ...prev, ...state };
+      if (
+        state.activeMobileDestination !== undefined ||
+        state.mobileKeyboardOpen !== undefined
+      ) {
+        Object.assign(
+          nextState,
+          deriveMobileShellState({
+            activeMobileDestination: nextState.activeMobileDestination,
+            mobileKeyboardOpen: nextState.mobileKeyboardOpen,
+          })
+        );
+      }
+      return nextState;
+    });
 
     if (state.currentPage !== undefined && state.currentPage !== oldPage) {
       papyrusEvents.emit(PapyrusEventType.PAGE_CHANGED, {
@@ -283,6 +356,40 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
   setInteractionMode: (mode) => set({ interactionMode: mode }),
   setSelectionActive: (active) => set({ selectionActive: active }),
   setAccentColor: (color) => set({ accentColor: color }),
+  openActiveSurface: (surface) =>
+    set({
+      activeSurface: surface,
+      readingMode: "modalSurfaceOpen",
+      mobileChromeVisible: true,
+    }),
+  closeActiveSurface: () =>
+    set({
+      activeSurface: "none",
+      readingMode: "controlsVisible",
+    }),
+  setDocumentLocation: (location) => set({ documentLocation: location }),
+  setCapabilityState: (capabilityState) => set({ capabilityState }),
+  openMobileDestination: (destination) =>
+    set((state) => ({
+      ...deriveMobileShellState({
+        activeMobileDestination: destination,
+        mobileKeyboardOpen: state.mobileKeyboardOpen,
+      }),
+    })),
+  closeMobileDestination: () =>
+    set((state) => ({
+      ...deriveMobileShellState({
+        activeMobileDestination: "none",
+        mobileKeyboardOpen: state.mobileKeyboardOpen,
+      }),
+    })),
+  setMobileKeyboardOpen: (open) =>
+    set((state) => ({
+      ...deriveMobileShellState({
+        activeMobileDestination: state.activeMobileDestination,
+        mobileKeyboardOpen: open,
+      }),
+    })),
 
   setSearch: (query, results) => {
     set({

@@ -1,9 +1,8 @@
-
-export type ViewMode = 'single' | 'double' | 'continuous';
-export type UITheme = 'light' | 'dark';
-export type PageTheme = 'normal' | 'sepia' | 'dark' | 'high-contrast';
-export type Locale = 'en' | 'pt-BR';
-export type RenderTargetType = 'canvas' | 'element' | 'webview';
+export type ViewMode = "single" | "double" | "continuous";
+export type UITheme = "light" | "dark";
+export type PageTheme = "normal" | "sepia" | "dark" | "high-contrast";
+export type Locale = "en" | "pt-BR";
+export type RenderTargetType = "canvas" | "element" | "webview";
 
 export interface FileLike {
   arrayBuffer(): Promise<ArrayBuffer>;
@@ -17,7 +16,68 @@ export type DocumentSource =
   | { data: ArrayBuffer | Uint8Array }
   | FileLike;
 
-export type DocumentType = 'pdf' | 'epub' | 'text';
+export type DocumentType = "pdf" | "epub" | "text";
+
+export type ReadingMode =
+  | "focus"
+  | "controlsVisible"
+  | "readingDimmed"
+  | "modalSurfaceOpen"
+  | "annotate";
+
+export type ActiveSurface =
+  | "none"
+  | "search"
+  | "jump"
+  | "outline"
+  | "thumbnails"
+  | "comments"
+  | "info"
+  | "documentActions"
+  | "theme";
+
+export type MobilePrimaryDestination =
+  | "none"
+  | "pages"
+  | "contents"
+  | "progress"
+  | "search"
+  | "notes"
+  | "display"
+  | "info"
+  | "documentActions"
+  | "annotate";
+
+export interface MobileShellState {
+  activeMobileDestination: MobilePrimaryDestination;
+  mobileKeyboardOpen: boolean;
+  mobileDockVisible: boolean;
+  mobileProgressPillVisible: boolean;
+}
+
+export interface DocumentLocation {
+  kind: "page" | "section" | "progress" | "range";
+  label: string;
+  primaryValue: number | string;
+  secondaryValue?: number | string;
+  engineTarget?: unknown;
+}
+
+export type NavigationTarget = DocumentLocation;
+
+export interface ReaderCapabilities {
+  "search.text"?: boolean;
+  "navigation.page"?: boolean;
+  "navigation.section"?: boolean;
+  "documentActions.share"?: boolean;
+  "documentActions.export"?: boolean;
+}
+
+export interface CapabilityState {
+  status: "unknown" | "ready" | "partial";
+  values: ReaderCapabilities;
+  errors: string[];
+}
 
 export interface DocumentLoadRequest {
   type: DocumentType;
@@ -56,7 +116,14 @@ export interface AnnotationReply {
 
 export interface Annotation {
   id: string;
-  type: 'highlight' | 'underline' | 'squiggly' | 'strikeout' | 'text' | 'comment' | 'ink';
+  type:
+    | "highlight"
+    | "underline"
+    | "squiggly"
+    | "strikeout"
+    | "text"
+    | "comment"
+    | "ink";
   pageIndex: number;
   content?: string;
   rect: { x: number; y: number; width: number; height: number };
@@ -77,10 +144,10 @@ export interface OutlineItem {
 
 export type PageDestination =
   | string
-  | { kind: 'pageIndex'; value: number }
-  | { kind: 'pageNumber'; value: number }
-  | { kind: 'named'; value: string }
-  | { kind: 'href'; value: string };
+  | { kind: "pageIndex"; value: number }
+  | { kind: "pageNumber"; value: number }
+  | { kind: "named"; value: string }
+  | { kind: "href"; value: string };
 
 export interface PapyrusConfig {
   initialPage?: number;
@@ -97,15 +164,15 @@ export interface PapyrusConfig {
 }
 
 export enum PapyrusEventType {
-  DOCUMENT_LOADED = 'DOCUMENT_LOADED',
-  PAGE_CHANGED = 'PAGE_CHANGED',
-  ZOOM_CHANGED = 'ZOOM_CHANGED',
-  ANNOTATION_CREATED = 'ANNOTATION_CREATED',
-  ANNOTATION_UPDATED = 'ANNOTATION_UPDATED',
-  ANNOTATION_DELETED = 'ANNOTATION_DELETED',
-  ANNOTATION_REPLY_ADDED = 'ANNOTATION_REPLY_ADDED',
-  SEARCH_TRIGGERED = 'SEARCH_TRIGGERED',
-  TEXT_SELECTED = 'TEXT_SELECTED',
+  DOCUMENT_LOADED = "DOCUMENT_LOADED",
+  PAGE_CHANGED = "PAGE_CHANGED",
+  ZOOM_CHANGED = "ZOOM_CHANGED",
+  ANNOTATION_CREATED = "ANNOTATION_CREATED",
+  ANNOTATION_UPDATED = "ANNOTATION_UPDATED",
+  ANNOTATION_DELETED = "ANNOTATION_DELETED",
+  ANNOTATION_REPLY_ADDED = "ANNOTATION_REPLY_ADDED",
+  SEARCH_TRIGGERED = "SEARCH_TRIGGERED",
+  TEXT_SELECTED = "TEXT_SELECTED",
 }
 
 export interface EventPayloads {
@@ -121,10 +188,12 @@ export interface EventPayloads {
     annotation: Annotation;
   };
   [PapyrusEventType.SEARCH_TRIGGERED]: { query: string };
-  [PapyrusEventType.TEXT_SELECTED]: { text: string, pageIndex: number };
+  [PapyrusEventType.TEXT_SELECTED]: { text: string; pageIndex: number };
 }
 
-export type PapyrusEventListener<T extends PapyrusEventType> = (payload: EventPayloads[T]) => void;
+export type PapyrusEventListener<T extends PapyrusEventType> = (
+  payload: EventPayloads[T]
+) => void;
 
 /**
  * Interface agnóstica do Motor.
@@ -138,7 +207,7 @@ export interface DocumentEngine {
   goToPage(page: number): void;
   setZoom(zoom: number): void;
   getZoom(): number;
-  rotate(direction: 'clockwise' | 'counterclockwise'): void;
+  rotate(direction: "clockwise" | "counterclockwise"): void;
   getRotation(): number;
 
   /**
@@ -151,12 +220,21 @@ export interface DocumentEngine {
    * Renderiza a camada de texto para seleção.
    * container: HTMLElement no Web ou GhostView no RN.
    */
-  renderTextLayer(pageIndex: number, container: any, scale: number): Promise<void>;
+  renderTextLayer(
+    pageIndex: number,
+    container: any,
+    scale: number
+  ): Promise<void>;
 
   getTextContent(pageIndex: number): Promise<TextItem[]>;
-  getPageDimensions(pageIndex: number): Promise<{ width: number, height: number }>;
+  getPageDimensions(
+    pageIndex: number
+  ): Promise<{ width: number; height: number }>;
   searchText?(query: string): Promise<SearchResult[]>;
-  selectText?(pageIndex: number, rect: { x: number; y: number; width: number; height: number }): Promise<TextSelection | null>;
+  selectText?(
+    pageIndex: number,
+    rect: { x: number; y: number; width: number; height: number }
+  ): Promise<TextSelection | null>;
   getOutline(): Promise<OutlineItem[]>;
   getPageIndex(dest: PageDestination): Promise<number | null>;
   getRenderTargetType?(): RenderTargetType;
