@@ -10,6 +10,8 @@
     "build:web": "pnpm --filter @papyrus-sdk/example-web build",
     "build": "pnpm -r --workspace-concurrency=1 build",
     "build:changed": "node scripts/publish-changed.js --build-only",
+    "test:phase1": "vitest run",
+    "lint:phase1": "eslint packages/ui-react/components packages/ui-react-native/components packages/core examples/web examples/mobile/App.tsx examples/mobile/__tests__ --ext .ts,.tsx",
     "docs:dev": "pnpm --filter @papyrus-sdk/example-web build -- --mode docs && vitepress dev docs",
     "docs:build": "pnpm --filter @papyrus-sdk/example-web build -- --mode docs && vitepress build docs",
     "docs:preview": "vitepress preview docs",
@@ -30,6 +32,15 @@
     "tsup": "^8.3.5",
     "typescript": "^5.0.4",
     "vitepress": "^1.5.0"
+  },
+  "devDependencies": {
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
+    "@typescript-eslint/eslint-plugin": "^8.30.1",
+    "@typescript-eslint/parser": "^8.30.1",
+    "eslint": "^9.24.0",
+    "jsdom": "^26.1.0",
+    "vitest": "^3.2.4"
   },
   "packageManager": "pnpm@9.15.4+sha512.b2dc20e2fc72b3e18848459b37359a32064663e5627a51e4c74b2c29dd8e8e0491483c3abb40789cfd578bf362fb6ba8261b05f0387d76792ed6e23ea3b1b6a0"
 }
