@@ -3,19 +3,18 @@ import { View, Pressable, StyleSheet } from "react-native";
 import { useViewerStore } from "@papyrus-sdk/core";
 import { DocumentType, MobilePrimaryDestination } from "@papyrus-sdk/types";
 import { getStrings } from "../mobileStrings";
-import { IconEdit, IconInfo, IconSearch, IconSettings } from "../icons";
+import { IconComment, IconEdit, IconSearch, IconSettings } from "../icons";
+import { buildBottomBarLayout, BottomBarSlotKey } from "./bottomBarModel";
 
 type BottomBarProps = {
   documentType: DocumentType;
   onOpenOverflow: () => void;
-  onOpenInfo: () => void;
   onOpenDestination: (destination: MobilePrimaryDestination) => void;
 };
 
 const BottomBar: React.FC<BottomBarProps> = ({
   documentType,
   onOpenOverflow,
-  onOpenInfo,
   onOpenDestination,
 }) => {
   const {
@@ -31,46 +30,56 @@ const BottomBar: React.FC<BottomBarProps> = ({
   const isDark = uiTheme === "dark";
   const t = getStrings(locale);
 
-  const isActive = (destination: string) =>
-    activeMobileDestination === destination;
-
   const iconColor = (active: boolean) => {
     if (active) return "#ffffff";
     return isDark ? "#e5e7eb" : "#111827";
   };
 
-  const showEditIsland = documentType === "pdf";
-  const utilitySlots = [
+  const layout = buildBottomBarLayout({
+    documentType,
+    activeMobileDestination,
+    toolDockOpen,
+  });
+
+  const slotMeta: Record<
+    BottomBarSlotKey,
     {
-      key: "search",
+      label: string;
+      icon: React.ComponentType<{ size?: number; color?: string }>;
+      onPress: () => void;
+    }
+  > = {
+    annotate: {
+      label: t.tools,
+      icon: IconEdit,
+      onPress: () => {
+        onOpenDestination("annotate");
+        setDocumentState({ toolDockOpen: !toolDockOpen });
+      },
+    },
+    notes: {
+      label: t.notes,
+      icon: IconComment,
+      onPress: () => onOpenDestination("notes"),
+    },
+    search: {
       label: t.search,
       icon: IconSearch,
-      active: isActive("search"),
       onPress: () => onOpenDestination("search"),
     },
-    {
-      key: "info",
-      label: t.info,
-      icon: IconInfo,
-      active: isActive("info"),
-      onPress: onOpenInfo,
-    },
-    {
-      key: "more",
+    more: {
       label: t.more,
       icon: IconSettings,
-      active:
-        isActive("display") || isActive("documentActions") || isActive("notes"),
       onPress: onOpenOverflow,
     },
-  ];
+  };
 
   if (!mobileChromeVisible || !mobileDockVisible) return null;
 
   return (
     <View pointerEvents="box-none" style={styles.frame}>
       <View style={styles.row}>
-        {showEditIsland ? (
+        {layout.leftSlots.length > 0 ? (
           <View
             style={[
               styles.island,
@@ -79,25 +88,32 @@ const BottomBar: React.FC<BottomBarProps> = ({
             ]}
             testID="papyrus-floating-bottom-dock-edit"
           >
-            <Pressable
-              onPress={() => {
-                onOpenDestination("annotate");
-                setDocumentState({ toolDockOpen: !toolDockOpen });
-              }}
-              style={[styles.iconOnlyItem, toolDockOpen && styles.itemActive]}
-              accessibilityLabel={t.tools}
-            >
-              <View
-                style={[
-                  styles.itemIcon,
-                  isDark && styles.itemIconDark,
-                  toolDockOpen && styles.itemIconActive,
-                  toolDockOpen && { backgroundColor: accentColor },
-                ]}
-              >
-                <IconEdit size={17} color={iconColor(toolDockOpen)} />
-              </View>
-            </Pressable>
+            {layout.leftSlots.map((slot) => {
+              const meta = slotMeta[slot.key];
+              const Icon = meta.icon;
+              return (
+                <Pressable
+                  key={slot.key}
+                  onPress={meta.onPress}
+                  style={[
+                    styles.iconOnlyItem,
+                    slot.active && styles.itemActive,
+                  ]}
+                  accessibilityLabel={meta.label}
+                >
+                  <View
+                    style={[
+                      styles.itemIcon,
+                      isDark && styles.itemIconDark,
+                      slot.active && styles.itemIconActive,
+                      slot.active && { backgroundColor: accentColor },
+                    ]}
+                  >
+                    <Icon size={17} color={iconColor(slot.active)} />
+                  </View>
+                </Pressable>
+              );
+            })}
           </View>
         ) : null}
 
@@ -109,14 +125,15 @@ const BottomBar: React.FC<BottomBarProps> = ({
           ]}
           testID="papyrus-floating-bottom-dock"
         >
-          {utilitySlots.map((slot) => {
-            const Icon = slot.icon;
+          {layout.rightSlots.map((slot) => {
+            const meta = slotMeta[slot.key];
+            const Icon = meta.icon;
             return (
               <Pressable
                 key={slot.key}
-                onPress={slot.onPress}
+                onPress={meta.onPress}
                 style={[styles.iconOnlyItem, slot.active && styles.itemActive]}
-                accessibilityLabel={slot.label}
+                accessibilityLabel={meta.label}
               >
                 <View
                   style={[
@@ -174,6 +191,7 @@ const styles = StyleSheet.create({
   editIsland: {
     minWidth: 54,
     justifyContent: "center",
+    gap: 2,
   },
   utilityIsland: {
     justifyContent: "center",

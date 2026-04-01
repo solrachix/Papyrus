@@ -147,7 +147,6 @@ export function ReadingShell({
       <BottomBar
         documentType={documentType}
         onOpenDestination={openDestination}
-        onOpenInfo={() => openDestination("info")}
         onOpenOverflow={() => {
           closeMobileDestination();
           setInfoOpen(false);
