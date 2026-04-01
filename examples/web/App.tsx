@@ -11,9 +11,9 @@ import { TextEngine } from "@papyrus-sdk/engine-text";
 import { useViewerStore, papyrusEvents } from "@papyrus-sdk/core";
 import { PapyrusEventType, PapyrusConfig, PageTheme } from "@papyrus-sdk/types";
 import {
-  Topbar,
   SidebarLeft,
   SidebarRight,
+  Topbar,
   Viewer,
 } from "@papyrus-sdk/ui-react";
 
@@ -322,7 +322,7 @@ const PapyrusViewer: React.FC<{
   initialConfig: PapyrusConfig;
   syncState?: { uiTheme: UITheme; pageTheme: PageTheme; accentColor: string };
   themeVars?: React.CSSProperties;
-  topbarProps?: React.ComponentProps<typeof Topbar>;
+  topbarProps?: { title?: string } & Record<string, unknown>;
   className?: string;
   loadingClassName?: string;
 }> = ({
