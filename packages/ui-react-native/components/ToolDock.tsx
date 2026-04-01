@@ -1,8 +1,7 @@
 import React from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { useViewerStore } from "@papyrus-sdk/core";
-import { getStrings } from "../strings";
-import { IconEdit } from "../icons";
+import { getStrings } from "../mobileStrings";
 import {
   getToolDockDismissState,
   isToolDockToolSelected,
@@ -154,14 +153,7 @@ const ToolDock: React.FC = () => {
             })}
           </View>
         </View>
-      ) : (
-        <Pressable
-          onPress={() => setDocumentState({ toolDockOpen: true })}
-          style={[styles.fab, isDark && styles.fabDark]}
-        >
-          <IconEdit size={16} color={isDark ? "#e5e7eb" : "#111827"} />
-        </Pressable>
-      )}
+      ) : null}
     </View>
   );
 };
@@ -173,25 +165,6 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
     paddingHorizontal: 16,
     paddingBottom: 72,
-  },
-  fab: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "#ffffff",
-    borderWidth: 1,
-    borderColor: "#d1d5db",
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#000000",
-    shadowOpacity: 0.18,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 7,
-  },
-  fabDark: {
-    backgroundColor: "#111827",
-    borderColor: "#374151",
   },
   container: {
     width: "100%",

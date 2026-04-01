@@ -14,19 +14,23 @@ import { DocumentEngine } from "@papyrus-sdk/types";
 export interface TopbarProps {
   engine: DocumentEngine;
   onOpenSettings?: () => void;
+  onOpenOverflow?: () => void;
   title?: string;
   logo?: React.ReactNode;
   onLogoPress?: () => void;
   logoAccessibilityLabel?: string;
+  showPageNavigationControls?: boolean;
 }
 
 const Topbar: React.FC<TopbarProps> = ({
   engine,
   onOpenSettings,
+  onOpenOverflow,
   title,
   logo,
   onLogoPress,
   logoAccessibilityLabel = "Logo",
+  showPageNavigationControls = false,
 }) => {
   const {
     currentPage,
@@ -87,57 +91,75 @@ const Topbar: React.FC<TopbarProps> = ({
 
   return (
     <>
-      <View style={[styles.container, isDark && styles.containerDark]}>
-        <View style={styles.leftGroup}>
-          {onLogoPress ? (
-            <Pressable
-              onPress={onLogoPress}
-              accessibilityRole="button"
-              accessibilityLabel={logoAccessibilityLabel}
-              style={styles.logoSlot}
-            >
-              {logoElement}
-            </Pressable>
-          ) : (
-            <View style={styles.logoSlot}>{logoElement}</View>
-          )}
-          <Text
-            numberOfLines={1}
-            style={[styles.brandText, isDark && styles.brandTextDark]}
-          >
-            {title ?? "Papyrus"}
-          </Text>
-        </View>
-
-        <View style={styles.pageGroup}>
-          <Pressable
-            onPress={() => handlePageChange(-1)}
-            style={[styles.pageButton, isDark && styles.pageButtonDark]}
-          >
-            <IconChevronLeft size={16} color={navIconColor} />
-          </Pressable>
-          <Pressable onPress={openJumpModal} style={styles.pageIndicatorHit}>
+      <View
+        style={[styles.chromeFrame]}
+        pointerEvents="box-none"
+        testID="papyrus-floating-top-controls"
+      >
+        <View style={[styles.container, isDark && styles.containerDark]}>
+          <View style={styles.leftGroup}>
+            {onLogoPress ? (
+              <Pressable
+                onPress={onLogoPress}
+                accessibilityRole="button"
+                accessibilityLabel={logoAccessibilityLabel}
+                style={styles.logoSlot}
+              >
+                {logoElement}
+              </Pressable>
+            ) : (
+              <View style={styles.logoSlot}>{logoElement}</View>
+            )}
             <Text
-              style={[styles.pageIndicator, isDark && styles.pageIndicatorDark]}
+              numberOfLines={1}
+              style={[styles.brandText, isDark && styles.brandTextDark]}
             >
-              {pageLabel}/{pageCount}
+              {title ?? "Papyrus"}
             </Text>
-          </Pressable>
-          <Pressable
-            onPress={() => handlePageChange(1)}
-            style={[styles.pageButton, isDark && styles.pageButtonDark]}
-          >
-            <IconChevronRight size={16} color={navIconColor} />
-          </Pressable>
-        </View>
+          </View>
 
-        <View style={styles.rightGroup}>
-          <Pressable
-            onPress={() => onOpenSettings?.()}
-            style={[styles.iconButton, isDark && styles.iconButtonDark]}
-          >
-            <IconSettings size={16} color={isDark ? "#e5e7eb" : "#111827"} />
-          </Pressable>
+          {showPageNavigationControls ? (
+            <View style={styles.pageGroup}>
+              <>
+                <Pressable
+                  onPress={() => handlePageChange(-1)}
+                  style={[styles.pageButton, isDark && styles.pageButtonDark]}
+                >
+                  <IconChevronLeft size={16} color={navIconColor} />
+                </Pressable>
+                <Pressable
+                  onPress={openJumpModal}
+                  style={styles.pageIndicatorHit}
+                  accessibilityLabel="Page jump"
+                >
+                  <Text
+                    style={[
+                      styles.pageIndicator,
+                      isDark && styles.pageIndicatorDark,
+                    ]}
+                  >
+                    {pageLabel}/{pageCount}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => handlePageChange(1)}
+                  style={[styles.pageButton, isDark && styles.pageButtonDark]}
+                >
+                  <IconChevronRight size={16} color={navIconColor} />
+                </Pressable>
+              </>
+            </View>
+          ) : null}
+
+          <View style={styles.rightGroup}>
+            <Pressable
+              onPress={() => onOpenOverflow?.() ?? onOpenSettings?.()}
+              style={[styles.iconButton, isDark && styles.iconButtonDark]}
+              accessibilityLabel="Open overflow menu"
+            >
+              <IconSettings size={16} color={isDark ? "#e5e7eb" : "#111827"} />
+            </Pressable>
+          </View>
         </View>
       </View>
 
@@ -174,6 +196,7 @@ const Topbar: React.FC<TopbarProps> = ({
               placeholderTextColor={isDark ? "#6b7280" : "#9ca3af"}
               style={[styles.jumpInput, isDark && styles.jumpInputDark]}
               onSubmitEditing={confirmJump}
+              accessibilityLabel="Page jump input"
             />
             <View style={styles.jumpActions}>
               <Pressable
@@ -216,22 +239,38 @@ const Topbar: React.FC<TopbarProps> = ({
 
 const styles = StyleSheet.create({
   container: {
+    marginHorizontal: 12,
+    marginTop: 10,
     paddingHorizontal: 14,
-    paddingVertical: 8,
-    backgroundColor: "#ffffff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#e5e7eb",
+    paddingVertical: 10,
+    backgroundColor: "rgba(255,255,255,0.88)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.72)",
+    borderRadius: 22,
     flexDirection: "row",
     alignItems: "center",
+    shadowColor: "#0f172a",
+    shadowOpacity: 0.12,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 8,
   },
   containerDark: {
-    backgroundColor: "#0f1115",
-    borderBottomColor: "#1f2937",
+    backgroundColor: "rgba(15,17,21,0.88)",
+    borderColor: "rgba(71,85,105,0.48)",
+  },
+  chromeFrame: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 20,
   },
   leftGroup: {
     flexDirection: "row",
     alignItems: "center",
     flex: 1,
+    minWidth: 0,
   },
   logoBadge: {
     width: 26,
@@ -255,6 +294,7 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: "#111827",
     flexShrink: 1,
+    flexGrow: 1,
   },
   brandTextDark: {
     color: "#f9fafb",
@@ -304,7 +344,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "flex-end",
-    flex: 1,
+    flexShrink: 0,
+    marginLeft: 12,
   },
   iconButton: {
     paddingHorizontal: 10,
