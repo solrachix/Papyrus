@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { buildBottomBarLayout } from "./bottomBarModel";
 
 describe("buildBottomBarLayout", () => {
-  it("removes info from the dock and keeps notes on the left for pdf", () => {
+  it("keeps notes on the left and info on the right for pdf", () => {
     const layout = buildBottomBarLayout({
       documentType: "pdf",
       activeMobileDestination: "none",
@@ -15,6 +15,7 @@ describe("buildBottomBarLayout", () => {
     ]);
     expect(layout.rightSlots.map((slot) => slot.key)).toEqual([
       "search",
+      "info",
       "more",
     ]);
   });
@@ -35,6 +36,7 @@ describe("buildBottomBarLayout", () => {
     expect(textLayout.leftSlots.map((slot) => slot.key)).toEqual(["notes"]);
     expect(epubLayout.rightSlots.map((slot) => slot.key)).toEqual([
       "search",
+      "info",
       "more",
     ]);
   });

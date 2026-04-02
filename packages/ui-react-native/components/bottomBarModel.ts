@@ -1,6 +1,11 @@
 import { DocumentType, MobilePrimaryDestination } from "@papyrus-sdk/types";
 
-export type BottomBarSlotKey = "annotate" | "notes" | "search" | "more";
+export type BottomBarSlotKey =
+  | "annotate"
+  | "notes"
+  | "search"
+  | "info"
+  | "more";
 
 type BottomBarSlot = {
   key: BottomBarSlotKey;
@@ -45,11 +50,14 @@ export function buildBottomBarLayout({
         active: activeMobileDestination === "search",
       },
       {
+        key: "info",
+        active: activeMobileDestination === "info",
+      },
+      {
         key: "more",
         active:
           activeMobileDestination === "display" ||
-          activeMobileDestination === "documentActions" ||
-          activeMobileDestination === "info",
+          activeMobileDestination === "documentActions",
       },
     ],
   };

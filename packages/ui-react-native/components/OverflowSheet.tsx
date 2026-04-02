@@ -5,34 +5,20 @@ import { useViewerStore } from "@papyrus-sdk/core";
 type OverflowSheetProps = {
   visible: boolean;
   onClose: () => void;
-  onOpenNotes: () => void;
-  onOpenSettings: () => void;
-  onOpenInfo: () => void;
   onOpenActions: () => void;
 };
 
-const actionLabels = [
-  { key: "settings", label: "Display settings" },
-  { key: "notes", label: "Notes" },
-  { key: "info", label: "Document info" },
-  { key: "actions", label: "Document actions" },
-] as const;
+const actionLabels = [{ key: "actions", label: "Document actions" }] as const;
 
 export function OverflowSheet({
   visible,
   onClose,
-  onOpenNotes,
-  onOpenSettings,
-  onOpenInfo,
   onOpenActions,
 }: OverflowSheetProps) {
   const { uiTheme, accentColor } = useViewerStore();
   const isDark = uiTheme === "dark";
 
   const handlers = {
-    settings: onOpenSettings,
-    notes: onOpenNotes,
-    info: onOpenInfo,
     actions: onOpenActions,
   } as const;
 

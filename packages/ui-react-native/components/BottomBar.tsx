@@ -3,18 +3,26 @@ import { View, Pressable, StyleSheet } from "react-native";
 import { useViewerStore } from "@papyrus-sdk/core";
 import { DocumentType, MobilePrimaryDestination } from "@papyrus-sdk/types";
 import { getStrings } from "../mobileStrings";
-import { IconComment, IconEdit, IconSearch, IconSettings } from "../icons";
+import {
+  IconComment,
+  IconEdit,
+  IconInfo,
+  IconSearch,
+  IconSettings,
+} from "../icons";
 import { buildBottomBarLayout, BottomBarSlotKey } from "./bottomBarModel";
 
 type BottomBarProps = {
   documentType: DocumentType;
-  onOpenOverflow: () => void;
+  onOpenInfo: () => void;
+  onOpenSettings: () => void;
   onOpenDestination: (destination: MobilePrimaryDestination) => void;
 };
 
 const BottomBar: React.FC<BottomBarProps> = ({
   documentType,
-  onOpenOverflow,
+  onOpenInfo,
+  onOpenSettings,
   onOpenDestination,
 }) => {
   const {
@@ -67,10 +75,15 @@ const BottomBar: React.FC<BottomBarProps> = ({
       icon: IconSearch,
       onPress: () => onOpenDestination("search"),
     },
+    info: {
+      label: t.info,
+      icon: IconInfo,
+      onPress: onOpenInfo,
+    },
     more: {
       label: t.more,
       icon: IconSettings,
-      onPress: onOpenOverflow,
+      onPress: onOpenSettings,
     },
   };
 

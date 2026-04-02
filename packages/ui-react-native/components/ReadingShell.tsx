@@ -147,14 +147,8 @@ export function ReadingShell({
       <BottomBar
         documentType={documentType}
         onOpenDestination={openDestination}
-        onOpenOverflow={() => {
-          closeMobileDestination();
-          setInfoOpen(false);
-          setActionsOpen(false);
-          setSettingsOpen(false);
-          setSearchResultsOpen(false);
-          setOverflowOpen(true);
-        }}
+        onOpenInfo={() => openDestination("info")}
+        onOpenSettings={() => openDestination("display")}
       />
       <SearchOverlay
         engine={engine}
@@ -182,11 +176,6 @@ export function ReadingShell({
           setOverflowOpen(false);
           setSearchResultsOpen(false);
           closeMobileDestination();
-        }}
-        onOpenSettings={() => openDestination("display")}
-        onOpenNotes={() => openDestination("notes")}
-        onOpenInfo={() => {
-          openDestination("info");
         }}
         onOpenActions={() => {
           openDestination("documentActions");
