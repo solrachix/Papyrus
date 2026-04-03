@@ -1,7 +1,7 @@
 import React from "react";
 import { Modal, View, Text, Pressable, StyleSheet } from "react-native";
 import { useViewerStore } from "@papyrus-sdk/core";
-import { DocumentEngine } from "@papyrus-sdk/types";
+import { DocumentEngine, PageTheme } from "@papyrus-sdk/types";
 import { getStrings } from "../mobileStrings";
 import { IconZoomIn, IconZoomOut } from "../icons";
 
@@ -10,6 +10,41 @@ interface SettingsSheetProps {
   visible: boolean;
   onClose: () => void;
 }
+
+const PAGE_THEME_OPTIONS: Array<{ value: PageTheme; labelKey: ThemeLabelKey }> = [
+  { value: "normal", labelKey: "themeOriginal" },
+  { value: "sepia", labelKey: "themeSepia" },
+  { value: "dark", labelKey: "themeDark" },
+  { value: "high-contrast", labelKey: "themeContrast" },
+];
+
+type ThemeLabelKey =
+  | "themeOriginal"
+  | "themeSepia"
+  | "themeDark"
+  | "themeContrast";
+
+const ThemeSwatch = ({ value }: { value: PageTheme }) => {
+  if (value === "high-contrast") {
+    return (
+      <View style={[styles.themeSwatch, styles.themeSwatchContrast]}>
+        <View style={styles.themeSwatchContrastHalfDark} />
+        <View style={styles.themeSwatchContrastHalfLight} />
+      </View>
+    );
+  }
+
+  return (
+    <View
+      style={[
+        styles.themeSwatch,
+        value === "normal" && styles.themeSwatchNormal,
+        value === "sepia" && styles.themeSwatchSepia,
+        value === "dark" && styles.themeSwatchDark,
+      ]}
+    />
+  );
+};
 
 const SettingsSheet: React.FC<SettingsSheetProps> = ({
   engine,
@@ -122,85 +157,33 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
             >
               {t.pageTheme}
             </Text>
-            <View style={styles.optionRow}>
-              <Pressable
-                onPress={() => setDocumentState({ pageTheme: "normal" })}
-                style={[
-                  styles.optionButton,
-                  isDark && styles.optionButtonDark,
-                  pageTheme === "normal" && styles.optionButtonActive,
-                  pageTheme === "normal" && { backgroundColor: accentColor },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.optionText,
-                    isDark && styles.optionTextDark,
-                    pageTheme === "normal" && styles.optionTextActive,
-                  ]}
-                >
-                  {t.themeOriginal}
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={() => setDocumentState({ pageTheme: "sepia" })}
-                style={[
-                  styles.optionButton,
-                  isDark && styles.optionButtonDark,
-                  pageTheme === "sepia" && styles.optionButtonActive,
-                  pageTheme === "sepia" && { backgroundColor: accentColor },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.optionText,
-                    isDark && styles.optionTextDark,
-                    pageTheme === "sepia" && styles.optionTextActive,
-                  ]}
-                >
-                  {t.themeSepia}
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={() => setDocumentState({ pageTheme: "dark" })}
-                style={[
-                  styles.optionButton,
-                  isDark && styles.optionButtonDark,
-                  pageTheme === "dark" && styles.optionButtonActive,
-                  pageTheme === "dark" && { backgroundColor: accentColor },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.optionText,
-                    isDark && styles.optionTextDark,
-                    pageTheme === "dark" && styles.optionTextActive,
-                  ]}
-                >
-                  {t.themeDark}
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={() => setDocumentState({ pageTheme: "high-contrast" })}
-                style={[
-                  styles.optionButton,
-                  isDark && styles.optionButtonDark,
-                  pageTheme === "high-contrast" && styles.optionButtonActive,
-                  pageTheme === "high-contrast" && {
-                    backgroundColor: accentColor,
-                  },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.optionText,
-                    isDark && styles.optionTextDark,
-                    pageTheme === "high-contrast" && styles.optionTextActive,
-                  ]}
-                >
-                  {t.themeContrast}
-                </Text>
-              </Pressable>
+            <View style={styles.themeOptionRow}>
+              {PAGE_THEME_OPTIONS.map((option) => {
+                const active = pageTheme === option.value;
+                return (
+                  <Pressable
+                    key={option.value}
+                    onPress={() => setDocumentState({ pageTheme: option.value })}
+                    style={[
+                      styles.themeOptionButton,
+                      isDark && styles.themeOptionButtonDark,
+                      active && styles.themeOptionButtonActive,
+                      active && { borderColor: accentColor },
+                    ]}
+                  >
+                    <ThemeSwatch value={option.value} />
+                    <Text
+                      style={[
+                        styles.themeOptionLabel,
+                        isDark && styles.themeOptionLabelDark,
+                        active && { color: accentColor },
+                      ]}
+                    >
+                      {t[option.labelKey]}
+                    </Text>
+                  </Pressable>
+                );
+              })}
             </View>
           </View>
 
@@ -489,6 +472,72 @@ const styles = StyleSheet.create({
   },
   optionTextActive: {
     color: "#ffffff",
+  },
+  themeOptionRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  themeOptionButton: {
+    width: 76,
+    alignItems: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: "#d1d5db",
+    backgroundColor: "#f9fafb",
+  },
+  themeOptionButtonDark: {
+    borderColor: "#374151",
+    backgroundColor: "#111827",
+  },
+  themeOptionButtonActive: {
+    borderWidth: 2,
+  },
+  themeSwatch: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    marginBottom: 8,
+    overflow: "hidden",
+  },
+  themeSwatchNormal: {
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "#d1d5db",
+  },
+  themeSwatchSepia: {
+    backgroundColor: "#e8dcc3",
+    borderWidth: 1,
+    borderColor: "#c8b79a",
+  },
+  themeSwatchDark: {
+    backgroundColor: "#10151f",
+    borderWidth: 1,
+    borderColor: "#2d3748",
+  },
+  themeSwatchContrast: {
+    flexDirection: "row",
+    borderWidth: 1,
+    borderColor: "#111827",
+  },
+  themeSwatchContrastHalfDark: {
+    flex: 1,
+    backgroundColor: "#111827",
+  },
+  themeSwatchContrastHalfLight: {
+    flex: 1,
+    backgroundColor: "#ffffff",
+  },
+  themeOptionLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#111827",
+    textAlign: "center",
+  },
+  themeOptionLabelDark: {
+    color: "#e5e7eb",
   },
   zoomValue: {
     minWidth: 52,

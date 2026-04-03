@@ -39,7 +39,7 @@ const BottomBar: React.FC<BottomBarProps> = ({
   const t = getStrings(locale);
 
   const iconColor = (active: boolean) => {
-    if (active) return "#ffffff";
+    if (active) return accentColor;
     return isDark ? "#e5e7eb" : "#111827";
   };
 
@@ -119,7 +119,6 @@ const BottomBar: React.FC<BottomBarProps> = ({
                       styles.itemIcon,
                       isDark && styles.itemIconDark,
                       slot.active && styles.itemIconActive,
-                      slot.active && { backgroundColor: accentColor },
                     ]}
                   >
                     <Icon size={17} color={iconColor(slot.active)} />
@@ -153,7 +152,6 @@ const BottomBar: React.FC<BottomBarProps> = ({
                     styles.itemIcon,
                     isDark && styles.itemIconDark,
                     slot.active && styles.itemIconActive,
-                    slot.active && { backgroundColor: accentColor },
                   ]}
                 >
                   <Icon size={17} color={iconColor(slot.active)} />

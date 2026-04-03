@@ -114,14 +114,14 @@ const ToolDock: React.FC = () => {
                   style={[
                     styles.toolButton,
                     isDark && styles.toolButtonDark,
-                    isSelected && { backgroundColor: accentColor },
+                    isSelected && { borderColor: accentColor },
                   ]}
                 >
                   <Text
                     style={[
                       styles.toolText,
                       isDark && styles.toolTextDark,
-                      isSelected && styles.toolTextActive,
+                      isSelected && { color: accentColor },
                     ]}
                     numberOfLines={1}
                   >
@@ -244,9 +244,6 @@ const styles = StyleSheet.create({
   },
   toolTextDark: {
     color: "#e5e7eb",
-  },
-  toolTextActive: {
-    color: "#ffffff",
   },
   paletteTitle: {
     fontSize: 10,

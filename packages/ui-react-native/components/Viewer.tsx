@@ -1378,6 +1378,7 @@ const Viewer: React.FC<ViewerProps> = ({
               <PageRenderer
                 engine={engine}
                 pageIndex={row.left}
+                pageAspectRatio={getPageAspectRatio(row.left)}
                 availableWidth={columnWidth}
                 horizontalPadding={8}
                 spacing={DOUBLE_PAGE_SPACING}
@@ -1398,6 +1399,7 @@ const Viewer: React.FC<ViewerProps> = ({
                 <PageRenderer
                   engine={engine}
                   pageIndex={row.right}
+                  pageAspectRatio={getPageAspectRatio(row.right)}
                   availableWidth={columnWidth}
                   horizontalPadding={8}
                   spacing={DOUBLE_PAGE_SPACING}
@@ -1424,6 +1426,7 @@ const Viewer: React.FC<ViewerProps> = ({
         <PageRenderer
           engine={engine}
           pageIndex={item as number}
+          pageAspectRatio={getPageAspectRatio(item as number)}
           spacing={CONTINUOUS_PAGE_SPACING}
           onSelectionDragActiveChange={setSelectionDragActive}
           gestureScrollLockActive={gestureScrollLockActive}
@@ -1439,6 +1442,7 @@ const Viewer: React.FC<ViewerProps> = ({
     [
       columnWidth,
       engine,
+      getPageAspectRatio,
       handlePageHorizontalScrollOffsetChange,
       handleSelectionVerticalAutoscroll,
       gestureScrollLockActive,
@@ -1519,6 +1523,9 @@ const Viewer: React.FC<ViewerProps> = ({
               <PageRenderer
                 engine={engine}
                 pageIndex={Math.max(0, currentPage - 1)}
+                pageAspectRatio={getPageAspectRatio(
+                  Math.max(0, currentPage - 1)
+                )}
                 spacing={32}
                 onSelectionDragActiveChange={setSelectionDragActive}
                 gestureScrollLockActive={gestureScrollLockActive}

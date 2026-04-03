@@ -5,6 +5,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface PapyrusPageView : UIView
 
+@property (nonatomic, copy) NSString *pageTheme;
+
 - (void)renderWithDocument:(PDFDocument *_Nullable)document
                  pageIndex:(NSInteger)pageIndex
                      scale:(CGFloat)scale

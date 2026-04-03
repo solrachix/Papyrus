@@ -45,6 +45,7 @@ interface PageRendererProps {
   engine: DocumentEngine;
   pageIndex: number;
   scale?: number;
+  pageAspectRatio?: number;
   PageViewComponent?: PageViewComponentType;
   availableWidth?: number;
   horizontalPadding?: number;
@@ -158,6 +159,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   engine,
   pageIndex,
   scale = 1,
+  pageAspectRatio,
   PageViewComponent = PapyrusPageView as PageViewComponentType,
   availableWidth,
   horizontalPadding = 16,
@@ -397,6 +399,13 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   ]);
 
   useEffect(() => {
+    if (
+      typeof pageAspectRatio === "number" &&
+      Number.isFinite(pageAspectRatio) &&
+      pageAspectRatio > 0
+    ) {
+      return;
+    }
     let active = true;
     const loadDimensions = async () => {
       const startedAt = perfEnabled ? perfNow() : 0;
@@ -421,7 +430,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     return () => {
       active = false;
     };
-  }, [engine, pageIndex, perfEnabled]);
+  }, [engine, pageAspectRatio, pageIndex, perfEnabled]);
 
   const handleLayout = (event: LayoutChangeEvent) => {
     const { width, height } = event.nativeEvent.layout;
@@ -1206,7 +1215,11 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   }, [pageTheme]);
 
   const aspectRatio =
-    pageSize && pageSize.width > 0 && pageSize.height > 0
+    typeof pageAspectRatio === "number" &&
+    Number.isFinite(pageAspectRatio) &&
+    pageAspectRatio > 0
+      ? pageAspectRatio
+      : pageSize && pageSize.width > 0 && pageSize.height > 0
       ? pageSize.width / pageSize.height
       : 0.77;
   const containerWidth = availableWidth ?? windowWidth;
@@ -1296,6 +1309,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({
           <PageViewComponent
             ref={viewRef}
             pointerEvents="none"
+            pageTheme={pageTheme}
             style={styles.page}
           />
           <View

@@ -7,6 +7,7 @@
 @implementation PapyrusPageViewManager
 
 RCT_EXPORT_MODULE(PapyrusPageView)
+RCT_EXPORT_VIEW_PROPERTY(pageTheme, NSString)
 
 + (BOOL)requiresMainQueueSetup {
   return YES;

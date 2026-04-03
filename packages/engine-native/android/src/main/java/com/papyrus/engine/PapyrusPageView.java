@@ -3,6 +3,8 @@ package com.papyrus.engine;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
+import android.graphics.ColorMatrix;
+import android.graphics.ColorMatrixColorFilter;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.util.AttributeSet;
@@ -19,9 +21,13 @@ public class PapyrusPageView extends View {
   static final int MAX_RENDER_EDGE = 4096;
   private static final String TAG = "PapyrusPageView";
   private static final ExecutorService RENDER_EXECUTOR = Executors.newSingleThreadExecutor();
+  private static final ColorMatrixColorFilter SEPIA_FILTER = createSepiaFilter();
+  private static final ColorMatrixColorFilter DARK_FILTER = createDarkFilter();
+  private static final ColorMatrixColorFilter HIGH_CONTRAST_FILTER = createHighContrastFilter();
 
   private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
   private Bitmap bitmap;
+  private String pageTheme = "normal";
 
   public PapyrusPageView(Context context) {
     super(context);
@@ -29,6 +35,13 @@ public class PapyrusPageView extends View {
 
   public PapyrusPageView(Context context, AttributeSet attrs) {
     super(context, attrs);
+  }
+
+  public void setPageTheme(String nextPageTheme) {
+    String normalized = nextPageTheme == null ? "normal" : nextPageTheme;
+    if (normalized.equals(pageTheme)) return;
+    pageTheme = normalized;
+    invalidate();
   }
 
   void render(final PapyrusEngineStore.EngineState state,
@@ -90,7 +103,9 @@ public class PapyrusPageView extends View {
     if (bitmap == null) return;
     Rect dest = new Rect(0, 0, getWidth(), getHeight());
     try {
+      paint.setColorFilter(resolveThemeFilter(pageTheme));
       canvas.drawBitmap(bitmap, null, dest, paint);
+      paint.setColorFilter(null);
     } catch (RuntimeException error) {
       Log.w(TAG, "Failed to draw rendered page bitmap safely", error);
       if (bitmap != null && !bitmap.isRecycled()) {
@@ -124,5 +139,59 @@ public class PapyrusPageView extends View {
     int safeWidth = Math.max(1, (int) Math.floor(width * scale));
     int safeHeight = Math.max(1, (int) Math.floor(height * scale));
     return new int[] { safeWidth, safeHeight };
+  }
+
+  private static ColorMatrixColorFilter resolveThemeFilter(String theme) {
+    if ("sepia".equals(theme)) return SEPIA_FILTER;
+    if ("dark".equals(theme)) return DARK_FILTER;
+    if ("high-contrast".equals(theme)) return HIGH_CONTRAST_FILTER;
+    return null;
+  }
+
+  private static ColorMatrixColorFilter createSepiaFilter() {
+    ColorMatrix matrix = new ColorMatrix();
+    matrix.set(new float[] {
+      0.393f, 0.769f, 0.189f, 0, 0,
+      0.349f, 0.686f, 0.168f, 0, 0,
+      0.272f, 0.534f, 0.131f, 0, 0,
+      0, 0, 0, 1, 0
+    });
+    return new ColorMatrixColorFilter(matrix);
+  }
+
+  private static ColorMatrixColorFilter createDarkFilter() {
+    ColorMatrix invert = new ColorMatrix(new float[] {
+      -1, 0, 0, 0, 255,
+      0, -1, 0, 0, 255,
+      0, 0, -1, 0, 255,
+      0, 0, 0, 1, 0
+    });
+    ColorMatrix dim = new ColorMatrix(new float[] {
+      0.92f, 0, 0, 0, 0,
+      0, 0.92f, 0, 0, 0,
+      0, 0, 0.92f, 0, 0,
+      0, 0, 0, 1, 0
+    });
+    invert.postConcat(dim);
+    return new ColorMatrixColorFilter(invert);
+  }
+
+  private static ColorMatrixColorFilter createHighContrastFilter() {
+    ColorMatrix invert = new ColorMatrix(new float[] {
+      -1, 0, 0, 0, 255,
+      0, -1, 0, 0, 255,
+      0, 0, -1, 0, 255,
+      0, 0, 0, 1, 0
+    });
+    float contrast = 1.35f;
+    float translate = 128f * (1f - contrast);
+    ColorMatrix contrastMatrix = new ColorMatrix(new float[] {
+      contrast, 0, 0, 0, translate,
+      0, contrast, 0, 0, translate,
+      0, 0, contrast, 0, translate,
+      0, 0, 0, 1, 0
+    });
+    invert.postConcat(contrastMatrix);
+    return new ColorMatrixColorFilter(invert);
   }
 }

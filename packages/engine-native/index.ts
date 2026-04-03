@@ -23,6 +23,7 @@ import {
   FileLike,
   SearchResult,
   TextSelection,
+  PageTheme,
 } from "@papyrus-sdk/types";
 
 const MODULE_NAME = "PapyrusNativeEngine";
@@ -242,6 +243,7 @@ type NativeEngineModule = {
 
 export type PapyrusPageViewProps = ViewProps & {
   engineId?: string;
+  pageTheme?: PageTheme;
 };
 
 type PapyrusPageViewComponent = ComponentType<
