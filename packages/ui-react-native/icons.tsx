@@ -139,7 +139,21 @@ export const IconComment: React.FC<IconProps> = ({
 }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
     <Path
-      d="M7.556 8.5h8m-8 3.5H12m7.111-7H4.89a.896.896 0 0 0-.629.256.868.868 0 0 0-.26.619v9.25c0 .232.094.455.26.619A.896.896 0 0 0 4.89 16H9l3 4 3-4h4.111a.896.896 0 0 0 .629-.256.868.868 0 0 0 .26-.619v-9.25a.868.868 0 0 0-.26-.619.896.896 0 0 0-.63-.256Z"
+      d="M8 9h8"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Path
+      d="M8 13h6"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Path
+      d="M18 4a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3h-5l-5 3v-3H6a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3h12"
       stroke={color}
       strokeWidth={strokeWidth}
       strokeLinecap="round"
@@ -294,7 +308,14 @@ export const IconUndo: React.FC<IconProps> = ({
 }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
     <Path
-      d="M9 7H5v4M5 11a8 8 0 1 1 2.344 5.656"
+      d="M9.25 6.25 5.5 10l3.75 3.75"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Path
+      d="M6 10h7.25c3.18 0 5.75 2.57 5.75 5.75S16.43 21.5 13.25 21.5h-4"
       stroke={color}
       strokeWidth={strokeWidth}
       strokeLinecap="round"
@@ -310,7 +331,14 @@ export const IconRedo: React.FC<IconProps> = ({
 }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
     <Path
-      d="M15 7h4v4M19 11a8 8 0 1 0-2.344 5.656"
+      d="M14.75 6.25 18.5 10l-3.75 3.75"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Path
+      d="M18 10h-7.25C7.57 10 5 12.57 5 15.75s2.57 5.75 5.75 5.75h4"
       stroke={color}
       strokeWidth={strokeWidth}
       strokeLinecap="round"

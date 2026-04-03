@@ -213,6 +213,9 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   const addAnnotation = useViewerStore((state) => state.addAnnotation);
   const activeTool = useViewerStore((state) => state.activeTool);
   const interactionMode = useViewerStore((state) => state.interactionMode);
+  const toolDockOpen = useViewerStore((state) => state.toolDockOpen);
+  const resolvedActiveTool = toolDockOpen ? activeTool : "select";
+  const resolvedInteractionMode = toolDockOpen ? interactionMode : "pan";
   const accentColor = useViewerStore((state) => state.accentColor);
   const selectedAnnotationId = useViewerStore(
     (state) => state.selectedAnnotationId
@@ -243,22 +246,29 @@ const PageRenderer: React.FC<PageRendererProps> = ({
       if (!perfEnabled || !isNative) return;
       logPerfEvent("PageRenderer", `gesture.${event}`, {
         page: pageIndex + 1,
-        activeTool,
-        interactionMode,
+        activeTool: resolvedActiveTool,
+        interactionMode: resolvedInteractionMode,
         pinchActive: gestureScrollLockActive,
         gestureLockActive: gestureScrollLockActive,
         selectionEnabled:
           Platform.OS === "web" ||
           (isNative &&
             shouldEnableSelectionDrag({
-              activeTool,
-              interactionMode,
+              activeTool: resolvedActiveTool,
+              interactionMode: resolvedInteractionMode,
             })),
         zoom: Math.round(zoom * 100) / 100,
         ...payload,
       });
     },
-    [activeTool, interactionMode, isNative, pageIndex, perfEnabled, zoom]
+    [
+      isNative,
+      pageIndex,
+      perfEnabled,
+      resolvedActiveTool,
+      resolvedInteractionMode,
+      zoom,
+    ]
   );
 
   const logRawTouchDebug = useCallback(
@@ -516,12 +526,12 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   }, [inkPoints]);
 
   useEffect(() => {
-    if (activeTool === "ink") return;
+    if (resolvedActiveTool === "ink") return;
     inkDrawingActiveRef.current = false;
     setIsInkDrawing(false);
     setInkPoints([]);
     inkPointsRef.current = [];
-  }, [activeTool]);
+  }, [resolvedActiveTool]);
 
   const pageViewportWidth = Math.max(
     0,
@@ -531,10 +541,10 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     Platform.OS === "web" ||
     (isNative &&
       shouldEnableSelectionDrag({
-        activeTool,
-        interactionMode,
+        activeTool: resolvedActiveTool,
+        interactionMode: resolvedInteractionMode,
       }));
-  const inkEnabled = isNative && activeTool === "ink";
+  const inkEnabled = isNative && resolvedActiveTool === "ink";
 
   const stopSelectionAutoscroll = useCallback(() => {
     if (selectionAutoscrollIntervalRef.current) {
@@ -560,9 +570,9 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   }, [setSelectionActive, setSelectionDragState, stopSelectionAutoscroll]);
 
   useEffect(() => {
-    if (activeTool === "select") return;
+    if (resolvedActiveTool === "select") return;
     clearSelection();
-  }, [activeTool]);
+  }, [clearSelection, resolvedActiveTool]);
 
   useEffect(
     () => () => {
@@ -1108,7 +1118,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   const doubleTapGesture = useMemo(
     () =>
       Gesture.Tap()
-        .enabled(isNative && activeTool === "select")
+        .enabled(isNative && resolvedActiveTool === "select")
         .numberOfTaps(2)
         .maxDistance(24)
         .maxDelay(280)
@@ -1118,7 +1128,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({
           if (!success) return;
           handleDoubleTap(event.x, event.y);
         }),
-    [activeTool, handleDoubleTap, isNative]
+    [handleDoubleTap, isNative, resolvedActiveTool]
   );
 
   const contentGesture = useMemo(

@@ -80,7 +80,7 @@ test("isToolDockToolSelected only marks select as active after explicit arming",
   );
 });
 
-test("getToolDockDismissState disarms active select mode when the dock closes", () => {
+test("getToolDockDismissState resets annotation tooling when the dock closes", () => {
   assert.deepEqual(
     selectionInteraction.getToolDockDismissState({
       activeTool: "select",
@@ -100,7 +100,7 @@ test("getToolDockDismissState disarms active select mode when the dock closes", 
     }),
     {
       toolDockOpen: false,
-      activeTool: "highlight",
+      activeTool: "select",
       interactionMode: "pan",
     }
   );

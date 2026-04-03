@@ -97,15 +97,12 @@ export const isToolDockToolSelected = ({
     : activeTool === toolId;
 
 export const getToolDockDismissState = ({
-  activeTool,
-  interactionMode,
+  activeTool: _activeTool,
+  interactionMode: _interactionMode,
 }: SelectionGestureActivationInput): ToolDockDismissState => ({
   toolDockOpen: false,
-  activeTool,
-  interactionMode:
-    activeTool === "select" && interactionMode === "select"
-      ? "pan"
-      : interactionMode,
+  activeTool: "select",
+  interactionMode: "pan",
 });
 
 export const getSelectionEdgeAutoscroll = ({

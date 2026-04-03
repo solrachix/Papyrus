@@ -11,6 +11,7 @@ import {
   IconSettings,
 } from "../icons";
 import { buildBottomBarLayout, BottomBarSlotKey } from "./bottomBarModel";
+import { getToolDockDismissState } from "../gesture/selectionInteraction";
 
 type BottomBarProps = {
   documentType: DocumentType;
@@ -34,6 +35,8 @@ const BottomBar: React.FC<BottomBarProps> = ({
     accentColor,
     mobileChromeVisible,
     toolDockOpen,
+    activeTool,
+    interactionMode,
   } = useViewerStore();
   const isDark = uiTheme === "dark";
   const t = getStrings(locale);
@@ -61,8 +64,18 @@ const BottomBar: React.FC<BottomBarProps> = ({
       label: t.tools,
       icon: IconEdit,
       onPress: () => {
+        if (toolDockOpen) {
+          setDocumentState({
+            ...getToolDockDismissState({
+              activeTool,
+              interactionMode,
+            }),
+            activeMobileDestination: "none",
+          });
+          return;
+        }
         onOpenDestination("annotate");
-        setDocumentState({ toolDockOpen: !toolDockOpen });
+        setDocumentState({ toolDockOpen: true });
       },
     },
     notes: {

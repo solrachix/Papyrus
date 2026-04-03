@@ -79,6 +79,17 @@ const OPACITY_TRACK_PADDING = 6;
 const OPACITY_THUMB_SIZE = 22;
 const OPACITY_RAIL_HEIGHT = 10;
 
+const getToolAccentColor = (
+  tool: (typeof ALL_TOOLS)[number],
+  isDark: boolean
+) => {
+  if (tool.label === "highlight" || tool.label === "note") {
+    return "#f4c430";
+  }
+
+  return isDark ? "#f8fafc" : "#111827";
+};
+
 const getToolLabel = (
   label: (typeof ALL_TOOLS)[number]["label"],
   t: ReturnType<typeof getStrings>
@@ -277,8 +288,7 @@ const ToolDock: React.FC = () => {
     });
     const Icon = tool.icon;
 
-    const baseIconColor =
-      tool.id === "select" ? (isDark ? "#f8fafc" : "#0f172a") : tool.accent;
+    const baseIconColor = getToolAccentColor(tool, isDark);
 
     return (
       <Pressable

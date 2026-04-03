@@ -62,6 +62,14 @@ await engine.load({ type: 'pdf', source: { uri: 'https://example.com/book.pdf' }
 - `logo`: custom logo node (can be icon, image, or even a `Pressable`).
 - `onLogoPress`: optional callback to make the logo area act like a button.
 
+## Icon Guidelines
+
+- UI icons for this package live in `packages/ui-react-native/icons.tsx`.
+- Prefer inline SVG paths implemented with `react-native-svg` instead of adding a new icon runtime dependency.
+- When a product icon does not already exist in the file, prefer using the outline SVG from [Tabler Icons](https://tabler.io/icons) as the visual baseline and adapt it to the local `IconProps` pattern.
+- Keep icons stroke-based when possible, preserve `color`/`strokeWidth` as props, and simplify paths only when needed for better balance in mobile chrome.
+- If an icon is intentionally derived from Tabler, keep that shape direction consistent for nearby controls so the toolbar/bottom-bar language stays coherent.
+
 ## Mobile Tuning Flags
 
 Performance tuning props are available on `Viewer` and `RightSheet`:
