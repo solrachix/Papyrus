@@ -130,6 +130,8 @@ export interface Annotation {
   rects?: { x: number; y: number; width: number; height: number }[];
   path?: { x: number; y: number }[];
   color: string;
+  opacity?: number;
+  strokeWidth?: number;
   createdAt: number;
   updatedAt?: number;
   replies?: AnnotationReply[];

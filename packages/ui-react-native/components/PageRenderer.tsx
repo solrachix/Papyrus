@@ -195,6 +195,15 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     typeof setInterval
   > | null>(null);
   const rawTouchMoveLoggedAtRef = useRef(0);
+  const currentInkStyleRef = useRef<{
+    color: string;
+    opacity: number;
+    strokeWidth: number;
+  }>({
+    color: "#fbbf24",
+    opacity: 1,
+    strokeWidth: 0.006,
+  });
 
   const zoom = useViewerStore((state) => state.zoom);
   const rotation = useViewerStore((state) => state.rotation);
@@ -445,7 +454,9 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     width: number,
     height: number,
     type: Annotation["type"],
-    extras?: Partial<Pick<Annotation, "rects" | "path" | "content">>
+    extras?: Partial<
+      Pick<Annotation, "rects" | "path" | "content" | "opacity" | "strokeWidth">
+    >
   ) => {
     const rect = {
       x: clamp01(x),
@@ -466,6 +477,8 @@ const PageRenderer: React.FC<PageRendererProps> = ({
       rects: extras?.rects,
       path: extras?.path,
       color: annotationColor,
+      opacity: extras?.opacity ?? useViewerStore.getState().annotationOpacity,
+      strokeWidth: extras?.strokeWidth,
       content:
         extras?.content ??
         (type === "text" || type === "comment" ? "" : undefined),
@@ -903,8 +916,15 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   const beginInkDrawing = (x: number, y: number) => {
     const point = toNormalizedPoint(x, y);
     if (!point) return;
+    const { annotationOpacity, inkStrokeWidth, annotationColor: currentColor } =
+      useViewerStore.getState();
     clearSelection();
     inkDrawingActiveRef.current = true;
+    currentInkStyleRef.current = {
+      color: currentColor,
+      opacity: annotationOpacity,
+      strokeWidth: inkStrokeWidth,
+    };
     setIsInkDrawing(true);
     setInkPoints([point]);
     inkPointsRef.current = [point];
@@ -943,7 +963,11 @@ const PageRenderer: React.FC<PageRendererProps> = ({
       Math.max(0.0005, maxX - minX),
       Math.max(0.0005, maxY - minY),
       "ink",
-      { path: points }
+      {
+        path: points,
+        strokeWidth: currentInkStyleRef.current.strokeWidth,
+        opacity: currentInkStyleRef.current.opacity,
+      }
     );
   };
 
@@ -1428,8 +1452,11 @@ const PageRenderer: React.FC<PageRendererProps> = ({
                     )
                     .join(" ")}
                   fill="none"
-                  stroke={annotationColor}
-                  strokeWidth={0.006}
+                  stroke={withAlpha(
+                    currentInkStyleRef.current.color,
+                    currentInkStyleRef.current.opacity
+                  )}
+                  strokeWidth={currentInkStyleRef.current.strokeWidth}
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
@@ -1479,7 +1506,12 @@ const PageRenderer: React.FC<PageRendererProps> = ({
                               style={[
                                 styles.annotationMarkupRect,
                                 rectStyle,
-                                { backgroundColor: withAlpha(ann.color, 0.38) },
+                                {
+                                  backgroundColor: withAlpha(
+                                    ann.color,
+                                    ann.opacity ?? 0.38
+                                  ),
+                                },
                               ]}
                             />
                           );
@@ -1571,8 +1603,8 @@ const PageRenderer: React.FC<PageRendererProps> = ({
                           )
                           .join(" ")}
                         fill="none"
-                        stroke={ann.color}
-                        strokeWidth={0.006}
+                        stroke={withAlpha(ann.color, ann.opacity ?? 1)}
+                        strokeWidth={ann.strokeWidth ?? 0.006}
                         strokeLinecap="round"
                         strokeLinejoin="round"
                       />

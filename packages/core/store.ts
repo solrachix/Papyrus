@@ -52,6 +52,8 @@ interface ViewerState {
   locale: Locale;
   accentColor: string;
   annotationColor: string;
+  annotationOpacity: number;
+  inkStrokeWidth: number;
   outline: OutlineItem[];
   sidebarLeftOpen: boolean;
   sidebarLeftTab: "thumbnails" | "summary";
@@ -85,6 +87,14 @@ interface ViewerState {
   mobileKeyboardOpen: boolean;
   mobileDockVisible: boolean;
   mobileProgressPillVisible: boolean;
+  annotationUndoStack: Array<{
+    annotations: Annotation[];
+    selectedAnnotationId: string | null;
+  }>;
+  annotationRedoStack: Array<{
+    annotations: Annotation[];
+    selectedAnnotationId: string | null;
+  }>;
 
   initializeStore: (config: PapyrusConfig) => void;
   setDocumentState: (state: Partial<ViewerState>) => void;
@@ -102,6 +112,10 @@ interface ViewerState {
   prevSearchResult: () => void;
   triggerScrollToPage: (pageIndex: number) => void;
   setAnnotationColor: (color: string) => void;
+  setAnnotationOpacity: (opacity: number) => void;
+  setInkStrokeWidth: (width: number) => void;
+  undoAnnotations: () => void;
+  redoAnnotations: () => void;
   setInteractionMode: (mode: "pan" | "select") => void;
   setSelectionActive: (active: boolean) => void;
   setAccentColor: (color: string) => void;
@@ -132,6 +146,8 @@ const getDefaultViewerState = () => ({
   locale: "en" as Locale,
   accentColor: "#2563eb",
   annotationColor: "#fbbf24",
+  annotationOpacity: 1,
+  inkStrokeWidth: 0.006,
   outline: [] as OutlineItem[],
   sidebarLeftOpen: true,
   sidebarLeftTab: "thumbnails" as const,
@@ -162,6 +178,14 @@ const getDefaultViewerState = () => ({
   mobileKeyboardOpen: false,
   mobileDockVisible: true,
   mobileProgressPillVisible: true,
+  annotationUndoStack: [] as Array<{
+    annotations: Annotation[];
+    selectedAnnotationId: string | null;
+  }>,
+  annotationRedoStack: [] as Array<{
+    annotations: Annotation[];
+    selectedAnnotationId: string | null;
+  }>,
 });
 
 const deriveMobileShellState = ({
@@ -199,6 +223,8 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
         locale: config.initialLocale ?? defaults.locale,
         accentColor: config.initialAccentColor ?? defaults.accentColor,
         annotations: config.initialAnnotations ?? defaults.annotations,
+        annotationUndoStack: defaults.annotationUndoStack,
+        annotationRedoStack: defaults.annotationRedoStack,
         sidebarLeftOpen: config.sidebarLeftOpen ?? defaults.sidebarLeftOpen,
         sidebarRightOpen: config.sidebarRightOpen ?? defaults.sidebarRightOpen,
       };
@@ -270,10 +296,22 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
       sidebarRightTab: tab || state.sidebarRightTab,
     })),
   setAnnotationColor: (color) => set({ annotationColor: color }),
+  setAnnotationOpacity: (opacity) =>
+    set({ annotationOpacity: Math.min(1, Math.max(0.1, opacity)) }),
+  setInkStrokeWidth: (width) =>
+    set({ inkStrokeWidth: Math.min(0.02, Math.max(0.0025, width)) }),
 
   addAnnotation: (ann) => {
     const shouldAutoSelect = ann.type === "text" || ann.type === "comment";
     set((state) => ({
+      annotationUndoStack: [
+        ...state.annotationUndoStack,
+        {
+          annotations: state.annotations,
+          selectedAnnotationId: state.selectedAnnotationId,
+        },
+      ].slice(-50),
+      annotationRedoStack: [],
       annotations: [...state.annotations, ann],
       selectedAnnotationId: shouldAutoSelect
         ? ann.id
@@ -287,6 +325,14 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
   updateAnnotation: (id, updates) => {
     let updatedAnnotation: Annotation | null = null;
     set((state) => ({
+      annotationUndoStack: [
+        ...state.annotationUndoStack,
+        {
+          annotations: state.annotations,
+          selectedAnnotationId: state.selectedAnnotationId,
+        },
+      ].slice(-50),
+      annotationRedoStack: [],
       annotations: state.annotations.map((a) => {
         if (a.id !== id) return a;
         updatedAnnotation = {
@@ -343,12 +389,57 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
 
   removeAnnotation: (id) => {
     set((state) => ({
+      annotationUndoStack: [
+        ...state.annotationUndoStack,
+        {
+          annotations: state.annotations,
+          selectedAnnotationId: state.selectedAnnotationId,
+        },
+      ].slice(-50),
+      annotationRedoStack: [],
       annotations: state.annotations.filter((a) => a.id !== id),
       selectedAnnotationId:
         state.selectedAnnotationId === id ? null : state.selectedAnnotationId,
     }));
     papyrusEvents.emit(PapyrusEventType.ANNOTATION_DELETED, {
       annotationId: id,
+    });
+  },
+
+  undoAnnotations: () => {
+    const state = get();
+    const previous =
+      state.annotationUndoStack[state.annotationUndoStack.length - 1];
+    if (!previous) return;
+    set({
+      annotations: previous.annotations,
+      selectedAnnotationId: previous.selectedAnnotationId,
+      annotationUndoStack: state.annotationUndoStack.slice(0, -1),
+      annotationRedoStack: [
+        ...state.annotationRedoStack,
+        {
+          annotations: state.annotations,
+          selectedAnnotationId: state.selectedAnnotationId,
+        },
+      ].slice(-50),
+    });
+  },
+
+  redoAnnotations: () => {
+    const state = get();
+    const next = state.annotationRedoStack[state.annotationRedoStack.length - 1];
+    if (!next) return;
+    set({
+      annotations: next.annotations,
+      selectedAnnotationId: next.selectedAnnotationId,
+      annotationRedoStack: state.annotationRedoStack.slice(0, -1),
+      annotationUndoStack: [
+        ...state.annotationUndoStack,
+        {
+          annotations: state.annotations,
+          selectedAnnotationId: state.selectedAnnotationId,
+        },
+      ].slice(-50),
     });
   },
 
