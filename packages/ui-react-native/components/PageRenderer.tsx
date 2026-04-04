@@ -458,43 +458,49 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     }
   };
 
-  const addAnnotationAt = (
-    x: number,
-    y: number,
-    width: number,
-    height: number,
-    type: Annotation["type"],
-    extras?: Partial<
-      Pick<Annotation, "rects" | "path" | "content" | "opacity" | "strokeWidth">
-    >
-  ) => {
-    const rect = {
-      x: clamp01(x),
-      y: clamp01(y),
-      width: clamp01(width),
-      height: clamp01(height),
-    };
-    logSelectionPerf("annotation.add", {
-      type,
-      rect,
-      rectCount: extras?.rects?.length ?? 0,
-    });
-    addAnnotation({
-      id: Math.random().toString(36).slice(2, 9),
-      pageIndex,
-      type,
-      rect,
-      rects: extras?.rects,
-      path: extras?.path,
-      color: annotationColor,
-      opacity: extras?.opacity ?? useViewerStore.getState().annotationOpacity,
-      strokeWidth: extras?.strokeWidth,
-      content:
-        extras?.content ??
-        (type === "text" || type === "comment" ? "" : undefined),
-      createdAt: Date.now(),
-    });
-  };
+  const addAnnotationAt = useCallback(
+    (
+      x: number,
+      y: number,
+      width: number,
+      height: number,
+      type: Annotation["type"],
+      extras?: Partial<
+        Pick<
+          Annotation,
+          "rects" | "path" | "content" | "opacity" | "strokeWidth"
+        >
+      >
+    ) => {
+      const rect = {
+        x: clamp01(x),
+        y: clamp01(y),
+        width: clamp01(width),
+        height: clamp01(height),
+      };
+      logSelectionPerf("annotation.add", {
+        type,
+        rect,
+        rectCount: extras?.rects?.length ?? 0,
+      });
+      addAnnotation({
+        id: Math.random().toString(36).slice(2, 9),
+        pageIndex,
+        type,
+        rect,
+        rects: extras?.rects,
+        path: extras?.path,
+        color: annotationColor,
+        opacity: extras?.opacity ?? useViewerStore.getState().annotationOpacity,
+        strokeWidth: extras?.strokeWidth,
+        content:
+          extras?.content ??
+          (type === "text" || type === "comment" ? "" : undefined),
+        createdAt: Date.now(),
+      });
+    },
+    [addAnnotation, annotationColor, logSelectionPerf, pageIndex]
+  );
 
   const clamp = (value: number, min: number, max: number) =>
     Math.min(max, Math.max(min, value));
