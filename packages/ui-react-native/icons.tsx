@@ -1,5 +1,14 @@
 import React from "react";
-import Svg, { Circle, Ellipse, Line, Path, Rect } from "react-native-svg";
+import Svg, {
+  Circle,
+  Defs,
+  Ellipse,
+  Line,
+  LinearGradient,
+  Path,
+  Rect,
+  Stop,
+} from "react-native-svg";
 
 type IconProps = {
   size?: number;
@@ -209,6 +218,34 @@ export const IconPalette: React.FC<IconProps> = ({
   </Svg>
 );
 
+export const IconColorRing: React.FC<{
+  size?: number;
+  centerColor?: string;
+  borderColor?: string;
+}> = ({ size = 28, centerColor = "#000000", borderColor = "#ffffff" }) => (
+  <Svg width={size} height={size} viewBox="0 0 36 36" fill="none">
+    <Defs>
+      <LinearGradient
+        id="colorRingGradient"
+        x1="4"
+        y1="4"
+        x2="32"
+        y2="32"
+        gradientUnits="userSpaceOnUse"
+      >
+        <Stop offset="0" stopColor="#3b82f6" />
+        <Stop offset="0.18" stopColor="#22c55e" />
+        <Stop offset="0.38" stopColor="#fde047" />
+        <Stop offset="0.58" stopColor="#f97316" />
+        <Stop offset="0.78" stopColor="#ec4899" />
+        <Stop offset="1" stopColor="#8b5cf6" />
+      </LinearGradient>
+    </Defs>
+    <Circle cx="18" cy="18" r="16" fill="url(#colorRingGradient)" />
+    <Circle cx="18" cy="18" r="11.8" fill={centerColor} stroke={borderColor} strokeWidth="1.8" />
+  </Svg>
+);
+
 export const IconTrash: React.FC<IconProps> = ({
   size = 20,
   color = defaultColor,
@@ -249,6 +286,33 @@ export const IconEdit: React.FC<{ size?: number; color?: string }> = ({
     <Path
       d="M5 1a2 2 0 0 0-2 2v9.998a2 2 0 0 0 2 2h1.046l.25-1H5a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1h3v2.5A1.5 1.5 0 0 0 9.498 6h2.5v1.44a2.535 2.535 0 0 1 1-.405V5.413a1.5 1.5 0 0 0-.44-1.06L9.645 1.439A1.5 1.5 0 0 0 8.585 1H5Zm6.791 4H9.5a.5.5 0 0 1-.5-.5V2.206l2.792 2.792Zm1.207 3.06a1.56 1.56 0 0 0-.662.394L8.05 12.74a2.777 2.777 0 0 0-.722 1.257l-.009.033l-.302 1.211a.61.61 0 0 0 .738.74l1.211-.303a2.776 2.776 0 0 0 1.29-.73l4.288-4.288a1.56 1.56 0 0 0-1.545-2.6Z"
       fill={color}
+    />
+  </Svg>
+);
+
+export const IconToolDockTrigger: React.FC<{
+  size?: number;
+  color?: string;
+  strokeWidth?: number;
+}> = ({ size = 20, color = defaultColor, strokeWidth = 2.1 }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <Circle cx="12" cy="12" r="8.6" stroke={color} strokeWidth={strokeWidth} />
+    <Path
+      d="M11.05 7.2h1.9l2.1 7.05H8.95l2.1-7.05Z"
+      fill="none"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinejoin="round"
+    />
+    <Rect
+      x="10.15"
+      y="13.35"
+      width="3.7"
+      height="3.15"
+      rx="0.4"
+      fill="none"
+      stroke={color}
+      strokeWidth={strokeWidth}
     />
   </Svg>
 );
@@ -375,18 +439,35 @@ export const IconToolInk: React.FC<IconProps> = ({
   size = 32,
   color = defaultColor,
 }) => (
-  <Svg width={size} height={size} viewBox="0 0 36 36" fill="none">
-    <Ellipse cx="18" cy="26.2" rx="7.2" ry="1.8" fill="#d1d5db" opacity="0.35" />
+  <Svg width={size} height={size} viewBox="0 0 38 107" fill="none">
+    <Defs>
+      <LinearGradient id="penBody" x1="8" y1="81.7" x2="30" y2="81.7">
+        <Stop offset="0" stopColor="#2e2e2e" />
+        <Stop offset="0.1" stopColor="#393939" />
+        <Stop offset="0.5" stopColor="#212121" />
+        <Stop offset="0.82" stopColor="#373737" />
+        <Stop offset="1" stopColor="#363636" />
+      </LinearGradient>
+      <LinearGradient id="penBand" x1="8" y1="53.1" x2="30" y2="53.1">
+        <Stop offset="0" stopColor="#b9b9b9" />
+        <Stop offset="0.5" stopColor="#fbfbfb" />
+        <Stop offset="1" stopColor="#a8a8a8" />
+      </LinearGradient>
+      <LinearGradient id="penCap" x1="15" y1="9.6" x2="23" y2="9.6">
+        <Stop offset="0" stopColor="#b9b9b9" />
+        <Stop offset="0.5" stopColor="#fbfbfb" />
+        <Stop offset="1" stopColor="#a8a8a8" />
+      </LinearGradient>
+    </Defs>
+    <Rect x="11" y="54" width="16" height="53" rx="1.5" fill="url(#penBody)" />
     <Path
-      d="M16.1 5.5c.75-1.1 2.37-1.1 3.12 0l4.55 6.58c.45.66.24 1.56-.47 1.95L18 17.02l-5.3-2.99a1.38 1.38 0 0 1-.47-1.95L16.1 5.5Z"
-      fill={color}
+      d="M11 47.35V52H27V47.35c0-1.94-.2-3.88-.6-5.76L20.3 4h-2.6l-6.1 37.6c-.4 1.88-.6 3.82-.6 5.75Z"
+      fill="url(#penBody)"
     />
-    <Path d="M14.4 13.9h7.2l1.7 12.8H12.7l1.7-12.8Z" fill="#ffffff" />
-    <Rect x="12.9" y="17.7" width="10.2" height="1.7" rx="0.85" fill={color} />
-    <Path
-      d="M13.9 26.7h8.2v2.1a2.2 2.2 0 0 1-2.2 2.2H16.1a2.2 2.2 0 0 1-2.2-2.2v-2.1Z"
-      fill="#f3f4f6"
-    />
+    <Rect x="11" y="52" width="16" height="2" fill="url(#penBand)" />
+    <Rect x="15" y="4" width="8" height="10" rx="0.8" fill="url(#penCap)" />
+    <Path d="M18.55 4.6h.9L26.2 40H11.8l6.75-35.4Z" fill="rgba(255,255,255,0.05)" />
+    <Rect x="11" y="52" width="16" height="2" fill={color} opacity="0.35" />
   </Svg>
 );
 
@@ -394,22 +475,32 @@ export const IconToolHighlighter: React.FC<IconProps> = ({
   size = 32,
   color = "#f4c430",
 }) => (
-  <Svg width={size} height={size} viewBox="0 0 36 36" fill="none">
-    <Ellipse cx="18" cy="27.1" rx="7.4" ry="1.9" fill="#d1d5db" opacity="0.35" />
+  <Svg width={size} height={size} viewBox="0 0 38 87" fill="none">
+    <Defs>
+      <LinearGradient id="markerMetal" x1="13" y1="10.6" x2="25" y2="10.6">
+        <Stop offset="0" stopColor="#b9b9b9" />
+        <Stop offset="0.5" stopColor="#fbfbfb" />
+        <Stop offset="1" stopColor="#a8a8a8" />
+      </LinearGradient>
+      <LinearGradient id="markerBody" x1="8" y1="34.6" x2="30" y2="34.6">
+        <Stop offset="0" stopColor="#2e2e2e" />
+        <Stop offset="0.08" stopColor="#393939" />
+        <Stop offset="0.36" stopColor="#212121" />
+        <Stop offset="0.82" stopColor="#373737" />
+        <Stop offset="1" stopColor="#363636" />
+      </LinearGradient>
+    </Defs>
     <Path
-      d="M14.8 6.8c0-1.16.94-2.1 2.1-2.1h2.2c1.16 0 2.1.94 2.1 2.1v4.2H14.8V6.8Z"
-      fill={color}
+      d="M13 10.8v5.55h12V5c0-.75-.8-1.23-1.46-.89l-9.46 4.92c-.66.34-1.08 1.03-1.08 1.77Z"
+      fill="url(#markerMetal)"
     />
     <Path
-      d="M13.4 11h9.2l1.3 10.8a2 2 0 0 1-1.99 2.24h-7.8a2 2 0 0 1-1.99-2.24L13.4 11Z"
-      fill="#ffffff"
+      d="M7 40v11.35h24V40c0-1.7-.45-3.37-1.3-4.84l-.48-.82C27.74 31.77 27 28.86 27 25.89V16.35H11V25.9c0 2.96-.74 5.88-2.22 8.44l-.48.82A9.72 9.72 0 0 0 7 40Z"
+      fill="url(#markerBody)"
     />
-    <Path
-      d="M14.4 11h7.2v-1.7c0-.4-.33-.73-.73-.73h-5.74c-.4 0-.73.33-.73.73V11Z"
-      fill="#e5e7eb"
-    />
-    <Path d="M14.05 23.15h7.9v3.1h-7.9v-3.1Z" fill={color} />
-    <Path d="M14.5 26.25h7l-1.45 2.7h-4.1l-1.45-2.7Z" fill="#f59e0b" />
+    <Rect x="7" y="51.35" width="24" height="35" rx="1.6" fill="url(#markerBody)" />
+    <Rect x="7" y="51.35" width="24" height="11" rx="0.8" fill="url(#markerMetal)" />
+    <Rect x="7" y="51.35" width="24" height="11" rx="0.8" fill={color} opacity="0.28" />
   </Svg>
 );
 
@@ -417,17 +508,41 @@ export const IconToolUnderline: React.FC<IconProps> = ({
   size = 32,
   color = defaultColor,
 }) => (
-  <Svg width={size} height={size} viewBox="0 0 36 36" fill="none">
-    <Ellipse cx="18" cy="27.2" rx="7.2" ry="1.8" fill="#d1d5db" opacity="0.32" />
+  <Svg width={size} height={size} viewBox="0 0 38 86" fill="none">
+    <Defs>
+      <LinearGradient id="pencilBodyTop" x1="8" y1="31" x2="30" y2="31">
+        <Stop offset="0" stopColor="#2e2e2e" />
+        <Stop offset="0.1" stopColor="#393939" />
+        <Stop offset="0.46" stopColor="#212121" />
+        <Stop offset="0.82" stopColor="#414141" />
+        <Stop offset="1" stopColor="#363636" />
+      </LinearGradient>
+      <LinearGradient id="pencilBodyBottom" x1="8" y1="65.35" x2="30" y2="65.35">
+        <Stop offset="0" stopColor="#2e2e2e" />
+        <Stop offset="0.1" stopColor="#393939" />
+        <Stop offset="0.46" stopColor="#212121" />
+        <Stop offset="0.82" stopColor="#373737" />
+        <Stop offset="1" stopColor="#363636" />
+      </LinearGradient>
+      <LinearGradient id="pencilMetal" x1="8" y1="52" x2="30" y2="52">
+        <Stop offset="0" stopColor="#b9b9b9" />
+        <Stop offset="0.5" stopColor="#fbfbfb" />
+        <Stop offset="1" stopColor="#a8a8a8" />
+      </LinearGradient>
+      <LinearGradient id="pencilTip" x1="15" y1="9.8" x2="23" y2="9.8">
+        <Stop offset="0" stopColor="#b9b9b9" />
+        <Stop offset="0.5" stopColor="#fbfbfb" />
+        <Stop offset="1" stopColor="#a8a8a8" />
+      </LinearGradient>
+    </Defs>
+    <Path d="M8 43.88v-1L15 16.88h8l7 26v1H8Z" fill="url(#pencilBodyTop)" />
+    <Path d="M8 42.88h22v43H8v-43Z" fill="url(#pencilBodyBottom)" />
+    <Rect x="8" y="50.88" width="22" height="2" fill="url(#pencilMetal)" />
     <Path
-      d="M18.78 5.4a1.6 1.6 0 0 0-1.56 0l-4.15 2.44a1.1 1.1 0 0 0-.4 1.52l1.2 2.08 7.1-4.14-1.2-2.08a1.1 1.1 0 0 0-.99-.55Z"
-      fill={color}
+      d="M15 16.88 18.03 4.76c.25-1.01 1.69-1.01 1.94 0L23 16.88h-8Z"
+      fill="url(#pencilTip)"
     />
-    <Path
-      d="M14.1 10.74 20.95 6.7l3.8 6.46c.34.58.14 1.33-.44 1.67L18.86 18c-.58.34-1.33.14-1.67-.44l-3.09-5.27Z"
-      fill="#ffffff"
-    />
-    <Rect x="11.2" y="24.6" width="13.6" height="2.4" rx="1.2" fill={color} />
+    <Rect x="8" y="50.88" width="22" height="2" fill={color} opacity="0.3" />
   </Svg>
 );
 

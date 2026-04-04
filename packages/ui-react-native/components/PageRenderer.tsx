@@ -1115,6 +1115,27 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     [beginInkDrawing, finishInkDrawing, inkEnabled, isNative, pushInkPoint]
   );
 
+  const commentTapGesture = useMemo(
+    () =>
+      Gesture.Tap()
+        .enabled(isNative && resolvedActiveTool === "comment")
+        .maxDistance(16)
+        .runOnJS(true)
+        .onEnd((event, success) => {
+          if (!success) return;
+          const normalized = toNormalizedPoint(event.x, event.y);
+          if (!normalized) return;
+          addAnnotationAt(
+            clamp01(normalized.x - 0.02),
+            clamp01(normalized.y - 0.02),
+            0.08,
+            0.06,
+            "comment"
+          );
+        }),
+    [isNative, resolvedActiveTool, layout.width, layout.height]
+  );
+
   const doubleTapGesture = useMemo(
     () =>
       Gesture.Tap()
@@ -1132,8 +1153,14 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   );
 
   const contentGesture = useMemo(
-    () => Gesture.Simultaneous(selectionGesture, inkGesture, doubleTapGesture),
-    [doubleTapGesture, inkGesture, selectionGesture]
+    () =>
+      Gesture.Simultaneous(
+        selectionGesture,
+        inkGesture,
+        commentTapGesture,
+        doubleTapGesture
+      ),
+    [commentTapGesture, doubleTapGesture, inkGesture, selectionGesture]
   );
 
   const selectionBoundsPx = useMemo(() => {

@@ -54,6 +54,7 @@ interface ViewerState {
   annotationColor: string;
   annotationOpacity: number;
   inkStrokeWidth: number;
+  activeDrawToolPreset: "ink" | "highlight" | "underline";
   outline: OutlineItem[];
   sidebarLeftOpen: boolean;
   sidebarLeftTab: "thumbnails" | "summary";
@@ -160,6 +161,7 @@ const getDefaultViewerState = () => ({
   scrollToPageSignal: null as number | null,
   annotations: [] as Annotation[],
   activeTool: "select" as const,
+  activeDrawToolPreset: "ink" as const,
   selectedAnnotationId: null as string | null,
   interactionMode: "pan" as const,
   selectionActive: false,

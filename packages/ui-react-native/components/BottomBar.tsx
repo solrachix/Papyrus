@@ -5,10 +5,10 @@ import { DocumentType, MobilePrimaryDestination } from "@papyrus-sdk/types";
 import { getStrings } from "../mobileStrings";
 import {
   IconComment,
-  IconEdit,
   IconInfo,
   IconSearch,
   IconSettings,
+  IconToolDockTrigger,
 } from "../icons";
 import { buildBottomBarLayout, BottomBarSlotKey } from "./bottomBarModel";
 import { getToolDockDismissState } from "../gesture/selectionInteraction";
@@ -62,7 +62,7 @@ const BottomBar: React.FC<BottomBarProps> = ({
   > = {
     annotate: {
       label: t.tools,
-      icon: IconEdit,
+      icon: IconToolDockTrigger,
       onPress: () => {
         if (toolDockOpen) {
           setDocumentState({
