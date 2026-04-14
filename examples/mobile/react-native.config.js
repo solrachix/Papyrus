@@ -6,10 +6,9 @@ module.exports = {
       root: path.resolve(__dirname, '../../packages/engine-native'),
     },
     '@react-native-documents/picker': {
-      root: path.resolve(
-        __dirname,
-        '../../node_modules/@react-native-documents/picker',
-      ),
+      platforms: {
+        ios: null,
+      },
     },
     'react-native-webview': {
       root: path.resolve(__dirname, '../../node_modules/react-native-webview'),
