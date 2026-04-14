@@ -58,9 +58,15 @@ jobs:
 
       - name: Detect project type
         id: detect
+        env:
+          IOS_PATH: ${{ inputs.ios_path }}
         run: |
           if [ -f "pubspec.yaml" ]; then
             echo "type=flutter" >> $GITHUB_OUTPUT
+          elif [ -f "$IOS_PATH/../package.json" ] && grep -q '"expo"' "$IOS_PATH/../package.json"; then
+            echo "type=expo" >> $GITHUB_OUTPUT
+          elif [ -f "$IOS_PATH/../package.json" ] && grep -q '"react-native"' "$IOS_PATH/../package.json"; then
+            echo "type=reactnative" >> $GITHUB_OUTPUT
           elif [ -f "package.json" ] && grep -q '"expo"' package.json; then
             echo "type=expo" >> $GITHUB_OUTPUT
           elif [ -f "package.json" ] && grep -q '"react-native"' package.json; then
