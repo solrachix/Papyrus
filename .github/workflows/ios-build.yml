@@ -92,7 +92,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'pnpm'
 
       - name: Restore node_modules cache
         if: steps.detect.outputs.type == 'reactnative' || steps.detect.outputs.type == 'expo'
