@@ -1,0 +1,17 @@
+{
+  "project": "PapyrusMobile",
+  "platform": "ios",
+  "github": {
+    "owner": "solrachix",
+    "repo": "Papyrus"
+  },
+  "ios": {
+    "path": "examples/mobile",
+    "scheme": "PapyrusMobile"
+  },
+  "flutter": {
+    "watch": {}
+  },
+  "reactNative": {},
+  "mobai": {}
+}
