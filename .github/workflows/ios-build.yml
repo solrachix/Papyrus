@@ -11,7 +11,7 @@ on:
         description: 'Path to iOS project (e.g., "ios" for React Native)'
         required: false
         type: string
-        default: '.'
+        default: 'examples/mobile/ios'
       scheme:
         description: 'Xcode scheme to build (auto-detected if empty)'
         required: false

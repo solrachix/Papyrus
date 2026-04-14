@@ -6,7 +6,7 @@
     "repo": "Papyrus"
   },
   "ios": {
-    "path": "examples/mobile",
+    "path": "examples/mobile/ios",
     "scheme": "PapyrusMobile"
   },
   "flutter": {
