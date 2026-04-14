@@ -329,7 +329,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ipa
-          path: build/*.ipa
+          path: ${{ inputs.ios_path }}/../build/*.ipa
           retention-days: 7
           if-no-files-found: error
 
@@ -352,6 +352,7 @@ jobs:
         env:
           USE_SIGNING: ${{ inputs.use_signing }}
           CONFIGURATION: ${{ inputs.configuration }}
+          BUILD_OUTPUT_DIR: ${{ inputs.ios_path }}/../build
         run: |
           echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -366,7 +367,7 @@ jobs:
           else
             echo "- **Signing:** Unsigned (sign locally with AltStore/Sideloadly)" >> $GITHUB_STEP_SUMMARY
           fi
-          if [ -f build/*.ipa ]; then
-            IPA_PATH=$(find build -name "*.ipa" -type f | head -1)
+          IPA_PATH=$(find "$BUILD_OUTPUT_DIR" -name "*.ipa" -type f | head -1)
+          if [ -n "$IPA_PATH" ]; then
             echo "- **IPA Size:** $(ls -lh "$IPA_PATH" | awk '{print $5}')" >> $GITHUB_STEP_SUMMARY
           fi
