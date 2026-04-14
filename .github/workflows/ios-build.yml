@@ -329,7 +329,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ipa
-          path: ${{ inputs.ios_path }}/../build/*.ipa
+          path: examples/mobile/build/*.ipa
           retention-days: 7
           if-no-files-found: error
 
@@ -352,7 +352,7 @@ jobs:
         env:
           USE_SIGNING: ${{ inputs.use_signing }}
           CONFIGURATION: ${{ inputs.configuration }}
-          BUILD_OUTPUT_DIR: ${{ inputs.ios_path }}/../build
+          BUILD_OUTPUT_DIR: examples/mobile/build
         run: |
           echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
