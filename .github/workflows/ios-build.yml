@@ -111,6 +111,14 @@ jobs:
         if: (steps.detect.outputs.type == 'reactnative' || steps.detect.outputs.type == 'expo') && steps.node-modules-cache.outputs.cache-hit != 'true'
         run: pnpm install --frozen-lockfile
 
+      - name: Build Papyrus SDK packages
+        if: steps.detect.outputs.type == 'reactnative' || steps.detect.outputs.type == 'expo'
+        run: |
+          pnpm --filter @papyrus-sdk/types build
+          pnpm --filter @papyrus-sdk/core build
+          pnpm --filter @papyrus-sdk/engine-native build
+          pnpm --filter @papyrus-sdk/ui-react-native build
+
       - name: Restore Pods cache
         uses: actions/cache@v4
         id: pods-cache
