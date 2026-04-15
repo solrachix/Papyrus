@@ -36,6 +36,7 @@ import {
   getSelectionEdgeAutoscroll,
   shouldEnableSelectionDrag,
 } from "../gesture/selectionInteraction";
+import { buildCommentTapGestureDeps } from "./PageRenderer.gesture";
 
 type PageViewComponentType = React.ComponentType<
   PapyrusPageViewProps & React.RefAttributes<any>
@@ -210,6 +211,8 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   const pageTheme = useViewerStore((state) => state.pageTheme);
   const annotations = useViewerStore((state) => state.annotations);
   const annotationColor = useViewerStore((state) => state.annotationColor);
+  const annotationOpacity = useViewerStore((state) => state.annotationOpacity);
+  const inkStrokeWidth = useViewerStore((state) => state.inkStrokeWidth);
   const addAnnotation = useViewerStore((state) => state.addAnnotation);
   const activeTool = useViewerStore((state) => state.activeTool);
   const interactionMode = useViewerStore((state) => state.interactionMode);
@@ -458,43 +461,49 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     }
   };
 
-  const addAnnotationAt = (
-    x: number,
-    y: number,
-    width: number,
-    height: number,
-    type: Annotation["type"],
-    extras?: Partial<
-      Pick<Annotation, "rects" | "path" | "content" | "opacity" | "strokeWidth">
-    >
-  ) => {
-    const rect = {
-      x: clamp01(x),
-      y: clamp01(y),
-      width: clamp01(width),
-      height: clamp01(height),
-    };
-    logSelectionPerf("annotation.add", {
-      type,
-      rect,
-      rectCount: extras?.rects?.length ?? 0,
-    });
-    addAnnotation({
-      id: Math.random().toString(36).slice(2, 9),
-      pageIndex,
-      type,
-      rect,
-      rects: extras?.rects,
-      path: extras?.path,
-      color: annotationColor,
-      opacity: extras?.opacity ?? useViewerStore.getState().annotationOpacity,
-      strokeWidth: extras?.strokeWidth,
-      content:
-        extras?.content ??
-        (type === "text" || type === "comment" ? "" : undefined),
-      createdAt: Date.now(),
-    });
-  };
+  const addAnnotationAt = useCallback(
+    (
+      x: number,
+      y: number,
+      width: number,
+      height: number,
+      type: Annotation["type"],
+      extras?: Partial<
+        Pick<
+          Annotation,
+          "rects" | "path" | "content" | "opacity" | "strokeWidth"
+        >
+      >
+    ) => {
+      const rect = {
+        x: clamp01(x),
+        y: clamp01(y),
+        width: clamp01(width),
+        height: clamp01(height),
+      };
+      logSelectionPerf("annotation.add", {
+        type,
+        rect,
+        rectCount: extras?.rects?.length ?? 0,
+      });
+      addAnnotation({
+        id: Math.random().toString(36).slice(2, 9),
+        pageIndex,
+        type,
+        rect,
+        rects: extras?.rects,
+        path: extras?.path,
+        color: annotationColor,
+        opacity: extras?.opacity ?? useViewerStore.getState().annotationOpacity,
+        strokeWidth: extras?.strokeWidth,
+        content:
+          extras?.content ??
+          (type === "text" || type === "comment" ? "" : undefined),
+        createdAt: Date.now(),
+      });
+    },
+    [addAnnotation, annotationColor, pageIndex]
+  );
 
   const clamp = (value: number, min: number, max: number) =>
     Math.min(max, Math.max(min, value));
@@ -1133,7 +1142,16 @@ const PageRenderer: React.FC<PageRendererProps> = ({
             "comment"
           );
         }),
-    [isNative, resolvedActiveTool, layout.width, layout.height]
+    buildCommentTapGestureDeps({
+      isNative,
+      resolvedActiveTool,
+      layoutWidth: layout.width,
+      layoutHeight: layout.height,
+      annotationColor,
+      annotationOpacity,
+      inkStrokeWidth,
+      addAnnotationAt,
+    })
   );
 
   const doubleTapGesture = useMemo(

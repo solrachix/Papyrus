@@ -4,6 +4,8 @@ import {
   Text,
   Pressable,
   StyleSheet,
+  ScrollView,
+  useWindowDimensions,
   type LayoutChangeEvent,
   type GestureResponderEvent,
 } from "react-native";
@@ -26,6 +28,7 @@ import {
   getToolDockDismissState,
   isToolDockToolSelected,
 } from "../gesture/selectionInteraction";
+import { shouldUseScrollablePrimaryToolsRow } from "./ToolDock.layout";
 
 const COLOR_SWATCHES = [
   "#fbbf24",
@@ -259,6 +262,7 @@ const ToolDock: React.FC = () => {
   const [paletteExpanded, setPaletteExpanded] = useState(false);
   const [extrasExpanded, setExtrasExpanded] = useState(false);
   const isDark = uiTheme === "dark";
+  const { width: windowWidth } = useWindowDimensions();
   const t = getStrings(locale);
   const panelColor = isDark ? "rgba(24,24,27,0.92)" : "rgba(255,255,255,0.96)";
   const borderColor = isDark ? "rgba(71,85,105,0.48)" : "rgba(229,231,235,0.88)";
@@ -284,6 +288,8 @@ const ToolDock: React.FC = () => {
     activeTool === "ink" && activeDrawToolPreset === "ink";
   const canUndo = annotationUndoStack.length > 0;
   const canRedo = annotationRedoStack.length > 0;
+  const primaryToolsRowIsScrollable =
+    shouldUseScrollablePrimaryToolsRow(windowWidth);
 
   const applyTool = (toolId: (typeof ALL_TOOLS)[number]["id"]) => {
     if (toolId === "ink") {
@@ -501,111 +507,249 @@ const ToolDock: React.FC = () => {
               },
             ]}
           >
-            <View style={styles.primaryToolsRow}>
-              <View style={styles.historyGroup}>
-              <Pressable
-                onPress={undoAnnotations}
-                disabled={!canUndo}
-                style={[
-                  styles.utilityButton,
-                  styles.historyButton,
-                  { backgroundColor: buttonColor },
-                  !canUndo && styles.disabledButton,
+            {primaryToolsRowIsScrollable ? (
+              <ScrollView
+                horizontal
+                bounces={false}
+                showsHorizontalScrollIndicator={false}
+                style={styles.primaryToolsScrollView}
+                contentContainerStyle={[
+                  styles.primaryToolsRow,
+                  styles.primaryToolsRowScrollableContent,
                 ]}
               >
-                <IconUndo
-                  size={16}
-                  color={
-                    canUndo ? utilityIconColor : isDark ? "#4b5563" : "#9ca3af"
-                  }
-                  strokeWidth={2.2}
-                />
-              </Pressable>
+                <View style={styles.primaryToolsRowInner}>
+                  <View style={styles.historyGroup}>
+                    <Pressable
+                      onPress={undoAnnotations}
+                      disabled={!canUndo}
+                      style={[
+                        styles.utilityButton,
+                        styles.historyButton,
+                        { backgroundColor: buttonColor },
+                        !canUndo && styles.disabledButton,
+                      ]}
+                    >
+                      <IconUndo
+                        size={16}
+                        color={
+                          canUndo
+                            ? utilityIconColor
+                            : isDark
+                            ? "#4b5563"
+                            : "#9ca3af"
+                        }
+                        strokeWidth={2.2}
+                      />
+                    </Pressable>
 
-              <Pressable
-                onPress={redoAnnotations}
-                disabled={!canRedo}
-                style={[
-                  styles.utilityButton,
-                  styles.historyButton,
-                  { backgroundColor: buttonColor },
-                  !canRedo && styles.disabledButton,
-                ]}
-              >
-                <IconRedo
-                  size={16}
-                  color={
-                    canRedo ? utilityIconColor : isDark ? "#4b5563" : "#9ca3af"
-                  }
-                  strokeWidth={2.2}
-                />
-              </Pressable>
+                    <Pressable
+                      onPress={redoAnnotations}
+                      disabled={!canRedo}
+                      style={[
+                        styles.utilityButton,
+                        styles.historyButton,
+                        { backgroundColor: buttonColor },
+                        !canRedo && styles.disabledButton,
+                      ]}
+                    >
+                      <IconRedo
+                        size={16}
+                        color={
+                          canRedo
+                            ? utilityIconColor
+                            : isDark
+                            ? "#4b5563"
+                            : "#9ca3af"
+                        }
+                        strokeWidth={2.2}
+                      />
+                    </Pressable>
+                  </View>
+
+                  <View style={styles.toolsGroup}>
+                    {PRIMARY_TOOLS.map((tool) => renderToolButton(tool))}
+                  </View>
+
+                  <View style={styles.controlsGroup}>
+                    <Pressable
+                      onPress={() => {
+                        setExtrasExpanded((value) => !value);
+                        setPaletteExpanded(false);
+                      }}
+                      style={[
+                        styles.utilityButton,
+                        {
+                          backgroundColor: extrasExpanded
+                            ? `${accentColor}12`
+                            : buttonColor,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.utilityLabel,
+                          { color: extrasExpanded ? accentColor : utilityIconColor },
+                        ]}
+                      >
+                        +
+                      </Text>
+                    </Pressable>
+
+                    <Pressable
+                      onPress={() => {
+                        setPaletteExpanded((value) => !value);
+                        setExtrasExpanded(false);
+                      }}
+                      style={styles.colorButton}
+                    >
+                      <IconColorRing
+                        size={30}
+                        centerColor={annotationColor}
+                        borderColor={
+                          annotationColor === "#f3f4f6"
+                            ? "#d1d5db"
+                            : isDark
+                            ? "#111827"
+                            : "#ffffff"
+                        }
+                      />
+                    </Pressable>
+
+                    <Pressable
+                      onPress={() =>
+                        setDocumentState(
+                          getToolDockDismissState({
+                            activeTool,
+                            interactionMode,
+                          })
+                        )
+                      }
+                      style={[
+                        styles.utilityButton,
+                        { backgroundColor: buttonColor },
+                      ]}
+                    >
+                      <IconClose
+                        size={15}
+                        color={utilityIconColor}
+                        strokeWidth={2.2}
+                      />
+                    </Pressable>
+                  </View>
+                </View>
+              </ScrollView>
+            ) : (
+              <View style={styles.primaryToolsRow}>
+              <View style={styles.historyGroup}>
+                <Pressable
+                  onPress={undoAnnotations}
+                  disabled={!canUndo}
+                  style={[
+                    styles.utilityButton,
+                    styles.historyButton,
+                    { backgroundColor: buttonColor },
+                    !canUndo && styles.disabledButton,
+                  ]}
+                >
+                  <IconUndo
+                    size={16}
+                    color={
+                      canUndo ? utilityIconColor : isDark ? "#4b5563" : "#9ca3af"
+                    }
+                    strokeWidth={2.2}
+                  />
+                </Pressable>
+
+                <Pressable
+                  onPress={redoAnnotations}
+                  disabled={!canRedo}
+                  style={[
+                    styles.utilityButton,
+                    styles.historyButton,
+                    { backgroundColor: buttonColor },
+                    !canRedo && styles.disabledButton,
+                  ]}
+                >
+                  <IconRedo
+                    size={16}
+                    color={
+                      canRedo ? utilityIconColor : isDark ? "#4b5563" : "#9ca3af"
+                    }
+                    strokeWidth={2.2}
+                  />
+                </Pressable>
               </View>
 
               <View style={styles.toolsGroup}>
-              {PRIMARY_TOOLS.map((tool) => renderToolButton(tool))}
+                {PRIMARY_TOOLS.map((tool) => renderToolButton(tool))}
               </View>
 
               <View style={styles.controlsGroup}>
-              <Pressable
-                onPress={() => {
-                  setExtrasExpanded((value) => !value);
-                  setPaletteExpanded(false);
-                }}
-                style={[
-                  styles.utilityButton,
-                  { backgroundColor: extrasExpanded ? `${accentColor}12` : buttonColor },
-                ]}
-              >
-                <Text
+                <Pressable
+                  onPress={() => {
+                    setExtrasExpanded((value) => !value);
+                    setPaletteExpanded(false);
+                  }}
                   style={[
-                    styles.utilityLabel,
-                    { color: extrasExpanded ? accentColor : utilityIconColor },
+                    styles.utilityButton,
+                    {
+                      backgroundColor: extrasExpanded
+                        ? `${accentColor}12`
+                        : buttonColor,
+                    },
                   ]}
                 >
-                  +
-                </Text>
-              </Pressable>
+                  <Text
+                    style={[
+                      styles.utilityLabel,
+                      { color: extrasExpanded ? accentColor : utilityIconColor },
+                    ]}
+                  >
+                    +
+                  </Text>
+                </Pressable>
 
-              <Pressable
-                onPress={() => {
-                  setPaletteExpanded((value) => !value);
-                  setExtrasExpanded(false);
-                }}
-                style={styles.colorButton}
-              >
-                <IconColorRing
-                  size={30}
-                  centerColor={annotationColor}
-                  borderColor={
-                    annotationColor === "#f3f4f6"
-                      ? "#d1d5db"
-                      : isDark
-                      ? "#111827"
-                      : "#ffffff"
+                <Pressable
+                  onPress={() => {
+                    setPaletteExpanded((value) => !value);
+                    setExtrasExpanded(false);
+                  }}
+                  style={styles.colorButton}
+                >
+                  <IconColorRing
+                    size={30}
+                    centerColor={annotationColor}
+                    borderColor={
+                      annotationColor === "#f3f4f6"
+                        ? "#d1d5db"
+                        : isDark
+                        ? "#111827"
+                        : "#ffffff"
+                    }
+                  />
+                </Pressable>
+
+                <Pressable
+                  onPress={() =>
+                    setDocumentState(
+                      getToolDockDismissState({
+                        activeTool,
+                        interactionMode,
+                      })
+                    )
                   }
-                />
-              </Pressable>
-
-              <Pressable
-                onPress={() =>
-                  setDocumentState(
-                    getToolDockDismissState({
-                      activeTool,
-                      interactionMode,
-                    })
-                  )
-                }
-                style={[styles.utilityButton, { backgroundColor: buttonColor }]}
-              >
-                <IconClose
-                  size={15}
-                  color={utilityIconColor}
-                  strokeWidth={2.2}
-                />
-              </Pressable>
+                  style={[styles.utilityButton, { backgroundColor: buttonColor }]}
+                >
+                  <IconClose
+                    size={15}
+                    color={utilityIconColor}
+                    strokeWidth={2.2}
+                  />
+                </Pressable>
               </View>
-            </View>
+              </View>
+            )}
           </View>
 
         </View>
@@ -666,6 +810,19 @@ const styles = StyleSheet.create({
     alignSelf: "center",
   },
   primaryToolsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    minHeight: 78,
+  },
+  primaryToolsScrollView: {
+    width: "100%",
+  },
+  primaryToolsRowScrollableContent: {
+    flexGrow: 1,
+  },
+  primaryToolsRowInner: {
+    minWidth: "100%",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
