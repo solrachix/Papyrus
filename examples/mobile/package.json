@@ -3,13 +3,17 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
+    "preandroid": "pnpm --filter @papyrus-sdk/types build && pnpm --filter @papyrus-sdk/core build && pnpm --filter @papyrus-sdk/engine-native build && pnpm --filter @papyrus-sdk/ui-react-native build",
     "android": "react-native run-android",
+    "preios": "pnpm --filter @papyrus-sdk/types build && pnpm --filter @papyrus-sdk/core build && pnpm --filter @papyrus-sdk/engine-native build && pnpm --filter @papyrus-sdk/ui-react-native build",
     "ios": "react-native run-ios",
+    "prestart": "pnpm --filter @papyrus-sdk/types build && pnpm --filter @papyrus-sdk/core build && pnpm --filter @papyrus-sdk/engine-native build && pnpm --filter @papyrus-sdk/ui-react-native build",
     "lint": "eslint .",
     "start": "react-native start",
     "test": "jest"
   },
   "dependencies": {
+    "@gorhom/bottom-sheet": "5.2.9",
     "@papyrus-sdk/core": "workspace:*",
     "@papyrus-sdk/engine-native": "workspace:*",
     "@papyrus-sdk/types": "workspace:*",
@@ -18,6 +22,7 @@
     "react": "19.1.0",
     "react-native": "0.81.0",
     "react-native-gesture-handler": "~2.28.0",
+    "react-native-reanimated": "3.19.5",
     "react-native-svg": "^15.5.0",
     "react-native-webview": "^13.8.0"
   },

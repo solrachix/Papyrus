@@ -5,10 +5,10 @@ React Native UI components for Papyrus viewers.
 ## Install
 
 ```bash
-npm install @papyrus-sdk/ui-react-native @papyrus-sdk/engine-native @papyrus-sdk/core @papyrus-sdk/types react-native-gesture-handler
+npm install @papyrus-sdk/ui-react-native @papyrus-sdk/engine-native @papyrus-sdk/core @papyrus-sdk/types react-native-gesture-handler react-native-reanimated
 ```
 
-`@papyrus-sdk/core`, `@papyrus-sdk/types`, and `react-native-gesture-handler` are required peer dependencies.
+`@papyrus-sdk/core`, `@papyrus-sdk/types`, `react-native-gesture-handler`, and `react-native-reanimated` are required peer dependencies.
 
 Wrap the app root with `GestureHandlerRootView` before rendering Papyrus components:
 
@@ -61,6 +61,14 @@ await engine.load({ type: 'pdf', source: { uri: 'https://example.com/book.pdf' }
 - `title`: replaces the default brand text.
 - `logo`: custom logo node (can be icon, image, or even a `Pressable`).
 - `onLogoPress`: optional callback to make the logo area act like a button.
+
+## Icon Guidelines
+
+- UI icons for this package live in `packages/ui-react-native/icons.tsx`.
+- Prefer inline SVG paths implemented with `react-native-svg` instead of adding a new icon runtime dependency.
+- When a product icon does not already exist in the file, prefer using the outline SVG from [Tabler Icons](https://tabler.io/icons) as the visual baseline and adapt it to the local `IconProps` pattern.
+- Keep icons stroke-based when possible, preserve `color`/`strokeWidth` as props, and simplify paths only when needed for better balance in mobile chrome.
+- If an icon is intentionally derived from Tabler, keep that shape direction consistent for nearby controls so the toolbar/bottom-bar language stays coherent.
 
 ## Mobile Tuning Flags
 

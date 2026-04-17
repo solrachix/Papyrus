@@ -1,14 +1,13 @@
 import type { ComponentType, RefAttributes } from "react";
 import {
   NativeModules,
+  TurboModuleRegistry,
   requireNativeComponent,
   View,
   type ViewProps,
 } from "react-native";
-import {
-  requireNativeViewManager,
-  requireOptionalNativeModule,
-} from "expo-modules-core";
+import { requireNativeViewManager } from "expo-modules-core/src/NativeViewManagerAdapter";
+import { requireOptionalNativeModule } from "expo-modules-core/src/requireNativeModule";
 import { BaseDocumentEngine, papyrusEvents } from "@papyrus-sdk/core";
 import {
   DocumentLoadInput,
@@ -24,6 +23,7 @@ import {
   FileLike,
   SearchResult,
   TextSelection,
+  PageTheme,
 } from "@papyrus-sdk/types";
 
 const MODULE_NAME = "PapyrusNativeEngine";
@@ -243,6 +243,7 @@ type NativeEngineModule = {
 
 export type PapyrusPageViewProps = ViewProps & {
   engineId?: string;
+  pageTheme?: PageTheme;
 };
 
 type PapyrusPageViewComponent = ComponentType<
@@ -253,6 +254,10 @@ const resolveNativeModule = (): NativeEngineModule | null => {
   const expoModule =
     requireOptionalNativeModule<NativeEngineModule>(MODULE_NAME);
   if (expoModule) return expoModule;
+  const turboModule = TurboModuleRegistry.get(
+    MODULE_NAME
+  ) as NativeEngineModule | null;
+  if (turboModule) return turboModule;
   const rnModule = (
     NativeModules as Record<string, NativeEngineModule | undefined>
   )[MODULE_NAME];

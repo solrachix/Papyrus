@@ -1,191 +1,263 @@
 import React from "react";
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import { View, Pressable, StyleSheet } from "react-native";
 import { useViewerStore } from "@papyrus-sdk/core";
-import { getStrings } from "../strings";
-import { IconDocument, IconGrid, IconSearch, IconComment } from "../icons";
+import { DocumentType, MobilePrimaryDestination } from "@papyrus-sdk/types";
+import { getStrings } from "../mobileStrings";
+import {
+  IconComment,
+  IconInfo,
+  IconSearch,
+  IconSettings,
+  IconToolDockTrigger,
+} from "../icons";
+import { buildBottomBarLayout, BottomBarSlotKey } from "./bottomBarModel";
+import { getToolDockDismissState } from "../gesture/selectionInteraction";
+import { createOpenDestinationHandler } from "./BottomBar.actions";
+import { MOBILE_CHROME_METRICS } from "./mobileChromeMetrics";
 
-const BottomBar: React.FC = () => {
+type BottomBarProps = {
+  documentType: DocumentType;
+  onOpenInfo: () => void;
+  onOpenSettings: () => void;
+  onOpenDestination?: (destination: MobilePrimaryDestination) => void;
+};
+
+const BottomBar: React.FC<BottomBarProps> = ({
+  documentType,
+  onOpenInfo,
+  onOpenSettings,
+  onOpenDestination,
+}) => {
   const {
-    sidebarRightOpen,
-    sidebarRightTab,
-    toggleSidebarRight,
+    activeMobileDestination,
+    mobileDockVisible,
     setDocumentState,
     uiTheme,
     locale,
     accentColor,
     mobileChromeVisible,
+    toolDockOpen,
+    activeTool,
+    interactionMode,
   } = useViewerStore();
   const isDark = uiTheme === "dark";
   const t = getStrings(locale);
 
-  const isActive = (tab: "pages" | "search" | "annotations") =>
-    sidebarRightOpen && sidebarRightTab === tab;
-
   const iconColor = (active: boolean) => {
-    if (active) return "#ffffff";
+    if (active) return accentColor;
     return isDark ? "#e5e7eb" : "#111827";
   };
 
-  if (!mobileChromeVisible) return null;
+  const layout = buildBottomBarLayout({
+    documentType,
+    activeMobileDestination,
+    toolDockOpen,
+  });
+
+  const slotMeta: Record<
+    BottomBarSlotKey,
+    {
+      label: string;
+      icon: React.ComponentType<{ size?: number; color?: string }>;
+      onPress: () => void;
+    }
+  > = {
+    annotate: {
+      label: t.tools,
+      icon: IconToolDockTrigger,
+      onPress: () => {
+        if (toolDockOpen) {
+          setDocumentState({
+            ...getToolDockDismissState({
+              activeTool,
+              interactionMode,
+            }),
+            activeMobileDestination: "none",
+          });
+          return;
+        }
+        onOpenDestination?.("annotate");
+        setDocumentState({ toolDockOpen: true });
+      },
+    },
+    notes: {
+      label: t.notes,
+      icon: IconComment,
+      onPress: createOpenDestinationHandler(onOpenDestination, "notes"),
+    },
+    search: {
+      label: t.search,
+      icon: IconSearch,
+      onPress: createOpenDestinationHandler(onOpenDestination, "search"),
+    },
+    info: {
+      label: t.info,
+      icon: IconInfo,
+      onPress: onOpenInfo,
+    },
+    more: {
+      label: t.more,
+      icon: IconSettings,
+      onPress: onOpenSettings,
+    },
+  };
+
+  if (!mobileChromeVisible || !mobileDockVisible) return null;
 
   return (
-    <View style={[styles.container, isDark && styles.containerDark]}>
-      <Pressable
-        onPress={() => toggleSidebarRight("pages")}
-        style={[styles.item, isActive("pages") && styles.itemActive]}
-      >
-        <View
-          style={[
-            styles.itemIcon,
-            isDark && styles.itemIconDark,
-            isActive("pages") && styles.itemIconActive,
-            isActive("pages") && { backgroundColor: accentColor },
-          ]}
-        >
-          <IconGrid size={16} color={iconColor(isActive("pages"))} />
-        </View>
-        <Text
-          style={[
-            styles.itemLabel,
-            isDark && styles.itemLabelDark,
-            isActive("pages") && styles.itemLabelActive,
-            isActive("pages") && { color: accentColor },
-          ]}
-        >
-          {t.pages}
-        </Text>
-      </Pressable>
+    <View pointerEvents="box-none" style={styles.frame}>
+      <View style={styles.row}>
+        {layout.leftSlots.length > 0 ? (
+          <View
+            style={[
+              styles.island,
+              styles.editIsland,
+              isDark && styles.islandDark,
+            ]}
+            testID="papyrus-floating-bottom-dock-edit"
+          >
+            {layout.leftSlots.map((slot) => {
+              const meta = slotMeta[slot.key];
+              const Icon = meta.icon;
+              return (
+                <Pressable
+                  key={slot.key}
+                  onPress={meta.onPress}
+                  style={[
+                    styles.iconOnlyItem,
+                    slot.active && styles.itemActive,
+                  ]}
+                  accessibilityLabel={meta.label}
+                >
+                  <View
+                    style={[
+                      styles.itemIcon,
+                      isDark && styles.itemIconDark,
+                      slot.active && styles.itemIconActive,
+                    ]}
+                  >
+                    <Icon
+                      size={MOBILE_CHROME_METRICS.iconSize}
+                      color={iconColor(slot.active)}
+                    />
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+        ) : null}
 
-      <Pressable
-        onPress={() => toggleSidebarRight("search")}
-        style={[styles.item, isActive("search") && styles.itemActive]}
-      >
         <View
           style={[
-            styles.itemIcon,
-            isDark && styles.itemIconDark,
-            isActive("search") && styles.itemIconActive,
-            isActive("search") && { backgroundColor: accentColor },
+            styles.island,
+            styles.utilityIsland,
+            isDark && styles.islandDark,
           ]}
+          testID="papyrus-floating-bottom-dock"
         >
-          <IconSearch size={16} color={iconColor(isActive("search"))} />
+          {layout.rightSlots.map((slot) => {
+            const meta = slotMeta[slot.key];
+            const Icon = meta.icon;
+            return (
+              <Pressable
+                key={slot.key}
+                onPress={meta.onPress}
+                style={[styles.iconOnlyItem, slot.active && styles.itemActive]}
+                accessibilityLabel={meta.label}
+              >
+                <View
+                  style={[
+                    styles.itemIcon,
+                    isDark && styles.itemIconDark,
+                    slot.active && styles.itemIconActive,
+                  ]}
+                >
+                  <Icon
+                    size={MOBILE_CHROME_METRICS.iconSize}
+                    color={iconColor(slot.active)}
+                  />
+                </View>
+              </Pressable>
+            );
+          })}
         </View>
-        <Text
-          style={[
-            styles.itemLabel,
-            isDark && styles.itemLabelDark,
-            isActive("search") && styles.itemLabelActive,
-            isActive("search") && { color: accentColor },
-          ]}
-        >
-          {t.search}
-        </Text>
-      </Pressable>
-
-      <Pressable
-        onPress={() => setDocumentState({ sidebarRightOpen: false })}
-        style={[styles.item, !sidebarRightOpen && styles.itemActive]}
-      >
-        <View
-          style={[
-            styles.itemIcon,
-            isDark && styles.itemIconDark,
-            !sidebarRightOpen && styles.itemIconActive,
-            !sidebarRightOpen && { backgroundColor: accentColor },
-          ]}
-        >
-          <IconDocument size={16} color={iconColor(!sidebarRightOpen)} />
-        </View>
-        <Text
-          style={[
-            styles.itemLabel,
-            isDark && styles.itemLabelDark,
-            !sidebarRightOpen && styles.itemLabelActive,
-            !sidebarRightOpen && { color: accentColor },
-          ]}
-        >
-          {t.read}
-        </Text>
-      </Pressable>
-
-      <Pressable
-        onPress={() => toggleSidebarRight("annotations")}
-        style={[styles.item, isActive("annotations") && styles.itemActive]}
-      >
-        <View
-          style={[
-            styles.itemIcon,
-            isDark && styles.itemIconDark,
-            isActive("annotations") && styles.itemIconActive,
-            isActive("annotations") && { backgroundColor: accentColor },
-          ]}
-        >
-          <IconComment size={16} color={iconColor(isActive("annotations"))} />
-        </View>
-        <Text
-          style={[
-            styles.itemLabel,
-            isDark && styles.itemLabelDark,
-            isActive("annotations") && styles.itemLabelActive,
-            isActive("annotations") && { color: accentColor },
-          ]}
-        >
-          {t.notes}
-        </Text>
-      </Pressable>
+      </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  frame: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 20,
+    paddingHorizontal: MOBILE_CHROME_METRICS.screenPadding,
+    paddingBottom: 14,
+    alignItems: "center",
+  },
+  row: {
+    width: "100%",
+    maxWidth: MOBILE_CHROME_METRICS.maxFloatingWidth,
     flexDirection: "row",
-    justifyContent: "space-around",
+    justifyContent: "flex-start",
     alignItems: "center",
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    backgroundColor: "#ffffff",
-    borderTopWidth: 1,
-    borderTopColor: "#e5e7eb",
+    gap: 10,
   },
-  containerDark: {
-    backgroundColor: "#0f1115",
-    borderTopColor: "#1f2937",
-  },
-  item: {
+  island: {
+    flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    backgroundColor: "rgba(255,255,255,0.9)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.72)",
+    borderRadius: 24,
+    shadowColor: "#0f172a",
+    shadowOpacity: 0.12,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 10,
+  },
+  editIsland: {
+    minWidth: 54,
+    justifyContent: "center",
+    gap: 2,
+  },
+  utilityIsland: {
+    justifyContent: "center",
+    gap: 2,
+    marginLeft: "auto",
+  },
+  islandDark: {
+    backgroundColor: "rgba(15,17,21,0.9)",
+    borderColor: "rgba(71,85,105,0.48)",
+  },
+  iconOnlyItem: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: MOBILE_CHROME_METRICS.bottomBarItemPaddingHorizontal,
+    paddingVertical: MOBILE_CHROME_METRICS.bottomBarItemPaddingVertical,
   },
   itemActive: {
     transform: [{ translateY: -2 }],
   },
   itemIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: 10,
-    backgroundColor: "#e5e7eb",
+    width: MOBILE_CHROME_METRICS.iconBoxSize,
+    height: MOBILE_CHROME_METRICS.iconBoxSize,
+    borderRadius: 0,
+    backgroundColor: "transparent",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 4,
   },
   itemIconDark: {
-    backgroundColor: "#111827",
+    backgroundColor: "transparent",
     color: "#e5e7eb",
   },
   itemIconActive: {
-    backgroundColor: "#2563eb",
+    backgroundColor: "transparent",
     color: "#ffffff",
-  },
-  itemLabel: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: "#6b7280",
-  },
-  itemLabelDark: {
-    color: "#9ca3af",
-  },
-  itemLabelActive: {
-    color: "#2563eb",
   },
 });
 

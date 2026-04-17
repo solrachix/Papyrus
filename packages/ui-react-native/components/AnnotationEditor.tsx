@@ -1,20 +1,35 @@
-import React, { useEffect, useState } from 'react';
-import { Modal, View, Text, TextInput, Pressable, StyleSheet } from 'react-native';
-import { useViewerStore } from '@papyrus-sdk/core';
-import { getStrings } from '../strings';
+import React, { useEffect, useState } from "react";
+import {
+  Modal,
+  View,
+  Text,
+  TextInput,
+  Pressable,
+  StyleSheet,
+} from "react-native";
+import { useViewerStore } from "@papyrus-sdk/core";
+import { getStrings } from "../mobileStrings";
 
 const AnnotationEditor: React.FC = () => {
-  const { annotations, selectedAnnotationId, updateAnnotation, setSelectedAnnotation, uiTheme, locale, accentColor } =
-    useViewerStore();
+  const {
+    annotations,
+    selectedAnnotationId,
+    updateAnnotation,
+    setSelectedAnnotation,
+    uiTheme,
+    locale,
+    accentColor,
+  } = useViewerStore();
   const annotation = annotations.find((ann) => ann.id === selectedAnnotationId);
-  const isEditable = annotation && (annotation.type === 'text' || annotation.type === 'comment');
-  const [draft, setDraft] = useState('');
-  const isDark = uiTheme === 'dark';
+  const isEditable =
+    annotation && (annotation.type === "text" || annotation.type === "comment");
+  const [draft, setDraft] = useState("");
+  const isDark = uiTheme === "dark";
   const t = getStrings(locale);
 
   useEffect(() => {
     if (isEditable) {
-      setDraft(annotation?.content ?? '');
+      setDraft(annotation?.content ?? "");
     }
   }, [annotation?.id, isEditable]);
 
@@ -27,24 +42,43 @@ const AnnotationEditor: React.FC = () => {
   };
 
   return (
-    <Modal visible transparent animationType="fade" onRequestClose={handleClose}>
+    <Modal
+      visible
+      transparent
+      animationType="fade"
+      onRequestClose={handleClose}
+    >
       <View style={styles.overlay}>
         <View style={[styles.card, isDark && styles.cardDark]}>
-          <Text style={[styles.title, isDark && styles.titleDark]}>{t.editNote}</Text>
+          <Text style={[styles.title, isDark && styles.titleDark]}>
+            {t.editNote}
+          </Text>
           <TextInput
             style={[styles.input, isDark && styles.inputDark]}
             value={draft}
             onChangeText={setDraft}
             placeholder={t.notePlaceholder}
-            placeholderTextColor={isDark ? '#9ca3af' : '#6b7280'}
+            placeholderTextColor={isDark ? "#9ca3af" : "#6b7280"}
             multiline
           />
           <View style={styles.actions}>
-            <Pressable onPress={handleClose} style={[styles.actionButton, styles.actionCancel]}>
+            <Pressable
+              onPress={handleClose}
+              style={[styles.actionButton, styles.actionCancel]}
+            >
               <Text style={styles.actionText}>{t.cancel}</Text>
             </Pressable>
-            <Pressable onPress={handleSave} style={[styles.actionButton, styles.actionSave, { backgroundColor: accentColor }]}>
-              <Text style={[styles.actionText, styles.actionTextLight]}>{t.save}</Text>
+            <Pressable
+              onPress={handleSave}
+              style={[
+                styles.actionButton,
+                styles.actionSave,
+                { backgroundColor: accentColor },
+              ]}
+            >
+              <Text style={[styles.actionText, styles.actionTextLight]}>
+                {t.save}
+              </Text>
             </Pressable>
           </View>
         </View>
@@ -56,48 +90,48 @@ const AnnotationEditor: React.FC = () => {
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
     padding: 24,
   },
   card: {
-    width: '100%',
+    width: "100%",
     borderRadius: 16,
     padding: 16,
-    backgroundColor: '#ffffff',
+    backgroundColor: "#ffffff",
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: "#e5e7eb",
   },
   cardDark: {
-    backgroundColor: '#0f1115',
-    borderColor: '#1f2937',
+    backgroundColor: "#0f1115",
+    borderColor: "#1f2937",
   },
   title: {
     fontSize: 14,
-    fontWeight: '700',
-    color: '#111827',
+    fontWeight: "700",
+    color: "#111827",
     marginBottom: 12,
   },
   titleDark: {
-    color: '#f9fafb',
+    color: "#f9fafb",
   },
   input: {
     minHeight: 100,
     borderRadius: 12,
     padding: 12,
-    backgroundColor: '#f3f4f6',
-    color: '#111827',
+    backgroundColor: "#f3f4f6",
+    color: "#111827",
     fontSize: 12,
   },
   inputDark: {
-    backgroundColor: '#111827',
-    color: '#e5e7eb',
+    backgroundColor: "#111827",
+    color: "#e5e7eb",
   },
   actions: {
     marginTop: 16,
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
+    flexDirection: "row",
+    justifyContent: "flex-end",
   },
   actionButton: {
     paddingHorizontal: 12,
@@ -106,18 +140,18 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   actionCancel: {
-    backgroundColor: '#e5e7eb',
+    backgroundColor: "#e5e7eb",
   },
   actionSave: {
-    backgroundColor: '#2563eb',
+    backgroundColor: "#2563eb",
   },
   actionText: {
     fontSize: 11,
-    fontWeight: '700',
-    color: '#111827',
+    fontWeight: "700",
+    color: "#111827",
   },
   actionTextLight: {
-    color: '#ffffff',
+    color: "#ffffff",
   },
 });
 

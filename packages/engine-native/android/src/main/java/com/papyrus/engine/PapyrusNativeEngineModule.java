@@ -158,6 +158,10 @@ public class PapyrusNativeEngineModule extends ReactContextBaseJavaModule {
     int width;
     int height;
     synchronized (state.pdfiumLock) {
+      try {
+        state.pdfium.openPage(state.document, pageIndex);
+      } catch (Throwable ignored) {
+      }
       width = state.pdfium.getPageWidthPoint(state.document, pageIndex);
       height = state.pdfium.getPageHeightPoint(state.document, pageIndex);
     }

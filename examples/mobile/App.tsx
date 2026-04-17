@@ -21,19 +21,24 @@ import {MobileDocumentEngine} from '@papyrus-sdk/engine-native';
 import {useViewerStore} from '@papyrus-sdk/core';
 import {PapyrusConfig} from '@papyrus-sdk/types';
 import {
-  Viewer,
-  Topbar,
+  ReadingShell,
   ToolDock,
-  RightSheet,
   AnnotationEditor,
-  BottomBar,
-  SettingsSheet,
+  MOBILE_CHROME_METRICS,
 } from '@papyrus-sdk/ui-react-native';
 
-const LOCAL_WEB_PDF = Image.resolveAssetSource(
-  require('./assets/tracemonkey-pldi-09.pdf'),
-);
-const SAMPLE_PDF = Image.resolveAssetSource(require('./assets/sample.pdf'));
+const BUNDLED_ASSETS = {
+  './assets/tracemonkey-pldi-09.pdf': require('./assets/tracemonkey-pldi-09.pdf'),
+  './assets/sample.pdf': require('./assets/sample.pdf'),
+} as const;
+
+const resolveBundledAsset = (assetPath: keyof typeof BUNDLED_ASSETS) => {
+  if (process.env.JEST_WORKER_ID) return null;
+  return Image.resolveAssetSource(BUNDLED_ASSETS[assetPath]);
+};
+
+const LOCAL_WEB_PDF = resolveBundledAsset('./assets/tracemonkey-pldi-09.pdf');
+const SAMPLE_PDF = resolveBundledAsset('./assets/sample.pdf');
 const DEFAULT_PDF_URL =
   'https://raw.githubusercontent.com/mozilla/pdf.js/ba2edeae/web/compressed.tracemonkey-pldi-09.pdf';
 const DEFAULT_PDF = LOCAL_WEB_PDF?.uri
@@ -74,7 +79,6 @@ const INITIAL_SDK_CONFIG: PapyrusConfig = {
 
 const App: React.FC = () => {
   const [engine] = useState(() => new MobileDocumentEngine());
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [activeType, setActiveType] = useState<'pdf' | 'epub' | 'text'>('pdf');
   const [isPicking, setIsPicking] = useState(false);
   const {
@@ -262,83 +266,67 @@ const App: React.FC = () => {
           <ActivityIndicator size="small" color={ACCENT_COLOR} />
         </View>
       )}
-      <Topbar
-        engine={engine}
-        title="Papyrus Mobile"
-        logo={
+      <View style={styles.viewer}>
+        <ReadingShell
+          engine={engine}
+          title="Papyrus Mobile"
+          documentType={activeType}
+          thumbsInitialCount={THUMBS_INITIAL_COUNT}
+          viewerProps={{
+            virtualWindowSize: VIEWER_VIRTUAL_WINDOW_SIZE,
+            maxToRenderPerBatch: VIEWER_MAX_TO_RENDER_PER_BATCH,
+            removeClippedSubviews: true,
+          }}
+        />
+        <View
+          pointerEvents="box-none"
+          style={styles.documentSwitcherFrame}
+          testID="papyrus-document-switcher">
           <View
             style={[
-              styles.headerLogo,
-              uiTheme === 'dark' && styles.headerLogoDark,
-              {borderColor: accentColor},
+              styles.documentSwitcher,
+              uiTheme === 'dark' && styles.documentSwitcherDark,
             ]}>
-            <Text style={[styles.headerLogoText, {color: accentColor}]}>
-              PB
-            </Text>
-          </View>
-        }
-        onLogoPress={() => setSettingsOpen(true)}
-        logoAccessibilityLabel="Abrir configurações"
-        onOpenSettings={() => setSettingsOpen(true)}
-      />
-      <View style={[styles.typeBar, uiTheme === 'dark' && styles.typeBarDark]}>
-        {(['pdf', 'epub', 'text'] as const).map(type => {
-          const isActive = type === activeType;
-          return (
+            <View style={styles.documentTypeRow}>
+              {(['pdf', 'epub', 'text'] as const).map(type => {
+                const isActive = type === activeType;
+                return (
+                  <Pressable
+                    key={type}
+                    onPress={() => loadDocument(type)}
+                    style={[
+                      styles.typeButton,
+                      uiTheme === 'dark' && styles.typeButtonDark,
+                      isActive && {backgroundColor: accentColor},
+                    ]}>
+                    <Text
+                      style={[
+                        styles.typeButtonText,
+                        uiTheme === 'dark' && styles.typeButtonTextDark,
+                        isActive && styles.typeButtonTextActive,
+                      ]}>
+                      {type.toUpperCase()}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
             <Pressable
-              key={type}
-              onPress={() => loadDocument(type)}
+              onPress={openLocalDocument}
+              disabled={isPicking}
               style={[
-                styles.typeButton,
-                uiTheme === 'dark' && styles.typeButtonDark,
-                isActive && {backgroundColor: accentColor},
+                styles.openButton,
+                uiTheme === 'dark' && styles.openButtonDark,
+                isPicking && styles.openButtonDisabled,
               ]}>
-              <Text
-                style={[
-                  styles.typeButtonText,
-                  uiTheme === 'dark' && styles.typeButtonTextDark,
-                  isActive && styles.typeButtonTextActive,
-                ]}>
-                {type.toUpperCase()}
+              <Text style={styles.openButtonText}>
+                {isPicking ? 'OPENING...' : 'OPEN FILE'}
               </Text>
             </Pressable>
-          );
-        })}
-        <Pressable
-          onPress={openLocalDocument}
-          disabled={isPicking}
-          style={[
-            styles.typeButton,
-            uiTheme === 'dark' && styles.typeButtonDark,
-            styles.openButton,
-            isPicking && styles.openButtonDisabled,
-          ]}>
-          <Text
-            style={[
-              styles.typeButtonText,
-              uiTheme === 'dark' && styles.typeButtonTextDark,
-              styles.openButtonText,
-            ]}>
-            {isPicking ? 'OPENING...' : 'OPEN'}
-          </Text>
-        </Pressable>
-      </View>
-      <View style={styles.viewer}>
-        <Viewer
-          engine={engine}
-          virtualWindowSize={VIEWER_VIRTUAL_WINDOW_SIZE}
-          maxToRenderPerBatch={VIEWER_MAX_TO_RENDER_PER_BATCH}
-          removeClippedSubviews
-        />
+          </View>
+        </View>
         {activeType === 'pdf' ? <ToolDock /> : null}
       </View>
-      <BottomBar />
-      <RightSheet engine={engine} thumbsInitialCount={THUMBS_INITIAL_COUNT} />
-      <SettingsSheet
-        engine={engine}
-        visible={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-      />
       <AnnotationEditor />
     </Root>
   );
@@ -356,27 +344,49 @@ const styles = StyleSheet.create({
     flex: 1,
     position: 'relative',
   },
-  typeBar: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+  documentSwitcherFrame: {
+    position: 'absolute',
+    top: 132,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 18,
+    paddingHorizontal: MOBILE_CHROME_METRICS.screenPadding,
+  },
+  documentSwitcher: {
+    width: '100%',
+    maxWidth: MOBILE_CHROME_METRICS.maxFloatingWidth,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.68)',
+    backgroundColor: 'rgba(255,255,255,0.84)',
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.12,
+    shadowRadius: 20,
+    shadowOffset: {width: 0, height: 12},
+    elevation: 8,
+    gap: 10,
+  },
+  documentSwitcherDark: {
+    backgroundColor: 'rgba(15,17,21,0.86)',
+    borderColor: 'rgba(71,85,105,0.44)',
+  },
+  documentTypeRow: {
     flexDirection: 'row',
     gap: 8,
-    backgroundColor: '#ffffff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-  },
-  typeBarDark: {
-    backgroundColor: '#0f1115',
-    borderBottomColor: '#1f2937',
   },
   typeButton: {
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 10,
-    backgroundColor: '#e5e7eb',
+    borderRadius: 999,
+    backgroundColor: 'rgba(226,232,240,0.9)',
+    flex: 1,
+    alignItems: 'center',
   },
   typeButtonDark: {
-    backgroundColor: '#111827',
+    backgroundColor: 'rgba(17,24,39,0.92)',
   },
   typeButtonText: {
     fontSize: 11,
@@ -390,33 +400,26 @@ const styles = StyleSheet.create({
     color: '#ffffff',
   },
   openButton: {
-    marginLeft: 'auto',
     borderWidth: 1,
-    borderColor: '#cbd5f5',
-    backgroundColor: 'transparent',
+    borderColor: '#cbd5e1',
+    backgroundColor: 'rgba(255,255,255,0.8)',
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  openButtonDark: {
+    borderColor: '#334155',
+    backgroundColor: 'rgba(17,24,39,0.94)',
   },
   openButtonDisabled: {
     opacity: 0.6,
   },
   openButtonText: {
     letterSpacing: 0.6,
-  },
-  headerLogo: {
-    width: 26,
-    height: 26,
-    borderRadius: 8,
-    borderWidth: 1,
-    backgroundColor: '#eff6ff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerLogoDark: {
-    backgroundColor: '#111827',
-  },
-  headerLogoText: {
     fontSize: 11,
     fontWeight: '800',
-    letterSpacing: 0.2,
+    color: '#2563eb',
   },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,

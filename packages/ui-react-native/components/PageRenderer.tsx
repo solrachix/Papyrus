@@ -36,6 +36,7 @@ import {
   getSelectionEdgeAutoscroll,
   shouldEnableSelectionDrag,
 } from "../gesture/selectionInteraction";
+import { buildCommentTapGestureDeps } from "./PageRenderer.gesture";
 
 type PageViewComponentType = React.ComponentType<
   PapyrusPageViewProps & React.RefAttributes<any>
@@ -45,6 +46,7 @@ interface PageRendererProps {
   engine: DocumentEngine;
   pageIndex: number;
   scale?: number;
+  pageAspectRatio?: number;
   PageViewComponent?: PageViewComponentType;
   availableWidth?: number;
   horizontalPadding?: number;
@@ -158,6 +160,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   engine,
   pageIndex,
   scale = 1,
+  pageAspectRatio,
   PageViewComponent = PapyrusPageView as PageViewComponentType,
   availableWidth,
   horizontalPadding = 16,
@@ -193,15 +196,29 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     typeof setInterval
   > | null>(null);
   const rawTouchMoveLoggedAtRef = useRef(0);
+  const currentInkStyleRef = useRef<{
+    color: string;
+    opacity: number;
+    strokeWidth: number;
+  }>({
+    color: "#fbbf24",
+    opacity: 1,
+    strokeWidth: 0.006,
+  });
 
   const zoom = useViewerStore((state) => state.zoom);
   const rotation = useViewerStore((state) => state.rotation);
   const pageTheme = useViewerStore((state) => state.pageTheme);
   const annotations = useViewerStore((state) => state.annotations);
   const annotationColor = useViewerStore((state) => state.annotationColor);
+  const annotationOpacity = useViewerStore((state) => state.annotationOpacity);
+  const inkStrokeWidth = useViewerStore((state) => state.inkStrokeWidth);
   const addAnnotation = useViewerStore((state) => state.addAnnotation);
   const activeTool = useViewerStore((state) => state.activeTool);
   const interactionMode = useViewerStore((state) => state.interactionMode);
+  const toolDockOpen = useViewerStore((state) => state.toolDockOpen);
+  const resolvedActiveTool = toolDockOpen ? activeTool : "select";
+  const resolvedInteractionMode = toolDockOpen ? interactionMode : "pan";
   const accentColor = useViewerStore((state) => state.accentColor);
   const selectedAnnotationId = useViewerStore(
     (state) => state.selectedAnnotationId
@@ -232,22 +249,29 @@ const PageRenderer: React.FC<PageRendererProps> = ({
       if (!perfEnabled || !isNative) return;
       logPerfEvent("PageRenderer", `gesture.${event}`, {
         page: pageIndex + 1,
-        activeTool,
-        interactionMode,
+        activeTool: resolvedActiveTool,
+        interactionMode: resolvedInteractionMode,
         pinchActive: gestureScrollLockActive,
         gestureLockActive: gestureScrollLockActive,
         selectionEnabled:
           Platform.OS === "web" ||
           (isNative &&
             shouldEnableSelectionDrag({
-              activeTool,
-              interactionMode,
+              activeTool: resolvedActiveTool,
+              interactionMode: resolvedInteractionMode,
             })),
         zoom: Math.round(zoom * 100) / 100,
         ...payload,
       });
     },
-    [activeTool, interactionMode, isNative, pageIndex, perfEnabled, zoom]
+    [
+      isNative,
+      pageIndex,
+      perfEnabled,
+      resolvedActiveTool,
+      resolvedInteractionMode,
+      zoom,
+    ]
   );
 
   const logRawTouchDebug = useCallback(
@@ -397,6 +421,13 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   ]);
 
   useEffect(() => {
+    if (
+      typeof pageAspectRatio === "number" &&
+      Number.isFinite(pageAspectRatio) &&
+      pageAspectRatio > 0
+    ) {
+      return;
+    }
     let active = true;
     const loadDimensions = async () => {
       const startedAt = perfEnabled ? perfNow() : 0;
@@ -421,7 +452,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     return () => {
       active = false;
     };
-  }, [engine, pageIndex, perfEnabled]);
+  }, [engine, pageAspectRatio, pageIndex, perfEnabled]);
 
   const handleLayout = (event: LayoutChangeEvent) => {
     const { width, height } = event.nativeEvent.layout;
@@ -430,39 +461,49 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     }
   };
 
-  const addAnnotationAt = (
-    x: number,
-    y: number,
-    width: number,
-    height: number,
-    type: Annotation["type"],
-    extras?: Partial<Pick<Annotation, "rects" | "path" | "content">>
-  ) => {
-    const rect = {
-      x: clamp01(x),
-      y: clamp01(y),
-      width: clamp01(width),
-      height: clamp01(height),
-    };
-    logSelectionPerf("annotation.add", {
-      type,
-      rect,
-      rectCount: extras?.rects?.length ?? 0,
-    });
-    addAnnotation({
-      id: Math.random().toString(36).slice(2, 9),
-      pageIndex,
-      type,
-      rect,
-      rects: extras?.rects,
-      path: extras?.path,
-      color: annotationColor,
-      content:
-        extras?.content ??
-        (type === "text" || type === "comment" ? "" : undefined),
-      createdAt: Date.now(),
-    });
-  };
+  const addAnnotationAt = useCallback(
+    (
+      x: number,
+      y: number,
+      width: number,
+      height: number,
+      type: Annotation["type"],
+      extras?: Partial<
+        Pick<
+          Annotation,
+          "rects" | "path" | "content" | "opacity" | "strokeWidth"
+        >
+      >
+    ) => {
+      const rect = {
+        x: clamp01(x),
+        y: clamp01(y),
+        width: clamp01(width),
+        height: clamp01(height),
+      };
+      logSelectionPerf("annotation.add", {
+        type,
+        rect,
+        rectCount: extras?.rects?.length ?? 0,
+      });
+      addAnnotation({
+        id: Math.random().toString(36).slice(2, 9),
+        pageIndex,
+        type,
+        rect,
+        rects: extras?.rects,
+        path: extras?.path,
+        color: annotationColor,
+        opacity: extras?.opacity ?? useViewerStore.getState().annotationOpacity,
+        strokeWidth: extras?.strokeWidth,
+        content:
+          extras?.content ??
+          (type === "text" || type === "comment" ? "" : undefined),
+        createdAt: Date.now(),
+      });
+    },
+    [addAnnotation, annotationColor, logSelectionPerf, pageIndex]
+  );
 
   const clamp = (value: number, min: number, max: number) =>
     Math.min(max, Math.max(min, value));
@@ -494,12 +535,12 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   }, [inkPoints]);
 
   useEffect(() => {
-    if (activeTool === "ink") return;
+    if (resolvedActiveTool === "ink") return;
     inkDrawingActiveRef.current = false;
     setIsInkDrawing(false);
     setInkPoints([]);
     inkPointsRef.current = [];
-  }, [activeTool]);
+  }, [resolvedActiveTool]);
 
   const pageViewportWidth = Math.max(
     0,
@@ -509,10 +550,10 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     Platform.OS === "web" ||
     (isNative &&
       shouldEnableSelectionDrag({
-        activeTool,
-        interactionMode,
+        activeTool: resolvedActiveTool,
+        interactionMode: resolvedInteractionMode,
       }));
-  const inkEnabled = isNative && activeTool === "ink";
+  const inkEnabled = isNative && resolvedActiveTool === "ink";
 
   const stopSelectionAutoscroll = useCallback(() => {
     if (selectionAutoscrollIntervalRef.current) {
@@ -538,9 +579,9 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   }, [setSelectionActive, setSelectionDragState, stopSelectionAutoscroll]);
 
   useEffect(() => {
-    if (activeTool === "select") return;
+    if (resolvedActiveTool === "select") return;
     clearSelection();
-  }, [activeTool]);
+  }, [clearSelection, resolvedActiveTool]);
 
   useEffect(
     () => () => {
@@ -894,8 +935,15 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   const beginInkDrawing = (x: number, y: number) => {
     const point = toNormalizedPoint(x, y);
     if (!point) return;
+    const { annotationOpacity, inkStrokeWidth, annotationColor: currentColor } =
+      useViewerStore.getState();
     clearSelection();
     inkDrawingActiveRef.current = true;
+    currentInkStyleRef.current = {
+      color: currentColor,
+      opacity: annotationOpacity,
+      strokeWidth: inkStrokeWidth,
+    };
     setIsInkDrawing(true);
     setInkPoints([point]);
     inkPointsRef.current = [point];
@@ -934,7 +982,11 @@ const PageRenderer: React.FC<PageRendererProps> = ({
       Math.max(0.0005, maxX - minX),
       Math.max(0.0005, maxY - minY),
       "ink",
-      { path: points }
+      {
+        path: points,
+        strokeWidth: currentInkStyleRef.current.strokeWidth,
+        opacity: currentInkStyleRef.current.opacity,
+      }
     );
   };
 
@@ -1072,10 +1124,40 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     [beginInkDrawing, finishInkDrawing, inkEnabled, isNative, pushInkPoint]
   );
 
+  const commentTapGesture = useMemo(
+    () =>
+      Gesture.Tap()
+        .enabled(isNative && resolvedActiveTool === "comment")
+        .maxDistance(16)
+        .runOnJS(true)
+        .onEnd((event, success) => {
+          if (!success) return;
+          const normalized = toNormalizedPoint(event.x, event.y);
+          if (!normalized) return;
+          addAnnotationAt(
+            clamp01(normalized.x - 0.02),
+            clamp01(normalized.y - 0.02),
+            0.08,
+            0.06,
+            "comment"
+          );
+        }),
+    buildCommentTapGestureDeps({
+      isNative,
+      resolvedActiveTool,
+      layoutWidth: layout.width,
+      layoutHeight: layout.height,
+      annotationColor,
+      annotationOpacity,
+      inkStrokeWidth,
+      addAnnotationAt,
+    })
+  );
+
   const doubleTapGesture = useMemo(
     () =>
       Gesture.Tap()
-        .enabled(isNative && activeTool === "select")
+        .enabled(isNative && resolvedActiveTool === "select")
         .numberOfTaps(2)
         .maxDistance(24)
         .maxDelay(280)
@@ -1085,12 +1167,18 @@ const PageRenderer: React.FC<PageRendererProps> = ({
           if (!success) return;
           handleDoubleTap(event.x, event.y);
         }),
-    [activeTool, handleDoubleTap, isNative]
+    [handleDoubleTap, isNative, resolvedActiveTool]
   );
 
   const contentGesture = useMemo(
-    () => Gesture.Simultaneous(selectionGesture, inkGesture, doubleTapGesture),
-    [doubleTapGesture, inkGesture, selectionGesture]
+    () =>
+      Gesture.Simultaneous(
+        selectionGesture,
+        inkGesture,
+        commentTapGesture,
+        doubleTapGesture
+      ),
+    [commentTapGesture, doubleTapGesture, inkGesture, selectionGesture]
   );
 
   const selectionBoundsPx = useMemo(() => {
@@ -1206,7 +1294,11 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   }, [pageTheme]);
 
   const aspectRatio =
-    pageSize && pageSize.width > 0 && pageSize.height > 0
+    typeof pageAspectRatio === "number" &&
+    Number.isFinite(pageAspectRatio) &&
+    pageAspectRatio > 0
+      ? pageAspectRatio
+      : pageSize && pageSize.width > 0 && pageSize.height > 0
       ? pageSize.width / pageSize.height
       : 0.77;
   const containerWidth = availableWidth ?? windowWidth;
@@ -1296,6 +1388,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({
           <PageViewComponent
             ref={viewRef}
             pointerEvents="none"
+            pageTheme={pageTheme}
             style={styles.page}
           />
           <View
@@ -1414,8 +1507,11 @@ const PageRenderer: React.FC<PageRendererProps> = ({
                     )
                     .join(" ")}
                   fill="none"
-                  stroke={annotationColor}
-                  strokeWidth={0.006}
+                  stroke={withAlpha(
+                    currentInkStyleRef.current.color,
+                    currentInkStyleRef.current.opacity
+                  )}
+                  strokeWidth={currentInkStyleRef.current.strokeWidth}
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
@@ -1465,7 +1561,12 @@ const PageRenderer: React.FC<PageRendererProps> = ({
                               style={[
                                 styles.annotationMarkupRect,
                                 rectStyle,
-                                { backgroundColor: withAlpha(ann.color, 0.38) },
+                                {
+                                  backgroundColor: withAlpha(
+                                    ann.color,
+                                    ann.opacity ?? 0.38
+                                  ),
+                                },
                               ]}
                             />
                           );
@@ -1557,8 +1658,8 @@ const PageRenderer: React.FC<PageRendererProps> = ({
                           )
                           .join(" ")}
                         fill="none"
-                        stroke={ann.color}
-                        strokeWidth={0.006}
+                        stroke={withAlpha(ann.color, ann.opacity ?? 1)}
+                        strokeWidth={ann.strokeWidth ?? 0.006}
                         strokeLinecap="round"
                         strokeLinejoin="round"
                       />
