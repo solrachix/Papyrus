@@ -28,7 +28,12 @@ import {
   getToolDockDismissState,
   isToolDockToolSelected,
 } from "../gesture/selectionInteraction";
-import { shouldUseScrollablePrimaryToolsRow } from "./ToolDock.layout";
+import {
+  resolveToolDockBaseIconColor,
+  resolveToolDockIconColor,
+  shouldUseScrollablePrimaryToolsRow,
+} from "./ToolDock.layout";
+import { MOBILE_CHROME_METRICS } from "./mobileChromeMetrics";
 
 const COLOR_SWATCHES = [
   "#fbbf24",
@@ -86,11 +91,7 @@ const getToolAccentColor = (
   tool: (typeof ALL_TOOLS)[number],
   isDark: boolean
 ) => {
-  if (tool.label === "highlight" || tool.label === "note") {
-    return "#f4c430";
-  }
-
-  return isDark ? "#f8fafc" : "#111827";
+  return resolveToolDockBaseIconColor({ label: tool.label, isDark });
 };
 
 const getToolVisual = (toolId: (typeof ALL_TOOLS)[number]["id"]) => {
@@ -354,6 +355,13 @@ const ToolDock: React.FC = () => {
     const visual = getToolVisual(tool.id);
 
     const baseIconColor = getToolAccentColor(tool, isDark);
+    const iconColor = resolveToolDockIconColor({
+      toolId: tool.id,
+      isSelected,
+      annotationColor,
+      accentColor,
+      baseIconColor,
+    });
 
     return (
       <Pressable
@@ -381,7 +389,7 @@ const ToolDock: React.FC = () => {
         >
           <Icon
             size={compact ? 34 : visual.iconSize}
-            color={isSelected ? accentColor : baseIconColor}
+            color={iconColor}
           />
         </View>
       </Pressable>
@@ -531,13 +539,13 @@ const ToolDock: React.FC = () => {
                       ]}
                     >
                       <IconUndo
-                        size={16}
+                        size={MOBILE_CHROME_METRICS.toolDockHistoryIconSize}
                         color={
                           canUndo
                             ? utilityIconColor
                             : isDark
-                            ? "#4b5563"
-                            : "#9ca3af"
+                            ? MOBILE_CHROME_METRICS.toolDockDisabledIconColorDark
+                            : MOBILE_CHROME_METRICS.toolDockDisabledIconColorLight
                         }
                         strokeWidth={2.2}
                       />
@@ -554,13 +562,13 @@ const ToolDock: React.FC = () => {
                       ]}
                     >
                       <IconRedo
-                        size={16}
+                        size={MOBILE_CHROME_METRICS.toolDockHistoryIconSize}
                         color={
                           canRedo
                             ? utilityIconColor
                             : isDark
-                            ? "#4b5563"
-                            : "#9ca3af"
+                            ? MOBILE_CHROME_METRICS.toolDockDisabledIconColorDark
+                            : MOBILE_CHROME_METRICS.toolDockDisabledIconColorLight
                         }
                         strokeWidth={2.2}
                       />
@@ -653,9 +661,13 @@ const ToolDock: React.FC = () => {
                   ]}
                 >
                   <IconUndo
-                    size={16}
+                    size={MOBILE_CHROME_METRICS.toolDockHistoryIconSize}
                     color={
-                      canUndo ? utilityIconColor : isDark ? "#4b5563" : "#9ca3af"
+                      canUndo
+                        ? utilityIconColor
+                        : isDark
+                        ? MOBILE_CHROME_METRICS.toolDockDisabledIconColorDark
+                        : MOBILE_CHROME_METRICS.toolDockDisabledIconColorLight
                     }
                     strokeWidth={2.2}
                   />
@@ -672,9 +684,13 @@ const ToolDock: React.FC = () => {
                   ]}
                 >
                   <IconRedo
-                    size={16}
+                    size={MOBILE_CHROME_METRICS.toolDockHistoryIconSize}
                     color={
-                      canRedo ? utilityIconColor : isDark ? "#4b5563" : "#9ca3af"
+                      canRedo
+                        ? utilityIconColor
+                        : isDark
+                        ? MOBILE_CHROME_METRICS.toolDockDisabledIconColorDark
+                        : MOBILE_CHROME_METRICS.toolDockDisabledIconColorLight
                     }
                     strokeWidth={2.2}
                   />
@@ -763,12 +779,12 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     alignItems: "center",
     justifyContent: "flex-end",
-    paddingHorizontal: 0,
+    paddingHorizontal: MOBILE_CHROME_METRICS.screenPadding,
     paddingBottom: 72,
   },
   stack: {
     width: "100%",
-    maxWidth: 520,
+    maxWidth: MOBILE_CHROME_METRICS.maxToolDockWidth,
     alignItems: "center",
   },
   container: {
@@ -778,7 +794,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingLeft: 12,
     paddingRight: 12,
-    paddingTop: 8,
+    paddingTop: MOBILE_CHROME_METRICS.toolDockPaddingTop,
     paddingBottom: 2,
     justifyContent: "center",
     overflow: "hidden",
@@ -831,7 +847,7 @@ const styles = StyleSheet.create({
   historyGroup: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: MOBILE_CHROME_METRICS.toolDockHistoryGap,
     width: 82,
     height: 52,
   },
@@ -956,7 +972,7 @@ const styles = StyleSheet.create({
   },
   historyButton: {},
   disabledButton: {
-    opacity: 0.45,
+    opacity: MOBILE_CHROME_METRICS.toolDockDisabledOpacity,
   },
   utilityLabel: {
     fontSize: 28,

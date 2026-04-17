@@ -465,7 +465,9 @@ export const IconToolInk: React.FC<IconProps> = ({
       fill="url(#penBody)"
     />
     <Rect x="11" y="52" width="16" height="2" fill="url(#penBand)" />
+    <Rect x="11" y="52" width="16" height="2" fill={color} opacity="0.78" />
     <Rect x="15" y="4" width="8" height="10" rx="0.8" fill="url(#penCap)" />
+    <Rect x="15" y="4" width="8" height="10" rx="0.8" fill={color} opacity="0.72" />
     <Path d="M18.55 4.6h.9L26.2 40H11.8l6.75-35.4Z" fill="rgba(255,255,255,0.05)" />
     <Rect x="11" y="52" width="16" height="2" fill={color} opacity="0.35" />
   </Svg>
@@ -500,7 +502,12 @@ export const IconToolHighlighter: React.FC<IconProps> = ({
     />
     <Rect x="7" y="51.35" width="24" height="35" rx="1.6" fill="url(#markerBody)" />
     <Rect x="7" y="51.35" width="24" height="11" rx="0.8" fill="url(#markerMetal)" />
-    <Rect x="7" y="51.35" width="24" height="11" rx="0.8" fill={color} opacity="0.28" />
+    <Rect x="7" y="51.35" width="24" height="11" rx="0.8" fill={color} opacity="0.78" />
+    <Path
+      d="M13 10.8v5.55h12V5c0-.75-.8-1.23-1.46-.89l-9.46 4.92c-.66.34-1.08 1.03-1.08 1.77Z"
+      fill={color}
+      opacity="0.72"
+    />
   </Svg>
 );
 
@@ -538,9 +545,15 @@ export const IconToolUnderline: React.FC<IconProps> = ({
     <Path d="M8 43.88v-1L15 16.88h8l7 26v1H8Z" fill="url(#pencilBodyTop)" />
     <Path d="M8 42.88h22v43H8v-43Z" fill="url(#pencilBodyBottom)" />
     <Rect x="8" y="50.88" width="22" height="2" fill="url(#pencilMetal)" />
+    <Rect x="8" y="50.88" width="22" height="2" fill={color} opacity="0.78" />
     <Path
       d="M15 16.88 18.03 4.76c.25-1.01 1.69-1.01 1.94 0L23 16.88h-8Z"
       fill="url(#pencilTip)"
+    />
+    <Path
+      d="M15 16.88 18.03 4.76c.25-1.01 1.69-1.01 1.94 0L23 16.88h-8Z"
+      fill={color}
+      opacity="0.72"
     />
     <Rect x="8" y="50.88" width="22" height="2" fill={color} opacity="0.3" />
   </Svg>

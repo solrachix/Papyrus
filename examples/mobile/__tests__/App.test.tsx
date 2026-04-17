@@ -63,6 +63,15 @@ jest.mock(
         React.createElement(View, {testID: 'papyrus-rn-reading-shell'}),
       ToolDock: () => null,
       AnnotationEditor: () => null,
+      MOBILE_CHROME_METRICS: {
+        screenPadding: 16,
+        maxFloatingWidth: 360,
+        iconSize: 20,
+        iconBoxSize: 28,
+        topbarPageButtonSize: 30,
+        bottomBarItemPaddingHorizontal: 5,
+        bottomBarItemPaddingVertical: 3,
+      },
     };
   },
   {virtual: true},
@@ -96,4 +105,5 @@ it('keeps the document switcher below the page counter', async () => {
   });
 
   expect(switcherFrame.props.style.top).toBeGreaterThanOrEqual(132);
+  expect(switcherFrame.props.style.paddingHorizontal).toBe(16);
 });

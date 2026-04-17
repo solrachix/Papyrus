@@ -1,4 +1,13 @@
 export const MOBILE_CHROME_METRICS = {
+  screenPadding: 16,
+  maxFloatingWidth: 360,
+  maxToolDockWidth: 420,
+  toolDockPaddingTop: 4,
+  toolDockHistoryIconSize: 18,
+  toolDockHistoryGap: 2,
+  toolDockDisabledIconColorDark: "#64748b",
+  toolDockDisabledIconColorLight: "#6b7280",
+  toolDockDisabledOpacity: 0.72,
   iconSize: 20,
   iconBoxSize: 28,
   topbarPageButtonSize: 30,

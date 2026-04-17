@@ -175,7 +175,8 @@ const Topbar: React.FC<TopbarProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    marginHorizontal: 12,
+    width: "100%",
+    maxWidth: MOBILE_CHROME_METRICS.maxFloatingWidth,
     marginTop: 10,
     paddingHorizontal: 14,
     paddingVertical: 10,
@@ -201,6 +202,8 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 20,
+    paddingHorizontal: MOBILE_CHROME_METRICS.screenPadding,
+    alignItems: "center",
   },
   leftGroup: {
     flexDirection: "row",

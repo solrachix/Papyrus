@@ -24,6 +24,7 @@ import {
   ReadingShell,
   ToolDock,
   AnnotationEditor,
+  MOBILE_CHROME_METRICS,
 } from '@papyrus-sdk/ui-react-native';
 
 const BUNDLED_ASSETS = {
@@ -350,11 +351,11 @@ const styles = StyleSheet.create({
     right: 0,
     alignItems: 'center',
     zIndex: 18,
-    paddingHorizontal: 12,
+    paddingHorizontal: MOBILE_CHROME_METRICS.screenPadding,
   },
   documentSwitcher: {
     width: '100%',
-    maxWidth: 360,
+    maxWidth: MOBILE_CHROME_METRICS.maxFloatingWidth,
     borderRadius: 24,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.68)',

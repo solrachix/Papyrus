@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useViewerStore } from "@papyrus-sdk/core";
 import { DocumentType } from "@papyrus-sdk/types";
 import { IconPageNav } from "../icons";
+import { MOBILE_CHROME_METRICS } from "./mobileChromeMetrics";
 
 type ProgressPillProps = {
   documentType: DocumentType;
@@ -84,8 +85,8 @@ const styles = StyleSheet.create({
   frame: {
     position: "absolute",
     top: 72,
-    left: 12,
-    right: 12,
+    left: MOBILE_CHROME_METRICS.screenPadding,
+    right: MOBILE_CHROME_METRICS.screenPadding,
     bottom: "auto",
     alignItems: "flex-start",
     zIndex: 18,
