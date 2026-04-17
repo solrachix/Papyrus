@@ -3,16 +3,22 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useViewerStore } from "@papyrus-sdk/core";
 import { DocumentType } from "@papyrus-sdk/types";
 import { IconPageNav } from "../icons";
+import { MOBILE_CHROME_METRICS } from "./mobileChromeMetrics";
 
 type ProgressPillProps = {
   documentType: DocumentType;
   onPress: () => void;
+  onOpenPageJump?: () => void;
 };
 
 const clampPercent = (value: number) =>
   Math.max(0, Math.min(100, Math.round(value)));
 
-export function ProgressPill({ documentType, onPress }: ProgressPillProps) {
+export function ProgressPill({
+  documentType,
+  onPress,
+  onOpenPageJump,
+}: ProgressPillProps) {
   const {
     currentPage,
     pageCount,
@@ -42,8 +48,7 @@ export function ProgressPill({ documentType, onPress }: ProgressPillProps) {
 
   return (
     <View pointerEvents="box-none" style={styles.frame}>
-      <Pressable
-        onPress={onPress}
+      <View
         accessibilityLabel="Open document navigation"
         style={[
           styles.pill,
@@ -52,13 +57,26 @@ export function ProgressPill({ documentType, onPress }: ProgressPillProps) {
         ]}
         testID="papyrus-progress-pill"
       >
-        <IconPageNav
-          size={20}
-          color={isDark ? "#f8fafc" : "#111827"}
-          strokeWidth={1.8}
-        />
-        <Text style={[styles.label, isDark && styles.labelDark]}>{label}</Text>
-      </Pressable>
+        <Pressable
+          onPress={onPress}
+          style={styles.iconHit}
+          accessibilityLabel="Open document navigation"
+        >
+          <IconPageNav
+            size={20}
+            color={isDark ? "#f8fafc" : "#111827"}
+            strokeWidth={1.8}
+          />
+        </Pressable>
+        <Pressable
+          onPress={onPress}
+          onLongPress={onOpenPageJump}
+          style={styles.labelHit}
+          accessibilityLabel="Open page jump"
+        >
+          <Text style={[styles.label, isDark && styles.labelDark]}>{label}</Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -67,8 +85,8 @@ const styles = StyleSheet.create({
   frame: {
     position: "absolute",
     top: 72,
-    left: 12,
-    right: 12,
+    left: MOBILE_CHROME_METRICS.screenPadding,
+    right: MOBILE_CHROME_METRICS.screenPadding,
     bottom: "auto",
     alignItems: "flex-start",
     zIndex: 18,
@@ -89,6 +107,12 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 8 },
     elevation: 6,
+  },
+  iconHit: {
+    borderRadius: 8,
+  },
+  labelHit: {
+    borderRadius: 8,
   },
   pillDark: {
     backgroundColor: "rgba(15,17,21,0.88)",

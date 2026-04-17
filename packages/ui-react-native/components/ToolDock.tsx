@@ -5,6 +5,7 @@ import {
   Pressable,
   StyleSheet,
   ScrollView,
+  useWindowDimensions,
   type LayoutChangeEvent,
   type GestureResponderEvent,
 } from "react-native";
@@ -12,6 +13,7 @@ import { useViewerStore } from "@papyrus-sdk/core";
 import { getStrings } from "../mobileStrings";
 import {
   IconClose,
+  IconColorRing,
   IconRedo,
   IconToolHighlighter,
   IconToolInk,
@@ -26,6 +28,12 @@ import {
   getToolDockDismissState,
   isToolDockToolSelected,
 } from "../gesture/selectionInteraction";
+import {
+  resolveToolDockBaseIconColor,
+  resolveToolDockIconColor,
+  shouldUseScrollablePrimaryToolsRow,
+} from "./ToolDock.layout";
+import { MOBILE_CHROME_METRICS } from "./mobileChromeMetrics";
 
 const COLOR_SWATCHES = [
   "#fbbf24",
@@ -41,7 +49,7 @@ const COLOR_SWATCHES = [
 ] as const;
 
 const PRIMARY_TOOLS = [
-  { id: "select", label: "select", icon: IconToolSelect, accent: "#111827" },
+  { id: "ink", label: "ink", icon: IconToolInk, accent: "#111827" },
   {
     id: "highlight",
     label: "highlight",
@@ -54,7 +62,7 @@ const PRIMARY_TOOLS = [
     icon: IconToolUnderline,
     accent: "#111827",
   },
-  { id: "ink", label: "ink", icon: IconToolInk, accent: "#111827" },
+  { id: "select", label: "select", icon: IconToolSelect, accent: "#111827" },
 ] as const;
 
 const EXTRA_TOOLS = [
@@ -83,11 +91,27 @@ const getToolAccentColor = (
   tool: (typeof ALL_TOOLS)[number],
   isDark: boolean
 ) => {
-  if (tool.label === "highlight" || tool.label === "note") {
-    return "#f4c430";
-  }
+  return resolveToolDockBaseIconColor({ label: tool.label, isDark });
+};
 
-  return isDark ? "#f8fafc" : "#111827";
+const getToolVisual = (toolId: (typeof ALL_TOOLS)[number]["id"]) => {
+  switch (toolId) {
+    case "select":
+      return { width: 24, iconSize: 22, offsetY: -2 };
+    case "highlight":
+      return { width: 36, iconSize: 58, offsetY: 2 };
+    case "underline":
+      return { width: 28, iconSize: 44, offsetY: 0 };
+    case "ink":
+      return { width: 24, iconSize: 52, offsetY: 0 };
+    case "comment":
+      return { width: 24, iconSize: 28, offsetY: 6 };
+    case "squiggly":
+    case "strikeout":
+      return { width: 24, iconSize: 26, offsetY: 6 };
+    default:
+      return { width: 24, iconSize: 28, offsetY: 6 };
+  }
 };
 
 const getToolLabel = (
@@ -230,6 +254,7 @@ const ToolDock: React.FC = () => {
     interactionMode,
     toolDockOpen,
     setDocumentState,
+    activeDrawToolPreset,
     annotationUndoStack,
     annotationRedoStack,
     undoAnnotations,
@@ -238,10 +263,11 @@ const ToolDock: React.FC = () => {
   const [paletteExpanded, setPaletteExpanded] = useState(false);
   const [extrasExpanded, setExtrasExpanded] = useState(false);
   const isDark = uiTheme === "dark";
+  const { width: windowWidth } = useWindowDimensions();
   const t = getStrings(locale);
-  const panelColor = isDark ? "rgba(15,17,21,0.94)" : "rgba(255,255,255,0.96)";
+  const panelColor = isDark ? "rgba(24,24,27,0.92)" : "rgba(255,255,255,0.96)";
   const borderColor = isDark ? "rgba(71,85,105,0.48)" : "rgba(229,231,235,0.88)";
-  const buttonColor = isDark ? "rgba(17,24,39,0.92)" : "#eef1f6";
+  const buttonColor = isDark ? "rgba(39,39,42,0.96)" : "#eef1f6";
   const iconColor = isDark ? "#e5e7eb" : "#111827";
   const labelColor = isDark ? "#e5e7eb" : "#374151";
   const utilityIconColor = isDark ? "#f8fafc" : "#111827";
@@ -249,19 +275,54 @@ const ToolDock: React.FC = () => {
   const selectedTool = useMemo(
     () =>
       ALL_TOOLS.find((tool) =>
-        isToolDockToolSelected({
-          toolId: tool.id,
-          activeTool,
-          interactionMode,
-        })
+        tool.id === "ink" || tool.id === "highlight" || tool.id === "underline"
+          ? activeTool === "ink" && activeDrawToolPreset === tool.id
+          : isToolDockToolSelected({
+              toolId: tool.id,
+              activeTool,
+              interactionMode,
+            })
       ) ?? PRIMARY_TOOLS[1],
-    [activeTool, interactionMode]
+    [activeTool, activeDrawToolPreset, interactionMode]
   );
-  const inkSettingsExpanded = activeTool === "ink";
+  const inkSettingsExpanded =
+    activeTool === "ink" && activeDrawToolPreset === "ink";
   const canUndo = annotationUndoStack.length > 0;
   const canRedo = annotationRedoStack.length > 0;
+  const primaryToolsRowIsScrollable =
+    shouldUseScrollablePrimaryToolsRow(windowWidth);
 
   const applyTool = (toolId: (typeof ALL_TOOLS)[number]["id"]) => {
+    if (toolId === "ink") {
+      setDocumentState({
+        activeTool: "ink",
+        activeDrawToolPreset: "ink",
+        interactionMode: "pan",
+        inkStrokeWidth: 0.004,
+        annotationOpacity: 1,
+      });
+      return;
+    }
+    if (toolId === "highlight") {
+      setDocumentState({
+        activeTool: "ink",
+        activeDrawToolPreset: "highlight",
+        interactionMode: "pan",
+        inkStrokeWidth: 0.016,
+        annotationOpacity: 0.28,
+      });
+      return;
+    }
+    if (toolId === "underline") {
+      setDocumentState({
+        activeTool: "ink",
+        activeDrawToolPreset: "underline",
+        interactionMode: "pan",
+        inkStrokeWidth: 0.006,
+        annotationOpacity: 0.92,
+      });
+      return;
+    }
     if (toolId === "select") {
       const shouldArmSelection =
         activeTool !== "select" || interactionMode !== "select";
@@ -281,14 +342,26 @@ const ToolDock: React.FC = () => {
     tool: (typeof ALL_TOOLS)[number],
     compact = false
   ) => {
-    const isSelected = isToolDockToolSelected({
-      toolId: tool.id,
-      activeTool,
-      interactionMode,
-    });
+    const isDrawingPreset =
+      tool.id === "ink" || tool.id === "highlight" || tool.id === "underline";
+    const isSelected = isDrawingPreset
+      ? activeTool === "ink" && activeDrawToolPreset === tool.id
+      : isToolDockToolSelected({
+          toolId: tool.id,
+          activeTool,
+          interactionMode,
+        });
     const Icon = tool.icon;
+    const visual = getToolVisual(tool.id);
 
     const baseIconColor = getToolAccentColor(tool, isDark);
+    const iconColor = resolveToolDockIconColor({
+      toolId: tool.id,
+      isSelected,
+      annotationColor,
+      accentColor,
+      baseIconColor,
+    });
 
     return (
       <Pressable
@@ -299,16 +372,26 @@ const ToolDock: React.FC = () => {
         }}
         style={[
           compact ? styles.compactToolButton : styles.toolButton,
-          isSelected && {
-            backgroundColor: `${accentColor}12`,
-            borderColor: `${accentColor}2e`,
-          },
+          { width: compact ? undefined : visual.width },
         ]}
       >
-        <Icon
-          size={compact ? 26 : 34}
-          color={isSelected ? accentColor : baseIconColor}
-        />
+        <View
+          style={[
+            compact ? styles.compactToolIconWrap : styles.toolIconWrap,
+            {
+              transform: [
+                { translateY: compact ? 4 : visual.offsetY },
+                { scale: isSelected ? 1.18 : 1 },
+              ],
+              opacity: isSelected ? 1 : 0.92,
+            },
+          ]}
+        >
+          <Icon
+            size={compact ? 34 : visual.iconSize}
+            color={iconColor}
+          />
+        </View>
       </Pressable>
     );
   };
@@ -432,120 +515,259 @@ const ToolDock: React.FC = () => {
               },
             ]}
           >
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              bounces={false}
-              contentContainerStyle={styles.primaryToolsRow}
-            >
-              <Pressable
-                onPress={undoAnnotations}
-                disabled={!canUndo}
-                style={[
-                  styles.utilityButton,
-                  styles.historyButton,
-                  { backgroundColor: buttonColor },
-                  !canUndo && styles.disabledButton,
+            {primaryToolsRowIsScrollable ? (
+              <ScrollView
+                horizontal
+                bounces={false}
+                showsHorizontalScrollIndicator={false}
+                style={styles.primaryToolsScrollView}
+                contentContainerStyle={[
+                  styles.primaryToolsRow,
+                  styles.primaryToolsRowScrollableContent,
                 ]}
               >
-                <IconUndo
-                  size={16}
-                  color={
-                    canUndo ? utilityIconColor : isDark ? "#4b5563" : "#9ca3af"
-                  }
-                  strokeWidth={2.2}
-                />
-              </Pressable>
+                <View style={styles.primaryToolsRowInner}>
+                  <View style={styles.historyGroup}>
+                    <Pressable
+                      onPress={undoAnnotations}
+                      disabled={!canUndo}
+                      style={[
+                        styles.utilityButton,
+                        styles.historyButton,
+                        { backgroundColor: buttonColor },
+                        !canUndo && styles.disabledButton,
+                      ]}
+                    >
+                      <IconUndo
+                        size={MOBILE_CHROME_METRICS.toolDockHistoryIconSize}
+                        color={
+                          canUndo
+                            ? utilityIconColor
+                            : isDark
+                            ? MOBILE_CHROME_METRICS.toolDockDisabledIconColorDark
+                            : MOBILE_CHROME_METRICS.toolDockDisabledIconColorLight
+                        }
+                        strokeWidth={2.2}
+                      />
+                    </Pressable>
 
-              <Pressable
-                onPress={redoAnnotations}
-                disabled={!canRedo}
-                style={[
-                  styles.utilityButton,
-                  styles.historyButton,
-                  { backgroundColor: buttonColor },
-                  !canRedo && styles.disabledButton,
-                ]}
-              >
-                <IconRedo
-                  size={16}
-                  color={
-                    canRedo ? utilityIconColor : isDark ? "#4b5563" : "#9ca3af"
-                  }
-                  strokeWidth={2.2}
-                />
-              </Pressable>
+                    <Pressable
+                      onPress={redoAnnotations}
+                      disabled={!canRedo}
+                      style={[
+                        styles.utilityButton,
+                        styles.historyButton,
+                        { backgroundColor: buttonColor },
+                        !canRedo && styles.disabledButton,
+                      ]}
+                    >
+                      <IconRedo
+                        size={MOBILE_CHROME_METRICS.toolDockHistoryIconSize}
+                        color={
+                          canRedo
+                            ? utilityIconColor
+                            : isDark
+                            ? MOBILE_CHROME_METRICS.toolDockDisabledIconColorDark
+                            : MOBILE_CHROME_METRICS.toolDockDisabledIconColorLight
+                        }
+                        strokeWidth={2.2}
+                      />
+                    </Pressable>
+                  </View>
 
-              {PRIMARY_TOOLS.map((tool) => renderToolButton(tool))}
+                  <View style={styles.toolsGroup}>
+                    {PRIMARY_TOOLS.map((tool) => renderToolButton(tool))}
+                  </View>
 
-              <Pressable
-                onPress={() => {
-                  setExtrasExpanded((value) => !value);
-                  setPaletteExpanded(false);
-                }}
-                style={[
-                  styles.utilityButton,
-                  { backgroundColor: extrasExpanded ? `${accentColor}12` : buttonColor },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.utilityLabel,
-                    { color: extrasExpanded ? accentColor : utilityIconColor },
-                  ]}
-                >
-                  +
-                </Text>
-              </Pressable>
+                  <View style={styles.controlsGroup}>
+                    <Pressable
+                      onPress={() => {
+                        setExtrasExpanded((value) => !value);
+                        setPaletteExpanded(false);
+                      }}
+                      style={[
+                        styles.utilityButton,
+                        {
+                          backgroundColor: extrasExpanded
+                            ? `${accentColor}12`
+                            : buttonColor,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.utilityLabel,
+                          { color: extrasExpanded ? accentColor : utilityIconColor },
+                        ]}
+                      >
+                        +
+                      </Text>
+                    </Pressable>
 
-              <Pressable
-                onPress={() => {
-                  setPaletteExpanded((value) => !value);
-                  setExtrasExpanded(false);
-                }}
-                style={styles.colorButton}
-              >
-                <View style={[styles.colorRing, { backgroundColor: buttonColor }]}>
-                  <View
-                    style={[
-                      styles.colorCenter,
-                      {
-                        backgroundColor: annotationColor,
-                        borderColor:
+                    <Pressable
+                      onPress={() => {
+                        setPaletteExpanded((value) => !value);
+                        setExtrasExpanded(false);
+                      }}
+                      style={styles.colorButton}
+                    >
+                      <IconColorRing
+                        size={30}
+                        centerColor={annotationColor}
+                        borderColor={
                           annotationColor === "#f3f4f6"
                             ? "#d1d5db"
                             : isDark
                             ? "#111827"
-                            : "#ffffff",
-                      },
-                    ]}
-                  />
-                </View>
-              </Pressable>
+                            : "#ffffff"
+                        }
+                      />
+                    </Pressable>
 
-              <Pressable
-                onPress={() =>
-                  setDocumentState(
-                    getToolDockDismissState({
-                      activeTool,
-                      interactionMode,
-                    })
-                  )
-                }
-                style={[styles.utilityButton, { backgroundColor: buttonColor }]}
-              >
-                <IconClose
-                  size={15}
-                  color={utilityIconColor}
-                  strokeWidth={2.2}
-                />
-              </Pressable>
-            </ScrollView>
+                    <Pressable
+                      onPress={() =>
+                        setDocumentState(
+                          getToolDockDismissState({
+                            activeTool,
+                            interactionMode,
+                          })
+                        )
+                      }
+                      style={[
+                        styles.utilityButton,
+                        { backgroundColor: buttonColor },
+                      ]}
+                    >
+                      <IconClose
+                        size={15}
+                        color={utilityIconColor}
+                        strokeWidth={2.2}
+                      />
+                    </Pressable>
+                  </View>
+                </View>
+              </ScrollView>
+            ) : (
+              <View style={styles.primaryToolsRow}>
+              <View style={styles.historyGroup}>
+                <Pressable
+                  onPress={undoAnnotations}
+                  disabled={!canUndo}
+                  style={[
+                    styles.utilityButton,
+                    styles.historyButton,
+                    { backgroundColor: buttonColor },
+                    !canUndo && styles.disabledButton,
+                  ]}
+                >
+                  <IconUndo
+                    size={MOBILE_CHROME_METRICS.toolDockHistoryIconSize}
+                    color={
+                      canUndo
+                        ? utilityIconColor
+                        : isDark
+                        ? MOBILE_CHROME_METRICS.toolDockDisabledIconColorDark
+                        : MOBILE_CHROME_METRICS.toolDockDisabledIconColorLight
+                    }
+                    strokeWidth={2.2}
+                  />
+                </Pressable>
+
+                <Pressable
+                  onPress={redoAnnotations}
+                  disabled={!canRedo}
+                  style={[
+                    styles.utilityButton,
+                    styles.historyButton,
+                    { backgroundColor: buttonColor },
+                    !canRedo && styles.disabledButton,
+                  ]}
+                >
+                  <IconRedo
+                    size={MOBILE_CHROME_METRICS.toolDockHistoryIconSize}
+                    color={
+                      canRedo
+                        ? utilityIconColor
+                        : isDark
+                        ? MOBILE_CHROME_METRICS.toolDockDisabledIconColorDark
+                        : MOBILE_CHROME_METRICS.toolDockDisabledIconColorLight
+                    }
+                    strokeWidth={2.2}
+                  />
+                </Pressable>
+              </View>
+
+              <View style={styles.toolsGroup}>
+                {PRIMARY_TOOLS.map((tool) => renderToolButton(tool))}
+              </View>
+
+              <View style={styles.controlsGroup}>
+                <Pressable
+                  onPress={() => {
+                    setExtrasExpanded((value) => !value);
+                    setPaletteExpanded(false);
+                  }}
+                  style={[
+                    styles.utilityButton,
+                    {
+                      backgroundColor: extrasExpanded
+                        ? `${accentColor}12`
+                        : buttonColor,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.utilityLabel,
+                      { color: extrasExpanded ? accentColor : utilityIconColor },
+                    ]}
+                  >
+                    +
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  onPress={() => {
+                    setPaletteExpanded((value) => !value);
+                    setExtrasExpanded(false);
+                  }}
+                  style={styles.colorButton}
+                >
+                  <IconColorRing
+                    size={30}
+                    centerColor={annotationColor}
+                    borderColor={
+                      annotationColor === "#f3f4f6"
+                        ? "#d1d5db"
+                        : isDark
+                        ? "#111827"
+                        : "#ffffff"
+                    }
+                  />
+                </Pressable>
+
+                <Pressable
+                  onPress={() =>
+                    setDocumentState(
+                      getToolDockDismissState({
+                        activeTool,
+                        interactionMode,
+                      })
+                    )
+                  }
+                  style={[styles.utilityButton, { backgroundColor: buttonColor }]}
+                >
+                  <IconClose
+                    size={15}
+                    color={utilityIconColor}
+                    strokeWidth={2.2}
+                  />
+                </Pressable>
+              </View>
+              </View>
+            )}
           </View>
 
-          <Text style={[styles.selectionLabel, { color: labelColor }]}>
-            {getToolLabel(selectedTool.label, t)}
-          </Text>
         </View>
       ) : null}
     </View>
@@ -557,23 +779,25 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     alignItems: "center",
     justifyContent: "flex-end",
-    paddingHorizontal: 0,
+    paddingHorizontal: MOBILE_CHROME_METRICS.screenPadding,
     paddingBottom: 72,
   },
   stack: {
     width: "100%",
-    maxWidth: 520,
+    maxWidth: MOBILE_CHROME_METRICS.maxToolDockWidth,
     alignItems: "center",
   },
   container: {
     width: "100%",
-    minHeight: 72,
-    borderRadius: 28,
+    minHeight: 92,
+    borderRadius: 34,
     borderWidth: 1,
-    paddingLeft: 4,
-    paddingRight: 4,
-    paddingVertical: 2,
+    paddingLeft: 12,
+    paddingRight: 12,
+    paddingTop: MOBILE_CHROME_METRICS.toolDockPaddingTop,
+    paddingBottom: 2,
     justifyContent: "center",
+    overflow: "hidden",
     shadowColor: "#000000",
     shadowOpacity: 0.14,
     shadowRadius: 24,
@@ -594,7 +818,7 @@ const styles = StyleSheet.create({
   },
   extrasPopup: {
     alignSelf: "flex-end",
-    marginRight: 54,
+    marginRight: 72,
   },
   inkPopup: {
     width: "58%",
@@ -604,9 +828,46 @@ const styles = StyleSheet.create({
   primaryToolsRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "flex-start",
-    gap: 2,
-    paddingRight: 0,
+    justifyContent: "space-between",
+    minHeight: 78,
+  },
+  primaryToolsScrollView: {
+    width: "100%",
+  },
+  primaryToolsRowScrollableContent: {
+    flexGrow: 1,
+  },
+  primaryToolsRowInner: {
+    minWidth: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    minHeight: 78,
+  },
+  historyGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: MOBILE_CHROME_METRICS.toolDockHistoryGap,
+    width: 82,
+    height: 52,
+  },
+  toolsGroup: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 6,
+    marginLeft: 6,
+    marginRight: 6,
+    flex: 1,
+    justifyContent: "center",
+    height: 82,
+  },
+  controlsGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    width: 116,
+    height: 52,
+    justifyContent: "flex-end",
   },
   compactToolsRow: {
     flexDirection: "row",
@@ -684,17 +945,14 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
   },
   toolButton: {
-    width: 30,
-    height: 44,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "transparent",
+    height: 82,
     alignItems: "center",
-    justifyContent: "center",
+    justifyContent: "flex-end",
+    paddingBottom: 0,
   },
   compactToolButton: {
-    width: 32,
-    height: 42,
+    width: 44,
+    height: 52,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: "transparent",
@@ -704,40 +962,23 @@ const styles = StyleSheet.create({
   colorButton: {
     alignItems: "center",
     justifyContent: "center",
-    marginLeft: 2,
-  },
-  colorRing: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    padding: 3,
-    borderWidth: 2.5,
-    borderColor: "#7c3aed",
-  },
-  colorCenter: {
-    flex: 1,
-    borderRadius: 999,
-    borderWidth: 1.5,
   },
   utilityButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     alignItems: "center",
     justifyContent: "center",
-    marginLeft: 0,
   },
-  historyButton: {
-    marginRight: 2,
-  },
+  historyButton: {},
   disabledButton: {
-    opacity: 0.45,
+    opacity: MOBILE_CHROME_METRICS.toolDockDisabledOpacity,
   },
   utilityLabel: {
-    fontSize: 22,
-    lineHeight: 24,
+    fontSize: 28,
+    lineHeight: 28,
     fontWeight: "400",
-    marginTop: -2,
+    marginTop: -4,
   },
   swatchRow: {
     flexDirection: "row",
@@ -758,11 +999,11 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
   },
-  selectionLabel: {
-    marginTop: 6,
-    fontSize: 10,
-    fontWeight: "700",
-    textAlign: "center",
+  toolIconWrap: {
+    transform: [{ translateY: 0 }],
+  },
+  compactToolIconWrap: {
+    transform: [{ translateY: 0 }],
   },
 });
 

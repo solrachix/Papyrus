@@ -36,6 +36,7 @@ import {
   getSelectionEdgeAutoscroll,
   shouldEnableSelectionDrag,
 } from "../gesture/selectionInteraction";
+import { buildCommentTapGestureDeps } from "./PageRenderer.gesture";
 
 type PageViewComponentType = React.ComponentType<
   PapyrusPageViewProps & React.RefAttributes<any>
@@ -210,6 +211,8 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   const pageTheme = useViewerStore((state) => state.pageTheme);
   const annotations = useViewerStore((state) => state.annotations);
   const annotationColor = useViewerStore((state) => state.annotationColor);
+  const annotationOpacity = useViewerStore((state) => state.annotationOpacity);
+  const inkStrokeWidth = useViewerStore((state) => state.inkStrokeWidth);
   const addAnnotation = useViewerStore((state) => state.addAnnotation);
   const activeTool = useViewerStore((state) => state.activeTool);
   const interactionMode = useViewerStore((state) => state.interactionMode);
@@ -1121,6 +1124,36 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     [beginInkDrawing, finishInkDrawing, inkEnabled, isNative, pushInkPoint]
   );
 
+  const commentTapGesture = useMemo(
+    () =>
+      Gesture.Tap()
+        .enabled(isNative && resolvedActiveTool === "comment")
+        .maxDistance(16)
+        .runOnJS(true)
+        .onEnd((event, success) => {
+          if (!success) return;
+          const normalized = toNormalizedPoint(event.x, event.y);
+          if (!normalized) return;
+          addAnnotationAt(
+            clamp01(normalized.x - 0.02),
+            clamp01(normalized.y - 0.02),
+            0.08,
+            0.06,
+            "comment"
+          );
+        }),
+    buildCommentTapGestureDeps({
+      isNative,
+      resolvedActiveTool,
+      layoutWidth: layout.width,
+      layoutHeight: layout.height,
+      annotationColor,
+      annotationOpacity,
+      inkStrokeWidth,
+      addAnnotationAt,
+    })
+  );
+
   const doubleTapGesture = useMemo(
     () =>
       Gesture.Tap()
@@ -1138,8 +1171,14 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   );
 
   const contentGesture = useMemo(
-    () => Gesture.Simultaneous(selectionGesture, inkGesture, doubleTapGesture),
-    [doubleTapGesture, inkGesture, selectionGesture]
+    () =>
+      Gesture.Simultaneous(
+        selectionGesture,
+        inkGesture,
+        commentTapGesture,
+        doubleTapGesture
+      ),
+    [commentTapGesture, doubleTapGesture, inkGesture, selectionGesture]
   );
 
   const selectionBoundsPx = useMemo(() => {

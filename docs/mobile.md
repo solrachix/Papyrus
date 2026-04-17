@@ -148,6 +148,8 @@ Install on emulator/device:
 adb install -r app/build/outputs/apk/release/app-release.apk
 ```
 
+If you are testing on a physical Android device, use `scrcpy` to mirror and control the phone from your computer while the app is running.
+
 ## Next steps
 
 - [Open Source PDF SDK](/open-source-pdf-sdk)

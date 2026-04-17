@@ -63,6 +63,15 @@ jest.mock(
         React.createElement(View, {testID: 'papyrus-rn-reading-shell'}),
       ToolDock: () => null,
       AnnotationEditor: () => null,
+      MOBILE_CHROME_METRICS: {
+        screenPadding: 16,
+        maxFloatingWidth: 360,
+        iconSize: 20,
+        iconBoxSize: 28,
+        topbarPageButtonSize: 30,
+        bottomBarItemPaddingHorizontal: 5,
+        bottomBarItemPaddingVertical: 3,
+      },
     };
   },
   {virtual: true},
@@ -82,4 +91,19 @@ it('renders the phase-1 mobile reading shell', async () => {
   expect(
     tree!.root.findByProps({testID: 'papyrus-document-switcher'}),
   ).toBeTruthy();
+});
+
+it('keeps the document switcher below the page counter', async () => {
+  let tree: renderer.ReactTestRenderer;
+  await renderer.act(async () => {
+    tree = renderer.create(<App />);
+    await Promise.resolve();
+  });
+
+  const switcherFrame = tree!.root.findByProps({
+    testID: 'papyrus-document-switcher',
+  });
+
+  expect(switcherFrame.props.style.top).toBeGreaterThanOrEqual(132);
+  expect(switcherFrame.props.style.paddingHorizontal).toBe(16);
 });

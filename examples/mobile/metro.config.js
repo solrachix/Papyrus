@@ -13,9 +13,27 @@ const workspaceRoot = path.resolve(projectRoot, '../..');
 const defaultConfig = getDefaultConfig(__dirname);
 const {assetExts} = defaultConfig.resolver;
 
+const escapePath = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const blockList = [
+  /.*\/android\/\.cxx\/.*/,
+  /.*\/android\/build\/.*/,
+  /.*\/android\/app\/build\/.*/,
+  new RegExp(
+    `${escapePath(
+      path.resolve(workspaceRoot, 'packages/engine-native/android/.cxx'),
+    )}/.*`,
+  ),
+  new RegExp(
+    `${escapePath(
+      path.resolve(workspaceRoot, 'packages/engine-native/android/build'),
+    )}/.*`,
+  ),
+];
+
 const config = {
   watchFolders: [workspaceRoot],
   resolver: {
+    blockList,
     assetExts: [...assetExts, 'pdf', 'epub', 'html'],
     nodeModulesPaths: [
       path.resolve(projectRoot, 'node_modules'),

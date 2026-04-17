@@ -5,19 +5,21 @@ import { DocumentType, MobilePrimaryDestination } from "@papyrus-sdk/types";
 import { getStrings } from "../mobileStrings";
 import {
   IconComment,
-  IconEdit,
   IconInfo,
   IconSearch,
   IconSettings,
+  IconToolDockTrigger,
 } from "../icons";
 import { buildBottomBarLayout, BottomBarSlotKey } from "./bottomBarModel";
 import { getToolDockDismissState } from "../gesture/selectionInteraction";
+import { createOpenDestinationHandler } from "./BottomBar.actions";
+import { MOBILE_CHROME_METRICS } from "./mobileChromeMetrics";
 
 type BottomBarProps = {
   documentType: DocumentType;
   onOpenInfo: () => void;
   onOpenSettings: () => void;
-  onOpenDestination: (destination: MobilePrimaryDestination) => void;
+  onOpenDestination?: (destination: MobilePrimaryDestination) => void;
 };
 
 const BottomBar: React.FC<BottomBarProps> = ({
@@ -62,7 +64,7 @@ const BottomBar: React.FC<BottomBarProps> = ({
   > = {
     annotate: {
       label: t.tools,
-      icon: IconEdit,
+      icon: IconToolDockTrigger,
       onPress: () => {
         if (toolDockOpen) {
           setDocumentState({
@@ -74,19 +76,19 @@ const BottomBar: React.FC<BottomBarProps> = ({
           });
           return;
         }
-        onOpenDestination("annotate");
+        onOpenDestination?.("annotate");
         setDocumentState({ toolDockOpen: true });
       },
     },
     notes: {
       label: t.notes,
       icon: IconComment,
-      onPress: () => onOpenDestination("notes"),
+      onPress: createOpenDestinationHandler(onOpenDestination, "notes"),
     },
     search: {
       label: t.search,
       icon: IconSearch,
-      onPress: () => onOpenDestination("search"),
+      onPress: createOpenDestinationHandler(onOpenDestination, "search"),
     },
     info: {
       label: t.info,
@@ -134,7 +136,10 @@ const BottomBar: React.FC<BottomBarProps> = ({
                       slot.active && styles.itemIconActive,
                     ]}
                   >
-                    <Icon size={17} color={iconColor(slot.active)} />
+                    <Icon
+                      size={MOBILE_CHROME_METRICS.iconSize}
+                      color={iconColor(slot.active)}
+                    />
                   </View>
                 </Pressable>
               );
@@ -167,7 +172,10 @@ const BottomBar: React.FC<BottomBarProps> = ({
                     slot.active && styles.itemIconActive,
                   ]}
                 >
-                  <Icon size={17} color={iconColor(slot.active)} />
+                  <Icon
+                    size={MOBILE_CHROME_METRICS.iconSize}
+                    color={iconColor(slot.active)}
+                  />
                 </View>
               </Pressable>
             );
@@ -185,13 +193,13 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     zIndex: 20,
-    paddingHorizontal: 12,
+    paddingHorizontal: MOBILE_CHROME_METRICS.screenPadding,
     paddingBottom: 14,
     alignItems: "center",
   },
   row: {
     width: "100%",
-    maxWidth: 360,
+    maxWidth: MOBILE_CHROME_METRICS.maxFloatingWidth,
     flexDirection: "row",
     justifyContent: "flex-start",
     alignItems: "center",
@@ -229,15 +237,15 @@ const styles = StyleSheet.create({
   iconOnlyItem: {
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 4,
-    paddingVertical: 2,
+    paddingHorizontal: MOBILE_CHROME_METRICS.bottomBarItemPaddingHorizontal,
+    paddingVertical: MOBILE_CHROME_METRICS.bottomBarItemPaddingVertical,
   },
   itemActive: {
     transform: [{ translateY: -2 }],
   },
   itemIcon: {
-    width: 22,
-    height: 22,
+    width: MOBILE_CHROME_METRICS.iconBoxSize,
+    height: MOBILE_CHROME_METRICS.iconBoxSize,
     borderRadius: 0,
     backgroundColor: "transparent",
     alignItems: "center",

@@ -1,11 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Dimensions,
-  FlatList,
-  Modal,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   UIManager,
@@ -14,15 +11,23 @@ import {
   type LayoutChangeEvent,
   type ViewToken,
 } from "react-native";
+import BottomSheet, {
+  BottomSheetBackdrop,
+  BottomSheetFlatList,
+  BottomSheetScrollView,
+  type BottomSheetBackdropProps,
+} from "@gorhom/bottom-sheet";
 import { useViewerStore } from "@papyrus-sdk/core";
 import { DocumentEngine, DocumentType, OutlineItem } from "@papyrus-sdk/types";
 import { PapyrusPageView } from "@papyrus-sdk/engine-native";
 import { getStrings } from "../mobileStrings";
+import { resolveRightSheetHeight } from "./rightSheetLayout";
 
 export interface RightSheetProps {
   engine: DocumentEngine;
   documentType: DocumentType;
   thumbsInitialCount?: number;
+  onOpenPageJump?: () => void;
 }
 
 const THUMBNAILS_INITIAL_NUM_TO_RENDER = 4;
@@ -189,6 +194,7 @@ const RightSheet: React.FC<RightSheetProps> = ({
   engine,
   documentType,
   thumbsInitialCount,
+  onOpenPageJump,
 }) => {
   const {
     activeMobileDestination,
@@ -211,7 +217,12 @@ const RightSheet: React.FC<RightSheetProps> = ({
   );
   const isDark = uiTheme === "dark";
   const t = getStrings(locale);
-  const sheetHeight = Math.min(640, Dimensions.get("window").height * 0.72);
+  const showingNotes = sidebarRightTab === "annotations";
+  const sheetHeight = resolveRightSheetHeight({
+    windowHeight: Dimensions.get("window").height,
+    showingNotes,
+  });
+  const snapPoints = useMemo(() => [sheetHeight], [sheetHeight]);
   const windowWidth = Dimensions.get("window").width;
   const gridGutter = 12;
   const gridPadding = 16;
@@ -251,7 +262,6 @@ const RightSheet: React.FC<RightSheetProps> = ({
     resolvedThumbsInitialCount,
     resolvedThumbsPrewarmCount
   );
-  const showingNotes = sidebarRightTab === "annotations";
   const showingProgress =
     documentType === "text" || activeMobileDestination === "progress";
   const supportsThumbnails = documentType !== "text";
@@ -455,35 +465,51 @@ const RightSheet: React.FC<RightSheetProps> = ({
     ]
   );
 
+  const renderBackdrop = useCallback(
+    (props: BottomSheetBackdropProps) => (
+      <BottomSheetBackdrop
+        {...props}
+        appearsOnIndex={0}
+        disappearsOnIndex={-1}
+        opacity={0.4}
+        pressBehavior="close"
+      />
+    ),
+    []
+  );
+
   if (!sidebarRightOpen) return null;
 
   return (
-    <Modal
-      visible
-      transparent
-      animationType="slide"
-      onRequestClose={closeSheet}
-    >
-      <View style={styles.modalRoot}>
-        <Pressable style={styles.backdrop} onPress={closeSheet} />
-        <View
-          style={[
-            styles.sheet,
-            { height: sheetHeight },
-            isDark && styles.sheetDark,
-          ]}
-        >
-          <View style={[styles.handle, isDark && styles.handleDark]} />
+    <View style={styles.modalRoot} pointerEvents="box-none">
+      <BottomSheet
+        index={0}
+        snapPoints={snapPoints}
+        enablePanDownToClose
+        onClose={closeSheet}
+        backdropComponent={renderBackdrop}
+        backgroundStyle={[styles.sheetBackground, isDark && styles.sheetDark]}
+        handleIndicatorStyle={[styles.handle, isDark && styles.handleDark]}
+        handleStyle={styles.handleContainer}
+      >
+        <View style={styles.sheet}>
           <View style={styles.header}>
             <Text style={[styles.sheetTitle, isDark && styles.sheetTitleDark]}>
               {showingNotes ? t.notes : navigationTitle}
             </Text>
             {!showingNotes ? (
-              <Text style={[styles.pageStatus, isDark && styles.pageStatusDark]}>
-                {showingProgress
-                  ? `${Math.round((currentPage / Math.max(pageCount, 1)) * 100)}%`
-                  : `${t.page} ${currentPage} / ${pageCount}`}
-              </Text>
+              <Pressable
+                onPress={showingProgress ? undefined : onOpenPageJump}
+                disabled={showingProgress || pageCount <= 0}
+                style={styles.pageStatusHit}
+                accessibilityLabel="Open page jump"
+              >
+                <Text style={[styles.pageStatus, isDark && styles.pageStatusDark]}>
+                  {showingProgress
+                    ? `${Math.round((currentPage / Math.max(pageCount, 1)) * 100)}%`
+                    : `${currentPage}/${pageCount}`}
+                </Text>
+              </Pressable>
             ) : null}
           </View>
 
@@ -539,7 +565,7 @@ const RightSheet: React.FC<RightSheetProps> = ({
               ) : null}
 
               {supportsThumbnails && !showingProgress && pagesMode === "thumbnails" ? (
-                <FlatList
+                <BottomSheetFlatList
                   data={pages}
                   keyExtractor={(item) => `thumb-${item}`}
                   numColumns={2}
@@ -558,7 +584,7 @@ const RightSheet: React.FC<RightSheetProps> = ({
                   renderItem={renderThumbnailItem}
                 />
               ) : showingProgress ? (
-                <ScrollView
+                <BottomSheetScrollView
                   contentContainerStyle={styles.summaryContent}
                   showsVerticalScrollIndicator={false}
                 >
@@ -593,9 +619,9 @@ const RightSheet: React.FC<RightSheetProps> = ({
                       </Pressable>
                     );
                   })}
-                </ScrollView>
+                </BottomSheetScrollView>
               ) : (
-                <ScrollView
+                <BottomSheetScrollView
                   contentContainerStyle={styles.summaryContent}
                   showsVerticalScrollIndicator={false}
                 >
@@ -614,11 +640,11 @@ const RightSheet: React.FC<RightSheetProps> = ({
                       />
                     ))
                   )}
-                </ScrollView>
+                </BottomSheetScrollView>
               )}
             </View>
           ) : (
-            <ScrollView
+            <BottomSheetScrollView
               contentContainerStyle={styles.content}
               showsVerticalScrollIndicator={false}
             >
@@ -673,47 +699,43 @@ const RightSheet: React.FC<RightSheetProps> = ({
                   ))}
                 </View>
               )}
-            </ScrollView>
+            </BottomSheetScrollView>
           )}
         </View>
-      </View>
-    </Modal>
+      </BottomSheet>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   modalRoot: {
-    flex: 1,
-    backgroundColor: "transparent",
-  },
-  backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0, 0, 0, 0.4)",
+    zIndex: 30,
   },
   sheet: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
+    flex: 1,
+    paddingBottom: 16,
+  },
+  sheetBackground: {
     backgroundColor: "#ffffff",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     borderTopWidth: 1,
     borderTopColor: "#e5e7eb",
-    paddingBottom: 16,
   },
   sheetDark: {
     backgroundColor: "#0f1115",
     borderTopColor: "#1f2937",
+  },
+  handleContainer: {
+    paddingTop: 10,
+    paddingBottom: 12,
   },
   handle: {
     width: 44,
     height: 4,
     borderRadius: 999,
     backgroundColor: "#cbd5f5",
-    alignSelf: "center",
-    marginTop: 10,
-    marginBottom: 12,
   },
   handleDark: {
     backgroundColor: "#374151",
@@ -722,11 +744,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     marginBottom: 10,
     gap: 4,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   sheetTitle: {
     fontSize: 16,
     fontWeight: "800",
     color: "#111827",
+    flex: 1,
   },
   sheetTitleDark: {
     color: "#f8fafc",
@@ -745,6 +771,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
     color: "#111827",
+  },
+  pageStatusHit: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
   },
   pageStatusDark: {
     color: "#e5e7eb",
