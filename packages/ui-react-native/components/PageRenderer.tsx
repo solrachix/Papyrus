@@ -502,7 +502,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({
         createdAt: Date.now(),
       });
     },
-    [addAnnotation, annotationColor, pageIndex]
+    [addAnnotation, annotationColor, logSelectionPerf, pageIndex]
   );
 
   const clamp = (value: number, min: number, max: number) =>
