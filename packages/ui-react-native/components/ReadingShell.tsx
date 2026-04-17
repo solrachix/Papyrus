@@ -11,6 +11,7 @@ import { DocumentActionsSheet } from "./DocumentActionsSheet";
 import { InfoSheet } from "./InfoSheet";
 import { OverflowSheet } from "./OverflowSheet";
 import { ProgressPill } from "./ProgressPill";
+import { PageJumpModal } from "./PageJumpModal";
 import { SearchOverlay } from "./SearchOverlay";
 import { SearchResultsSheet } from "./SearchResultsSheet";
 import SettingsSheet from "./SettingsSheet";
@@ -40,13 +41,20 @@ export function ReadingShell({
     openMobileDestination,
     setDocumentState,
     setMobileKeyboardOpen,
+    triggerScrollToPage,
     sidebarRightOpen,
+    currentPage,
+    pageCount,
+    uiTheme,
+    accentColor,
   } = useViewerStore();
   const [overflowOpen, setOverflowOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchResultsOpen, setSearchResultsOpen] = useState(false);
+  const [pageJumpOpen, setPageJumpOpen] = useState(false);
+  const isDark = uiTheme === "dark";
 
   React.useEffect(() => {
     const showSubscription = Keyboard.addListener("keyboardDidShow", () => {
@@ -115,6 +123,12 @@ export function ReadingShell({
     }
   };
 
+  const navigateToPage = (page: number) => {
+    engine.goToPage(page);
+    setDocumentState({ currentPage: page });
+    triggerScrollToPage(page - 1);
+  };
+
   return (
     <View style={styles.container} testID="papyrus-rn-reading-shell">
       <Topbar
@@ -127,6 +141,7 @@ export function ReadingShell({
           setSettingsOpen(false);
           setOverflowOpen(true);
         }}
+        onOpenPageJump={() => setPageJumpOpen(true)}
         showPageNavigationControls={false}
       />
       <View style={styles.viewerStage}>
@@ -143,6 +158,7 @@ export function ReadingShell({
               : "progress"
           )
         }
+        onOpenPageJump={() => setPageJumpOpen(true)}
       />
       <BottomBar
         documentType={documentType}
@@ -169,6 +185,7 @@ export function ReadingShell({
         engine={engine}
         documentType={documentType}
         thumbsInitialCount={thumbsInitialCount}
+        onOpenPageJump={() => setPageJumpOpen(true)}
       />
       <OverflowSheet
         visible={overflowOpen}
@@ -204,6 +221,15 @@ export function ReadingShell({
           setSettingsOpen(false);
           closeMobileDestination();
         }}
+      />
+      <PageJumpModal
+        visible={pageJumpOpen}
+        currentPage={currentPage}
+        pageCount={pageCount}
+        isDark={isDark}
+        accentColor={accentColor}
+        onClose={() => setPageJumpOpen(false)}
+        onConfirm={navigateToPage}
       />
     </View>
   );

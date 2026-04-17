@@ -140,7 +140,12 @@ const App: React.FC = () => {
         <Viewer engine={engine} />
         <ToolDock />
       </View>
-      <BottomBar />
+      <BottomBar
+        documentType={docType}
+        onOpenDestination={() => {}}
+        onOpenInfo={() => {}}
+        onOpenSettings={() => setSettingsOpen(true)}
+      />
       <RightSheet engine={engine} />
       <SettingsSheet engine={engine} visible={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <AnnotationEditor />

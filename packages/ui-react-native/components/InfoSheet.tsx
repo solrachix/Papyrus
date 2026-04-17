@@ -119,12 +119,12 @@ export function InfoSheet({
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: "rgba(15, 23, 42, 0.42)",
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
     justifyContent: "flex-end",
     padding: 16,
   },
   card: {
-    borderRadius: 34,
+    borderRadius: 24,
     backgroundColor: "#ffffff",
     paddingHorizontal: 16,
     paddingTop: 16,
@@ -133,7 +133,7 @@ const styles = StyleSheet.create({
     maxHeight: "88%",
   },
   cardDark: {
-    backgroundColor: "#1f1f22",
+    backgroundColor: "#0f1115",
   },
   topRow: {
     flexDirection: "row",
@@ -154,7 +154,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#f1f5f9",
   },
   iconCloseButtonDark: {
-    backgroundColor: "#2a2a2f",
+    backgroundColor: "#111827",
   },
   headerTitle: {
     fontSize: 18,

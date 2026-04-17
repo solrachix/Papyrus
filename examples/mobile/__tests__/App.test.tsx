@@ -83,3 +83,17 @@ it('renders the phase-1 mobile reading shell', async () => {
     tree!.root.findByProps({testID: 'papyrus-document-switcher'}),
   ).toBeTruthy();
 });
+
+it('keeps the document switcher below the page counter', async () => {
+  let tree: renderer.ReactTestRenderer;
+  await renderer.act(async () => {
+    tree = renderer.create(<App />);
+    await Promise.resolve();
+  });
+
+  const switcherFrame = tree!.root.findByProps({
+    testID: 'papyrus-document-switcher',
+  });
+
+  expect(switcherFrame.props.style.top).toBeGreaterThanOrEqual(132);
+});

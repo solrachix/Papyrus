@@ -345,7 +345,7 @@ const styles = StyleSheet.create({
   },
   documentSwitcherFrame: {
     position: 'absolute',
-    top: 74,
+    top: 132,
     left: 0,
     right: 0,
     alignItems: 'center',

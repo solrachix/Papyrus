@@ -1,15 +1,10 @@
-import React, { useEffect, useState } from "react";
-import {
-  View,
-  Text,
-  Pressable,
-  StyleSheet,
-  Modal,
-  TextInput,
-} from "react-native";
+import React, { useState } from "react";
+import { View, Text, Pressable, StyleSheet } from "react-native";
 import { useViewerStore } from "@papyrus-sdk/core";
 import { IconSettings, IconChevronLeft, IconChevronRight } from "../icons";
 import { DocumentEngine } from "@papyrus-sdk/types";
+import { MOBILE_CHROME_METRICS } from "./mobileChromeMetrics";
+import { PageJumpModal } from "./PageJumpModal";
 
 export interface TopbarProps {
   engine: DocumentEngine;
@@ -20,6 +15,7 @@ export interface TopbarProps {
   onLogoPress?: () => void;
   logoAccessibilityLabel?: string;
   showPageNavigationControls?: boolean;
+  onOpenPageJump?: () => void;
 }
 
 const Topbar: React.FC<TopbarProps> = ({
@@ -31,6 +27,7 @@ const Topbar: React.FC<TopbarProps> = ({
   onLogoPress,
   logoAccessibilityLabel = "Logo",
   showPageNavigationControls = false,
+  onOpenPageJump,
 }) => {
   const {
     currentPage,
@@ -41,18 +38,9 @@ const Topbar: React.FC<TopbarProps> = ({
     accentColor,
     mobileChromeVisible,
   } = useViewerStore();
-  const [pageLabel, setPageLabel] = useState(`${currentPage}`);
   const [jumpModalOpen, setJumpModalOpen] = useState(false);
-  const [jumpValue, setJumpValue] = useState(`${currentPage}`);
   const isDark = uiTheme === "dark";
   const navIconColor = isDark ? "#e5e7eb" : "#111827";
-
-  useEffect(() => {
-    setPageLabel(`${currentPage}`);
-    if (!jumpModalOpen) {
-      setJumpValue(`${currentPage}`);
-    }
-  }, [currentPage, jumpModalOpen]);
 
   const navigateToPage = (targetPage: number) => {
     const next = Math.max(1, Math.min(pageCount, targetPage));
@@ -66,18 +54,11 @@ const Topbar: React.FC<TopbarProps> = ({
   };
 
   const openJumpModal = () => {
-    setJumpValue(`${currentPage}`);
-    setJumpModalOpen(true);
-  };
-
-  const confirmJump = () => {
-    const parsed = Number.parseInt(jumpValue, 10);
-    if (Number.isNaN(parsed)) {
-      setJumpModalOpen(false);
+    if (onOpenPageJump) {
+      onOpenPageJump();
       return;
     }
-    navigateToPage(parsed);
-    setJumpModalOpen(false);
+    setJumpModalOpen(true);
   };
 
   const defaultLogo = (
@@ -110,12 +91,19 @@ const Topbar: React.FC<TopbarProps> = ({
             ) : (
               <View style={styles.logoSlot}>{logoElement}</View>
             )}
-            <Text
-              numberOfLines={1}
-              style={[styles.brandText, isDark && styles.brandTextDark]}
+            <Pressable
+              onPress={openJumpModal}
+              disabled={pageCount <= 0}
+              style={styles.titleHit}
+              accessibilityLabel="Open page jump"
             >
-              {title ?? "Papyrus"}
-            </Text>
+              <Text
+                numberOfLines={1}
+                style={[styles.brandText, isDark && styles.brandTextDark]}
+              >
+                {title ?? "Papyrus"}
+              </Text>
+            </Pressable>
           </View>
 
           {showPageNavigationControls ? (
@@ -125,7 +113,10 @@ const Topbar: React.FC<TopbarProps> = ({
                   onPress={() => handlePageChange(-1)}
                   style={[styles.pageButton, isDark && styles.pageButtonDark]}
                 >
-                  <IconChevronLeft size={16} color={navIconColor} />
+                  <IconChevronLeft
+                    size={MOBILE_CHROME_METRICS.iconSize}
+                    color={navIconColor}
+                  />
                 </Pressable>
                 <Pressable
                   onPress={openJumpModal}
@@ -138,14 +129,17 @@ const Topbar: React.FC<TopbarProps> = ({
                       isDark && styles.pageIndicatorDark,
                     ]}
                   >
-                    {pageLabel}/{pageCount}
+                    {currentPage}/{pageCount}
                   </Text>
                 </Pressable>
                 <Pressable
                   onPress={() => handlePageChange(1)}
                   style={[styles.pageButton, isDark && styles.pageButtonDark]}
                 >
-                  <IconChevronRight size={16} color={navIconColor} />
+                  <IconChevronRight
+                    size={MOBILE_CHROME_METRICS.iconSize}
+                    color={navIconColor}
+                  />
                 </Pressable>
               </>
             </View>
@@ -157,82 +151,24 @@ const Topbar: React.FC<TopbarProps> = ({
               style={[styles.iconButton, isDark && styles.iconButtonDark]}
               accessibilityLabel="Open overflow menu"
             >
-              <IconSettings size={16} color={isDark ? "#e5e7eb" : "#111827"} />
+              <IconSettings
+                size={MOBILE_CHROME_METRICS.iconSize}
+                color={isDark ? "#e5e7eb" : "#111827"}
+              />
             </Pressable>
           </View>
         </View>
       </View>
 
-      <Modal
+      <PageJumpModal
         visible={jumpModalOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setJumpModalOpen(false)}
-      >
-        <Pressable
-          style={styles.jumpModalBackdrop}
-          onPress={() => setJumpModalOpen(false)}
-        >
-          <Pressable
-            style={[styles.jumpModalCard, isDark && styles.jumpModalCardDark]}
-            onPress={(event) => event.stopPropagation()}
-          >
-            <Text
-              style={[
-                styles.jumpModalTitle,
-                isDark && styles.jumpModalTitleDark,
-              ]}
-            >
-              Ir para página
-            </Text>
-            <TextInput
-              value={jumpValue}
-              onChangeText={(text) => setJumpValue(text.replace(/[^0-9]/g, ""))}
-              keyboardType="number-pad"
-              autoFocus
-              selectTextOnFocus
-              maxLength={6}
-              placeholder="1"
-              placeholderTextColor={isDark ? "#6b7280" : "#9ca3af"}
-              style={[styles.jumpInput, isDark && styles.jumpInputDark]}
-              onSubmitEditing={confirmJump}
-              accessibilityLabel="Page jump input"
-            />
-            <View style={styles.jumpActions}>
-              <Pressable
-                onPress={() => setJumpModalOpen(false)}
-                style={[
-                  styles.jumpActionButton,
-                  styles.jumpActionCancel,
-                  isDark && styles.jumpActionCancelDark,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.jumpActionText,
-                    isDark && styles.jumpActionTextDark,
-                  ]}
-                >
-                  Cancelar
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={confirmJump}
-                style={[
-                  styles.jumpActionButton,
-                  { backgroundColor: accentColor },
-                ]}
-              >
-                <Text
-                  style={[styles.jumpActionText, styles.jumpActionTextPrimary]}
-                >
-                  Ir
-                </Text>
-              </Pressable>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
+        currentPage={currentPage}
+        pageCount={pageCount}
+        isDark={isDark}
+        accentColor={accentColor}
+        onClose={() => setJumpModalOpen(false)}
+        onConfirm={navigateToPage}
+      />
     </>
   );
 };
@@ -299,6 +235,12 @@ const styles = StyleSheet.create({
   brandTextDark: {
     color: "#f9fafb",
   },
+  titleHit: {
+    flexShrink: 1,
+    flexGrow: 1,
+    minWidth: 0,
+    borderRadius: 8,
+  },
   pageGroup: {
     flexDirection: "row",
     alignItems: "center",
@@ -306,8 +248,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   pageButton: {
-    width: 26,
-    height: 26,
+    width: MOBILE_CHROME_METRICS.topbarPageButtonSize,
+    height: MOBILE_CHROME_METRICS.topbarPageButtonSize,
     borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
@@ -377,79 +319,6 @@ const styles = StyleSheet.create({
   },
   iconRowSpacer: {
     width: 6,
-  },
-  jumpModalBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.35)",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 24,
-  },
-  jumpModalCard: {
-    width: "100%",
-    maxWidth: 280,
-    backgroundColor: "#ffffff",
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-    padding: 14,
-  },
-  jumpModalCardDark: {
-    backgroundColor: "#0f1115",
-    borderColor: "#1f2937",
-  },
-  jumpModalTitle: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#111827",
-    marginBottom: 10,
-  },
-  jumpModalTitleDark: {
-    color: "#f3f4f6",
-  },
-  jumpInput: {
-    borderWidth: 1,
-    borderColor: "#d1d5db",
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    fontSize: 15,
-    color: "#111827",
-    marginBottom: 12,
-  },
-  jumpInputDark: {
-    borderColor: "#374151",
-    color: "#f3f4f6",
-    backgroundColor: "#111827",
-  },
-  jumpActions: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-  },
-  jumpActionButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    marginLeft: 8,
-    minWidth: 64,
-    alignItems: "center",
-  },
-  jumpActionCancel: {
-    backgroundColor: "#f3f4f6",
-  },
-  jumpActionCancelDark: {
-    backgroundColor: "#111827",
-  },
-  jumpActionText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#111827",
-  },
-  jumpActionTextDark: {
-    color: "#e5e7eb",
-  },
-  jumpActionTextPrimary: {
-    color: "#ffffff",
   },
 });
 

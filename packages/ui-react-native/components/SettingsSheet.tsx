@@ -1,5 +1,10 @@
-import React from "react";
-import { Modal, View, Text, Pressable, StyleSheet } from "react-native";
+import React, { useCallback, useMemo } from "react";
+import { Dimensions, View, Text, Pressable, StyleSheet } from "react-native";
+import BottomSheet, {
+  BottomSheetBackdrop,
+  BottomSheetScrollView,
+  type BottomSheetBackdropProps,
+} from "@gorhom/bottom-sheet";
 import { useViewerStore } from "@papyrus-sdk/core";
 import { DocumentEngine, PageTheme } from "@papyrus-sdk/types";
 import { getStrings } from "../mobileStrings";
@@ -64,6 +69,23 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
   const isPaged = viewMode === "single";
   const isDouble = viewMode === "double";
   const t = getStrings(locale);
+  const snapPoints = useMemo(
+    () => [Math.min(640, Dimensions.get("window").height * 0.72)],
+    []
+  );
+
+  const renderBackdrop = useCallback(
+    (props: BottomSheetBackdropProps) => (
+      <BottomSheetBackdrop
+        {...props}
+        appearsOnIndex={0}
+        disappearsOnIndex={-1}
+        opacity={0.4}
+        pressBehavior="close"
+      />
+    ),
+    []
+  );
 
   const handleTransition = (mode: "continuous" | "paged") => {
     if (mode === "paged") {
@@ -97,12 +119,22 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
   if (!visible) return null;
 
   return (
-    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.modalRoot}>
-        <Pressable style={styles.backdrop} onPress={onClose} />
-        <View style={[styles.sheet, isDark && styles.sheetDark]}>
-          <View style={[styles.handle, isDark && styles.handleDark]} />
-
+    <View style={styles.modalRoot} pointerEvents="box-none">
+      <BottomSheet
+        index={0}
+        snapPoints={snapPoints}
+        enablePanDownToClose
+        onClose={onClose}
+        backdropComponent={renderBackdrop}
+        backgroundStyle={[styles.sheetBackground, isDark && styles.sheetDark]}
+        handleIndicatorStyle={[styles.handle, isDark && styles.handleDark]}
+        handleStyle={styles.handleContainer}
+      >
+        <BottomSheetScrollView
+          style={styles.sheet}
+          contentContainerStyle={styles.sheetContent}
+          showsVerticalScrollIndicator={false}
+        >
           <View style={styles.section}>
             <Text
               style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}
@@ -387,28 +419,25 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
               </Pressable>
             </View>
           </View>
-        </View>
-      </View>
-    </Modal>
+        </BottomSheetScrollView>
+      </BottomSheet>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   modalRoot: {
-    flex: 1,
-    backgroundColor: "transparent",
-  },
-  backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0, 0, 0, 0.45)",
+    zIndex: 30,
   },
   sheet: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
+    flex: 1,
+  },
+  sheetContent: {
     paddingHorizontal: 18,
     paddingBottom: 24,
+  },
+  sheetBackground: {
     backgroundColor: "#ffffff",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
@@ -419,14 +448,15 @@ const styles = StyleSheet.create({
     backgroundColor: "#0f1115",
     borderTopColor: "#1f2937",
   },
+  handleContainer: {
+    paddingTop: 10,
+    paddingBottom: 12,
+  },
   handle: {
     width: 44,
     height: 4,
     borderRadius: 999,
     backgroundColor: "#cbd5f5",
-    alignSelf: "center",
-    marginTop: 10,
-    marginBottom: 12,
   },
   handleDark: {
     backgroundColor: "#374151",
