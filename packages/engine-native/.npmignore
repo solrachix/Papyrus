@@ -12,6 +12,7 @@ android/**/CMakeCache.txt
 android/**/cmake_install.cmake
 android/**/compile_commands.json
 android/**/compile_commands.json.bin
+android/src/main/cpp/*_test.cpp
 ios/build
 ios/Pods
 ios/Podfile.lock

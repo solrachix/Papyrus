@@ -226,7 +226,7 @@ importers:
   packages/core:
     dependencies:
       '@papyrus-sdk/types':
-        specifier: 0.2.8-beta.0
+        specifier: 0.2.8
         version: link:../types
       zustand:
         specifier: ^5.0.0
@@ -239,19 +239,19 @@ importers:
         version: 0.3.93
     devDependencies:
       '@papyrus-sdk/core':
-        specifier: 0.2.15-beta.0
+        specifier: 0.2.15
         version: link:../core
       '@papyrus-sdk/types':
-        specifier: 0.2.8-beta.0
+        specifier: 0.2.8
         version: link:../types
 
   packages/engine-native:
     devDependencies:
       '@papyrus-sdk/core':
-        specifier: 0.2.15-beta.0
+        specifier: 0.2.15
         version: link:../core
       '@papyrus-sdk/types':
-        specifier: 0.2.8-beta.0
+        specifier: 0.2.8
         version: link:../types
       react-native:
         specifier: ^0.81.0
@@ -260,19 +260,19 @@ importers:
   packages/engine-pdfjs:
     devDependencies:
       '@papyrus-sdk/core':
-        specifier: 0.2.15-beta.0
+        specifier: 0.2.15
         version: link:../core
       '@papyrus-sdk/types':
-        specifier: 0.2.8-beta.0
+        specifier: 0.2.8
         version: link:../types
 
   packages/engine-text:
     devDependencies:
       '@papyrus-sdk/core':
-        specifier: 0.2.15-beta.0
+        specifier: 0.2.15
         version: link:../core
       '@papyrus-sdk/types':
-        specifier: 0.2.8-beta.0
+        specifier: 0.2.8
         version: link:../types
 
   packages/expo-plugin:
@@ -286,10 +286,10 @@ importers:
   packages/ui-react:
     devDependencies:
       '@papyrus-sdk/core':
-        specifier: 0.2.15-beta.0
+        specifier: 0.2.15
         version: link:../core
       '@papyrus-sdk/types':
-        specifier: 0.2.8-beta.0
+        specifier: 0.2.8
         version: link:../types
       react:
         specifier: ^18.2.0
@@ -304,7 +304,7 @@ importers:
         specifier: 5.2.9
         version: 5.2.9(@types/react@19.2.14)(react-native-gesture-handler@2.28.0(react-native@0.81.0(@babel/core@7.28.5)(@react-native-community/cli@20.0.0(typescript@5.9.3))(@react-native/metro-config@0.81.0(@babel/core@7.28.5))(@types/react@19.2.14)(react@19.1.0))(react@19.1.0))(react-native-reanimated@3.19.5(@babel/core@7.28.5)(react-native@0.81.0(@babel/core@7.28.5)(@react-native-community/cli@20.0.0(typescript@5.9.3))(@react-native/metro-config@0.81.0(@babel/core@7.28.5))(@types/react@19.2.14)(react@19.1.0))(react@19.1.0))(react-native@0.81.0(@babel/core@7.28.5)(@react-native-community/cli@20.0.0(typescript@5.9.3))(@react-native/metro-config@0.81.0(@babel/core@7.28.5))(@types/react@19.2.14)(react@19.1.0))(react@19.1.0)
       '@papyrus-sdk/engine-native':
-        specifier: 0.2.12-beta.0
+        specifier: 0.2.12
         version: link:../engine-native
       react-native-svg:
         specifier: ^15.5.0
@@ -314,10 +314,10 @@ importers:
         version: 13.16.0(react-native@0.81.0(@babel/core@7.28.5)(@react-native-community/cli@20.0.0(typescript@5.9.3))(@react-native/metro-config@0.81.0(@babel/core@7.28.5))(@types/react@19.2.14)(react@19.1.0))(react@19.1.0)
     devDependencies:
       '@papyrus-sdk/core':
-        specifier: 0.2.15-beta.0
+        specifier: 0.2.15
         version: link:../core
       '@papyrus-sdk/types':
-        specifier: 0.2.8-beta.0
+        specifier: 0.2.8
         version: link:../types
       '@types/react':
         specifier: 19.2.14

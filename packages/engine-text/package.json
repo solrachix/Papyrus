@@ -1,6 +1,6 @@
 {
   "name": "@papyrus-sdk/engine-text",
-  "version": "0.2.7-beta.0",
+  "version": "0.2.7",
   "license": "MIT",
   "keywords": [
     "papyrus",
@@ -37,11 +37,11 @@
     "build": "tsup index.ts --dts --format cjs,esm --out-dir dist --clean --sourcemap"
   },
   "peerDependencies": {
-    "@papyrus-sdk/core": ">=0.2.15-beta.0",
-    "@papyrus-sdk/types": ">=0.2.8-beta.0"
+    "@papyrus-sdk/core": ">=0.2.15",
+    "@papyrus-sdk/types": ">=0.2.8"
   },
   "devDependencies": {
-    "@papyrus-sdk/core": "0.2.15-beta.0",
-    "@papyrus-sdk/types": "0.2.8-beta.0"
+    "@papyrus-sdk/core": "0.2.15",
+    "@papyrus-sdk/types": "0.2.8"
   }
 }

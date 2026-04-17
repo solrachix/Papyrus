@@ -5,10 +5,10 @@ React Native UI components for Papyrus viewers.
 ## Install
 
 ```bash
-npm install @papyrus-sdk/ui-react-native @papyrus-sdk/engine-native @papyrus-sdk/core @papyrus-sdk/types react-native-gesture-handler
+npm install @papyrus-sdk/ui-react-native @papyrus-sdk/engine-native @papyrus-sdk/core @papyrus-sdk/types react-native-gesture-handler react-native-reanimated
 ```
 
-`@papyrus-sdk/core`, `@papyrus-sdk/types`, and `react-native-gesture-handler` are required peer dependencies.
+`@papyrus-sdk/core`, `@papyrus-sdk/types`, `react-native-gesture-handler`, and `react-native-reanimated` are required peer dependencies.
 
 Wrap the app root with `GestureHandlerRootView` before rendering Papyrus components:
 
