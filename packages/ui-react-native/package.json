@@ -1,6 +1,6 @@
 {
   "name": "@papyrus-sdk/ui-react-native",
-  "version": "0.2.13",
+  "version": "0.2.16",
   "license": "MIT",
   "keywords": [
     "papyrus",
@@ -43,12 +43,12 @@
   },
   "dependencies": {
     "@gorhom/bottom-sheet": "5.2.9",
-    "@papyrus-sdk/engine-native": "0.2.12",
+    "@papyrus-sdk/engine-native": "0.2.15",
     "react-native-svg": "^15.5.0"
   },
   "peerDependencies": {
-    "@papyrus-sdk/core": ">=0.2.15",
-    "@papyrus-sdk/types": ">=0.2.8",
+    "@papyrus-sdk/core": ">=0.2.18",
+    "@papyrus-sdk/types": ">=0.2.11",
     "react": ">=18.2.0 <20",
     "react-native": ">=0.81.0",
     "react-native-gesture-handler": ">=2.28.0",
@@ -61,8 +61,8 @@
     }
   },
   "devDependencies": {
-    "@papyrus-sdk/core": "0.2.15",
-    "@papyrus-sdk/types": "0.2.8",
+    "@papyrus-sdk/core": "0.2.18",
+    "@papyrus-sdk/types": "0.2.11",
     "@types/react": "19.2.14",
     "react": "^19.1.0",
     "react-native": "^0.81.0",
