@@ -34,7 +34,8 @@ import {
 import {
   DEFAULT_PINCH_ZOOM_BOUNDS,
   resolveAnchoredViewportOffset,
-  resolveClampedScrollOffset,
+  resolveDocumentSurfaceWidth,
+  resolveGlobalHorizontalOffset,
   resolvePinchGestureZoom,
   resolvePinchPreviewScale,
   sanitizePinchPreviewScale,
@@ -84,16 +85,10 @@ type PendingPinchAnchorRestore = {
   startPageOffsetY: number;
   startPageHeight: number;
   startPageWidth: number;
-  startPageScrollX: number;
+  startSurfaceScrollX: number;
   pageViewportWidth: number;
   pageHorizontalPadding: number;
   pageViewportContentOffsetX: number;
-};
-
-type HorizontalScrollRestoreRequest = {
-  pageIndex: number;
-  requestId: number;
-  offsetX: number;
 };
 
 const Viewer: React.FC<ViewerProps> = ({
@@ -115,6 +110,7 @@ const Viewer: React.FC<ViewerProps> = ({
   const viewMode = useViewerStore((state) => state.viewMode);
   const zoom = useViewerStore((state) => state.zoom);
   const listRef = useRef<FlatList<any>>(null);
+  const horizontalScrollRef = useRef<ScrollView | null>(null);
   const isDark = uiTheme === "dark";
   const { width: windowWidth } = useWindowDimensions();
   const isDouble = viewMode === "double";
@@ -158,19 +154,16 @@ const Viewer: React.FC<ViewerProps> = ({
   const gestureScrollLockActiveRef = useRef(false);
   const [pinchPreviewScale, setPinchPreviewScale] = useState(1);
   const [lastPinchEndedAt, setLastPinchEndedAt] = useState<number | null>(null);
-  const [horizontalScrollRestore, setHorizontalScrollRestore] =
-    useState<HorizontalScrollRestoreRequest | null>(null);
   const pinchGestureActiveRef = useRef(false);
   const pinchStartZoomRef = useRef(1);
   const pinchPreviewZoomRef = useRef(1);
   const pinchFocalPointRef = useRef({ x: 0, y: 0 });
   const pinchUpdateLoggedAtRef = useRef(0);
-  const horizontalScrollOffsetsRef = useRef<Map<number, number>>(new Map());
+  const horizontalScrollOffsetRef = useRef(0);
   const pendingPinchAnchorRestoreRef = useRef<PendingPinchAnchorRestore | null>(
     null
   );
   const pinchAnchorRestoreFrameRef = useRef<number | null>(null);
-  const nextHorizontalRestoreRequestIdRef = useRef(0);
   const viewerFrameRef = useRef({ y: 0, height: 0 });
   const viewerContentHeightRef = useRef(0);
   const resolvedWindowSize = useMemo(
@@ -521,6 +514,32 @@ const Viewer: React.FC<ViewerProps> = ({
     [columnGap, columnWidth, horizontalPadding, isDouble, windowWidth]
   );
 
+  const documentSurfaceWidth = useMemo(() => {
+    if (isDouble) {
+      const leftPageWidth = getPageWidthForZoom(0, zoom);
+      const doubleContentWidth = leftPageWidth * 2 + columnGap;
+      return resolveDocumentSurfaceWidth({
+        viewportWidth: windowWidth,
+        contentWidth: doubleContentWidth,
+        horizontalPadding,
+      });
+    }
+
+    return resolveDocumentSurfaceWidth({
+      viewportWidth: windowWidth,
+      contentWidth: getPageWidthForZoom(currentPage - 1, zoom),
+      horizontalPadding,
+    });
+  }, [
+    columnGap,
+    currentPage,
+    getPageWidthForZoom,
+    horizontalPadding,
+    isDouble,
+    windowWidth,
+    zoom,
+  ]);
+
   const getPageLayoutForZoom = useCallback(
     (pageIndex: number, zoomValue: number) => {
       if (isSingle) {
@@ -815,8 +834,7 @@ const Viewer: React.FC<ViewerProps> = ({
         startPageOffsetY,
         startPageHeight,
         startPageWidth,
-        startPageScrollX:
-          horizontalScrollOffsetsRef.current.get(anchorPageIndex) ?? 0,
+        startSurfaceScrollX: horizontalScrollOffsetRef.current,
         pageViewportWidth,
         pageHorizontalPadding,
         pageViewportContentOffsetX: Math.max(
@@ -853,35 +871,21 @@ const Viewer: React.FC<ViewerProps> = ({
     zoom,
   ]);
 
-  const handlePageHorizontalScrollOffsetChange = useCallback(
-    (pageIndex: number, offsetX: number) => {
-      horizontalScrollOffsetsRef.current.set(pageIndex, Math.max(0, offsetX));
-      const pageWidth = getPageWidthForZoom(pageIndex, zoom);
-      const { viewportWidth, horizontalPadding } =
-        getPageViewportMetrics(pageIndex);
-      const pageViewportWidth = Math.max(
-        0,
-        viewportWidth - horizontalPadding * 2
-      );
-      const nextOffsetX = resolveClampedScrollOffset(
+  const scrollHorizontalSurfaceTo = useCallback(
+    (offsetX: number) => {
+      const nextOffsetX = resolveGlobalHorizontalOffset({
         offsetX,
-        pageWidth,
-        pageViewportWidth
-      );
-      setHorizontalScrollRestore((current) => {
-        if (current && Math.abs(current.offsetX - nextOffsetX) < 0.5) {
-          return current;
-        }
-        const requestId = nextHorizontalRestoreRequestIdRef.current + 1;
-        nextHorizontalRestoreRequestIdRef.current = requestId;
-        return {
-          pageIndex,
-          requestId,
-          offsetX: nextOffsetX,
-        };
+        surfaceWidth: documentSurfaceWidth,
+        viewportWidth: windowWidth,
       });
+      horizontalScrollOffsetRef.current = nextOffsetX;
+      horizontalScrollRef.current?.scrollTo({
+        x: nextOffsetX,
+        animated: false,
+      });
+      return nextOffsetX;
     },
-    [getPageViewportMetrics, getPageWidthForZoom, zoom]
+    [documentSurfaceWidth, windowWidth]
   );
 
   const viewerPinchGesture = useMemo(
@@ -985,7 +989,7 @@ const Viewer: React.FC<ViewerProps> = ({
       );
       const nextOffsetX = resolveAnchoredViewportOffset({
         viewportOffset: pendingRestore.pageViewportContentOffsetX,
-        startScrollOffset: pendingRestore.startPageScrollX,
+        startScrollOffset: pendingRestore.startSurfaceScrollX,
         startItemOffset: 0,
         startItemLength: pendingRestore.startPageWidth,
         endItemOffset: 0,
@@ -993,20 +997,14 @@ const Viewer: React.FC<ViewerProps> = ({
         viewportLength: pageViewportContentWidth,
         endContentLength: endPageWidth,
       });
-      const requestId = nextHorizontalRestoreRequestIdRef.current + 1;
-      nextHorizontalRestoreRequestIdRef.current = requestId;
-      setHorizontalScrollRestore({
-        pageIndex: pendingRestore.pageIndex,
-        requestId,
-        offsetX: nextOffsetX,
-      });
+      const appliedOffsetX = scrollHorizontalSurfaceTo(nextOffsetX);
       pendingPinchAnchorRestoreRef.current = null;
 
       if (perfEnabled) {
         logPerfEvent("Viewer", "pinch.anchorRestore", {
           page: pendingRestore.pageIndex + 1,
           scrollY: Math.round(nextScrollY * 100) / 100,
-          scrollX: Math.round(nextOffsetX * 100) / 100,
+          scrollX: Math.round(appliedOffsetX * 100) / 100,
           zoom: Math.round(zoom * 100) / 100,
         });
       }
@@ -1018,23 +1016,19 @@ const Viewer: React.FC<ViewerProps> = ({
         pinchAnchorRestoreFrameRef.current = null;
       }
     };
-  }, [getPageLayoutForZoom, getPageWidthForZoom, isSingle, perfEnabled, zoom]);
+  }, [
+    getPageLayoutForZoom,
+    getPageWidthForZoom,
+    isSingle,
+    perfEnabled,
+    scrollHorizontalSurfaceTo,
+    zoom,
+  ]);
 
   useEffect(() => {
-    if (zoom > 1) return;
-    setHorizontalScrollRestore((current) => {
-      if (!current || Math.abs(current.offsetX) < 0.5) {
-        return current;
-      }
-      const requestId = nextHorizontalRestoreRequestIdRef.current + 1;
-      nextHorizontalRestoreRequestIdRef.current = requestId;
-      return {
-        pageIndex: current.pageIndex,
-        requestId,
-        offsetX: 0,
-      };
-    });
-  }, [zoom]);
+    if (zoom > 1 && documentSurfaceWidth > windowWidth) return;
+    scrollHorizontalSurfaceTo(0);
+  }, [documentSurfaceWidth, scrollHorizontalSurfaceTo, windowWidth, zoom]);
 
   const captureViewerFrame = useCallback((node: unknown) => {
     const measurable = node as {
@@ -1373,7 +1367,12 @@ const Viewer: React.FC<ViewerProps> = ({
       if (isDouble) {
         const row = item as { left: number; right: number | null };
         return (
-          <View style={[styles.row, { paddingHorizontal: horizontalPadding }]}>
+          <View
+            style={[
+              styles.row,
+              { paddingHorizontal: horizontalPadding, width: documentSurfaceWidth },
+            ]}
+          >
             <View style={{ width: columnWidth }}>
               <PageRenderer
                 engine={engine}
@@ -1381,14 +1380,11 @@ const Viewer: React.FC<ViewerProps> = ({
                 pageAspectRatio={getPageAspectRatio(row.left)}
                 availableWidth={columnWidth}
                 horizontalPadding={8}
+                pageViewportWidth={columnWidth}
                 spacing={DOUBLE_PAGE_SPACING}
                 onSelectionDragActiveChange={setSelectionDragActive}
                 gestureScrollLockActive={gestureScrollLockActive}
                 lastPinchEndedAt={lastPinchEndedAt}
-                onHorizontalScrollOffsetChange={
-                  handlePageHorizontalScrollOffsetChange
-                }
-                horizontalScrollRestore={horizontalScrollRestore}
                 requestSelectionVerticalAutoscroll={
                   handleSelectionVerticalAutoscroll
                 }
@@ -1402,14 +1398,11 @@ const Viewer: React.FC<ViewerProps> = ({
                   pageAspectRatio={getPageAspectRatio(row.right)}
                   availableWidth={columnWidth}
                   horizontalPadding={8}
+                  pageViewportWidth={columnWidth}
                   spacing={DOUBLE_PAGE_SPACING}
                   onSelectionDragActiveChange={setSelectionDragActive}
                   gestureScrollLockActive={gestureScrollLockActive}
                   lastPinchEndedAt={lastPinchEndedAt}
-                  onHorizontalScrollOffsetChange={
-                    handlePageHorizontalScrollOffsetChange
-                  }
-                  horizontalScrollRestore={horizontalScrollRestore}
                   requestSelectionVerticalAutoscroll={
                     handleSelectionVerticalAutoscroll
                   }
@@ -1427,29 +1420,27 @@ const Viewer: React.FC<ViewerProps> = ({
           engine={engine}
           pageIndex={item as number}
           pageAspectRatio={getPageAspectRatio(item as number)}
+          availableWidth={windowWidth}
+          pageViewportWidth={documentSurfaceWidth}
           spacing={CONTINUOUS_PAGE_SPACING}
           onSelectionDragActiveChange={setSelectionDragActive}
           gestureScrollLockActive={gestureScrollLockActive}
           lastPinchEndedAt={lastPinchEndedAt}
-          onHorizontalScrollOffsetChange={
-            handlePageHorizontalScrollOffsetChange
-          }
-          horizontalScrollRestore={horizontalScrollRestore}
           requestSelectionVerticalAutoscroll={handleSelectionVerticalAutoscroll}
         />
       );
     },
     [
       columnWidth,
+      documentSurfaceWidth,
       engine,
       getPageAspectRatio,
-      handlePageHorizontalScrollOffsetChange,
       handleSelectionVerticalAutoscroll,
       gestureScrollLockActive,
-      horizontalScrollRestore,
       horizontalPadding,
       isDouble,
       lastPinchEndedAt,
+      windowWidth,
     ]
   );
 
@@ -1472,72 +1463,85 @@ const Viewer: React.FC<ViewerProps> = ({
             ]}
           >
             <ScrollView
-              ref={(node) => {
-                captureViewerFrame(node);
-                listRef.current = node as unknown as FlatList<any>;
+              ref={horizontalScrollRef}
+              horizontal
+              scrollEnabled={
+                !gestureScrollLockActive && documentSurfaceWidth > windowWidth
+              }
+              showsHorizontalScrollIndicator={false}
+              onScroll={(event) => {
+                horizontalScrollOffsetRef.current =
+                  event.nativeEvent.contentOffset?.x ?? 0;
               }}
-              contentContainerStyle={styles.singleContent}
-              showsVerticalScrollIndicator={false}
-              scrollEnabled={resolvedViewerScrollEnabled}
-              onLayout={() =>
-                captureViewerFrame(listRef.current as unknown as ScrollView)
-              }
-              onContentSizeChange={(_, height) => {
-                viewerContentHeightRef.current = height;
-              }}
-              onScroll={(event) => handleViewerScroll(event, "single")}
-              onScrollBeginDrag={
-                perfEnabled
-                  ? () => {
-                      scrollMonitorRef.current.begin("single.beginDrag");
-                    }
-                  : undefined
-              }
-              onMomentumScrollBegin={
-                perfEnabled
-                  ? () => {
-                      scrollMonitorRef.current.begin("single.momentumBegin");
-                    }
-                  : undefined
-              }
-              onScrollEndDrag={
-                perfEnabled
-                  ? () => {
-                      scrollMonitorRef.current.end("single.endDrag");
-                      sampleMemory("Viewer", "single.endDrag", { pageCount });
-                    }
-                  : undefined
-              }
-              onMomentumScrollEnd={
-                perfEnabled
-                  ? () => {
-                      scrollMonitorRef.current.end("single.momentumEnd");
-                      sampleMemory("Viewer", "single.momentumEnd", {
-                        pageCount,
-                      });
-                    }
-                  : undefined
-              }
               scrollEventThrottle={16}
             >
-              <PageRenderer
-                engine={engine}
-                pageIndex={Math.max(0, currentPage - 1)}
-                pageAspectRatio={getPageAspectRatio(
-                  Math.max(0, currentPage - 1)
-                )}
-                spacing={32}
-                onSelectionDragActiveChange={setSelectionDragActive}
-                gestureScrollLockActive={gestureScrollLockActive}
-                lastPinchEndedAt={lastPinchEndedAt}
-                onHorizontalScrollOffsetChange={
-                  handlePageHorizontalScrollOffsetChange
+              <ScrollView
+                ref={(node) => {
+                  captureViewerFrame(node);
+                  listRef.current = node as unknown as FlatList<any>;
+                }}
+                style={{ width: documentSurfaceWidth }}
+                contentContainerStyle={styles.singleContent}
+                showsVerticalScrollIndicator={false}
+                scrollEnabled={resolvedViewerScrollEnabled}
+                onLayout={() =>
+                  captureViewerFrame(listRef.current as unknown as ScrollView)
                 }
-                horizontalScrollRestore={horizontalScrollRestore}
-                requestSelectionVerticalAutoscroll={
-                  handleSelectionVerticalAutoscroll
+                onContentSizeChange={(_, height) => {
+                  viewerContentHeightRef.current = height;
+                }}
+                onScroll={(event) => handleViewerScroll(event, "single")}
+                onScrollBeginDrag={
+                  perfEnabled
+                    ? () => {
+                        scrollMonitorRef.current.begin("single.beginDrag");
+                      }
+                    : undefined
                 }
-              />
+                onMomentumScrollBegin={
+                  perfEnabled
+                    ? () => {
+                        scrollMonitorRef.current.begin("single.momentumBegin");
+                      }
+                    : undefined
+                }
+                onScrollEndDrag={
+                  perfEnabled
+                    ? () => {
+                        scrollMonitorRef.current.end("single.endDrag");
+                        sampleMemory("Viewer", "single.endDrag", { pageCount });
+                      }
+                    : undefined
+                }
+                onMomentumScrollEnd={
+                  perfEnabled
+                    ? () => {
+                        scrollMonitorRef.current.end("single.momentumEnd");
+                        sampleMemory("Viewer", "single.momentumEnd", {
+                          pageCount,
+                        });
+                      }
+                    : undefined
+                }
+                scrollEventThrottle={16}
+              >
+                <PageRenderer
+                  engine={engine}
+                  pageIndex={Math.max(0, currentPage - 1)}
+                  pageAspectRatio={getPageAspectRatio(
+                    Math.max(0, currentPage - 1)
+                  )}
+                  availableWidth={windowWidth}
+                  pageViewportWidth={documentSurfaceWidth}
+                  spacing={32}
+                  onSelectionDragActiveChange={setSelectionDragActive}
+                  gestureScrollLockActive={gestureScrollLockActive}
+                  lastPinchEndedAt={lastPinchEndedAt}
+                  requestSelectionVerticalAutoscroll={
+                    handleSelectionVerticalAutoscroll
+                  }
+                />
+              </ScrollView>
             </ScrollView>
           </View>
         </GestureDetector>
@@ -1554,93 +1558,110 @@ const Viewer: React.FC<ViewerProps> = ({
             { transform: [{ scale: pinchPreviewScale }] },
           ]}
         >
-          <FlatList
-            ref={listRef}
-            data={isDouble ? rows : pages}
-            initialNumToRender={FLATLIST_INITIAL_NUM_TO_RENDER}
-            windowSize={resolvedWindowSize}
-            maxToRenderPerBatch={resolvedMaxToRenderPerBatch}
-            updateCellsBatchingPeriod={FLATLIST_UPDATE_CELLS_BATCHING_PERIOD}
-            removeClippedSubviews={resolvedRemoveClippedSubviews}
-            getItemLayout={getItemLayout}
-            keyExtractor={keyExtractor}
-            contentContainerStyle={styles.listContent}
-            renderItem={renderItem}
-            onViewableItemsChanged={onViewableItemsChanged}
-            viewabilityConfig={{ itemVisiblePercentThreshold: 60 }}
-            scrollEnabled={resolvedViewerScrollEnabled}
-            onLayout={() => captureViewerFrame(listRef.current)}
-            onContentSizeChange={(_, height) => {
-              viewerContentHeightRef.current = height;
+          <ScrollView
+            ref={horizontalScrollRef}
+            horizontal
+            scrollEnabled={
+              !gestureScrollLockActive && documentSurfaceWidth > windowWidth
+            }
+            showsHorizontalScrollIndicator={false}
+            onScroll={(event) => {
+              horizontalScrollOffsetRef.current =
+                event.nativeEvent.contentOffset?.x ?? 0;
             }}
-            onScrollToIndexFailed={({ index, averageItemLength }) => {
-              const dataLength = isDouble ? rows.length : pages.length;
-              if (index < 0 || index >= dataLength) return;
-              pendingScrollIndexRef.current = index;
-              const offset = Math.max(0, getFallbackOffsetForIndex(index));
-              listRef.current?.scrollToOffset({ offset, animated: false });
+            scrollEventThrottle={16}
+          >
+            <FlatList
+              ref={listRef}
+              data={isDouble ? rows : pages}
+              style={{ width: documentSurfaceWidth }}
+              initialNumToRender={FLATLIST_INITIAL_NUM_TO_RENDER}
+              windowSize={resolvedWindowSize}
+              maxToRenderPerBatch={resolvedMaxToRenderPerBatch}
+              updateCellsBatchingPeriod={FLATLIST_UPDATE_CELLS_BATCHING_PERIOD}
+              removeClippedSubviews={resolvedRemoveClippedSubviews}
+              getItemLayout={getItemLayout}
+              keyExtractor={keyExtractor}
+              contentContainerStyle={styles.listContent}
+              renderItem={renderItem}
+              onViewableItemsChanged={onViewableItemsChanged}
+              viewabilityConfig={{ itemVisiblePercentThreshold: 60 }}
+              scrollEnabled={resolvedViewerScrollEnabled}
+              onLayout={() => captureViewerFrame(listRef.current)}
+              onContentSizeChange={(_, height) => {
+                viewerContentHeightRef.current = height;
+              }}
+              onScrollToIndexFailed={({ index, averageItemLength }) => {
+                const dataLength = isDouble ? rows.length : pages.length;
+                if (index < 0 || index >= dataLength) return;
+                pendingScrollIndexRef.current = index;
+                const offset = Math.max(0, getFallbackOffsetForIndex(index));
+                listRef.current?.scrollToOffset({ offset, animated: false });
 
-              if (!isDouble) {
-                ensurePageDimensions(index);
-              } else {
-                const row = rows[index];
-                if (row) {
-                  ensurePageDimensions(row.left);
-                  if (row.right !== null) {
-                    ensurePageDimensions(row.right);
+                if (!isDouble) {
+                  ensurePageDimensions(index);
+                } else {
+                  const row = rows[index];
+                  if (row) {
+                    ensurePageDimensions(row.left);
+                    if (row.right !== null) {
+                      ensurePageDimensions(row.right);
+                    }
                   }
                 }
-              }
 
-              scheduleScrollRetry("onScrollToIndexFailed");
+                scheduleScrollRetry("onScrollToIndexFailed");
 
-              if (perfEnabled) {
-                logPerfEvent("Viewer", "scrollToIndexFailed", {
-                  index,
-                  averageItemLength,
-                  fallbackOffset: offset,
-                  fallbackSource: "cached-item-layout",
-                  itemCount: dataLength,
-                  retryAttempt: pendingScrollAttemptsRef.current,
-                });
+                if (perfEnabled) {
+                  logPerfEvent("Viewer", "scrollToIndexFailed", {
+                    index,
+                    averageItemLength,
+                    fallbackOffset: offset,
+                    fallbackSource: "cached-item-layout",
+                    itemCount: dataLength,
+                    retryAttempt: pendingScrollAttemptsRef.current,
+                  });
+                }
+              }}
+              onScroll={(event) => handleViewerScroll(event, "continuous")}
+              onScrollBeginDrag={
+                perfEnabled
+                  ? () => {
+                      scrollMonitorRef.current.begin("continuous.beginDrag");
+                    }
+                  : undefined
               }
-            }}
-            onScroll={(event) => handleViewerScroll(event, "continuous")}
-            onScrollBeginDrag={
-              perfEnabled
-                ? () => {
-                    scrollMonitorRef.current.begin("continuous.beginDrag");
-                  }
-                : undefined
-            }
-            onMomentumScrollBegin={
-              perfEnabled
-                ? () => {
-                    scrollMonitorRef.current.begin("continuous.momentumBegin");
-                  }
-                : undefined
-            }
-            onScrollEndDrag={
-              perfEnabled
-                ? () => {
-                    scrollMonitorRef.current.end("continuous.endDrag");
-                    sampleMemory("Viewer", "continuous.endDrag", { pageCount });
-                  }
-                : undefined
-            }
-            onMomentumScrollEnd={
-              perfEnabled
-                ? () => {
-                    scrollMonitorRef.current.end("continuous.momentumEnd");
-                    sampleMemory("Viewer", "continuous.momentumEnd", {
-                      pageCount,
-                    });
-                  }
-                : undefined
-            }
-            scrollEventThrottle={16}
-            showsVerticalScrollIndicator={false}
-          />
+              onMomentumScrollBegin={
+                perfEnabled
+                  ? () => {
+                      scrollMonitorRef.current.begin("continuous.momentumBegin");
+                    }
+                  : undefined
+              }
+              onScrollEndDrag={
+                perfEnabled
+                  ? () => {
+                      scrollMonitorRef.current.end("continuous.endDrag");
+                      sampleMemory("Viewer", "continuous.endDrag", {
+                        pageCount,
+                      });
+                    }
+                  : undefined
+              }
+              onMomentumScrollEnd={
+                perfEnabled
+                  ? () => {
+                      scrollMonitorRef.current.end("continuous.momentumEnd");
+                      sampleMemory("Viewer", "continuous.momentumEnd", {
+                        pageCount,
+                      });
+                    }
+                  : undefined
+              }
+              scrollEventThrottle={16}
+              showsVerticalScrollIndicator={false}
+            />
+          </ScrollView>
         </View>
       </GestureDetector>
     </View>

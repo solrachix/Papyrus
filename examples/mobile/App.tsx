@@ -81,6 +81,7 @@ const App: React.FC = () => {
   const [engine] = useState(() => new MobileDocumentEngine());
   const [activeType, setActiveType] = useState<'pdf' | 'epub' | 'text'>('pdf');
   const [isPicking, setIsPicking] = useState(false);
+  const [showDocumentSwitcher, setShowDocumentSwitcher] = useState(true);
   const {
     isLoaded,
     setDocumentState,
@@ -278,52 +279,96 @@ const App: React.FC = () => {
             removeClippedSubviews: true,
           }}
         />
-        <View
-          pointerEvents="box-none"
-          style={styles.documentSwitcherFrame}
-          testID="papyrus-document-switcher">
-          <View
-            style={[
-              styles.documentSwitcher,
-              uiTheme === 'dark' && styles.documentSwitcherDark,
-            ]}>
-            <View style={styles.documentTypeRow}>
-              {(['pdf', 'epub', 'text'] as const).map(type => {
-                const isActive = type === activeType;
-                return (
-                  <Pressable
-                    key={type}
-                    onPress={() => loadDocument(type)}
-                    style={[
-                      styles.typeButton,
-                      uiTheme === 'dark' && styles.typeButtonDark,
-                      isActive && {backgroundColor: accentColor},
-                    ]}>
-                    <Text
-                      style={[
-                        styles.typeButtonText,
-                        uiTheme === 'dark' && styles.typeButtonTextDark,
-                        isActive && styles.typeButtonTextActive,
-                      ]}>
-                      {type.toUpperCase()}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-            <Pressable
-              onPress={openLocalDocument}
-              disabled={isPicking}
+        <View pointerEvents="box-none" style={styles.documentSwitcherFrame}>
+          {showDocumentSwitcher ? (
+            <View
               style={[
-                styles.openButton,
-                uiTheme === 'dark' && styles.openButtonDark,
-                isPicking && styles.openButtonDisabled,
-              ]}>
-              <Text style={styles.openButtonText}>
-                {isPicking ? 'OPENING...' : 'OPEN FILE'}
+                styles.documentSwitcher,
+                uiTheme === 'dark' && styles.documentSwitcherDark,
+              ]}
+              testID="papyrus-document-switcher">
+              <View style={styles.documentSwitcherHeader}>
+                <Text
+                  style={[
+                    styles.documentSwitcherTitle,
+                    uiTheme === 'dark' && styles.documentSwitcherTitleDark,
+                  ]}>
+                  Documento
+                </Text>
+                <Pressable
+                  onPress={() => setShowDocumentSwitcher(false)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Ocultar alternador de documento"
+                  hitSlop={10}
+                  style={[
+                    styles.documentSwitcherClose,
+                    uiTheme === 'dark' && styles.documentSwitcherCloseDark,
+                  ]}>
+                  <Text
+                    style={[
+                      styles.documentSwitcherCloseText,
+                      uiTheme === 'dark' && styles.documentSwitcherCloseTextDark,
+                    ]}>
+                    X
+                  </Text>
+                </Pressable>
+              </View>
+              <View style={styles.documentTypeRow}>
+                {(['pdf', 'epub', 'text'] as const).map(type => {
+                  const isActive = type === activeType;
+                  return (
+                    <Pressable
+                      key={type}
+                      onPress={() => loadDocument(type)}
+                      style={[
+                        styles.typeButton,
+                        uiTheme === 'dark' && styles.typeButtonDark,
+                        isActive && {backgroundColor: accentColor},
+                      ]}>
+                      <Text
+                        style={[
+                          styles.typeButtonText,
+                          uiTheme === 'dark' && styles.typeButtonTextDark,
+                          isActive && styles.typeButtonTextActive,
+                        ]}>
+                        {type.toUpperCase()}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <Pressable
+                onPress={openLocalDocument}
+                disabled={isPicking}
+                style={[
+                  styles.openButton,
+                  uiTheme === 'dark' && styles.openButtonDark,
+                  isPicking && styles.openButtonDisabled,
+                ]}>
+                <Text style={styles.openButtonText}>
+                  {isPicking ? 'OPENING...' : 'OPEN FILE'}
+                </Text>
+              </Pressable>
+            </View>
+          ) : (
+            <Pressable
+              onPress={() => setShowDocumentSwitcher(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Mostrar alternador de documento"
+              style={[
+                styles.documentSwitcherRestore,
+                uiTheme === 'dark' && styles.documentSwitcherRestoreDark,
+              ]}
+              testID="papyrus-document-switcher-restore">
+              <Text
+                style={[
+                  styles.documentSwitcherRestoreText,
+                  uiTheme === 'dark' && styles.documentSwitcherRestoreTextDark,
+                ]}>
+                Tipo
               </Text>
             </Pressable>
-          </View>
+          )}
         </View>
         {activeType === 'pdf' ? <ToolDock /> : null}
       </View>
@@ -372,6 +417,69 @@ const styles = StyleSheet.create({
   documentSwitcherDark: {
     backgroundColor: 'rgba(15,17,21,0.86)',
     borderColor: 'rgba(71,85,105,0.44)',
+  },
+  documentSwitcherHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingLeft: 4,
+  },
+  documentSwitcherTitle: {
+    color: '#475569',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+  documentSwitcherTitleDark: {
+    color: '#94a3b8',
+  },
+  documentSwitcherClose: {
+    width: 28,
+    height: 28,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(226,232,240,0.92)',
+  },
+  documentSwitcherCloseDark: {
+    backgroundColor: 'rgba(17,24,39,0.96)',
+  },
+  documentSwitcherCloseText: {
+    color: '#334155',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  documentSwitcherCloseTextDark: {
+    color: '#e5e7eb',
+  },
+  documentSwitcherRestore: {
+    alignSelf: 'flex-end',
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.68)',
+    backgroundColor: 'rgba(255,255,255,0.88)',
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    shadowOffset: {width: 0, height: 10},
+    elevation: 8,
+  },
+  documentSwitcherRestoreDark: {
+    backgroundColor: 'rgba(15,17,21,0.88)',
+    borderColor: 'rgba(71,85,105,0.44)',
+  },
+  documentSwitcherRestoreText: {
+    color: '#2563eb',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+  },
+  documentSwitcherRestoreTextDark: {
+    color: '#93c5fd',
   },
   documentTypeRow: {
     flexDirection: 'row',

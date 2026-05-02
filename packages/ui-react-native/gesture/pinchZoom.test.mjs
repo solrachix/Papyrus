@@ -115,6 +115,52 @@ test("resolveClampedScrollOffset keeps a shared horizontal position inside page 
   assert.equal(pinchZoom.resolveClampedScrollOffset(-30, 500, 400), 0);
 });
 
+test("resolveDocumentSurfaceWidth grows a shared horizontal surface only when zoomed content overflows", () => {
+  assert.equal(
+    pinchZoom.resolveDocumentSurfaceWidth({
+      viewportWidth: 400,
+      contentWidth: 320,
+      horizontalPadding: 16,
+    }),
+    400
+  );
+  assert.equal(
+    pinchZoom.resolveDocumentSurfaceWidth({
+      viewportWidth: 400,
+      contentWidth: 520,
+      horizontalPadding: 16,
+    }),
+    552
+  );
+});
+
+test("resolveGlobalHorizontalOffset recenters when content fits and clamps when it overflows", () => {
+  assert.equal(
+    pinchZoom.resolveGlobalHorizontalOffset({
+      offsetX: 80,
+      surfaceWidth: 400,
+      viewportWidth: 400,
+    }),
+    0
+  );
+  assert.equal(
+    pinchZoom.resolveGlobalHorizontalOffset({
+      offsetX: 180,
+      surfaceWidth: 620,
+      viewportWidth: 400,
+    }),
+    180
+  );
+  assert.equal(
+    pinchZoom.resolveGlobalHorizontalOffset({
+      offsetX: 260,
+      surfaceWidth: 620,
+      viewportWidth: 400,
+    }),
+    220
+  );
+});
+
 test("shouldSuppressPressAfterPinch only blocks presses inside the safety window", () => {
   assert.equal(
     pinchZoom.shouldSuppressPressAfterPinch(1_000, 1_060, 120),

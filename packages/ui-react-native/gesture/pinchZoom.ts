@@ -24,6 +24,18 @@ export type AnchoredViewportOffsetInput = {
   endContentLength: number;
 };
 
+export type DocumentSurfaceWidthInput = {
+  viewportWidth: number;
+  contentWidth: number;
+  horizontalPadding: number;
+};
+
+export type GlobalHorizontalOffsetInput = {
+  offsetX: number;
+  surfaceWidth: number;
+  viewportWidth: number;
+};
+
 export const DEFAULT_PINCH_ZOOM_BOUNDS: PinchZoomBounds = {
   minZoom: 0.5,
   maxZoom: 4,
@@ -156,6 +168,33 @@ export const resolveClampedScrollOffset = (
     Math.max(0, safeContentLength - safeViewportLength)
   );
 };
+
+export const resolveDocumentSurfaceWidth = ({
+  viewportWidth,
+  contentWidth,
+  horizontalPadding,
+}: DocumentSurfaceWidthInput): number => {
+  const safeViewportWidth =
+    Number.isFinite(viewportWidth) && viewportWidth > 0 ? viewportWidth : 0;
+  const safeContentWidth =
+    Number.isFinite(contentWidth) && contentWidth > 0 ? contentWidth : 0;
+  const safeHorizontalPadding =
+    Number.isFinite(horizontalPadding) && horizontalPadding > 0
+      ? horizontalPadding
+      : 0;
+
+  return Math.max(
+    safeViewportWidth,
+    safeContentWidth + safeHorizontalPadding * 2
+  );
+};
+
+export const resolveGlobalHorizontalOffset = ({
+  offsetX,
+  surfaceWidth,
+  viewportWidth,
+}: GlobalHorizontalOffsetInput): number =>
+  resolveClampedScrollOffset(offsetX, surfaceWidth, viewportWidth);
 
 export const shouldSuppressPressAfterPinch = (
   lastPinchEndedAt: number | null | undefined,

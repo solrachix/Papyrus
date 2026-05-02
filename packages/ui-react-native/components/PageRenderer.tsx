@@ -10,12 +10,10 @@ import {
   View,
   StyleSheet,
   Pressable,
-  ScrollView,
   PanResponder,
   Platform,
   findNodeHandle,
   useWindowDimensions,
-  type ScrollView as ScrollViewType,
   type LayoutChangeEvent,
   type GestureResponderEvent,
 } from "react-native";
@@ -28,14 +26,8 @@ import {
   type PapyrusPageViewProps,
 } from "@papyrus-sdk/engine-native";
 import { isMobilePerfEnabled, logPerfEvent, perfNow } from "../perf/mobilePerf";
-import {
-  resolveClampedScrollOffset,
-  shouldSuppressPressAfterPinch,
-} from "../gesture/pinchZoom";
-import {
-  getSelectionEdgeAutoscroll,
-  shouldEnableSelectionDrag,
-} from "../gesture/selectionInteraction";
+import { shouldSuppressPressAfterPinch } from "../gesture/pinchZoom";
+import { shouldEnableSelectionDrag } from "../gesture/selectionInteraction";
 import { buildCommentTapGestureDeps } from "./PageRenderer.gesture";
 
 type PageViewComponentType = React.ComponentType<
@@ -49,16 +41,12 @@ interface PageRendererProps {
   pageAspectRatio?: number;
   PageViewComponent?: PageViewComponentType;
   availableWidth?: number;
+  pageViewportWidth?: number;
   horizontalPadding?: number;
   spacing?: number;
   onSelectionDragActiveChange?: (active: boolean) => void;
   gestureScrollLockActive?: boolean;
   lastPinchEndedAt?: number | null;
-  onHorizontalScrollOffsetChange?: (pageIndex: number, offsetX: number) => void;
-  horizontalScrollRestore?: {
-    requestId: number;
-    offsetX: number;
-  } | null;
   requestSelectionVerticalAutoscroll?: (absoluteY: number) => number;
 }
 
@@ -152,8 +140,6 @@ const buildSquigglyPath = (segments = 16) => {
 };
 
 const SQUIGGLY_PATH = buildSquigglyPath();
-const SELECTION_EDGE_THRESHOLD_PX = 48;
-const SELECTION_EDGE_MAX_STEP_PX = 24;
 const SELECTION_AUTOSCROLL_INTERVAL_MS = 16;
 
 const PageRenderer: React.FC<PageRendererProps> = ({
@@ -163,17 +149,15 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   pageAspectRatio,
   PageViewComponent = PapyrusPageView as PageViewComponentType,
   availableWidth,
+  pageViewportWidth: providedPageViewportWidth,
   horizontalPadding = 16,
   spacing = 24,
   onSelectionDragActiveChange,
   gestureScrollLockActive = false,
   lastPinchEndedAt = null,
-  onHorizontalScrollOffsetChange,
-  horizontalScrollRestore = null,
   requestSelectionVerticalAutoscroll,
 }) => {
   const viewRef = useRef<any>(null);
-  const pageScrollRef = useRef<ScrollViewType | null>(null);
   const [layout, setLayout] = useState({ width: 0, height: 0 });
   const [pageSize, setPageSize] = useState<{
     width: number;
@@ -184,14 +168,12 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   const perfEnabled = isMobilePerfEnabled();
   const renderCountRef = useRef(0);
   const inkDrawingActiveRef = useRef(false);
-  const horizontalScrollOffsetRef = useRef(0);
   const selectionDragActiveRef = useRef(false);
   const selectionDragPointRef = useRef<{
     absoluteY: number;
     x: number;
     y: number;
   } | null>(null);
-  const lastAppliedHorizontalRestoreRef = useRef<number | null>(null);
   const selectionAutoscrollIntervalRef = useRef<ReturnType<
     typeof setInterval
   > | null>(null);
@@ -542,10 +524,8 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     inkPointsRef.current = [];
   }, [resolvedActiveTool]);
 
-  const pageViewportWidth = Math.max(
-    0,
-    (availableWidth ?? windowWidth) - horizontalPadding * 2
-  );
+  const viewportWidth =
+    providedPageViewportWidth ?? availableWidth ?? windowWidth;
   const selectionEnabled =
     Platform.OS === "web" ||
     (isNative &&
@@ -713,39 +693,14 @@ const PageRenderer: React.FC<PageRendererProps> = ({
       return;
     }
 
-    const visibleX = point.x - horizontalScrollOffsetRef.current;
-    const { dx } = getSelectionEdgeAutoscroll({
-      x: visibleX,
-      y: SELECTION_EDGE_THRESHOLD_PX,
-      width: pageViewportWidth,
-      height: SELECTION_EDGE_THRESHOLD_PX * 2,
-      threshold: SELECTION_EDGE_THRESHOLD_PX,
-      maxStep: SELECTION_EDGE_MAX_STEP_PX,
-    });
-
-    let appliedDx = 0;
-    if (dx !== 0 && pageViewportWidth > 0) {
-      const maxOffsetX = Math.max(0, layout.width - pageViewportWidth);
-      const nextOffsetX = clamp(
-        horizontalScrollOffsetRef.current + dx,
-        0,
-        maxOffsetX
-      );
-      appliedDx = nextOffsetX - horizontalScrollOffsetRef.current;
-      if (appliedDx !== 0) {
-        horizontalScrollOffsetRef.current = nextOffsetX;
-        pageScrollRef.current?.scrollTo({ x: nextOffsetX, animated: false });
-      }
-    }
-
     const appliedDy =
       requestSelectionVerticalAutoscroll?.(point.absoluteY) ?? 0;
-    if (appliedDx === 0 && appliedDy === 0) {
+    if (appliedDy === 0) {
       stopSelectionAutoscroll();
       return;
     }
 
-    const nextX = clamp(point.x + appliedDx, 0, layout.width);
+    const nextX = point.x;
     const nextY = clamp(point.y + appliedDy, 0, layout.height);
     selectionDragPointRef.current = {
       absoluteY: point.absoluteY,
@@ -756,7 +711,6 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   }, [
     layout.height,
     layout.width,
-    pageViewportWidth,
     requestSelectionVerticalAutoscroll,
     stopSelectionAutoscroll,
     updateSelectionRectFromPoint,
@@ -1305,66 +1259,18 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   const baseWidth = containerWidth * 0.92;
   const pageWidth = isNative ? baseWidth * zoom : baseWidth;
   const pageHeight = pageWidth / aspectRatio;
-  const hasActiveSelection =
-    selectionRects.length > 0 || !!selectionBounds || isSelecting;
-  const scrollEnabled =
-    isNative &&
-    zoom > 1 &&
-    !hasActiveSelection &&
-    !isInkDrawing &&
-    !gestureScrollLockActive;
-
-  useEffect(() => {
-    if (!horizontalScrollRestore) return;
-    if (
-      lastAppliedHorizontalRestoreRef.current ===
-      horizontalScrollRestore.requestId
-    ) {
-      return;
-    }
-    const nextOffsetX = resolveClampedScrollOffset(
-      horizontalScrollRestore.offsetX,
-      pageWidth,
-      pageViewportWidth
-    );
-    lastAppliedHorizontalRestoreRef.current = horizontalScrollRestore.requestId;
-    horizontalScrollOffsetRef.current = nextOffsetX;
-    pageScrollRef.current?.scrollTo({ x: nextOffsetX, animated: false });
-    onHorizontalScrollOffsetChange?.(pageIndex, nextOffsetX);
-  }, [
-    horizontalScrollRestore,
-    onHorizontalScrollOffsetChange,
-    pageIndex,
-    pageViewportWidth,
-    pageWidth,
-  ]);
-
+  const pageFrameWidth = Math.max(
+    viewportWidth,
+    pageWidth + horizontalPadding * 2
+  );
   return (
-    <ScrollView
-      ref={pageScrollRef}
-      horizontal
-      scrollEnabled={scrollEnabled}
-      showsHorizontalScrollIndicator={false}
-      onScroll={(event) => {
-        const nextOffsetX = event.nativeEvent.contentOffset?.x ?? 0;
-        horizontalScrollOffsetRef.current = nextOffsetX;
-      }}
-      onScrollEndDrag={() => {
-        onHorizontalScrollOffsetChange?.(
-          pageIndex,
-          horizontalScrollOffsetRef.current
-        );
-      }}
-      onMomentumScrollEnd={() => {
-        onHorizontalScrollOffsetChange?.(
-          pageIndex,
-          horizontalScrollOffsetRef.current
-        );
-      }}
-      scrollEventThrottle={16}
-      contentContainerStyle={[
+    <View
+      style={[
         styles.scrollContent,
-        { paddingHorizontal: horizontalPadding },
+        {
+          width: pageFrameWidth,
+          paddingHorizontal: horizontalPadding,
+        },
       ]}
     >
       <GestureDetector gesture={contentGesture}>
@@ -1805,7 +1711,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({
           ) : null}
         </Pressable>
       </GestureDetector>
-    </ScrollView>
+    </View>
   );
 };
 
@@ -2042,17 +1948,12 @@ const arePageRendererPropsEqual = (
   previous.scale === next.scale &&
   previous.PageViewComponent === next.PageViewComponent &&
   previous.availableWidth === next.availableWidth &&
+  previous.pageViewportWidth === next.pageViewportWidth &&
   previous.horizontalPadding === next.horizontalPadding &&
   previous.spacing === next.spacing &&
   previous.onSelectionDragActiveChange === next.onSelectionDragActiveChange &&
   previous.gestureScrollLockActive === next.gestureScrollLockActive &&
   previous.lastPinchEndedAt === next.lastPinchEndedAt &&
-  previous.onHorizontalScrollOffsetChange ===
-    next.onHorizontalScrollOffsetChange &&
-  previous.horizontalScrollRestore?.requestId ===
-    next.horizontalScrollRestore?.requestId &&
-  previous.horizontalScrollRestore?.offsetX ===
-    next.horizontalScrollRestore?.offsetX &&
   previous.requestSelectionVerticalAutoscroll ===
     next.requestSelectionVerticalAutoscroll;
 
