@@ -24,6 +24,14 @@ export type AnchoredViewportOffsetInput = {
   endContentLength: number;
 };
 
+export type AnchoredDocumentOffsetInput = {
+  viewportOffset: number;
+  startScrollOffset: number;
+  startContentLength: number;
+  endContentLength: number;
+  viewportLength: number;
+};
+
 export type DocumentSurfaceWidthInput = {
   viewportWidth: number;
   contentWidth: number;
@@ -34,6 +42,19 @@ export type GlobalHorizontalOffsetInput = {
   offsetX: number;
   surfaceWidth: number;
   viewportWidth: number;
+};
+
+export type AnchoredHorizontalSurfaceOffsetInput = {
+  focalViewportX: number;
+  startSurfaceScrollX: number;
+  startSurfaceWidth: number;
+  endSurfaceWidth: number;
+  viewportWidth: number;
+};
+
+export type CenteredContentInsetInput = {
+  viewportLength: number;
+  contentLength: number;
 };
 
 export const DEFAULT_PINCH_ZOOM_BOUNDS: PinchZoomBounds = {
@@ -152,6 +173,43 @@ export const resolveAnchoredViewportOffset = ({
   );
 };
 
+export const resolveAnchoredDocumentOffset = ({
+  viewportOffset,
+  startScrollOffset,
+  startContentLength,
+  endContentLength,
+  viewportLength,
+}: AnchoredDocumentOffsetInput): number => {
+  const safeViewportOffset = Number.isFinite(viewportOffset)
+    ? viewportOffset
+    : 0;
+  const safeStartScrollOffset = Number.isFinite(startScrollOffset)
+    ? startScrollOffset
+    : 0;
+  const safeStartContentLength =
+    Number.isFinite(startContentLength) && startContentLength > 0
+      ? startContentLength
+      : 1;
+  const safeEndContentLength =
+    Number.isFinite(endContentLength) && endContentLength > 0
+      ? endContentLength
+      : 0;
+  const safeViewportLength =
+    Number.isFinite(viewportLength) && viewportLength > 0 ? viewportLength : 0;
+
+  const anchoredRatio = clamp(
+    (safeStartScrollOffset + safeViewportOffset) / safeStartContentLength,
+    0,
+    1
+  );
+
+  return resolveClampedScrollOffset(
+    anchoredRatio * safeEndContentLength - safeViewportOffset,
+    safeEndContentLength,
+    safeViewportLength
+  );
+};
+
 export const resolveClampedScrollOffset = (
   offset: number,
   contentLength: number,
@@ -195,6 +253,54 @@ export const resolveGlobalHorizontalOffset = ({
   viewportWidth,
 }: GlobalHorizontalOffsetInput): number =>
   resolveClampedScrollOffset(offsetX, surfaceWidth, viewportWidth);
+
+export const resolveAnchoredHorizontalSurfaceOffset = ({
+  focalViewportX,
+  startSurfaceScrollX,
+  startSurfaceWidth,
+  endSurfaceWidth,
+  viewportWidth,
+}: AnchoredHorizontalSurfaceOffsetInput): number => {
+  const safeFocalViewportX = Number.isFinite(focalViewportX)
+    ? focalViewportX
+    : 0;
+  const safeStartSurfaceScrollX = Number.isFinite(startSurfaceScrollX)
+    ? startSurfaceScrollX
+    : 0;
+  const safeStartSurfaceWidth =
+    Number.isFinite(startSurfaceWidth) && startSurfaceWidth > 0
+      ? startSurfaceWidth
+      : 1;
+  const safeEndSurfaceWidth =
+    Number.isFinite(endSurfaceWidth) && endSurfaceWidth > 0
+      ? endSurfaceWidth
+      : 0;
+  const safeViewportWidth =
+    Number.isFinite(viewportWidth) && viewportWidth > 0 ? viewportWidth : 0;
+
+  const anchoredRatio = clamp(
+    (safeStartSurfaceScrollX + safeFocalViewportX) / safeStartSurfaceWidth,
+    0,
+    1
+  );
+
+  return resolveGlobalHorizontalOffset({
+    offsetX: anchoredRatio * safeEndSurfaceWidth - safeFocalViewportX,
+    surfaceWidth: safeEndSurfaceWidth,
+    viewportWidth: safeViewportWidth,
+  });
+};
+
+export const resolveCenteredContentInset = ({
+  viewportLength,
+  contentLength,
+}: CenteredContentInsetInput): number => {
+  const safeViewportLength =
+    Number.isFinite(viewportLength) && viewportLength > 0 ? viewportLength : 0;
+  const safeContentLength =
+    Number.isFinite(contentLength) && contentLength > 0 ? contentLength : 0;
+  return Math.max(0, (safeViewportLength - safeContentLength) / 2);
+};
 
 export const shouldSuppressPressAfterPinch = (
   lastPinchEndedAt: number | null | undefined,

@@ -8,6 +8,7 @@ import android.graphics.ColorMatrixColorFilter;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.util.AttributeSet;
+import android.util.LruCache;
 import android.util.Log;
 import android.view.View;
 
@@ -17,10 +18,24 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class PapyrusPageView extends View {
-  static final long MAX_RENDER_PIXELS = 8L * 1024L * 1024L;
-  static final int MAX_RENDER_EDGE = 4096;
+  static final long MAX_RENDER_PIXELS = PapyrusRenderMath.MAX_RENDER_PIXELS;
+  static final int MAX_RENDER_EDGE = PapyrusRenderMath.MAX_RENDER_EDGE;
+  static final int RENDER_CACHE_BYTES = 32 * 1024 * 1024;
   private static final String TAG = "PapyrusPageView";
   private static final ExecutorService RENDER_EXECUTOR = Executors.newSingleThreadExecutor();
+  private static final LruCache<String, Bitmap> RENDER_CACHE = new LruCache<String, Bitmap>(RENDER_CACHE_BYTES) {
+    @Override
+    protected int sizeOf(String key, Bitmap value) {
+      return value == null ? 0 : value.getByteCount();
+    }
+
+    @Override
+    protected void entryRemoved(boolean evicted, String key, Bitmap oldValue, Bitmap newValue) {
+      if (oldValue != null && oldValue != newValue && !oldValue.isRecycled()) {
+        oldValue.recycle();
+      }
+    }
+  };
   private static final ColorMatrixColorFilter SEPIA_FILTER = createSepiaFilter();
   private static final ColorMatrixColorFilter DARK_FILTER = createDarkFilter();
   private static final ColorMatrixColorFilter HIGH_CONTRAST_FILTER = createHighContrastFilter();
@@ -28,6 +43,8 @@ public class PapyrusPageView extends View {
   private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
   private Bitmap bitmap;
   private String pageTheme = "normal";
+  private int renderGeneration = 0;
+  private String currentRenderKey = null;
 
   public PapyrusPageView(Context context) {
     super(context);
@@ -60,20 +77,37 @@ public class PapyrusPageView extends View {
     final int viewHeight = getHeight();
     final float clampedZoom = Math.max(0.1f, Math.min(5.0f, zoom));
     final float targetScale = Math.max(0.1f, scale) * clampedZoom;
-    final int[] renderSize = constrainRenderSize(
+    final int[] renderSize = PapyrusRenderMath.constrainRenderSize(
       Math.max(1, (int) (viewWidth * targetScale)),
       Math.max(1, (int) (viewHeight * targetScale))
     );
     final int renderWidth = renderSize[0];
     final int renderHeight = renderSize[1];
+    final String renderKey = buildRenderKey(state, pageIndex, renderWidth, renderHeight, targetScale, rotation);
+    final int renderToken = ++renderGeneration;
+
+    if (renderKey.equals(currentRenderKey) && bitmap != null && !bitmap.isRecycled()) {
+      invalidate();
+      return;
+    }
+
+    Bitmap cached = RENDER_CACHE.get(renderKey);
+    if (cached != null && !cached.isRecycled()) {
+      currentRenderKey = renderKey;
+      bitmap = cached;
+      invalidate();
+      return;
+    }
 
     RENDER_EXECUTOR.execute(() -> {
       PdfDocument doc = state.document;
       if (doc == null) return;
+      if (renderToken != renderGeneration) return;
 
       try {
         Bitmap rendered = null;
         synchronized (state.pdfiumLock) {
+          if (renderToken != renderGeneration) return;
           if (doc != state.document) return;
           int pageCount = state.pdfium.getPageCount(doc);
           if (pageIndex < 0 || pageIndex >= pageCount) return;
@@ -86,9 +120,14 @@ public class PapyrusPageView extends View {
         final Bitmap renderedBitmap = rendered;
 
         post(() -> {
-          if (bitmap != null && !bitmap.isRecycled()) {
-            bitmap.recycle();
+          if (renderToken != renderGeneration) {
+            if (!renderedBitmap.isRecycled()) {
+              renderedBitmap.recycle();
+            }
+            return;
           }
+          RENDER_CACHE.put(renderKey, renderedBitmap);
+          currentRenderKey = renderKey;
           bitmap = renderedBitmap;
           invalidate();
         });
@@ -116,29 +155,18 @@ public class PapyrusPageView extends View {
   }
 
   static int[] constrainRenderSize(int requestedWidth, int requestedHeight) {
-    int width = Math.max(1, requestedWidth);
-    int height = Math.max(1, requestedHeight);
-    double scale = 1.0d;
+    return PapyrusRenderMath.constrainRenderSize(requestedWidth, requestedHeight);
+  }
 
-    if (width > MAX_RENDER_EDGE || height > MAX_RENDER_EDGE) {
-      scale = Math.min(
-        scale,
-        Math.min((double) MAX_RENDER_EDGE / width, (double) MAX_RENDER_EDGE / height)
-      );
-    }
-
-    long pixels = (long) width * (long) height;
-    if (pixels > MAX_RENDER_PIXELS) {
-      scale = Math.min(scale, Math.sqrt((double) MAX_RENDER_PIXELS / (double) pixels));
-    }
-
-    if (scale >= 1.0d) {
-      return new int[] { width, height };
-    }
-
-    int safeWidth = Math.max(1, (int) Math.floor(width * scale));
-    int safeHeight = Math.max(1, (int) Math.floor(height * scale));
-    return new int[] { safeWidth, safeHeight };
+  static String buildRenderKey(PapyrusEngineStore.EngineState state,
+                               int pageIndex,
+                               int renderWidth,
+                               int renderHeight,
+                               float targetScale,
+                               int rotation) {
+    String source = state == null || state.sourcePath == null ? "" : state.sourcePath;
+    int documentIdentity = state == null || state.document == null ? 0 : System.identityHashCode(state.document);
+    return PapyrusRenderMath.buildRenderKey(source, documentIdentity, pageIndex, renderWidth, renderHeight, targetScale, rotation);
   }
 
   private static ColorMatrixColorFilter resolveThemeFilter(String theme) {
