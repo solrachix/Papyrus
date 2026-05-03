@@ -246,8 +246,19 @@ export type PapyrusPageViewProps = ViewProps & {
   pageTheme?: PageTheme;
 };
 
+export type PapyrusPdfViewerViewProps = ViewProps & {
+  engineId?: string;
+  pageTheme?: PageTheme;
+  zoom?: number;
+  currentPage?: number;
+};
+
 type PapyrusPageViewComponent = ComponentType<
   PapyrusPageViewProps & RefAttributes<View>
+>;
+
+type PapyrusPdfViewerViewComponent = ComponentType<
+  PapyrusPdfViewerViewProps & RefAttributes<View>
 >;
 
 const resolveNativeModule = (): NativeEngineModule | null => {
@@ -280,7 +291,24 @@ const resolvePapyrusPageView = (): PapyrusPageViewComponent => {
   }
 };
 
+const resolvePapyrusPdfViewerView = (): PapyrusPdfViewerViewComponent => {
+  try {
+    return requireNativeViewManager<PapyrusPdfViewerViewProps>(
+      "PapyrusPdfViewerView"
+    ) as unknown as PapyrusPdfViewerViewComponent;
+  } catch {
+    try {
+      return requireNativeComponent<PapyrusPdfViewerViewProps>(
+        "PapyrusPdfViewerView"
+      ) as unknown as PapyrusPdfViewerViewComponent;
+    } catch {
+      return View as unknown as PapyrusPdfViewerViewComponent;
+    }
+  }
+};
+
 export const PapyrusPageView = resolvePapyrusPageView();
+export const PapyrusPdfViewerView = resolvePapyrusPdfViewerView();
 
 export class NativeDocumentEngine extends BaseDocumentEngine {
   private nativeModule: NativeEngineModule | null = null;
@@ -356,6 +384,10 @@ export class NativeDocumentEngine extends BaseDocumentEngine {
 
   getRotation(): number {
     return this.rotation;
+  }
+
+  getNativeEngineId(): string {
+    return this.engineId;
   }
 
   async renderPage(
@@ -991,6 +1023,12 @@ export class MobileDocumentEngine extends BaseDocumentEngine {
 
   getRenderTargetType(): RenderTargetType {
     return this.activeEngine.getRenderTargetType?.() ?? "canvas";
+  }
+
+  getNativeEngineId(): string | null {
+    return this.activeEngine === this.pdfEngine
+      ? this.pdfEngine.getNativeEngineId()
+      : null;
   }
 
   attachWebView(bridge: WebViewBridge): void {

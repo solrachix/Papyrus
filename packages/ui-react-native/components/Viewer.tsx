@@ -7,6 +7,7 @@ import React, {
 } from "react";
 import {
   FlatList,
+  Platform,
   ScrollView,
   StyleSheet,
   View,
@@ -18,6 +19,9 @@ import { useViewerStore } from "@papyrus-sdk/core";
 import { DocumentEngine } from "@papyrus-sdk/types";
 import PageRenderer from "./PageRenderer";
 import WebViewViewer from "./WebViewViewer";
+import DedicatedAndroidPdfViewer, {
+  getDedicatedAndroidPdfEngineId,
+} from "./DedicatedAndroidPdfViewer";
 import {
   createBurstMonitor,
   createRenderCounter,
@@ -49,6 +53,7 @@ export interface ViewerProps {
   virtualWindowSize?: number;
   maxToRenderPerBatch?: number;
   removeClippedSubviews?: boolean;
+  useDedicatedAndroidPdfViewer?: boolean;
 }
 
 const LIST_TOP_PADDING = 18;
@@ -101,6 +106,7 @@ const Viewer: React.FC<ViewerProps> = ({
   virtualWindowSize,
   maxToRenderPerBatch,
   removeClippedSubviews,
+  useDedicatedAndroidPdfViewer,
 }) => {
   const pageCount = useViewerStore((state) => state.pageCount);
   const currentPage = useViewerStore((state) => state.currentPage);
@@ -122,6 +128,12 @@ const Viewer: React.FC<ViewerProps> = ({
   const isSingle = viewMode === "single";
   const renderTargetType = engine.getRenderTargetType?.() ?? "canvas";
   const isWebView = renderTargetType === "webview";
+  const isDedicatedAndroidPdfViewer =
+    Platform.OS === "android" &&
+    !!useDedicatedAndroidPdfViewer &&
+    pageCount > 0 &&
+    !isWebView &&
+    !!getDedicatedAndroidPdfEngineId(engine);
   const perfEnabled = isMobilePerfEnabled();
   const mountedAtRef = useRef(perfNow());
   const readyLoggedRef = useRef(false);
@@ -1480,6 +1492,14 @@ const Viewer: React.FC<ViewerProps> = ({
     return (
       <View style={[styles.container, isDark && styles.containerDark]}>
         <WebViewViewer engine={engine} />
+      </View>
+    );
+  }
+
+  if (isDedicatedAndroidPdfViewer) {
+    return (
+      <View style={[styles.container, isDark && styles.containerDark]}>
+        <DedicatedAndroidPdfViewer engine={engine} />
       </View>
     );
   }
