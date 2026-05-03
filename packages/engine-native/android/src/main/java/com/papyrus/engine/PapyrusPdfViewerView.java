@@ -18,8 +18,10 @@ import android.view.View;
 import com.shockwave.pdfium.PdfDocument;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -51,6 +53,7 @@ public class PapyrusPdfViewerView extends View {
   private final ScaleGestureDetector scaleDetector;
   private final List<PageFrame> pageFrames = new ArrayList<>();
   private final Set<String> loadingKeys = new HashSet<>();
+  private final Map<Integer, Bitmap> lastPageBitmap = new HashMap<>();
   private String engineId;
   private String pageTheme = "normal";
   private float zoom = 1.0f;
@@ -167,6 +170,16 @@ public class PapyrusPdfViewerView extends View {
           Log.w(TAG, "Failed to draw dedicated PDF page", error);
         }
       } else {
+        Bitmap fallback = lastPageBitmap.get(frame.index);
+        if (fallback != null && !fallback.isRecycled()) {
+          try {
+            paint.setColorFilter(resolveThemeFilter(pageTheme));
+            canvas.drawBitmap(fallback, null, new Rect(left, top, right, bottom), paint);
+            paint.setColorFilter(null);
+          } catch (RuntimeException error) {
+            Log.w(TAG, "Failed to draw fallback PDF page", error);
+          }
+        }
         requestRender(frame, key);
       }
     }
@@ -260,6 +273,7 @@ public class PapyrusPdfViewerView extends View {
           loadingKeys.remove(key);
           if (finalRendered != null && !finalRendered.isRecycled()) {
             RENDER_CACHE.put(key, finalRendered);
+            lastPageBitmap.put(frame.index, finalRendered);
           }
           invalidate();
         });
