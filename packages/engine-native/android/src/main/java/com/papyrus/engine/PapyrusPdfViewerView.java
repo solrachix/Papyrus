@@ -64,6 +64,7 @@ public class PapyrusPdfViewerView extends View {
   private float lastTouchX = 0f;
   private float lastTouchY = 0f;
   private boolean layoutDirty = true;
+  private int renderGeneration = 0;
 
   public PapyrusPdfViewerView(Context context) {
     super(context);
@@ -78,6 +79,7 @@ public class PapyrusPdfViewerView extends View {
   public void setEngineId(String nextEngineId) {
     if (nextEngineId != null && nextEngineId.equals(engineId)) return;
     engineId = nextEngineId;
+    renderGeneration += 1;
     layoutDirty = true;
     invalidate();
   }
@@ -86,6 +88,7 @@ public class PapyrusPdfViewerView extends View {
     String normalized = nextPageTheme == null ? "normal" : nextPageTheme;
     if (normalized.equals(pageTheme)) return;
     pageTheme = normalized;
+    renderGeneration += 1;
     invalidate();
   }
 
@@ -93,6 +96,7 @@ public class PapyrusPdfViewerView extends View {
     float clamped = clamp(nextZoom, 0.5f, 5.0f);
     if (Math.abs(clamped - zoom) < 0.001f) return;
     zoom = clamped;
+    renderGeneration += 1;
     layoutDirty = true;
     clampOffsets();
     invalidate();
@@ -110,6 +114,7 @@ public class PapyrusPdfViewerView extends View {
   @Override
   protected void onSizeChanged(int w, int h, int oldw, int oldh) {
     super.onSizeChanged(w, h, oldw, oldh);
+    renderGeneration += 1;
     layoutDirty = true;
     clampOffsets();
   }
@@ -252,6 +257,7 @@ public class PapyrusPdfViewerView extends View {
     PapyrusEngineStore.EngineState state = PapyrusEngineStore.getEngine(engineId);
     if (state == null || state.document == null || state.isSearching) return;
     loadingKeys.add(key);
+    final int generationAtStart = renderGeneration;
     int[] renderSize = PapyrusRenderMath.constrainRenderSize(
       Math.max(1, Math.round(frame.width)),
       Math.max(1, Math.round(frame.height))
@@ -275,7 +281,9 @@ public class PapyrusPdfViewerView extends View {
             RENDER_CACHE.put(key, finalRendered);
             lastPageBitmap.put(frame.index, finalRendered);
           }
-          invalidate();
+          if (generationAtStart == renderGeneration) {
+            invalidate();
+          }
         });
       } catch (Throwable error) {
         Bitmap failed = rendered;
