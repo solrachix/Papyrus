@@ -15,7 +15,9 @@ import android.util.LruCache;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
+import android.view.VelocityTracker;
 import android.view.View;
+import android.widget.OverScroller;
 
 import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.ReactContext;
@@ -75,17 +77,38 @@ public class PapyrusPdfViewerView extends View {
   private final ReactContext reactContext;
   private final Handler eventThrottleHandler = new Handler(Looper.getMainLooper());
   private Runnable pendingZoomEvent;
+  private final OverScroller flingScroller;
+  private VelocityTracker velocityTracker;
+  private final Runnable flingRunnable = new Runnable() {
+    @Override
+    public void run() {
+      if (flingScroller.computeScrollOffset()) {
+        offsetX = flingScroller.getCurrX();
+        offsetY = flingScroller.getCurrY();
+        clampOffsets();
+        invalidate();
+        postOnAnimation(this);
+      } else {
+        int visiblePage = computeVisiblePage();
+        if (visiblePage > 0) {
+          emitPageChanged(visiblePage);
+        }
+      }
+    }
+  };
 
   public PapyrusPdfViewerView(ReactContext context) {
     super(context);
     this.reactContext = context;
     scaleDetector = createScaleDetector(context);
+    flingScroller = new OverScroller(context);
   }
 
   public PapyrusPdfViewerView(ReactContext context, AttributeSet attrs) {
     super(context, attrs);
     this.reactContext = context;
     scaleDetector = createScaleDetector(context);
+    flingScroller = new OverScroller(context);
   }
 
   public void setEngineId(String nextEngineId) {
@@ -146,10 +169,21 @@ public class PapyrusPdfViewerView extends View {
 
     switch (event.getActionMasked()) {
       case MotionEvent.ACTION_DOWN:
+        if (velocityTracker == null) {
+          velocityTracker = VelocityTracker.obtain();
+        } else {
+          velocityTracker.clear();
+        }
+        velocityTracker.addMovement(event);
+        flingScroller.abortAnimation();
+        removeCallbacks(flingRunnable);
         lastTouchX = event.getX();
         lastTouchY = event.getY();
         return true;
       case MotionEvent.ACTION_MOVE:
+        if (velocityTracker != null) {
+          velocityTracker.addMovement(event);
+        }
         if (!scaleDetector.isInProgress() && event.getPointerCount() == 1) {
           offsetX += lastTouchX - event.getX();
           offsetY += lastTouchY - event.getY();
@@ -165,11 +199,31 @@ public class PapyrusPdfViewerView extends View {
           wasScaling = false;
           emitZoomChanged(zoom);
         }
-        if (!scaleDetector.isInProgress()) {
-          int visiblePage = computeVisiblePage();
-          if (visiblePage > 0) {
-            emitPageChanged(visiblePage);
+        if (!scaleDetector.isInProgress() && velocityTracker != null) {
+          velocityTracker.addMovement(event);
+          velocityTracker.computeCurrentVelocity(1000, 8000);
+          float velocityX = velocityTracker.getXVelocity();
+          float velocityY = velocityTracker.getYVelocity();
+          if (Math.abs(velocityX) > 200 || Math.abs(velocityY) > 200) {
+            flingScroller.fling(
+              Math.round(offsetX),
+              Math.round(offsetY),
+              Math.round(-velocityX),
+              Math.round(-velocityY),
+              0,
+              Math.max(0, Math.round(contentWidth - getWidth())),
+              0,
+              Math.max(0, Math.round(contentHeight - getHeight()))
+            );
+            postOnAnimation(flingRunnable);
+          } else {
+            int visiblePage = computeVisiblePage();
+            if (visiblePage > 0) {
+              emitPageChanged(visiblePage);
+            }
           }
+          velocityTracker.recycle();
+          velocityTracker = null;
         }
         return true;
       default:
