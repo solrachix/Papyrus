@@ -513,11 +513,24 @@ public class PapyrusPdfViewerView extends View {
           if (moveFrame != null) {
             float nx = clamp01((moveDocX - moveFrame.left) / moveFrame.width);
             float ny = clamp01((moveDocY - moveFrame.top) / moveFrame.height);
+            // Line-based selection: when dragging vertically across lines,
+            // snap X to page edge so the entire line gets selected
+            float lineHeight = 0.025f;
             if (draggedHandle < 0) {
-              selectStartX = nx;
+              // Start handle: if moved to a different line than the end, snap to left edge
+              if (Math.abs(ny - selectEndY) > lineHeight * 0.6f) {
+                selectStartX = 0f;
+              } else {
+                selectStartX = nx;
+              }
               selectStartY = ny;
             } else {
-              selectEndX = nx;
+              // End handle: if moved to a different line than the start, snap to right edge
+              if (Math.abs(ny - selectStartY) > lineHeight * 0.6f) {
+                selectEndX = 1f;
+              } else {
+                selectEndX = nx;
+              }
               selectEndY = ny;
             }
             performTextSelection();
@@ -554,8 +567,16 @@ public class PapyrusPdfViewerView extends View {
             }
           }
           if (moveFrame != null) {
-            selectEndX = clamp01((moveDocX - moveFrame.left) / moveFrame.width);
-            selectEndY = clamp01((moveDocY - moveFrame.top) / moveFrame.height);
+            float nx = clamp01((moveDocX - moveFrame.left) / moveFrame.width);
+            float ny = clamp01((moveDocY - moveFrame.top) / moveFrame.height);
+            // Line-based selection: snap to page edge when crossing lines
+            float lineHeight = 0.025f;
+            if (Math.abs(ny - selectStartY) > lineHeight * 0.6f) {
+              selectEndX = 1f;
+            } else {
+              selectEndX = nx;
+            }
+            selectEndY = ny;
             performTextSelection();
           }
         }

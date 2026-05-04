@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, View } from "react-native";
 import { useViewerStore } from "@papyrus-sdk/core";
 import { DocumentEngine } from "@papyrus-sdk/types";
 import { PapyrusPdfViewerView } from "@papyrus-sdk/engine-native";
-import { IconCopy } from "../icons";
+import { IconCopy, IconHighlight, IconUnderline, IconCommentBubble } from "../icons";
 
 const TEXT_MARKUP_TOOLS = new Set(["highlight", "underline", "squiggly", "strikeout"]);
 
@@ -138,8 +138,6 @@ export default function DedicatedAndroidPdfViewer({
               <Pressable
                 onPress={() => {
                   copySelection();
-                  setSelection(null);
-                  selectionRef.current = null;
                 }}
                 style={styles.toolbarButton}
               >
@@ -148,32 +146,26 @@ export default function DedicatedAndroidPdfViewer({
               <Pressable
                 onPress={() => {
                   applySelection("highlight");
-                  setSelection(null);
-                  selectionRef.current = null;
                 }}
                 style={styles.toolbarButton}
               >
-                <View style={[styles.swatch, { backgroundColor: annotationColor }]} />
+                <IconHighlight size={22} color="#fbbf24" />
               </Pressable>
               <Pressable
                 onPress={() => {
                   applySelection("underline");
-                  setSelection(null);
-                  selectionRef.current = null;
                 }}
                 style={styles.toolbarButton}
               >
-                <View style={[styles.underline, { backgroundColor: annotationColor }]} />
+                <IconUnderline size={22} color="#60a5fa" />
               </Pressable>
               <Pressable
                 onPress={() => {
                   applySelection("comment");
-                  setSelection(null);
-                  selectionRef.current = null;
                 }}
                 style={styles.toolbarButton}
               >
-                <View style={styles.commentDot} />
+                <IconCommentBubble size={22} color="#fff" />
               </Pressable>
             </View>
           </View>
@@ -228,21 +220,5 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 11,
     fontWeight: "700",
-  },
-  swatch: {
-    width: 20,
-    height: 20,
-    borderRadius: 4,
-  },
-  underline: {
-    width: 20,
-    height: 3,
-    borderRadius: 2,
-  },
-  commentDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: "#fff",
   },
 });
