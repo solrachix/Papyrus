@@ -77,6 +77,7 @@ export function SearchOverlay({
 
   const handleClose = () => {
     Keyboard.dismiss();
+    setSearch("", []);
     onClose();
   };
 

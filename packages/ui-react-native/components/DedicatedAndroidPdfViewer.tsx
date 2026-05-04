@@ -26,7 +26,15 @@ export default function DedicatedAndroidPdfViewer({
   const pageTheme = useViewerStore((state) => state.pageTheme);
   const zoom = useViewerStore((state) => state.zoom);
   const currentPage = useViewerStore((state) => state.currentPage);
+  const activeTool = useViewerStore((state) => state.activeTool);
+  const annotationColor = useViewerStore((state) => state.annotationColor);
+  const inkStrokeWidth = useViewerStore((state) => state.inkStrokeWidth);
+  const annotationOpacity = useViewerStore((state) => state.annotationOpacity);
+  const searchResults = useViewerStore((state) => state.searchResults);
+  const annotations = useViewerStore((state) => state.annotations);
   const setDocumentState = useViewerStore((state) => state.setDocumentState);
+  const addAnnotation = useViewerStore((state) => state.addAnnotation);
+  const setSelectedAnnotation = useViewerStore((state) => state.setSelectedAnnotation);
   const engineId = getDedicatedAndroidPdfEngineId(engine);
 
   if (!engineId) return null;
@@ -38,11 +46,23 @@ export default function DedicatedAndroidPdfViewer({
       pageTheme={pageTheme}
       zoom={zoom}
       currentPage={currentPage}
+      activeTool={activeTool}
+      annotationColor={annotationColor}
+      inkStrokeWidth={inkStrokeWidth}
+      annotationOpacity={annotationOpacity}
+      searchResults={searchResults}
+      annotations={annotations}
       onPageChanged={(event) => {
         setDocumentState({ currentPage: event.nativeEvent.page });
       }}
       onZoomChanged={(event) => {
         setDocumentState({ zoom: event.nativeEvent.zoom });
+      }}
+      onAnnotationCreated={(event) => {
+        addAnnotation(event.nativeEvent);
+      }}
+      onAnnotationTap={(event) => {
+        setSelectedAnnotation(event.nativeEvent.id);
       }}
     />
   );

@@ -7,6 +7,7 @@ import android.graphics.Color;
 import android.graphics.ColorMatrix;
 import android.graphics.ColorMatrixColorFilter;
 import android.graphics.Paint;
+import android.graphics.Path;
 import android.graphics.Rect;
 import android.os.Handler;
 import android.os.Looper;
@@ -21,6 +22,7 @@ import android.widget.OverScroller;
 
 import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.ReactContext;
+import com.facebook.react.bridge.WritableArray;
 import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.uimanager.events.RCTEventEmitter;
 import com.shockwave.pdfium.PdfDocument;
@@ -64,6 +66,10 @@ public class PapyrusPdfViewerView extends View {
   private final Map<Integer, Bitmap> lastPageBitmap = new HashMap<>();
   private String engineId;
   private String pageTheme = "normal";
+  private String activeTool = "select";
+  private String annotationColor = "#111827";
+  private float inkStrokeWidth = 0.006f;
+  private float annotationOpacity = 0.85f;
   private float zoom = 1.0f;
   private float offsetX = 0f;
   private float offsetY = 0f;
@@ -74,6 +80,14 @@ public class PapyrusPdfViewerView extends View {
   private boolean layoutDirty = true;
   private int renderGeneration = 0;
   private boolean wasScaling = false;
+  private boolean isDrawingInk = false;
+  private List<float[]> inkStrokePoints = new ArrayList<>();
+  private int inkStrokePageIndex = -1;
+  private long touchDownTime = 0;
+  private float touchDownX = 0;
+  private float touchDownY = 0;
+  private static final long TAP_MAX_DURATION_MS = 300;
+  private static final float TAP_MAX_DISTANCE_DP = 12;
   private final ReactContext reactContext;
   private final Handler eventThrottleHandler = new Handler(Looper.getMainLooper());
   private Runnable pendingZoomEvent;
@@ -127,6 +141,30 @@ public class PapyrusPdfViewerView extends View {
     invalidate();
   }
 
+  public void setActiveTool(String tool) {
+    String normalized = tool == null ? "select" : tool;
+    if (normalized.equals(activeTool)) return;
+    activeTool = normalized;
+    if (isDrawingInk) {
+      isDrawingInk = false;
+      inkStrokePoints.clear();
+      inkStrokePageIndex = -1;
+      invalidate();
+    }
+  }
+
+  public void setAnnotationColor(String color) {
+    annotationColor = color == null ? "#111827" : color;
+  }
+
+  public void setInkStrokeWidth(float width) {
+    inkStrokeWidth = width;
+  }
+
+  public void setAnnotationOpacity(float opacity) {
+    annotationOpacity = opacity;
+  }
+
   public void setZoom(float nextZoom) {
     float clamped = clamp(nextZoom, 0.5f, 5.0f);
     if (Math.abs(clamped - zoom) < 0.001f) return;
@@ -167,6 +205,14 @@ public class PapyrusPdfViewerView extends View {
   public boolean onTouchEvent(MotionEvent event) {
     scaleDetector.onTouchEvent(event);
 
+    if ("ink".equals(activeTool) && event.getPointerCount() == 1) {
+      return handleInkTouch(event);
+    }
+
+    if (("text".equals(activeTool) || "comment".equals(activeTool)) && event.getPointerCount() == 1) {
+      return handleTextCommentTouch(event);
+    }
+
     switch (event.getActionMasked()) {
       case MotionEvent.ACTION_DOWN:
         if (velocityTracker == null) {
@@ -179,6 +225,9 @@ public class PapyrusPdfViewerView extends View {
         removeCallbacks(flingRunnable);
         lastTouchX = event.getX();
         lastTouchY = event.getY();
+        touchDownTime = System.currentTimeMillis();
+        touchDownX = event.getX();
+        touchDownY = event.getY();
         return true;
       case MotionEvent.ACTION_MOVE:
         if (velocityTracker != null) {
@@ -225,10 +274,127 @@ public class PapyrusPdfViewerView extends View {
           velocityTracker.recycle();
           velocityTracker = null;
         }
+        if (event.getActionMasked() == MotionEvent.ACTION_UP) {
+          long duration = System.currentTimeMillis() - touchDownTime;
+          float dx = event.getX() - touchDownX;
+          float dy = event.getY() - touchDownY;
+          float distance = (float) Math.hypot(dx, dy);
+          float density = getResources().getDisplayMetrics().density;
+          if (duration < TAP_MAX_DURATION_MS && distance < TAP_MAX_DISTANCE_DP * density) {
+            ensureLayout();
+            float docX = event.getX() + offsetX;
+            float docY = event.getY() + offsetY;
+            int pageIdx = findPageIndexAt(docX, docY);
+            if (pageIdx >= 0) {
+              PageFrame frame = pageFrames.get(pageIdx);
+              float nx = (docX - frame.left) / frame.width;
+              float ny = (docY - frame.top) / frame.height;
+              Annotation hit = findAnnotationAt(pageIdx, nx, ny);
+              if (hit != null) {
+                emitAnnotationTap(hit);
+              } else {
+                emitTap(pageIdx, clamp01(nx), clamp01(ny));
+              }
+            }
+          }
+        }
         return true;
       default:
         return true;
     }
+  }
+
+  private boolean handleInkTouch(MotionEvent event) {
+    switch (event.getActionMasked()) {
+      case MotionEvent.ACTION_DOWN:
+        ensureLayout();
+        inkStrokePageIndex = findPageIndexAt(event.getX() + offsetX, event.getY() + offsetY);
+        if (inkStrokePageIndex < 0) return true;
+        isDrawingInk = true;
+        inkStrokePoints.clear();
+        addInkPoint(event.getX() + offsetX, event.getY() + offsetY);
+        invalidate();
+        return true;
+      case MotionEvent.ACTION_MOVE:
+        if (isDrawingInk && inkStrokePageIndex >= 0) {
+          addInkPoint(event.getX() + offsetX, event.getY() + offsetY);
+          invalidate();
+        }
+        return true;
+      case MotionEvent.ACTION_UP:
+      case MotionEvent.ACTION_CANCEL:
+        if (isDrawingInk && inkStrokePoints.size() >= 2) {
+          emitAnnotationCreated();
+        }
+        isDrawingInk = false;
+        inkStrokePoints.clear();
+        inkStrokePageIndex = -1;
+        invalidate();
+        return true;
+      default:
+        return true;
+    }
+  }
+
+  private boolean handleTextCommentTouch(MotionEvent event) {
+    switch (event.getActionMasked()) {
+      case MotionEvent.ACTION_DOWN:
+        touchDownTime = System.currentTimeMillis();
+        touchDownX = event.getX();
+        touchDownY = event.getY();
+        return true;
+      case MotionEvent.ACTION_UP:
+        long duration = System.currentTimeMillis() - touchDownTime;
+        float dx = event.getX() - touchDownX;
+        float dy = event.getY() - touchDownY;
+        float distance = (float) Math.hypot(dx, dy);
+        float density = getResources().getDisplayMetrics().density;
+        if (duration < TAP_MAX_DURATION_MS && distance < TAP_MAX_DISTANCE_DP * density) {
+          ensureLayout();
+          float docX = event.getX() + offsetX;
+          float docY = event.getY() + offsetY;
+          int pageIdx = findPageIndexAt(docX, docY);
+          if (pageIdx >= 0) {
+            PageFrame frame = pageFrames.get(pageIdx);
+            float nx = clamp01((docX - frame.left) / frame.width);
+            float ny = clamp01((docY - frame.top) / frame.height);
+            emitAnnotationCreatedForTool(activeTool, pageIdx, nx, ny);
+          }
+        }
+        return true;
+      default:
+        return true;
+    }
+  }
+
+  private int findPageIndexAt(float docX, float docY) {
+    for (PageFrame frame : pageFrames) {
+      if (docX >= frame.left && docX <= frame.left + frame.width &&
+          docY >= frame.top && docY <= frame.top + frame.height) {
+        return frame.index;
+      }
+    }
+    return -1;
+  }
+
+  private void addInkPoint(float docX, float docY) {
+    if (inkStrokePageIndex < 0 || inkStrokePageIndex >= pageFrames.size()) return;
+    PageFrame frame = pageFrames.get(inkStrokePageIndex);
+    float nx = (docX - frame.left) / frame.width;
+    float ny = (docY - frame.top) / frame.height;
+    if (nx < 0) nx = 0; else if (nx > 1) nx = 1;
+    if (ny < 0) ny = 0; else if (ny > 1) ny = 1;
+    if (inkStrokePoints.size() > 0) {
+      float[] last = inkStrokePoints.get(inkStrokePoints.size() - 1);
+      float dx = nx - last[0];
+      float dy = ny - last[1];
+      if (dx * dx + dy * dy < 0.00000064f) return;
+    }
+    inkStrokePoints.add(new float[] { nx, ny });
+  }
+
+  private static float clamp01(float value) {
+    return Math.max(0f, Math.min(1f, value));
   }
 
   @Override
@@ -272,6 +438,7 @@ public class PapyrusPdfViewerView extends View {
         }
         requestRender(frame, key);
       }
+      drawOverlays(canvas, frame, left, top);
     }
   }
 
@@ -314,6 +481,113 @@ public class PapyrusPdfViewerView extends View {
         pendingZoomEvent = null;
       };
       eventThrottleHandler.postDelayed(pendingZoomEvent, 120);
+    } catch (Throwable ignored) {
+    }
+  }
+
+  private void emitAnnotationCreated() {
+    try {
+      if (inkStrokePageIndex < 0 || inkStrokePoints.size() < 2) return;
+      float minX = 1f, minY = 1f, maxX = 0f, maxY = 0f;
+      for (float[] p : inkStrokePoints) {
+        if (p[0] < minX) minX = p[0];
+        if (p[0] > maxX) maxX = p[0];
+        if (p[1] < minY) minY = p[1];
+        if (p[1] > maxY) maxY = p[1];
+      }
+      float width = Math.max(0.0005f, maxX - minX);
+      float height = Math.max(0.0005f, maxY - minY);
+
+      WritableMap event = Arguments.createMap();
+      event.putString("id", java.util.UUID.randomUUID().toString().replace("-", "").substring(0, 7));
+      event.putInt("pageIndex", inkStrokePageIndex);
+      event.putString("type", "ink");
+      event.putString("color", annotationColor);
+
+      WritableMap rect = Arguments.createMap();
+      rect.putDouble("x", minX);
+      rect.putDouble("y", minY);
+      rect.putDouble("width", width);
+      rect.putDouble("height", height);
+      event.putMap("rect", rect);
+
+      WritableArray path = Arguments.createArray();
+      for (float[] p : inkStrokePoints) {
+        WritableMap point = Arguments.createMap();
+        point.putDouble("x", p[0]);
+        point.putDouble("y", p[1]);
+        path.pushMap(point);
+      }
+      event.putArray("path", path);
+      event.putDouble("opacity", annotationOpacity);
+      event.putDouble("strokeWidth", inkStrokeWidth);
+      event.putDouble("createdAt", System.currentTimeMillis());
+
+      reactContext.getJSModule(RCTEventEmitter.class)
+        .receiveEvent(getId(), "onAnnotationCreated", event);
+    } catch (Throwable ignored) {
+    }
+  }
+
+  private void emitTap(int pageIndex, float x, float y) {
+    try {
+      WritableMap event = Arguments.createMap();
+      event.putInt("pageIndex", pageIndex);
+      event.putDouble("x", x);
+      event.putDouble("y", y);
+      reactContext.getJSModule(RCTEventEmitter.class)
+        .receiveEvent(getId(), "onTap", event);
+    } catch (Throwable ignored) {
+    }
+  }
+
+  private void emitAnnotationCreatedForTool(String tool, int pageIndex, float nx, float ny) {
+    try {
+      WritableMap event = Arguments.createMap();
+      event.putString("id", java.util.UUID.randomUUID().toString().replace("-", "").substring(0, 7));
+      event.putInt("pageIndex", pageIndex);
+      event.putString("type", tool);
+      event.putString("color", annotationColor);
+
+      WritableMap rect = Arguments.createMap();
+      rect.putDouble("x", nx);
+      rect.putDouble("y", ny);
+      rect.putDouble("width", 0.05);
+      rect.putDouble("height", 0.02);
+      event.putMap("rect", rect);
+
+      event.putString("content", "");
+      event.putDouble("createdAt", System.currentTimeMillis());
+
+      reactContext.getJSModule(RCTEventEmitter.class)
+        .receiveEvent(getId(), "onAnnotationCreated", event);
+    } catch (Throwable ignored) {
+    }
+  }
+
+  private Annotation findAnnotationAt(int pageIndex, float nx, float ny) {
+    for (Annotation annotation : annotations) {
+      if (annotation.pageIndex != pageIndex) continue;
+      if (annotation.rects == null || annotation.rects.isEmpty()) continue;
+      for (NormalizedRect rect : annotation.rects) {
+        if (nx >= rect.x && nx <= rect.x + rect.width &&
+            ny >= rect.y && ny <= rect.y + rect.height) {
+          return annotation;
+        }
+      }
+    }
+    return null;
+  }
+
+  private void emitAnnotationTap(Annotation annotation) {
+    try {
+      WritableMap event = Arguments.createMap();
+      event.putString("id", annotation.id);
+      event.putInt("pageIndex", annotation.pageIndex);
+      event.putString("type", annotation.type);
+      event.putString("color", annotation.color);
+      reactContext.getJSModule(RCTEventEmitter.class)
+        .receiveEvent(getId(), "onAnnotationTap", event);
     } catch (Throwable ignored) {
     }
   }
@@ -488,6 +762,161 @@ public class PapyrusPdfViewerView extends View {
 
   private static ColorMatrixColorFilter createHighContrastFilter() {
     return createDarkFilter();
+  }
+
+  private final Paint overlayPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+  private List<SearchResult> searchResults = new ArrayList<>();
+  private List<Annotation> annotations = new ArrayList<>();
+
+  public void setSearchResults(List<SearchResult> results) {
+    searchResults = results != null ? results : new ArrayList<>();
+    invalidate();
+  }
+
+  public void setAnnotations(List<Annotation> items) {
+    annotations = items != null ? items : new ArrayList<>();
+    invalidate();
+  }
+
+  private void drawOverlays(Canvas canvas, PageFrame frame, int left, int top) {
+    float scaleX = frame.width;
+    float scaleY = frame.height;
+
+    for (SearchResult result : searchResults) {
+      if (result.pageIndex != frame.index) continue;
+      overlayPaint.setColor(Color.argb(128, 255, 220, 50));
+      for (NormalizedRect rect : result.rects) {
+        float rLeft = left + rect.x * scaleX;
+        float rTop = top + rect.y * scaleY;
+        float rRight = rLeft + rect.width * scaleX;
+        float rBottom = rTop + rect.height * scaleY;
+        canvas.drawRect(rLeft, rTop, rRight, rBottom, overlayPaint);
+      }
+    }
+
+    for (Annotation annotation : annotations) {
+      if (annotation.pageIndex != frame.index) continue;
+      int color = parseColor(annotation.color, Color.YELLOW);
+      if ("ink".equals(annotation.type) && annotation.path != null && annotation.path.size() >= 2) {
+        overlayPaint.setColor(color);
+        overlayPaint.setAlpha(Math.round(annotation.opacity * 255));
+        overlayPaint.setStyle(Paint.Style.STROKE);
+        overlayPaint.setStrokeCap(Paint.Cap.ROUND);
+        overlayPaint.setStrokeJoin(Paint.Join.ROUND);
+        float minScale = Math.min(scaleX, scaleY);
+        overlayPaint.setStrokeWidth(annotation.strokeWidth * minScale);
+        Path inkPath = new Path();
+        boolean first = true;
+        for (NormalizedPoint p : annotation.path) {
+          float px = left + p.x * scaleX;
+          float py = top + p.y * scaleY;
+          if (first) {
+            inkPath.moveTo(px, py);
+            first = false;
+          } else {
+            inkPath.lineTo(px, py);
+          }
+        }
+        canvas.drawPath(inkPath, overlayPaint);
+        overlayPaint.setAlpha(255);
+        overlayPaint.setStyle(Paint.Style.FILL);
+        continue;
+      }
+      overlayPaint.setColor(Color.argb(140, Color.red(color), Color.green(color), Color.blue(color)));
+      for (NormalizedRect rect : annotation.rects) {
+        float rLeft = left + rect.x * scaleX;
+        float rTop = top + rect.y * scaleY;
+        float rRight = rLeft + rect.width * scaleX;
+        float rBottom = rTop + rect.height * scaleY;
+        if ("underline".equals(annotation.type)) {
+          canvas.drawLine(rLeft, rBottom - 2, rRight, rBottom - 2, overlayPaint);
+        } else if ("strikeout".equals(annotation.type)) {
+          canvas.drawLine(rLeft, (rTop + rBottom) / 2f, rRight, (rTop + rBottom) / 2f, overlayPaint);
+        } else {
+          canvas.drawRect(rLeft, rTop, rRight, rBottom, overlayPaint);
+        }
+      }
+    }
+
+    if (isDrawingInk && inkStrokePageIndex == frame.index && inkStrokePoints.size() >= 2) {
+      overlayPaint.setColor(parseColor(annotationColor, Color.BLACK));
+      overlayPaint.setAlpha(Math.round(annotationOpacity * 255));
+      overlayPaint.setStyle(Paint.Style.STROKE);
+      overlayPaint.setStrokeCap(Paint.Cap.ROUND);
+      overlayPaint.setStrokeJoin(Paint.Join.ROUND);
+      float minScale = Math.min(scaleX, scaleY);
+      overlayPaint.setStrokeWidth(inkStrokeWidth * minScale);
+      Path activePath = new Path();
+      boolean first = true;
+      for (float[] p : inkStrokePoints) {
+        float px = left + p[0] * scaleX;
+        float py = top + p[1] * scaleY;
+        if (first) {
+          activePath.moveTo(px, py);
+          first = false;
+        } else {
+          activePath.lineTo(px, py);
+        }
+      }
+      canvas.drawPath(activePath, overlayPaint);
+      overlayPaint.setAlpha(255);
+      overlayPaint.setStyle(Paint.Style.FILL);
+    }
+  }
+
+  private static int parseColor(String colorString, int fallback) {
+    try {
+      return Color.parseColor(colorString);
+    } catch (IllegalArgumentException ignored) {
+      return fallback;
+    }
+  }
+
+  static final class NormalizedRect {
+    final float x, y, width, height;
+    NormalizedRect(float x, float y, float width, float height) {
+      this.x = x; this.y = y; this.width = width; this.height = height;
+    }
+  }
+
+  static final class SearchResult {
+    final int pageIndex;
+    final List<NormalizedRect> rects;
+    SearchResult(int pageIndex, List<NormalizedRect> rects) {
+      this.pageIndex = pageIndex;
+      this.rects = rects;
+    }
+  }
+
+  static final class Annotation {
+    final String id;
+    final int pageIndex;
+    final String type;
+    final String color;
+    final List<NormalizedRect> rects;
+    final List<NormalizedPoint> path;
+    final float strokeWidth;
+    final float opacity;
+    Annotation(String id, int pageIndex, String type, String color, List<NormalizedRect> rects) {
+      this(id, pageIndex, type, color, rects, null, 0.006f, 0.85f);
+    }
+    Annotation(String id, int pageIndex, String type, String color, List<NormalizedRect> rects, List<NormalizedPoint> path, float strokeWidth, float opacity) {
+      this.id = id;
+      this.pageIndex = pageIndex;
+      this.type = type;
+      this.color = color;
+      this.rects = rects;
+      this.path = path;
+      this.strokeWidth = strokeWidth;
+      this.opacity = opacity;
+    }
+  }
+
+  static final class NormalizedPoint {
+    final float x, y;
+    NormalizedPoint(float x, float y) {
+      this.x = x; this.y = y;
+    }
   }
 
   private static final class PageFrame {

@@ -24,6 +24,7 @@ import {
   SearchResult,
   TextSelection,
   PageTheme,
+  Annotation,
 } from "@papyrus-sdk/types";
 
 const MODULE_NAME = "PapyrusNativeEngine";
@@ -251,8 +252,17 @@ export type PapyrusPdfViewerViewProps = ViewProps & {
   pageTheme?: PageTheme;
   zoom?: number;
   currentPage?: number;
+  activeTool?: string;
+  annotationColor?: string;
+  inkStrokeWidth?: number;
+  annotationOpacity?: number;
+  searchResults?: SearchResult[];
+  annotations?: Annotation[];
   onPageChanged?: (event: { nativeEvent: { page: number } }) => void;
   onZoomChanged?: (event: { nativeEvent: { zoom: number } }) => void;
+  onAnnotationCreated?: (event: { nativeEvent: Annotation }) => void;
+  onTap?: (event: { nativeEvent: { pageIndex: number; x: number; y: number } }) => void;
+  onAnnotationTap?: (event: { nativeEvent: { id: string; pageIndex: number; type: string; color: string } }) => void;
 };
 
 type PapyrusPageViewComponent = ComponentType<
