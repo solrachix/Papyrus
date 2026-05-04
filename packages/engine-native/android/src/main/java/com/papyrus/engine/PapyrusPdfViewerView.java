@@ -122,6 +122,7 @@ public class PapyrusPdfViewerView extends View {
   private final ReactContext reactContext;
   private final Handler eventThrottleHandler = new Handler(Looper.getMainLooper());
   private Runnable pendingZoomEvent;
+  private Runnable pendingScrollEvent;
   private final OverScroller flingScroller;
   private VelocityTracker velocityTracker;
   private final Runnable flingRunnable = new Runnable() {
@@ -131,6 +132,7 @@ public class PapyrusPdfViewerView extends View {
         offsetX = flingScroller.getCurrX();
         offsetY = flingScroller.getCurrY();
         clampOffsets();
+        emitScrollEvent(offsetY);
         invalidate();
         postOnAnimation(this);
       } else {
@@ -295,6 +297,7 @@ public class PapyrusPdfViewerView extends View {
           offsetX += lastTouchX - event.getX();
           offsetY += lastTouchY - event.getY();
           clampOffsets();
+          emitScrollEvent(offsetY);
           invalidate();
         }
         lastTouchX = event.getX();
@@ -549,6 +552,7 @@ public class PapyrusPdfViewerView extends View {
             offsetX += lastTouchX - event.getX();
             offsetY += lastTouchY - event.getY();
             clampOffsets();
+            emitScrollEvent(offsetY);
             invalidate();
           }
           lastTouchX = event.getX();
@@ -1237,6 +1241,23 @@ public class PapyrusPdfViewerView extends View {
   private void clampOffsets() {
     offsetX = clamp(offsetX, 0f, Math.max(0f, contentWidth - getWidth()));
     offsetY = clamp(offsetY, 0f, Math.max(0f, contentHeight - getHeight()));
+  }
+
+  private void emitScrollEvent(float offsetYValue) {
+    try {
+      if (pendingScrollEvent != null) {
+        eventThrottleHandler.removeCallbacks(pendingScrollEvent);
+      }
+      pendingScrollEvent = () -> {
+        WritableMap event = Arguments.createMap();
+        event.putDouble("offsetY", offsetYValue);
+        reactContext.getJSModule(RCTEventEmitter.class)
+          .receiveEvent(getId(), "onScroll", event);
+        pendingScrollEvent = null;
+      };
+      eventThrottleHandler.postDelayed(pendingScrollEvent, 16);
+    } catch (Throwable ignored) {
+    }
   }
 
   private static float clamp(float value, float min, float max) {

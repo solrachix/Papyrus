@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { useViewerStore } from "@papyrus-sdk/core";
 import { DocumentEngine } from "@papyrus-sdk/types";
@@ -6,6 +6,11 @@ import { PapyrusPdfViewerView } from "@papyrus-sdk/engine-native";
 import { IconCopy, IconHighlight, IconUnderline, IconCommentBubble } from "../icons";
 
 const TEXT_MARKUP_TOOLS = new Set(["highlight", "underline", "squiggly", "strikeout"]);
+
+const MOBILE_CHROME_HIDE_DELTA = 28;
+const MOBILE_CHROME_SHOW_DELTA = 22;
+const MOBILE_CHROME_SHOW_DELAY_MS = 180;
+const MOBILE_CHROME_TOP_RESET = 16;
 
 type NativeEngineBackdoor = {
   getNativeEngineId?: () => string;
@@ -48,6 +53,79 @@ export default function DedicatedAndroidPdfViewer({
 
   const [selection, setSelection] = useState<SelectionState>(null);
   const selectionRef = useRef<SelectionState>(null);
+
+  // Mobile chrome auto-hide tracking (replicates Viewer.tsx trackMobileChromeByOffset)
+  const lastScrollOffsetYRef = useRef(0);
+  const scrollDownAccumRef = useRef(0);
+  const scrollUpAccumRef = useRef(0);
+  const pendingChromeShowTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const chromeVisibleRef = useRef(true);
+
+  const clearPendingChromeShow = useCallback(() => {
+    if (pendingChromeShowTimeoutRef.current) {
+      clearTimeout(pendingChromeShowTimeoutRef.current);
+      pendingChromeShowTimeoutRef.current = null;
+    }
+  }, []);
+
+  const setMobileChromeVisible = useCallback((visible: boolean, reason: string) => {
+    if (chromeVisibleRef.current === visible) return;
+    chromeVisibleRef.current = visible;
+    setDocumentState({ mobileChromeVisible: visible });
+  }, [setDocumentState]);
+
+  const trackMobileChromeByOffset = useCallback((offsetY: number, reasonPrefix: string) => {
+    const safeOffset = Math.max(0, offsetY);
+    const delta = safeOffset - lastScrollOffsetYRef.current;
+    lastScrollOffsetYRef.current = safeOffset;
+
+    if (safeOffset <= MOBILE_CHROME_TOP_RESET) {
+      scrollDownAccumRef.current = 0;
+      scrollUpAccumRef.current = 0;
+      clearPendingChromeShow();
+      setMobileChromeVisible(true, `${reasonPrefix}.top`);
+      return;
+    }
+
+    if (Math.abs(delta) < 1) return;
+
+    if (delta > 0) {
+      scrollDownAccumRef.current += delta;
+      scrollUpAccumRef.current = 0;
+      clearPendingChromeShow();
+      if (
+        scrollDownAccumRef.current >= MOBILE_CHROME_HIDE_DELTA &&
+        chromeVisibleRef.current
+      ) {
+        scrollDownAccumRef.current = 0;
+        setMobileChromeVisible(false, `${reasonPrefix}.hide`);
+      }
+      return;
+    }
+
+    scrollUpAccumRef.current += -delta;
+    scrollDownAccumRef.current = 0;
+    if (
+      scrollUpAccumRef.current >= MOBILE_CHROME_SHOW_DELTA &&
+      !chromeVisibleRef.current
+    ) {
+      if (!pendingChromeShowTimeoutRef.current) {
+        pendingChromeShowTimeoutRef.current = setTimeout(() => {
+          pendingChromeShowTimeoutRef.current = null;
+          scrollUpAccumRef.current = 0;
+          if (!chromeVisibleRef.current) {
+            setMobileChromeVisible(true, `${reasonPrefix}.show`);
+          }
+        }, MOBILE_CHROME_SHOW_DELAY_MS);
+      }
+    }
+  }, [clearPendingChromeShow, setMobileChromeVisible]);
+
+  useEffect(() => {
+    return () => {
+      clearPendingChromeShow();
+    };
+  }, [clearPendingChromeShow]);
 
   const applySelection = useCallback((type: "highlight" | "underline" | "squiggly" | "strikeout" | "comment") => {
     const sel = selectionRef.current;
@@ -122,6 +200,9 @@ export default function DedicatedAndroidPdfViewer({
           if (TEXT_MARKUP_TOOLS.has(activeTool)) {
             applySelection(activeTool as "highlight" | "underline" | "squiggly" | "strikeout");
           }
+        }}
+        onScroll={(event) => {
+          trackMobileChromeByOffset(event.nativeEvent.offsetY, "native.scroll");
         }}
       />
       {selection && (
