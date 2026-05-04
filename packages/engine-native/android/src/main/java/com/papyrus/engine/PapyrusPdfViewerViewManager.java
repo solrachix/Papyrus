@@ -65,6 +65,13 @@ public class PapyrusPdfViewerViewManager extends SimpleViewManager<PapyrusPdfVie
           com.facebook.react.common.MapBuilder.of("bubbled", "onAnnotationTap")
         )
       )
+      .put(
+        "onTextSelected",
+        com.facebook.react.common.MapBuilder.of(
+          "phasedRegistrationNames",
+          com.facebook.react.common.MapBuilder.of("bubbled", "onTextSelected")
+        )
+      )
       .build();
   }
 

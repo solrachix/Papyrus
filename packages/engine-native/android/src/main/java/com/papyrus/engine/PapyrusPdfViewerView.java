@@ -88,6 +88,37 @@ public class PapyrusPdfViewerView extends View {
   private float touchDownY = 0;
   private static final long TAP_MAX_DURATION_MS = 300;
   private static final float TAP_MAX_DISTANCE_DP = 12;
+
+  // Text selection state
+  private boolean isSelectingText = false;
+  private int selectPageIndex = -1;
+  private float selectStartX = 0;
+  private float selectStartY = 0;
+  private float selectEndX = 0;
+  private float selectEndY = 0;
+  private String selectedText = "";
+  private List<NormalizedRect> selectedRects = new ArrayList<>();
+  private final ExecutorService SELECT_EXECUTOR = Executors.newSingleThreadExecutor();
+  private final Handler mainHandler = new Handler(Looper.getMainLooper());
+
+  // Double-tap detection for text selection
+  private long lastTapTime = 0;
+  private float lastTapX = 0;
+  private float lastTapY = 0;
+  private static final long DOUBLE_TAP_MAX_DELTA_MS = 250;
+  private static final float DOUBLE_TAP_MAX_DISTANCE_DP = 20;
+  private Runnable pendingSingleTap;
+
+  // Long-press detection
+  private static final long LONG_PRESS_MS = 450;
+  private Runnable pendingLongPress;
+  private boolean longPressFired = false;
+
+  // Selection handles
+  private static final float HANDLE_RADIUS_DP = 10;
+  private static final int HANDLE_COLOR = Color.parseColor("#4285F4");
+  private int draggedHandle = 0; // 0 = none, -1 = start handle, 1 = end handle
+
   private final ReactContext reactContext;
   private final Handler eventThrottleHandler = new Handler(Looper.getMainLooper());
   private Runnable pendingZoomEvent;
@@ -151,6 +182,13 @@ public class PapyrusPdfViewerView extends View {
       inkStrokePageIndex = -1;
       invalidate();
     }
+    if (isSelectingText || !selectedRects.isEmpty()) {
+      isSelectingText = false;
+      selectPageIndex = -1;
+      selectedRects.clear();
+      selectedText = "";
+      invalidate();
+    }
   }
 
   public void setAnnotationColor(String color) {
@@ -163,6 +201,19 @@ public class PapyrusPdfViewerView extends View {
 
   public void setAnnotationOpacity(float opacity) {
     annotationOpacity = opacity;
+  }
+
+  private long extractNativeDocPointer(PdfDocument document) {
+    try {
+      java.lang.reflect.Field field = PdfDocument.class.getDeclaredField("mNativeDocPtr");
+      field.setAccessible(true);
+      Object value = field.get(document);
+      if (value instanceof Long) {
+        return (Long) value;
+      }
+    } catch (Throwable ignored) {
+    }
+    return 0;
   }
 
   public void setZoom(float nextZoom) {
@@ -211,6 +262,13 @@ public class PapyrusPdfViewerView extends View {
 
     if (("text".equals(activeTool) || "comment".equals(activeTool)) && event.getPointerCount() == 1) {
       return handleTextCommentTouch(event);
+    }
+
+    if ("select".equals(activeTool) && event.getPointerCount() == 1) {
+      boolean consumed = handleSelectTouch(event);
+      if (consumed) return true;
+      // Not consumed: let React Native handle the touch (e.g. toolbar buttons)
+      return false;
     }
 
     switch (event.getActionMasked()) {
@@ -364,6 +422,450 @@ public class PapyrusPdfViewerView extends View {
         return true;
       default:
         return true;
+    }
+  }
+
+  private boolean handleSelectTouch(MotionEvent event) {
+    float density = getResources().getDisplayMetrics().density;
+    switch (event.getActionMasked()) {
+      case MotionEvent.ACTION_DOWN:
+        touchDownTime = System.currentTimeMillis();
+        touchDownX = event.getX();
+        touchDownY = event.getY();
+        longPressFired = false;
+        draggedHandle = 0;
+
+        // Check if touching a selection handle
+        if (isSelectingText && selectPageIndex >= 0 && !selectedRects.isEmpty()) {
+          int handleHit = hitTestHandle(event.getX(), event.getY(), density);
+          if (handleHit != 0) {
+            draggedHandle = handleHit;
+            if (velocityTracker != null) {
+              velocityTracker.recycle();
+              velocityTracker = null;
+            }
+            return true;
+          }
+          // If selection is active and touch is NOT on a handle, check if it's on the selection
+          if (!hitTestSelection(event.getX(), event.getY())) {
+            // Touch outside selection area: let React Native handle it (toolbar buttons)
+            return false;
+          }
+        }
+
+        if (velocityTracker == null) {
+          velocityTracker = VelocityTracker.obtain();
+        } else {
+          velocityTracker.clear();
+        }
+        velocityTracker.addMovement(event);
+        flingScroller.abortAnimation();
+        removeCallbacks(flingRunnable);
+        lastTouchX = event.getX();
+        lastTouchY = event.getY();
+
+        // Start long-press timer
+        pendingLongPress = () -> {
+          pendingLongPress = null;
+          longPressFired = true;
+          // Long press: select word at this point
+          ensureLayout();
+          float docX = touchDownX + offsetX;
+          float docY = touchDownY + offsetY;
+          int pageIdx = findPageIndexAt(docX, docY);
+          if (pageIdx >= 0) {
+            PageFrame frame = pageFrames.get(pageIdx);
+            float nx = clamp01((docX - frame.left) / frame.width);
+            float ny = clamp01((docY - frame.top) / frame.height);
+            isSelectingText = true;
+            selectPageIndex = pageIdx;
+            selectStartX = nx;
+            selectStartY = ny;
+            selectEndX = nx;
+            selectEndY = ny;
+            performWordSelection();
+          }
+        };
+        mainHandler.postDelayed(pendingLongPress, LONG_PRESS_MS);
+        return true;
+
+      case MotionEvent.ACTION_MOVE:
+        if (pendingLongPress != null) {
+          float cancelDx = event.getX() - touchDownX;
+          float cancelDy = event.getY() - touchDownY;
+          if (Math.hypot(cancelDx, cancelDy) > TAP_MAX_DISTANCE_DP * density) {
+            mainHandler.removeCallbacks(pendingLongPress);
+            pendingLongPress = null;
+          }
+        }
+
+        if (draggedHandle != 0 && isSelectingText && selectPageIndex >= 0) {
+          ensureLayout();
+          float moveDocX = event.getX() + offsetX;
+          float moveDocY = event.getY() + offsetY;
+          PageFrame moveFrame = null;
+          for (PageFrame f : pageFrames) {
+            if (f.index == selectPageIndex) {
+              moveFrame = f;
+              break;
+            }
+          }
+          if (moveFrame != null) {
+            float nx = clamp01((moveDocX - moveFrame.left) / moveFrame.width);
+            float ny = clamp01((moveDocY - moveFrame.top) / moveFrame.height);
+            if (draggedHandle < 0) {
+              selectStartX = nx;
+              selectStartY = ny;
+            } else {
+              selectEndX = nx;
+              selectEndY = ny;
+            }
+            performTextSelection();
+          }
+          return true;
+        }
+
+        if (velocityTracker != null) {
+          velocityTracker.addMovement(event);
+        }
+        float moveDx = event.getX() - touchDownX;
+        float moveDy = event.getY() - touchDownY;
+        float moveDistance = (float) Math.hypot(moveDx, moveDy);
+        if (!isSelectingText && moveDistance > TAP_MAX_DISTANCE_DP * density) {
+          if (!scaleDetector.isInProgress() && event.getPointerCount() == 1) {
+            offsetX += lastTouchX - event.getX();
+            offsetY += lastTouchY - event.getY();
+            clampOffsets();
+            invalidate();
+          }
+          lastTouchX = event.getX();
+          lastTouchY = event.getY();
+          return true;
+        }
+        if (isSelectingText && selectPageIndex >= 0) {
+          ensureLayout();
+          float moveDocX = event.getX() + offsetX;
+          float moveDocY = event.getY() + offsetY;
+          PageFrame moveFrame = null;
+          for (PageFrame f : pageFrames) {
+            if (f.index == selectPageIndex) {
+              moveFrame = f;
+              break;
+            }
+          }
+          if (moveFrame != null) {
+            selectEndX = clamp01((moveDocX - moveFrame.left) / moveFrame.width);
+            selectEndY = clamp01((moveDocY - moveFrame.top) / moveFrame.height);
+            performTextSelection();
+          }
+        }
+        lastTouchX = event.getX();
+        lastTouchY = event.getY();
+        return true;
+
+      case MotionEvent.ACTION_UP:
+      case MotionEvent.ACTION_CANCEL:
+        if (pendingLongPress != null) {
+          mainHandler.removeCallbacks(pendingLongPress);
+          pendingLongPress = null;
+        }
+
+        draggedHandle = 0;
+
+        if (!scaleDetector.isInProgress() && velocityTracker != null) {
+          velocityTracker.addMovement(event);
+          velocityTracker.computeCurrentVelocity(1000, 8000);
+          float velocityX = velocityTracker.getXVelocity();
+          float velocityY = velocityTracker.getYVelocity();
+          if (Math.abs(velocityX) > 200 || Math.abs(velocityY) > 200) {
+            flingScroller.fling(
+              Math.round(offsetX),
+              Math.round(offsetY),
+              Math.round(-velocityX),
+              Math.round(-velocityY),
+              0,
+              Math.max(0, Math.round(contentWidth - getWidth())),
+              0,
+              Math.max(0, Math.round(contentHeight - getHeight()))
+            );
+            postOnAnimation(flingRunnable);
+          }
+          velocityTracker.recycle();
+          velocityTracker = null;
+        }
+
+        long duration = System.currentTimeMillis() - touchDownTime;
+        float upDx = event.getX() - touchDownX;
+        float upDy = event.getY() - touchDownY;
+        float upDistance = (float) Math.hypot(upDx, upDy);
+
+        if (longPressFired || duration > TAP_MAX_DURATION_MS || upDistance > TAP_MAX_DISTANCE_DP * density) {
+          if (isSelectingText && !longPressFired) {
+            emitTextSelected();
+          }
+          return true;
+        }
+
+        long now = System.currentTimeMillis();
+        float tapDx = event.getX() - lastTapX;
+        float tapDy = event.getY() - lastTapY;
+        float tapDistance = (float) Math.hypot(tapDx, tapDy);
+        boolean isDoubleTap = (now - lastTapTime) < DOUBLE_TAP_MAX_DELTA_MS && tapDistance < DOUBLE_TAP_MAX_DISTANCE_DP * density;
+
+        if (pendingSingleTap != null) {
+          mainHandler.removeCallbacks(pendingSingleTap);
+          pendingSingleTap = null;
+        }
+
+        if (isDoubleTap) {
+          lastTapTime = 0;
+          ensureLayout();
+          float docX = event.getX() + offsetX;
+          float docY = event.getY() + offsetY;
+          int pageIdx = findPageIndexAt(docX, docY);
+          if (pageIdx >= 0) {
+            PageFrame frame = pageFrames.get(pageIdx);
+            float nx = clamp01((docX - frame.left) / frame.width);
+            float ny = clamp01((docY - frame.top) / frame.height);
+            isSelectingText = true;
+            selectPageIndex = pageIdx;
+            selectStartX = nx;
+            selectStartY = ny;
+            selectEndX = nx;
+            selectEndY = ny;
+            performTextSelection();
+          }
+        } else {
+          lastTapTime = now;
+          lastTapX = event.getX();
+          lastTapY = event.getY();
+          pendingSingleTap = () -> {
+            pendingSingleTap = null;
+            if (isSelectingText) {
+              isSelectingText = false;
+              selectPageIndex = -1;
+              selectedRects.clear();
+              selectedText = "";
+              invalidate();
+            }
+          };
+          mainHandler.postDelayed(pendingSingleTap, DOUBLE_TAP_MAX_DELTA_MS + 50);
+        }
+        return true;
+      default:
+        return true;
+    }
+  }
+
+  private boolean hitTestSelection(float screenX, float screenY) {
+    if (!isSelectingText || selectPageIndex < 0 || selectedRects.isEmpty()) return false;
+    PageFrame frame = null;
+    for (PageFrame f : pageFrames) {
+      if (f.index == selectPageIndex) {
+        frame = f;
+        break;
+      }
+    }
+    if (frame == null) return false;
+
+    float nx = clamp01((screenX + offsetX - frame.left) / frame.width);
+    float ny = clamp01((screenY + offsetY - frame.top) / frame.height);
+
+    // Check if point is inside any selected rect
+    for (NormalizedRect rect : selectedRects) {
+      if (nx >= rect.x && nx <= rect.x + rect.width &&
+          ny >= rect.y && ny <= rect.y + rect.height) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private int hitTestHandle(float screenX, float screenY, float density) {
+    if (selectedRects.isEmpty() || selectPageIndex < 0) return 0;
+    PageFrame frame = null;
+    for (PageFrame f : pageFrames) {
+      if (f.index == selectPageIndex) {
+        frame = f;
+        break;
+      }
+    }
+    if (frame == null) return 0;
+
+    float radius = HANDLE_RADIUS_DP * density * 1.8f;
+
+    // Start handle: top-left of first rect
+    NormalizedRect first = selectedRects.get(0);
+    float startX = Math.round(frame.left - offsetX + first.x * frame.width);
+    float startY = Math.round(frame.top - offsetY + first.y * frame.height);
+    if (Math.hypot(screenX - startX, screenY - startY) < radius) return -1;
+
+    // End handle: bottom-right of last rect
+    NormalizedRect last = selectedRects.get(selectedRects.size() - 1);
+    float endX = Math.round(frame.left - offsetX + (last.x + last.width) * frame.width);
+    float endY = Math.round(frame.top - offsetY + (last.y + last.height) * frame.height);
+    if (Math.hypot(screenX - endX, screenY - endY) < radius) return 1;
+
+    return 0;
+  }
+
+  private void performWordSelection() {
+    if (selectPageIndex < 0) return;
+    PapyrusEngineStore.EngineState state = PapyrusEngineStore.getEngine(engineId);
+    if (state == null || state.document == null) return;
+    if (!PapyrusTextSelect.AVAILABLE) return;
+
+    // Use a larger rect to capture the whole word
+    float wordW = 0.05f;
+    float wordH = 0.03f;
+    float minX = Math.max(0f, selectStartX - wordW / 2f);
+    float minY = Math.max(0f, selectStartY - wordH / 2f);
+    float maxX = Math.min(1f, selectStartX + wordW / 2f);
+    float maxY = Math.min(1f, selectStartY + wordH / 2f);
+
+    final int pageIdx = selectPageIndex;
+    final float selX = minX;
+    final float selY = minY;
+    final float selW = Math.max(0.001f, maxX - minX);
+    final float selH = Math.max(0.001f, maxY - minY);
+
+    final String sourcePath = state.sourcePath;
+    SELECT_EXECUTOR.execute(() -> {
+      PapyrusTextSelection selection = null;
+      try {
+        if (sourcePath != null && !sourcePath.isEmpty()) {
+          synchronized (state.pdfiumLock) {
+            selection = PapyrusTextSelect.nativeSelectTextFile(sourcePath, pageIdx, selX, selY, selW, selH);
+          }
+        } else {
+          long docPtr;
+          synchronized (state.pdfiumLock) {
+            docPtr = extractNativeDocPointer(state.document);
+          }
+          if (docPtr != 0) {
+            synchronized (state.pdfiumLock) {
+              selection = PapyrusTextSelect.nativeSelectText(docPtr, pageIdx, selX, selY, selW, selH);
+            }
+          }
+        }
+      } catch (Throwable ignored) {
+      }
+
+      final PapyrusTextSelection finalSelection = selection;
+      mainHandler.post(() -> {
+        if (!isSelectingText && selectPageIndex != pageIdx) return;
+        selectedRects.clear();
+        if (finalSelection != null && finalSelection.rects != null && finalSelection.rects.length >= 4) {
+          selectedText = finalSelection.text != null ? finalSelection.text : "";
+          for (int i = 0; i + 3 < finalSelection.rects.length; i += 4) {
+            selectedRects.add(new NormalizedRect(
+              finalSelection.rects[i],
+              finalSelection.rects[i + 1],
+              finalSelection.rects[i + 2],
+              finalSelection.rects[i + 3]
+            ));
+          }
+          // Set selection bounds to cover the word
+          if (!selectedRects.isEmpty()) {
+            float sx = selectedRects.get(0).x;
+            float sy = selectedRects.get(0).y;
+            float ex = selectedRects.get(selectedRects.size() - 1).x + selectedRects.get(selectedRects.size() - 1).width;
+            float ey = selectedRects.get(selectedRects.size() - 1).y + selectedRects.get(selectedRects.size() - 1).height;
+            selectStartX = sx;
+            selectStartY = sy;
+            selectEndX = ex;
+            selectEndY = ey;
+          }
+        } else {
+          selectedText = "";
+        }
+        invalidate();
+      });
+    });
+  }
+
+  private void performTextSelection() {
+    if (selectPageIndex < 0) return;
+    PapyrusEngineStore.EngineState state = PapyrusEngineStore.getEngine(engineId);
+    if (state == null || state.document == null) return;
+    if (!PapyrusTextSelect.AVAILABLE) return;
+
+    float minX = Math.min(selectStartX, selectEndX);
+    float minY = Math.min(selectStartY, selectEndY);
+    float maxX = Math.max(selectStartX, selectEndX);
+    float maxY = Math.max(selectStartY, selectEndY);
+    float width = Math.max(0.001f, maxX - minX);
+    float height = Math.max(0.001f, maxY - minY);
+
+    final int pageIdx = selectPageIndex;
+    final float selX = minX;
+    final float selY = minY;
+    final float selW = width;
+    final float selH = height;
+
+    final String sourcePath = state.sourcePath;
+    SELECT_EXECUTOR.execute(() -> {
+      PapyrusTextSelection selection = null;
+      try {
+        if (sourcePath != null && !sourcePath.isEmpty()) {
+          synchronized (state.pdfiumLock) {
+            selection = PapyrusTextSelect.nativeSelectTextFile(sourcePath, pageIdx, selX, selY, selW, selH);
+          }
+        } else {
+          long docPtr;
+          synchronized (state.pdfiumLock) {
+            docPtr = extractNativeDocPointer(state.document);
+          }
+          if (docPtr != 0) {
+            synchronized (state.pdfiumLock) {
+              selection = PapyrusTextSelect.nativeSelectText(docPtr, pageIdx, selX, selY, selW, selH);
+            }
+          }
+        }
+      } catch (Throwable ignored) {
+      }
+
+      final PapyrusTextSelection finalSelection = selection;
+      mainHandler.post(() -> {
+        if (!isSelectingText && selectPageIndex != pageIdx) return;
+        selectedRects.clear();
+        if (finalSelection != null && finalSelection.rects != null && finalSelection.rects.length >= 4) {
+          selectedText = finalSelection.text != null ? finalSelection.text : "";
+          for (int i = 0; i + 3 < finalSelection.rects.length; i += 4) {
+            selectedRects.add(new NormalizedRect(
+              finalSelection.rects[i],
+              finalSelection.rects[i + 1],
+              finalSelection.rects[i + 2],
+              finalSelection.rects[i + 3]
+            ));
+          }
+        } else {
+          selectedText = "";
+        }
+        invalidate();
+      });
+    });
+  }
+
+  private void emitTextSelected() {
+    try {
+      if (selectedRects.isEmpty()) return;
+      WritableMap event = Arguments.createMap();
+      event.putString("text", selectedText);
+      event.putInt("pageIndex", selectPageIndex);
+      WritableArray rects = Arguments.createArray();
+      for (NormalizedRect rect : selectedRects) {
+        WritableMap r = Arguments.createMap();
+        r.putDouble("x", rect.x);
+        r.putDouble("y", rect.y);
+        r.putDouble("width", rect.width);
+        r.putDouble("height", rect.height);
+        rects.pushMap(r);
+      }
+      event.putArray("rects", rects);
+      reactContext.getJSModule(RCTEventEmitter.class)
+        .receiveEvent(getId(), "onTextSelected", event);
+    } catch (Throwable ignored) {
     }
   }
 
@@ -792,6 +1294,33 @@ public class PapyrusPdfViewerView extends View {
         float rBottom = rTop + rect.height * scaleY;
         canvas.drawRect(rLeft, rTop, rRight, rBottom, overlayPaint);
       }
+    }
+
+    if (selectPageIndex == frame.index && !selectedRects.isEmpty()) {
+      overlayPaint.setColor(Color.argb(120, 66, 133, 244));
+      for (NormalizedRect rect : selectedRects) {
+        float rLeft = left + rect.x * scaleX;
+        float rTop = top + rect.y * scaleY;
+        float rRight = rLeft + rect.width * scaleX;
+        float rBottom = rTop + rect.height * scaleY;
+        canvas.drawRect(rLeft, rTop, rRight, rBottom, overlayPaint);
+      }
+      // Draw selection handles
+      float density = getResources().getDisplayMetrics().density;
+      float radius = HANDLE_RADIUS_DP * density;
+      overlayPaint.setColor(HANDLE_COLOR);
+      overlayPaint.setStyle(Paint.Style.FILL);
+      // Start handle (top-left of first rect)
+      NormalizedRect firstRect = selectedRects.get(0);
+      float hStartCx = left + firstRect.x * scaleX;
+      float hStartCy = top + firstRect.y * scaleY;
+      canvas.drawCircle(hStartCx, hStartCy, radius, overlayPaint);
+      // End handle (bottom-right of last rect)
+      NormalizedRect lastRect = selectedRects.get(selectedRects.size() - 1);
+      float hEndCx = left + (lastRect.x + lastRect.width) * scaleX;
+      float hEndCy = top + (lastRect.y + lastRect.height) * scaleY;
+      canvas.drawCircle(hEndCx, hEndCy, radius, overlayPaint);
+      overlayPaint.setStyle(Paint.Style.FILL);
     }
 
     for (Annotation annotation : annotations) {
