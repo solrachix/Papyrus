@@ -26,6 +26,7 @@ export default function DedicatedAndroidPdfViewer({
   const pageTheme = useViewerStore((state) => state.pageTheme);
   const zoom = useViewerStore((state) => state.zoom);
   const currentPage = useViewerStore((state) => state.currentPage);
+  const setDocumentState = useViewerStore((state) => state.setDocumentState);
   const engineId = getDedicatedAndroidPdfEngineId(engine);
 
   if (!engineId) return null;
@@ -37,6 +38,12 @@ export default function DedicatedAndroidPdfViewer({
       pageTheme={pageTheme}
       zoom={zoom}
       currentPage={currentPage}
+      onPageChanged={(event) => {
+        setDocumentState({ currentPage: event.nativeEvent.page });
+      }}
+      onZoomChanged={(event) => {
+        setDocumentState({ zoom: event.nativeEvent.zoom });
+      }}
     />
   );
 }

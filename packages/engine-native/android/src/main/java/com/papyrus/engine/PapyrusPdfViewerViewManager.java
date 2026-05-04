@@ -1,10 +1,14 @@
 package com.papyrus.engine;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
+import com.facebook.react.bridge.ReactContext;
 import com.facebook.react.uimanager.SimpleViewManager;
 import com.facebook.react.uimanager.ThemedReactContext;
 import com.facebook.react.uimanager.annotations.ReactProp;
+
+import java.util.Map;
 
 public class PapyrusPdfViewerViewManager extends SimpleViewManager<PapyrusPdfViewerView> {
   @NonNull
@@ -17,6 +21,27 @@ public class PapyrusPdfViewerViewManager extends SimpleViewManager<PapyrusPdfVie
   @Override
   protected PapyrusPdfViewerView createViewInstance(@NonNull ThemedReactContext reactContext) {
     return new PapyrusPdfViewerView(reactContext);
+  }
+
+  @Nullable
+  @Override
+  public Map<String, Object> getExportedCustomBubblingEventTypeConstants() {
+    return com.facebook.react.common.MapBuilder.<String, Object>builder()
+      .put(
+        "onPageChanged",
+        com.facebook.react.common.MapBuilder.of(
+          "phasedRegistrationNames",
+          com.facebook.react.common.MapBuilder.of("bubbled", "onPageChanged")
+        )
+      )
+      .put(
+        "onZoomChanged",
+        com.facebook.react.common.MapBuilder.of(
+          "phasedRegistrationNames",
+          com.facebook.react.common.MapBuilder.of("bubbled", "onZoomChanged")
+        )
+      )
+      .build();
   }
 
   @ReactProp(name = "engineId")

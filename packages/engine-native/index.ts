@@ -251,6 +251,8 @@ export type PapyrusPdfViewerViewProps = ViewProps & {
   pageTheme?: PageTheme;
   zoom?: number;
   currentPage?: number;
+  onPageChanged?: (event: { nativeEvent: { page: number } }) => void;
+  onZoomChanged?: (event: { nativeEvent: { zoom: number } }) => void;
 };
 
 type PapyrusPageViewComponent = ComponentType<

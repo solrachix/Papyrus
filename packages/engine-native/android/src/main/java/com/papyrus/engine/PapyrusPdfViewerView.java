@@ -8,6 +8,8 @@ import android.graphics.ColorMatrix;
 import android.graphics.ColorMatrixColorFilter;
 import android.graphics.Paint;
 import android.graphics.Rect;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.AttributeSet;
 import android.util.LruCache;
 import android.util.Log;
@@ -15,6 +17,10 @@ import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 import android.view.View;
 
+import com.facebook.react.bridge.Arguments;
+import com.facebook.react.bridge.ReactContext;
+import com.facebook.react.bridge.WritableMap;
+import com.facebook.react.uimanager.events.RCTEventEmitter;
 import com.shockwave.pdfium.PdfDocument;
 
 import java.util.ArrayList;
@@ -65,14 +71,20 @@ public class PapyrusPdfViewerView extends View {
   private float lastTouchY = 0f;
   private boolean layoutDirty = true;
   private int renderGeneration = 0;
+  private boolean wasScaling = false;
+  private final ReactContext reactContext;
+  private final Handler eventThrottleHandler = new Handler(Looper.getMainLooper());
+  private Runnable pendingZoomEvent;
 
-  public PapyrusPdfViewerView(Context context) {
+  public PapyrusPdfViewerView(ReactContext context) {
     super(context);
+    this.reactContext = context;
     scaleDetector = createScaleDetector(context);
   }
 
-  public PapyrusPdfViewerView(Context context, AttributeSet attrs) {
+  public PapyrusPdfViewerView(ReactContext context, AttributeSet attrs) {
     super(context, attrs);
+    this.reactContext = context;
     scaleDetector = createScaleDetector(context);
   }
 
@@ -106,6 +118,15 @@ public class PapyrusPdfViewerView extends View {
     if (page <= 0 || engineId == null) return;
     ensureLayout();
     if (page > pageFrames.size()) return;
+    if (page <= pageFrames.size()) {
+      PageFrame frame = pageFrames.get(page - 1);
+      float frameTop = frame.top;
+      float frameBottom = frame.top + frame.height;
+      float viewportTop = offsetY;
+      float viewportBottom = offsetY + getHeight();
+      boolean isVisible = frameBottom > viewportTop && frameTop < viewportBottom;
+      if (isVisible) return;
+    }
     offsetY = pageFrames.get(page - 1).top;
     clampOffsets();
     invalidate();
@@ -140,6 +161,16 @@ public class PapyrusPdfViewerView extends View {
         return true;
       case MotionEvent.ACTION_UP:
       case MotionEvent.ACTION_CANCEL:
+        if (wasScaling && !scaleDetector.isInProgress()) {
+          wasScaling = false;
+          emitZoomChanged(zoom);
+        }
+        if (!scaleDetector.isInProgress()) {
+          int visiblePage = computeVisiblePage();
+          if (visiblePage > 0) {
+            emitPageChanged(visiblePage);
+          }
+        }
         return true;
       default:
         return true;
@@ -190,8 +221,57 @@ public class PapyrusPdfViewerView extends View {
     }
   }
 
+  private int computeVisiblePage() {
+    if (pageFrames.isEmpty()) return 1;
+    float viewportCenterY = offsetY + getHeight() / 2f;
+    int bestPage = 1;
+    float bestDistance = Float.MAX_VALUE;
+    for (PageFrame frame : pageFrames) {
+      float frameCenterY = frame.top + frame.height / 2f;
+      float distance = Math.abs(frameCenterY - viewportCenterY);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestPage = frame.index + 1;
+      }
+    }
+    return bestPage;
+  }
+
+  private void emitPageChanged(int page) {
+    try {
+      WritableMap event = Arguments.createMap();
+      event.putInt("page", page);
+      reactContext.getJSModule(RCTEventEmitter.class)
+        .receiveEvent(getId(), "onPageChanged", event);
+    } catch (Throwable ignored) {
+    }
+  }
+
+  private void emitZoomChanged(float zoomValue) {
+    try {
+      if (pendingZoomEvent != null) {
+        eventThrottleHandler.removeCallbacks(pendingZoomEvent);
+      }
+      pendingZoomEvent = () -> {
+        WritableMap event = Arguments.createMap();
+        event.putDouble("zoom", zoomValue);
+        reactContext.getJSModule(RCTEventEmitter.class)
+          .receiveEvent(getId(), "onZoomChanged", event);
+        pendingZoomEvent = null;
+      };
+      eventThrottleHandler.postDelayed(pendingZoomEvent, 120);
+    } catch (Throwable ignored) {
+    }
+  }
+
   private ScaleGestureDetector createScaleDetector(Context context) {
     return new ScaleGestureDetector(context, new ScaleGestureDetector.SimpleOnScaleGestureListener() {
+      @Override
+      public boolean onScaleBegin(ScaleGestureDetector detector) {
+        wasScaling = true;
+        return true;
+      }
+
       @Override
       public boolean onScale(ScaleGestureDetector detector) {
         float oldContentWidth = Math.max(1f, contentWidth);
