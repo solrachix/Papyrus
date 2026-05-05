@@ -175,6 +175,7 @@ export default function DedicatedAndroidPdfViewer({
         annotationOpacity={annotationOpacity}
         searchResults={searchResults}
         annotations={annotations}
+        selectionActive={!!selection}
         onPageChanged={(event) => {
           setDocumentState({ currentPage: event.nativeEvent.page });
         }}

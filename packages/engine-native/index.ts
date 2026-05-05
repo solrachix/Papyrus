@@ -265,6 +265,7 @@ export type PapyrusPdfViewerViewProps = ViewProps & {
   onAnnotationTap?: (event: { nativeEvent: { id: string; pageIndex: number; type: string; color: string } }) => void;
   onTextSelected?: (event: { nativeEvent: { text: string; pageIndex: number; rects: { x: number; y: number; width: number; height: number }[] } }) => void;
   onScroll?: (event: { nativeEvent: { offsetY: number } }) => void;
+  selectionActive?: boolean;
 };
 
 type PapyrusPageViewComponent = ComponentType<

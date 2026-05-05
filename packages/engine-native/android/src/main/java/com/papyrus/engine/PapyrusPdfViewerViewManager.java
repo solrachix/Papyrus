@@ -122,6 +122,11 @@ public class PapyrusPdfViewerViewManager extends SimpleViewManager<PapyrusPdfVie
     view.setAnnotationOpacity(annotationOpacity);
   }
 
+  @ReactProp(name = "selectionActive", defaultBoolean = false)
+  public void setSelectionActive(PapyrusPdfViewerView view, boolean selectionActive) {
+    view.setSelectionActive(selectionActive);
+  }
+
   @ReactProp(name = "searchResults")
   public void setSearchResults(PapyrusPdfViewerView view, ReadableArray searchResults) {
     List<PapyrusPdfViewerView.SearchResult> results = new ArrayList<>();

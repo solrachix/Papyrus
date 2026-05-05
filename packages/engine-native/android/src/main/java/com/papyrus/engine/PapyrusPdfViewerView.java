@@ -205,6 +205,22 @@ public class PapyrusPdfViewerView extends View {
     annotationOpacity = opacity;
   }
 
+  public void setSelectionActive(boolean active) {
+    if (active) return;
+    if (isSelectingText || !selectedRects.isEmpty()) {
+      isSelectingText = false;
+      selectPageIndex = -1;
+      selectStartX = 0;
+      selectStartY = 0;
+      selectEndX = 0;
+      selectEndY = 0;
+      selectedRects.clear();
+      selectedText = "";
+      draggedHandle = 0;
+      invalidate();
+    }
+  }
+
   private long extractNativeDocPointer(PdfDocument document) {
     try {
       java.lang.reflect.Field field = PdfDocument.class.getDeclaredField("mNativeDocPtr");
