@@ -1416,9 +1416,15 @@ public class PapyrusPdfViewerView extends View {
         float rRight = rLeft + rect.width * scaleX;
         float rBottom = rTop + rect.height * scaleY;
         if ("underline".equals(annotation.type)) {
+          overlayPaint.setStyle(Paint.Style.STROKE);
+          overlayPaint.setStrokeWidth(Math.max(3f, scaleY * 0.015f));
           canvas.drawLine(rLeft, rBottom - 2, rRight, rBottom - 2, overlayPaint);
+          overlayPaint.setStyle(Paint.Style.FILL);
         } else if ("strikeout".equals(annotation.type)) {
+          overlayPaint.setStyle(Paint.Style.STROKE);
+          overlayPaint.setStrokeWidth(Math.max(3f, scaleY * 0.015f));
           canvas.drawLine(rLeft, (rTop + rBottom) / 2f, rRight, (rTop + rBottom) / 2f, overlayPaint);
+          overlayPaint.setStyle(Paint.Style.FILL);
         } else {
           canvas.drawRect(rLeft, rTop, rRight, rBottom, overlayPaint);
         }
