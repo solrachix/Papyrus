@@ -387,6 +387,16 @@ public class PapyrusPdfViewerView extends View {
           float distance = (float) Math.hypot(dx, dy);
           float density = getResources().getDisplayMetrics().density;
           if (duration < TAP_MAX_DURATION_MS && distance < TAP_MAX_DISTANCE_DP * density) {
+            // Single mode tap zones: left half = prev page, right half = next page
+            if ("single".equals(viewMode) && !pageFrames.isEmpty()) {
+              int currentPage = computeVisiblePage() - 1;
+              if (event.getX() < getWidth() / 2f) {
+                if (currentPage > 0) snapToPage(currentPage - 1);
+              } else {
+                if (currentPage < pageFrames.size() - 1) snapToPage(currentPage + 1);
+              }
+              return true;
+            }
             ensureLayout();
             float docX = event.getX() + offsetX;
             float docY = event.getY() + offsetY;
@@ -1221,23 +1231,42 @@ public class PapyrusPdfViewerView extends View {
       synchronized (state.pdfiumLock) {
         PdfDocument document = state.document;
         int pageCount = state.pdfium.getPageCount(document);
-        float y = PAGE_PADDING;
         float maxWidth = getWidth();
         int availableWidth = Math.max(1, getWidth() - PAGE_PADDING * 2);
-        for (int i = 0; i < pageCount; i += 1) {
-          state.pdfium.openPage(document, i);
-          int pageWidth = Math.max(1, state.pdfium.getPageWidthPoint(document, i));
-          int pageHeight = Math.max(1, state.pdfium.getPageHeightPoint(document, i));
-          float baseScale = availableWidth / (float) pageWidth;
-          float width = pageWidth * baseScale * zoom;
-          float height = pageHeight * baseScale * zoom;
-          maxWidth = Math.max(maxWidth, width + PAGE_PADDING * 2);
-          float left = Math.max(PAGE_PADDING, (maxWidth - width) / 2f);
-          pageFrames.add(new PageFrame(i, left, y, width, height));
-          y += height + PAGE_GAP;
+
+        if ("single".equals(viewMode)) {
+          float cellHeight = getHeight();
+          for (int i = 0; i < pageCount; i += 1) {
+            state.pdfium.openPage(document, i);
+            int pageWidth = Math.max(1, state.pdfium.getPageWidthPoint(document, i));
+            int pageHeight = Math.max(1, state.pdfium.getPageHeightPoint(document, i));
+            float baseScale = availableWidth / (float) pageWidth;
+            float width = pageWidth * baseScale * zoom;
+            float height = pageHeight * baseScale * zoom;
+            maxWidth = Math.max(maxWidth, width + PAGE_PADDING * 2);
+            float left = Math.max(PAGE_PADDING, (maxWidth - width) / 2f);
+            float top = i * cellHeight + (cellHeight - height) / 2f;
+            pageFrames.add(new PageFrame(i, left, top, width, height));
+          }
+          contentWidth = maxWidth;
+          contentHeight = Math.max(getHeight(), pageCount * cellHeight);
+        } else {
+          float y = PAGE_PADDING;
+          for (int i = 0; i < pageCount; i += 1) {
+            state.pdfium.openPage(document, i);
+            int pageWidth = Math.max(1, state.pdfium.getPageWidthPoint(document, i));
+            int pageHeight = Math.max(1, state.pdfium.getPageHeightPoint(document, i));
+            float baseScale = availableWidth / (float) pageWidth;
+            float width = pageWidth * baseScale * zoom;
+            float height = pageHeight * baseScale * zoom;
+            maxWidth = Math.max(maxWidth, width + PAGE_PADDING * 2);
+            float left = Math.max(PAGE_PADDING, (maxWidth - width) / 2f);
+            pageFrames.add(new PageFrame(i, left, y, width, height));
+            y += height + PAGE_GAP;
+          }
+          contentWidth = maxWidth;
+          contentHeight = Math.max(getHeight(), y + PAGE_PADDING);
         }
-        contentWidth = maxWidth;
-        contentHeight = Math.max(getHeight(), y + PAGE_PADDING);
       }
     } catch (Throwable error) {
       Log.w(TAG, "Failed to layout dedicated PDF viewer", error);
@@ -1311,11 +1340,18 @@ public class PapyrusPdfViewerView extends View {
 
   private void snapToPage(int pageIndex) {
     if (pageFrames.isEmpty() || pageIndex < 0 || pageIndex >= pageFrames.size()) return;
-    PageFrame frame = pageFrames.get(pageIndex);
-    float targetY = frame.top - PAGE_PADDING;
-    float maxY = Math.max(0f, contentHeight - getHeight());
-    targetY = clamp(targetY, 0f, maxY);
-    offsetY = targetY;
+    if ("single".equals(viewMode)) {
+      float targetY = pageIndex * getHeight();
+      float maxY = Math.max(0f, contentHeight - getHeight());
+      targetY = clamp(targetY, 0f, maxY);
+      offsetY = targetY;
+    } else {
+      PageFrame frame = pageFrames.get(pageIndex);
+      float targetY = frame.top - PAGE_PADDING;
+      float maxY = Math.max(0f, contentHeight - getHeight());
+      targetY = clamp(targetY, 0f, maxY);
+      offsetY = targetY;
+    }
     clampOffsets();
     invalidate();
     emitPageChanged(pageIndex + 1);
