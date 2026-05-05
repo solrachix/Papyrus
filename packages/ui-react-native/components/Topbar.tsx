@@ -200,7 +200,6 @@ const styles = StyleSheet.create({
   },
   containerLandscape: {
     maxWidth: undefined,
-    borderRadius: 0,
     marginTop: 0,
   },
   chromeFrame: {
