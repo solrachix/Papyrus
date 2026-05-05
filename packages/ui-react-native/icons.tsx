@@ -675,15 +675,15 @@ export const IconUnderline: React.FC<IconProps> = ({
     <Path
       d="M6 4v7a6 6 0 0 0 12 0V4"
       stroke={color}
-      strokeWidth="2.2"
+      strokeWidth="2.5"
       strokeLinecap="round"
       strokeLinejoin="round"
       fill="none"
     />
     <Path
-      d="M4 20h16"
+      d="M4 20.5h16"
       stroke={color}
-      strokeWidth="2.5"
+      strokeWidth="3.5"
       strokeLinecap="round"
     />
   </Svg>
