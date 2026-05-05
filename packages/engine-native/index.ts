@@ -266,6 +266,7 @@ export type PapyrusPdfViewerViewProps = ViewProps & {
   onTextSelected?: (event: { nativeEvent: { text: string; pageIndex: number; rects: { x: number; y: number; width: number; height: number }[] } }) => void;
   onScroll?: (event: { nativeEvent: { offsetY: number } }) => void;
   selectionActive?: boolean;
+  viewMode?: "continuous" | "single";
 };
 
 type PapyrusPageViewComponent = ComponentType<

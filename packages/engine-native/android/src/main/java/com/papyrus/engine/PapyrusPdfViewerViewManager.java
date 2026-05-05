@@ -127,6 +127,11 @@ public class PapyrusPdfViewerViewManager extends SimpleViewManager<PapyrusPdfVie
     view.setSelectionActive(selectionActive);
   }
 
+  @ReactProp(name = "viewMode")
+  public void setViewMode(PapyrusPdfViewerView view, String viewMode) {
+    view.setViewMode(viewMode);
+  }
+
   @ReactProp(name = "searchResults")
   public void setSearchResults(PapyrusPdfViewerView view, ReadableArray searchResults) {
     List<PapyrusPdfViewerView.SearchResult> results = new ArrayList<>();

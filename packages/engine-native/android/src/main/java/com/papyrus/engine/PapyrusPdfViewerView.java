@@ -71,6 +71,7 @@ public class PapyrusPdfViewerView extends View {
   private float inkStrokeWidth = 0.006f;
   private float annotationOpacity = 0.85f;
   private float zoom = 1.0f;
+  private String viewMode = "continuous";
   private float offsetX = 0f;
   private float offsetY = 0f;
   private float contentWidth = 0f;
@@ -140,6 +141,9 @@ public class PapyrusPdfViewerView extends View {
         if (visiblePage > 0) {
           emitPageChanged(visiblePage);
         }
+        if ("single".equals(viewMode) && visiblePage > 0) {
+          snapToPage(visiblePage - 1);
+        }
       }
     }
   };
@@ -203,6 +207,17 @@ public class PapyrusPdfViewerView extends View {
 
   public void setAnnotationOpacity(float opacity) {
     annotationOpacity = opacity;
+  }
+
+  public void setViewMode(String mode) {
+    String normalized = mode == null ? "continuous" : mode;
+    if (normalized.equals(viewMode)) return;
+    viewMode = normalized;
+    if ("single".equals(viewMode)) {
+      ensureLayout();
+      snapToPage(computeVisiblePage() - 1);
+    }
+    invalidate();
   }
 
   public void setSelectionActive(boolean active) {
@@ -331,21 +346,35 @@ public class PapyrusPdfViewerView extends View {
           float velocityX = velocityTracker.getXVelocity();
           float velocityY = velocityTracker.getYVelocity();
           if (Math.abs(velocityX) > 200 || Math.abs(velocityY) > 200) {
-            flingScroller.fling(
-              Math.round(offsetX),
-              Math.round(offsetY),
-              Math.round(-velocityX),
-              Math.round(-velocityY),
-              0,
-              Math.max(0, Math.round(contentWidth - getWidth())),
-              0,
-              Math.max(0, Math.round(contentHeight - getHeight()))
-            );
-            postOnAnimation(flingRunnable);
+            if ("single".equals(viewMode)) {
+              int currentPage = computeVisiblePage() - 1;
+              int targetPage = currentPage;
+              if (velocityY > 400 && currentPage > 0) {
+                targetPage = currentPage - 1;
+              } else if (velocityY < -400 && currentPage < pageFrames.size() - 1) {
+                targetPage = currentPage + 1;
+              }
+              snapToPage(targetPage);
+            } else {
+              flingScroller.fling(
+                Math.round(offsetX),
+                Math.round(offsetY),
+                Math.round(-velocityX),
+                Math.round(-velocityY),
+                0,
+                Math.max(0, Math.round(contentWidth - getWidth())),
+                0,
+                Math.max(0, Math.round(contentHeight - getHeight()))
+              );
+              postOnAnimation(flingRunnable);
+            }
           } else {
             int visiblePage = computeVisiblePage();
             if (visiblePage > 0) {
               emitPageChanged(visiblePage);
+            }
+            if ("single".equals(viewMode) && visiblePage > 0) {
+              snapToPage(visiblePage - 1);
             }
           }
           velocityTracker.recycle();
@@ -619,17 +648,33 @@ public class PapyrusPdfViewerView extends View {
           float velocityX = velocityTracker.getXVelocity();
           float velocityY = velocityTracker.getYVelocity();
           if (Math.abs(velocityX) > 200 || Math.abs(velocityY) > 200) {
-            flingScroller.fling(
-              Math.round(offsetX),
-              Math.round(offsetY),
-              Math.round(-velocityX),
-              Math.round(-velocityY),
-              0,
-              Math.max(0, Math.round(contentWidth - getWidth())),
-              0,
-              Math.max(0, Math.round(contentHeight - getHeight()))
-            );
-            postOnAnimation(flingRunnable);
+            if ("single".equals(viewMode)) {
+              int currentPage = computeVisiblePage() - 1;
+              int targetPage = currentPage;
+              if (velocityY > 400 && currentPage > 0) {
+                targetPage = currentPage - 1;
+              } else if (velocityY < -400 && currentPage < pageFrames.size() - 1) {
+                targetPage = currentPage + 1;
+              }
+              snapToPage(targetPage);
+            } else {
+              flingScroller.fling(
+                Math.round(offsetX),
+                Math.round(offsetY),
+                Math.round(-velocityX),
+                Math.round(-velocityY),
+                0,
+                Math.max(0, Math.round(contentWidth - getWidth())),
+                0,
+                Math.max(0, Math.round(contentHeight - getHeight()))
+              );
+              postOnAnimation(flingRunnable);
+            }
+          } else if ("single".equals(viewMode)) {
+            int visiblePage = computeVisiblePage();
+            if (visiblePage > 0) {
+              snapToPage(visiblePage - 1);
+            }
           }
           velocityTracker.recycle();
           velocityTracker = null;
@@ -1256,7 +1301,24 @@ public class PapyrusPdfViewerView extends View {
 
   private void clampOffsets() {
     offsetX = clamp(offsetX, 0f, Math.max(0f, contentWidth - getWidth()));
-    offsetY = clamp(offsetY, 0f, Math.max(0f, contentHeight - getHeight()));
+    float maxY = Math.max(0f, contentHeight - getHeight());
+    if ("single".equals(viewMode) && !pageFrames.isEmpty()) {
+      offsetY = clamp(offsetY, 0f, maxY);
+    } else {
+      offsetY = clamp(offsetY, 0f, maxY);
+    }
+  }
+
+  private void snapToPage(int pageIndex) {
+    if (pageFrames.isEmpty() || pageIndex < 0 || pageIndex >= pageFrames.size()) return;
+    PageFrame frame = pageFrames.get(pageIndex);
+    float targetY = frame.top - PAGE_PADDING;
+    float maxY = Math.max(0f, contentHeight - getHeight());
+    targetY = clamp(targetY, 0f, maxY);
+    offsetY = targetY;
+    clampOffsets();
+    invalidate();
+    emitPageChanged(pageIndex + 1);
   }
 
   private void emitScrollEvent(float offsetYValue) {
@@ -1417,12 +1479,12 @@ public class PapyrusPdfViewerView extends View {
         float rBottom = rTop + rect.height * scaleY;
         if ("underline".equals(annotation.type)) {
           overlayPaint.setStyle(Paint.Style.STROKE);
-          overlayPaint.setStrokeWidth(Math.max(3f, scaleY * 0.015f));
+          overlayPaint.setStrokeWidth(Math.max(2f, scaleY * 0.008f));
           canvas.drawLine(rLeft, rBottom - 2, rRight, rBottom - 2, overlayPaint);
           overlayPaint.setStyle(Paint.Style.FILL);
         } else if ("strikeout".equals(annotation.type)) {
           overlayPaint.setStyle(Paint.Style.STROKE);
-          overlayPaint.setStrokeWidth(Math.max(3f, scaleY * 0.015f));
+          overlayPaint.setStrokeWidth(Math.max(2f, scaleY * 0.008f));
           canvas.drawLine(rLeft, (rTop + rBottom) / 2f, rRight, (rTop + rBottom) / 2f, overlayPaint);
           overlayPaint.setStyle(Paint.Style.FILL);
         } else {

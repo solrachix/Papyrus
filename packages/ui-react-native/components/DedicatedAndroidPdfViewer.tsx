@@ -46,6 +46,7 @@ export default function DedicatedAndroidPdfViewer({
   const annotationOpacity = useViewerStore((state) => state.annotationOpacity);
   const searchResults = useViewerStore((state) => state.searchResults);
   const annotations = useViewerStore((state) => state.annotations);
+  const viewMode = useViewerStore((state) => state.viewMode);
   const setDocumentState = useViewerStore((state) => state.setDocumentState);
   const addAnnotation = useViewerStore((state) => state.addAnnotation);
   const setSelectedAnnotation = useViewerStore((state) => state.setSelectedAnnotation);
@@ -176,6 +177,7 @@ export default function DedicatedAndroidPdfViewer({
         searchResults={searchResults}
         annotations={annotations}
         selectionActive={!!selection}
+        viewMode={viewMode}
         onPageChanged={(event) => {
           setDocumentState({ currentPage: event.nativeEvent.page });
         }}
