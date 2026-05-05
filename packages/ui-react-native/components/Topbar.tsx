@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import { View, Text, Pressable, StyleSheet, useWindowDimensions } from "react-native";
 import { useViewerStore } from "@papyrus-sdk/core";
 import { IconSettings, IconChevronLeft, IconChevronRight } from "../icons";
 import { DocumentEngine } from "@papyrus-sdk/types";
@@ -41,6 +41,8 @@ const Topbar: React.FC<TopbarProps> = ({
   const [jumpModalOpen, setJumpModalOpen] = useState(false);
   const isDark = uiTheme === "dark";
   const navIconColor = isDark ? "#e5e7eb" : "#111827";
+  const { width, height } = useWindowDimensions();
+  const isLandscape = width > height;
 
   const navigateToPage = (targetPage: number) => {
     const next = Math.max(1, Math.min(pageCount, targetPage));
@@ -77,7 +79,7 @@ const Topbar: React.FC<TopbarProps> = ({
         pointerEvents="box-none"
         testID="papyrus-floating-top-controls"
       >
-        <View style={[styles.container, isDark && styles.containerDark]}>
+        <View style={[styles.container, isDark && styles.containerDark, isLandscape && styles.containerLandscape]}>
           <View style={styles.leftGroup}>
             {onLogoPress ? (
               <Pressable
@@ -195,6 +197,11 @@ const styles = StyleSheet.create({
   containerDark: {
     backgroundColor: "rgba(15,17,21,0.88)",
     borderColor: "rgba(71,85,105,0.48)",
+  },
+  containerLandscape: {
+    maxWidth: undefined,
+    borderRadius: 0,
+    marginTop: 0,
   },
   chromeFrame: {
     position: "absolute",

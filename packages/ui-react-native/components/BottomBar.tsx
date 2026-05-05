@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Pressable, StyleSheet } from "react-native";
+import { View, Pressable, StyleSheet, useWindowDimensions } from "react-native";
 import { useViewerStore } from "@papyrus-sdk/core";
 import { DocumentType, MobilePrimaryDestination } from "@papyrus-sdk/types";
 import { getStrings } from "../mobileStrings";
@@ -42,6 +42,8 @@ const BottomBar: React.FC<BottomBarProps> = ({
   } = useViewerStore();
   const isDark = uiTheme === "dark";
   const t = getStrings(locale);
+  const { width, height } = useWindowDimensions();
+  const isLandscape = width > height;
 
   const iconColor = (active: boolean) => {
     if (active) return accentColor;
@@ -106,7 +108,7 @@ const BottomBar: React.FC<BottomBarProps> = ({
 
   return (
     <View pointerEvents="box-none" style={styles.frame}>
-      <View style={styles.row}>
+      <View style={[styles.row, isLandscape && styles.rowLandscape]}>
         {layout.leftSlots.length > 0 ? (
           <View
             style={[
@@ -204,6 +206,9 @@ const styles = StyleSheet.create({
     justifyContent: "flex-start",
     alignItems: "center",
     gap: 10,
+  },
+  rowLandscape: {
+    maxWidth: undefined,
   },
   island: {
     flexDirection: "row",
