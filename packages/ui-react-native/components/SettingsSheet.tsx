@@ -116,12 +116,10 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
     setDocumentState({ zoom: next });
   };
 
-  if (!visible) return null;
-
   return (
     <View style={styles.modalRoot} pointerEvents="box-none">
       <BottomSheet
-        index={0}
+        index={visible ? 0 : -1}
         snapPoints={snapPoints}
         enablePanDownToClose
         onClose={onClose}
