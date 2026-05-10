@@ -160,7 +160,9 @@ export default function DedicatedAndroidPdfViewer({
     selectionRef.current = null;
   }, []);
 
-  if (!engineId) return null;
+  if (!engineId) {
+    return <View style={styles.container} />;
+  }
 
   return (
     <View style={styles.container}>
