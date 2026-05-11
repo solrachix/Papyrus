@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { useViewerStore } from "@papyrus-sdk/core";
 import { DocumentEngine } from "@papyrus-sdk/types";
-import { PapyrusPdfViewerView } from "@papyrus-sdk/engine-native";
+import { PapyrusPdfDocumentView } from "@papyrus-sdk/engine-native";
 import { IconCopy, IconHighlight, IconUnderline, IconCommentBubble } from "../icons";
 
 const TEXT_MARKUP_TOOLS = new Set(["highlight", "underline", "squiggly", "strikeout"]);
@@ -47,6 +47,7 @@ export default function DedicatedAndroidPdfViewer({
   const searchResults = useViewerStore((state) => state.searchResults);
   const annotations = useViewerStore((state) => state.annotations);
   const viewMode = useViewerStore((state) => state.viewMode);
+  const nativeViewMode = viewMode === "single" ? "single" : "continuous";
   const setDocumentState = useViewerStore((state) => state.setDocumentState);
   const addAnnotation = useViewerStore((state) => state.addAnnotation);
   const setSelectedAnnotation = useViewerStore((state) => state.setSelectedAnnotation);
@@ -54,6 +55,9 @@ export default function DedicatedAndroidPdfViewer({
 
   const [selection, setSelection] = useState<SelectionState>(null);
   const selectionRef = useRef<SelectionState>(null);
+
+  // Deduplicate visiblePages events to prevent JS/native loop in page gaps
+  const lastVisiblePagesKeyRef = useRef("");
 
   // Mobile chrome auto-hide tracking (replicates Viewer.tsx trackMobileChromeByOffset)
   const lastScrollOffsetYRef = useRef(0);
@@ -162,7 +166,7 @@ export default function DedicatedAndroidPdfViewer({
 
   return (
     <View style={styles.container}>
-      <PapyrusPdfViewerView
+      <PapyrusPdfDocumentView
         style={styles.viewer}
         engineId={engineId}
         pageTheme={pageTheme}
@@ -175,14 +179,41 @@ export default function DedicatedAndroidPdfViewer({
         searchResults={searchResults}
         annotations={annotations}
         selectionActive={!!selection}
-        viewMode={viewMode}
-        onPageChanged={(event) => {
+        viewMode={nativeViewMode}
+        onPageChange={(event) => {
           setDocumentState({ currentPage: event.nativeEvent.page });
         }}
-        onZoomChanged={(event) => {
-          const newZoom = event.nativeEvent.zoom;
-          console.log("[DedicatedAndroidPdfViewer] onZoomChanged:", newZoom);
-          setDocumentState({ zoom: newZoom });
+        onZoomChange={(event) => {
+          setDocumentState({ zoom: event.nativeEvent.zoom });
+        }}
+        onVisiblePagesChange={(event) => {
+          const pages = event.nativeEvent.pages ?? [];
+
+          // Filter out micro-visibility near gaps and build stable key
+          const stablePages = pages.filter(
+            (page: { pageIndex: number; visibleRatio: number }) =>
+              page.visibleRatio >= 0.03
+          );
+
+          // Do not update store with empty visiblePages when in a page gap.
+          // This prevents JS/native loop and flicker.
+          if (stablePages.length === 0) {
+            return;
+          }
+
+          const key = stablePages
+            .map(
+              (page: { pageIndex: number; visibleRatio: number }) =>
+                `${page.pageIndex}:${Math.round(page.visibleRatio * 100)}`
+            )
+            .join("|");
+
+          if (key === lastVisiblePagesKeyRef.current) {
+            return;
+          }
+
+          lastVisiblePagesKeyRef.current = key;
+          setDocumentState({ visiblePages: stablePages });
         }}
         onAnnotationCreated={(event) => {
           addAnnotation(event.nativeEvent);

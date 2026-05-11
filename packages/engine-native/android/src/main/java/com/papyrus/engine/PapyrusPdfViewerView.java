@@ -11,6 +11,7 @@ import android.graphics.Path;
 import android.graphics.Rect;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.util.AttributeSet;
 import android.util.LruCache;
 import android.util.Log;
@@ -50,9 +51,10 @@ public class PapyrusPdfViewerView extends View {
 
     @Override
     protected void entryRemoved(boolean evicted, String key, Bitmap oldValue, Bitmap newValue) {
-      if (oldValue != null && oldValue != newValue && !oldValue.isRecycled()) {
-        oldValue.recycle();
-      }
+      // Do not recycle here to avoid flickering when a bitmap is evicted
+      // while it may still be referenced by lastPageBitmap or drawn on screen.
+      // On Android 8.0+ (API 26+), Bitmap pixel data lives in native heap
+      // and is garbage-collected normally without explicit recycle().
     }
   };
   private static final ColorMatrixColorFilter SEPIA_FILTER = createSepiaFilter();
@@ -85,6 +87,29 @@ public class PapyrusPdfViewerView extends View {
   private float pinchScale = 1.0f;
   private float pinchFocusX = 0f;
   private float pinchFocusY = 0f;
+  private float pinchStartZoom = 1.0f;
+  private float pinchStartOffsetX = 0f;
+  private float pinchStartOffsetY = 0f;
+  private float pinchStartFocusX = 0f;
+  private float pinchStartFocusY = 0f;
+
+  // Viewport anchor for stable zoom around the focused page
+  private static class ViewportAnchor {
+    final int pageIndex;
+    final float pageXRatio;
+    final float pageYRatio;
+    final float screenX;
+    final float screenY;
+
+    ViewportAnchor(int pageIndex, float pageXRatio, float pageYRatio, float screenX, float screenY) {
+      this.pageIndex = pageIndex;
+      this.pageXRatio = pageXRatio;
+      this.pageYRatio = pageYRatio;
+      this.screenX = screenX;
+      this.screenY = screenY;
+    }
+  }
+
   private List<float[]> inkStrokePoints = new ArrayList<>();
   private int inkStrokePageIndex = -1;
   private long touchDownTime = 0;
@@ -127,6 +152,20 @@ public class PapyrusPdfViewerView extends View {
   private final Handler eventThrottleHandler = new Handler(Looper.getMainLooper());
   private Runnable pendingZoomEvent;
   private Runnable pendingScrollEvent;
+
+  // Visible pages deduplication to prevent JS/native loop in page gaps
+  private String lastVisiblePagesSignature = "";
+  private int lastStablePage = 1;
+  private static final float MIN_VISIBLE_RATIO = 0.03f;
+  private static final float VISIBLE_RATIO_BUCKET = 0.02f;
+  private static final float CURRENT_PAGE_SWITCH_THRESHOLD = 0.08f;
+  private static final boolean DEBUG_GAP = false;
+  private static final boolean DEBUG_RENDER_GAP = false;
+  private static final boolean ISOLATE_RENDER_TEST = false;
+  private static final long RENDER_COOLDOWN_MS = 250;
+  private static final float MIN_VISIBLE_PX = 16f;
+  private final Map<String, Long> renderRequestCooldown = new HashMap<>();
+
   private final OverScroller flingScroller;
   private VelocityTracker velocityTracker;
   private final Runnable flingRunnable = new Runnable() {
@@ -291,6 +330,14 @@ public class PapyrusPdfViewerView extends View {
   @Override
   public boolean onTouchEvent(MotionEvent event) {
     scaleDetector.onTouchEvent(event);
+
+    if (event.getPointerCount() > 1) {
+      // Cancel any pending text selection when a second finger touches
+      if (pendingLongPress != null) {
+        mainHandler.removeCallbacks(pendingLongPress);
+        pendingLongPress = null;
+      }
+    }
 
     if ("ink".equals(activeTool) && event.getPointerCount() == 1) {
       return handleInkTouch(event);
@@ -486,6 +533,9 @@ public class PapyrusPdfViewerView extends View {
     float density = getResources().getDisplayMetrics().density;
     switch (event.getActionMasked()) {
       case MotionEvent.ACTION_DOWN:
+        if (event.getPointerCount() > 1) {
+          return true; // Multi-touch: ignore, let pinch zoom handle it
+        }
         touchDownTime = System.currentTimeMillis();
         touchDownX = event.getX();
         touchDownY = event.getY();
@@ -1003,10 +1053,8 @@ public class PapyrusPdfViewerView extends View {
     canvas.drawColor(resolveBackgroundColor(pageTheme));
     if (pageFrames.isEmpty()) return;
 
-    if (isPinching) {
-      canvas.save();
-      canvas.scale(pinchScale, pinchScale, pinchFocusX, pinchFocusY);
-    }
+    boolean inGap = isViewportCenterInsidePageGap();
+    int visibleCount = 0;
 
     for (PageFrame frame : pageFrames) {
       int left = Math.round(frame.left - offsetX);
@@ -1015,70 +1063,146 @@ public class PapyrusPdfViewerView extends View {
       int bottom = Math.round(top + frame.height);
       if (bottom < 0 || top > getHeight()) continue;
 
+      float visibleTop = Math.max(frame.top, offsetY);
+      float visibleBottom = Math.min(frame.top + frame.height, offsetY + getHeight());
+      float visibleHeight = visibleBottom - visibleTop;
+      boolean meaningfullyVisible = visibleHeight >= MIN_VISIBLE_PX;
+      if (visibleHeight > 0) visibleCount++;
+
       paint.setColor(resolvePageColor(pageTheme));
       paint.setColorFilter(null);
       canvas.drawRect(left, top, right, bottom, paint);
 
       String key = buildRenderKey(frame);
       Bitmap bitmap = RENDER_CACHE.get(key);
+      boolean drawn = false;
       if (bitmap != null && !bitmap.isRecycled()) {
         try {
           paint.setColorFilter(resolveThemeFilter(pageTheme));
           canvas.drawBitmap(bitmap, null, new Rect(left, top, right, bottom), paint);
           paint.setColorFilter(null);
+          drawn = true;
         } catch (RuntimeException error) {
           Log.w(TAG, "Failed to draw dedicated PDF page", error);
         }
-      } else {
+      }
+
+      if (!drawn) {
         Bitmap fallback = lastPageBitmap.get(frame.index);
         if (fallback != null && !fallback.isRecycled()) {
           try {
             paint.setColorFilter(resolveThemeFilter(pageTheme));
             canvas.drawBitmap(fallback, null, new Rect(left, top, right, bottom), paint);
             paint.setColorFilter(null);
+            drawn = true;
           } catch (RuntimeException error) {
             Log.w(TAG, "Failed to draw fallback PDF page", error);
           }
         }
-        requestRender(frame, key);
       }
+
+      if (!drawn && !isPinching) {
+        if (!meaningfullyVisible) {
+          if (DEBUG_RENDER_GAP) {
+            Log.d(TAG, "onDraw: skip render page=" + frame.index + " visibleHeight=" + visibleHeight + " below threshold");
+          }
+        } else if (inGap && frame.index + 1 != lastStablePage) {
+          if (DEBUG_RENDER_GAP) {
+            Log.d(TAG, "onDraw: skip render page=" + frame.index + " inGap lastStablePage=" + lastStablePage);
+          }
+        } else {
+          if (DEBUG_RENDER_GAP) {
+            Log.d(TAG, "onDraw: requestRender page=" + frame.index + " key=" + key + " zoom=" + zoom + " offsetY=" + offsetY);
+          }
+          requestRender(frame, key);
+        }
+      }
+
       drawOverlays(canvas, frame, left, top);
     }
 
-    if (isPinching) {
-      canvas.restore();
+    if (DEBUG_RENDER_GAP) {
+      Log.d(TAG, "onDraw: visibleCount=" + visibleCount + " inGap=" + inGap + " zoom=" + zoom + " offsetY=" + offsetY + " lastStablePage=" + lastStablePage);
     }
   }
 
-  private int computeVisiblePage() {
-    if (pageFrames.isEmpty()) return 1;
-    float viewportCenterY = offsetY + getHeight() / 2f;
-    int bestPage = 1;
-    float bestDistance = Float.MAX_VALUE;
+  private boolean isViewportCenterInsidePageGap() {
+    if (pageFrames.isEmpty() || getHeight() <= 0) return false;
+    float centerY = offsetY + getHeight() / 2f;
     for (PageFrame frame : pageFrames) {
-      float frameCenterY = frame.top + frame.height / 2f;
-      float distance = Math.abs(frameCenterY - viewportCenterY);
-      if (distance < bestDistance) {
-        bestDistance = distance;
+      if (centerY >= frame.top && centerY <= frame.top + frame.height) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  private float getVisibleRatioThreshold() {
+    return zoom >= 2.0f ? 0.08f : MIN_VISIBLE_RATIO;
+  }
+
+  private int computeVisiblePage() {
+    if (pageFrames.isEmpty() || getHeight() <= 0) return Math.max(1, lastStablePage);
+
+    // If viewport center is inside a page gap, keep the last stable page
+    if (isViewportCenterInsidePageGap()) {
+      if (DEBUG_GAP) {
+        Log.d(TAG, "computeVisiblePage: center in gap, keeping lastStablePage=" + lastStablePage);
+      }
+      return Math.max(1, lastStablePage);
+    }
+
+    float viewportTop = offsetY;
+    float viewportBottom = offsetY + getHeight();
+
+    int bestPage = -1;
+    float bestRatio = 0f;
+
+    for (PageFrame frame : pageFrames) {
+      float frameTop = frame.top;
+      float frameBottom = frame.top + frame.height;
+      float visibleTop = Math.max(frameTop, viewportTop);
+      float visibleBottom = Math.min(frameBottom, viewportBottom);
+      float visibleHeight = visibleBottom - visibleTop;
+
+      if (visibleHeight <= 0f || frame.height <= 0f) continue;
+
+      float ratio = visibleHeight / frame.height;
+
+      if (ratio > bestRatio) {
+        bestRatio = ratio;
         bestPage = frame.index + 1;
       }
     }
+
+    // If we're essentially in a gap (no dominant page), keep the last stable page
+    if (bestPage < 0 || bestRatio < CURRENT_PAGE_SWITCH_THRESHOLD) {
+      return Math.max(1, lastStablePage);
+    }
+
+    lastStablePage = bestPage;
     return bestPage;
   }
 
   private void emitPageChanged(int page) {
+    if (ISOLATE_RENDER_TEST) return;
+    if (isPinching) return;
     try {
       WritableMap event = Arguments.createMap();
       event.putInt("page", page);
       reactContext.getJSModule(RCTEventEmitter.class)
         .receiveEvent(getId(), "onPageChanged", event);
+
+      WritableMap aliasEvent = Arguments.createMap();
+      aliasEvent.putInt("page", page);
+      reactContext.getJSModule(RCTEventEmitter.class)
+        .receiveEvent(getId(), "onPageChange", aliasEvent);
     } catch (Throwable ignored) {
     }
   }
 
   private void emitZoomChanged(float zoomValue) {
     try {
-      Log.d(TAG, "emitZoomChanged: zoom=" + zoomValue);
       if (pendingZoomEvent != null) {
         eventThrottleHandler.removeCallbacks(pendingZoomEvent);
       }
@@ -1087,6 +1211,11 @@ public class PapyrusPdfViewerView extends View {
         event.putDouble("zoom", zoomValue);
         reactContext.getJSModule(RCTEventEmitter.class)
           .receiveEvent(getId(), "onZoomChanged", event);
+
+        WritableMap aliasEvent = Arguments.createMap();
+        aliasEvent.putDouble("zoom", zoomValue);
+        reactContext.getJSModule(RCTEventEmitter.class)
+          .receiveEvent(getId(), "onZoomChange", aliasEvent);
         pendingZoomEvent = null;
       };
       eventThrottleHandler.postDelayed(pendingZoomEvent, 120);
@@ -1206,7 +1335,9 @@ public class PapyrusPdfViewerView extends View {
       @Override
       public boolean onScaleBegin(ScaleGestureDetector detector) {
         isPinching = true;
-        pinchScale = 1.0f;
+        pinchStartZoom = zoom;
+        pinchStartOffsetX = offsetX;
+        pinchStartOffsetY = offsetY;
         pinchFocusX = detector.getFocusX();
         pinchFocusY = detector.getFocusY();
         return true;
@@ -1214,19 +1345,40 @@ public class PapyrusPdfViewerView extends View {
 
       @Override
       public boolean onScale(ScaleGestureDetector detector) {
-        pinchScale *= detector.getScaleFactor();
+        float scaleFactor = detector.getScaleFactor();
+        float focusX = detector.getFocusX();
+        float focusY = detector.getFocusY();
+
+        float oldZoom = zoom;
+        float newZoom = clamp(oldZoom * scaleFactor, 0.5f, 5.0f);
+
+        if (Math.abs(newZoom - oldZoom) < 0.001f) {
+          pinchFocusX = focusX;
+          pinchFocusY = focusY;
+          return true;
+        }
+
+        ViewportAnchor anchor = captureViewportAnchor(focusX, focusY);
+
+        zoom = newZoom;
+        ensureLayoutLight();
+        restoreViewportAnchor(anchor);
+
+        pinchFocusX = focusX;
+        pinchFocusY = focusY;
         invalidate();
         return true;
       }
 
       @Override
       public void onScaleEnd(ScaleGestureDetector detector) {
+        ViewportAnchor anchor = captureViewportAnchor(pinchFocusX, pinchFocusY);
+
         isPinching = false;
-        zoom = clamp(zoom * pinchScale, 0.5f, 5.0f);
-        pinchScale = 1.0f;
         layoutDirty = true;
         ensureLayout();
-        clampOffsets();
+        restoreViewportAnchor(anchor);
+
         invalidate();
         emitZoomChanged(zoom);
       }
@@ -1263,7 +1415,7 @@ public class PapyrusPdfViewerView extends View {
             maxWidth = Math.max(maxWidth, width + PAGE_PADDING * 2);
             float left = Math.max(PAGE_PADDING, (maxWidth - width) / 2f);
             float top = i * cellHeight + (cellHeight - height) / 2f;
-            pageFrames.add(new PageFrame(i, left, top, width, height));
+            pageFrames.add(new PageFrame(i, left, top, width, height, pageWidth, pageHeight));
           }
           contentWidth = maxWidth;
           contentHeight = Math.max(getHeight(), pageCount * cellHeight);
@@ -1278,7 +1430,7 @@ public class PapyrusPdfViewerView extends View {
             float height = pageHeight * baseScale * zoom;
             maxWidth = Math.max(maxWidth, width + PAGE_PADDING * 2);
             float left = Math.max(PAGE_PADDING, (maxWidth - width) / 2f);
-            pageFrames.add(new PageFrame(i, left, y, width, height));
+            pageFrames.add(new PageFrame(i, left, y, width, height, pageWidth, pageHeight));
             y += height + PAGE_GAP;
           }
           contentWidth = maxWidth;
@@ -1294,8 +1446,114 @@ public class PapyrusPdfViewerView extends View {
     clampOffsets();
   }
 
+  private ViewportAnchor captureViewportAnchor(float screenX, float screenY) {
+    if (pageFrames.isEmpty()) return null;
+
+    float contentX = offsetX + screenX;
+    float contentY = offsetY + screenY;
+
+    PageFrame frame = findFrameForAnchor(contentY);
+
+    if (frame == null) {
+      int fallbackIndex = Math.max(0, Math.min(pageFrames.size() - 1, lastStablePage - 1));
+      frame = pageFrames.get(fallbackIndex);
+    }
+
+    float xRatio = frame.width <= 0f
+      ? 0f
+      : clamp((contentX - frame.left) / frame.width, 0f, 1f);
+
+    float yRatio = frame.height <= 0f
+      ? 0f
+      : clamp((contentY - frame.top) / frame.height, 0f, 1f);
+
+    return new ViewportAnchor(frame.index, xRatio, yRatio, screenX, screenY);
+  }
+
+  private PageFrame findFrameForAnchor(float contentY) {
+    PageFrame nearest = null;
+    float nearestDistance = Float.MAX_VALUE;
+
+    for (PageFrame frame : pageFrames) {
+      float top = frame.top;
+      float bottom = frame.top + frame.height;
+
+      if (contentY >= top && contentY <= bottom) {
+        return frame;
+      }
+
+      float distance = contentY < top ? top - contentY : contentY - bottom;
+
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearest = frame;
+      }
+    }
+
+    return nearest;
+  }
+
+  private void restoreViewportAnchor(ViewportAnchor anchor) {
+    if (anchor == null) return;
+    if (anchor.pageIndex < 0 || anchor.pageIndex >= pageFrames.size()) return;
+
+    PageFrame frame = pageFrames.get(anchor.pageIndex);
+
+    offsetX = frame.left + frame.width * anchor.pageXRatio - anchor.screenX;
+    offsetY = frame.top + frame.height * anchor.pageYRatio - anchor.screenY;
+
+    clampOffsets();
+  }
+
+  private void ensureLayoutLight() {
+    if (pageFrames.isEmpty()) return;
+    float maxWidth = getWidth();
+    int availableWidth = Math.max(1, getWidth() - PAGE_PADDING * 2);
+
+    if ("single".equals(viewMode)) {
+      float cellHeight = getHeight();
+      for (int i = 0; i < pageFrames.size(); i += 1) {
+        PageFrame old = pageFrames.get(i);
+        float baseScale = availableWidth / (float) old.pageWidth;
+        float width = old.pageWidth * baseScale * zoom;
+        float height = old.pageHeight * baseScale * zoom;
+        maxWidth = Math.max(maxWidth, width + PAGE_PADDING * 2);
+        float left = Math.max(PAGE_PADDING, (maxWidth - width) / 2f);
+        float top = i * cellHeight + (cellHeight - height) / 2f;
+        pageFrames.set(i, new PageFrame(i, left, top, width, height, old.pageWidth, old.pageHeight));
+      }
+      contentWidth = maxWidth;
+      contentHeight = Math.max(getHeight(), pageFrames.size() * cellHeight);
+    } else {
+      float y = PAGE_PADDING;
+      for (int i = 0; i < pageFrames.size(); i += 1) {
+        PageFrame old = pageFrames.get(i);
+        float baseScale = availableWidth / (float) old.pageWidth;
+        float width = old.pageWidth * baseScale * zoom;
+        float height = old.pageHeight * baseScale * zoom;
+        maxWidth = Math.max(maxWidth, width + PAGE_PADDING * 2);
+        float left = Math.max(PAGE_PADDING, (maxWidth - width) / 2f);
+        pageFrames.set(i, new PageFrame(i, left, y, width, height, old.pageWidth, old.pageHeight));
+        y += height + PAGE_GAP;
+      }
+      contentWidth = maxWidth;
+      contentHeight = Math.max(getHeight(), y + PAGE_PADDING);
+    }
+    clampOffsets();
+  }
+
   private void requestRender(PageFrame frame, String key) {
-    if (loadingKeys.contains(key)) return;
+    if (loadingKeys.contains(key)) {
+      if (DEBUG_RENDER_GAP) Log.d(TAG, "requestRender: already loading key=" + key);
+      return;
+    }
+    long now = SystemClock.uptimeMillis();
+    Long last = renderRequestCooldown.get(key);
+    if (last != null && now - last < RENDER_COOLDOWN_MS) {
+      if (DEBUG_RENDER_GAP) Log.d(TAG, "requestRender: cooldown key=" + key);
+      return;
+    }
+    renderRequestCooldown.put(key, now);
     PapyrusEngineStore.EngineState state = PapyrusEngineStore.getEngine(engineId);
     if (state == null || state.document == null || state.isSearching) return;
     loadingKeys.add(key);
@@ -1306,6 +1564,10 @@ public class PapyrusPdfViewerView extends View {
     );
     int renderWidth = renderSize[0];
     int renderHeight = renderSize[1];
+
+    if (DEBUG_RENDER_GAP) {
+      Log.d(TAG, "requestRender: start page=" + frame.index + " key=" + key + " size=" + renderWidth + "x" + renderHeight);
+    }
 
     RENDER_EXECUTOR.execute(() -> {
       Bitmap rendered = null;
@@ -1322,6 +1584,9 @@ public class PapyrusPdfViewerView extends View {
           if (finalRendered != null && !finalRendered.isRecycled()) {
             RENDER_CACHE.put(key, finalRendered);
             lastPageBitmap.put(frame.index, finalRendered);
+            if (DEBUG_RENDER_GAP) {
+              Log.d(TAG, "requestRender: complete page=" + frame.index + " key=" + key + " cacheSize=" + RENDER_CACHE.size());
+            }
           }
           if (generationAtStart == renderGeneration) {
             invalidate();
@@ -1342,7 +1607,11 @@ public class PapyrusPdfViewerView extends View {
     PapyrusEngineStore.EngineState state = PapyrusEngineStore.getEngine(engineId);
     int docIdentity = state == null || state.document == null ? 0 : System.identityHashCode(state.document);
     String source = state == null || state.sourcePath == null ? "" : state.sourcePath;
-    return source + ":" + docIdentity + ":" + frame.index + ":" + Math.round(frame.width) + "x" + Math.round(frame.height);
+    // Bucket zoom to prevent tiny fluctuations from changing the key during scroll/pan
+    float zoomBucket = Math.round(zoom * 100f) / 100f;
+    int widthPx = Math.max(1, Math.round(frame.width));
+    int heightPx = Math.max(1, Math.round(frame.height));
+    return source + ":" + docIdentity + ":" + frame.index + ":" + widthPx + "x" + heightPx + ":z" + zoomBucket + ":" + pageTheme;
   }
 
   private void clampOffsets() {
@@ -1375,6 +1644,8 @@ public class PapyrusPdfViewerView extends View {
   }
 
   private void emitScrollEvent(float offsetYValue) {
+    if (ISOLATE_RENDER_TEST) return;
+    if (isPinching) return;
     try {
       if (pendingScrollEvent != null) {
         eventThrottleHandler.removeCallbacks(pendingScrollEvent);
@@ -1384,11 +1655,114 @@ public class PapyrusPdfViewerView extends View {
         event.putDouble("offsetY", offsetYValue);
         reactContext.getJSModule(RCTEventEmitter.class)
           .receiveEvent(getId(), "onScroll", event);
+        emitVisiblePagesChanged();
         pendingScrollEvent = null;
       };
-      eventThrottleHandler.postDelayed(pendingScrollEvent, 16);
+      eventThrottleHandler.postDelayed(pendingScrollEvent, 80);
     } catch (Throwable ignored) {
     }
+  }
+
+  private void emitVisiblePagesChanged() {
+    if (ISOLATE_RENDER_TEST) return;
+    if (isPinching) return;
+    // Dead zone: when viewport center is in a page gap, do not emit
+    // visiblePages events at all to prevent JS/native flicker loops.
+    if (isViewportCenterInsidePageGap()) {
+      if (DEBUG_GAP) {
+        Log.d(TAG, "emitVisiblePagesChanged: center in gap, skipping. " +
+          "zoom=" + zoom + " offsetY=" + offsetY + " lastStablePage=" + lastStablePage);
+      }
+      return;
+    }
+    try {
+      VisiblePagesResult result = buildVisiblePagesResult();
+
+      // Do not emit empty visiblePages when viewport is in a page gap.
+      // Preserve the last stable signature to prevent JS/native loop and flicker.
+      if (!result.hasStableVisiblePage) {
+        if (DEBUG_GAP) {
+          Log.d(TAG, "emitVisiblePagesChanged: no stable page (gap), skipping. " +
+            "zoom=" + zoom + " offsetY=" + offsetY + " lastStablePage=" + lastStablePage);
+        }
+        return;
+      }
+
+      if (result.signature.equals(lastVisiblePagesSignature)) {
+        return;
+      }
+
+      lastVisiblePagesSignature = result.signature;
+
+      if (DEBUG_GAP) {
+        Log.d(TAG, "emitVisiblePagesChanged: signature=" + result.signature +
+          " zoom=" + zoom + " offsetY=" + offsetY + " lastStablePage=" + lastStablePage);
+      }
+
+      WritableMap event = Arguments.createMap();
+      event.putArray("pages", result.pages);
+      reactContext.getJSModule(RCTEventEmitter.class)
+        .receiveEvent(getId(), "onVisiblePagesChange", event);
+    } catch (Throwable ignored) {
+    }
+  }
+
+  private static class VisiblePagesResult {
+    final WritableArray pages;
+    final String signature;
+    final boolean hasStableVisiblePage;
+
+    VisiblePagesResult(WritableArray pages, String signature, boolean hasStableVisiblePage) {
+      this.pages = pages;
+      this.signature = signature;
+      this.hasStableVisiblePage = hasStableVisiblePage;
+    }
+  }
+
+  private VisiblePagesResult buildVisiblePagesResult() {
+    WritableArray pages = Arguments.createArray();
+    StringBuilder signature = new StringBuilder();
+
+    if (pageFrames.isEmpty() || getHeight() <= 0) {
+      return new VisiblePagesResult(pages, "", false);
+    }
+
+    float viewportTop = offsetY;
+    float viewportBottom = offsetY + getHeight();
+    float threshold = getVisibleRatioThreshold();
+
+    for (PageFrame frame : pageFrames) {
+      float frameTop = frame.top;
+      float frameBottom = frame.top + frame.height;
+      float visibleTop = Math.max(frameTop, viewportTop);
+      float visibleBottom = Math.min(frameBottom, viewportBottom);
+      float visibleHeight = visibleBottom - visibleTop;
+
+      if (visibleHeight <= 0f || frame.height <= 0f) continue;
+
+      float ratio = clamp(visibleHeight / frame.height, 0f, 1f);
+
+      // Ignore micro-visibility near page gaps to avoid jitter
+      if (ratio < threshold) continue;
+
+      // Bucket ratio to prevent tiny fluctuations from triggering events
+      float bucketedRatio =
+        Math.round(ratio / VISIBLE_RATIO_BUCKET) * VISIBLE_RATIO_BUCKET;
+
+      WritableMap item = Arguments.createMap();
+      item.putInt("pageIndex", frame.index);
+      item.putDouble("visibleRatio", bucketedRatio);
+      pages.pushMap(item);
+
+      signature
+        .append(frame.index)
+        .append(":")
+        .append(Math.round(bucketedRatio * 100))
+        .append(";");
+    }
+
+    boolean hasStableVisiblePage = signature.length() > 0;
+    return new VisiblePagesResult(pages, signature.toString(), hasStableVisiblePage);
   }
 
   private static float clamp(float value, float min, float max) {
@@ -1633,13 +2007,17 @@ public class PapyrusPdfViewerView extends View {
     final float top;
     final float width;
     final float height;
+    final int pageWidth;
+    final int pageHeight;
 
-    PageFrame(int index, float left, float top, float width, float height) {
+    PageFrame(int index, float left, float top, float width, float height, int pageWidth, int pageHeight) {
       this.index = index;
       this.left = left;
       this.top = top;
       this.width = width;
       this.height = height;
+      this.pageWidth = pageWidth;
+      this.pageHeight = pageHeight;
     }
   }
 }

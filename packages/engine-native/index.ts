@@ -1,6 +1,7 @@
 import type { ComponentType, RefAttributes } from "react";
 import {
   NativeModules,
+  Platform,
   TurboModuleRegistry,
   requireNativeComponent,
   View,
@@ -25,6 +26,7 @@ import {
   TextSelection,
   PageTheme,
   Annotation,
+  PdfVisiblePage,
 } from "@papyrus-sdk/types";
 
 const MODULE_NAME = "PapyrusNativeEngine";
@@ -260,6 +262,9 @@ export type PapyrusPdfViewerViewProps = ViewProps & {
   annotations?: Annotation[];
   onPageChanged?: (event: { nativeEvent: { page: number } }) => void;
   onZoomChanged?: (event: { nativeEvent: { zoom: number } }) => void;
+  onPageChange?: (event: { nativeEvent: { page: number } }) => void;
+  onZoomChange?: (event: { nativeEvent: { zoom: number } }) => void;
+  onVisiblePagesChange?: (event: { nativeEvent: { pages: PdfVisiblePage[] } }) => void;
   onAnnotationCreated?: (event: { nativeEvent: Annotation }) => void;
   onTap?: (event: { nativeEvent: { pageIndex: number; x: number; y: number } }) => void;
   onAnnotationTap?: (event: { nativeEvent: { id: string; pageIndex: number; type: string; color: string } }) => void;
@@ -308,14 +313,16 @@ const resolvePapyrusPageView = (): PapyrusPageViewComponent => {
 };
 
 const resolvePapyrusPdfViewerView = (): PapyrusPdfViewerViewComponent => {
+  const componentName =
+    Platform.OS === "ios" ? "PapyrusPdfDocumentView" : "PapyrusPdfViewerView";
   try {
     return requireNativeViewManager<PapyrusPdfViewerViewProps>(
-      "PapyrusPdfViewerView"
+      componentName
     ) as unknown as PapyrusPdfViewerViewComponent;
   } catch {
     try {
       return requireNativeComponent<PapyrusPdfViewerViewProps>(
-        "PapyrusPdfViewerView"
+        componentName
       ) as unknown as PapyrusPdfViewerViewComponent;
     } catch {
       return View as unknown as PapyrusPdfViewerViewComponent;
@@ -325,6 +332,7 @@ const resolvePapyrusPdfViewerView = (): PapyrusPdfViewerViewComponent => {
 
 export const PapyrusPageView = resolvePapyrusPageView();
 export const PapyrusPdfViewerView = resolvePapyrusPdfViewerView();
+export const PapyrusPdfDocumentView = PapyrusPdfViewerView;
 
 export class NativeDocumentEngine extends BaseDocumentEngine {
   private nativeModule: NativeEngineModule | null = null;

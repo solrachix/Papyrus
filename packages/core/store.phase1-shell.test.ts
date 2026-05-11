@@ -57,4 +57,35 @@ describe("phase-1 shell state", () => {
     expect(useViewerStore.getState().mobileDockVisible).toBe(true);
     expect(useViewerStore.getState().mobileProgressPillVisible).toBe(true);
   });
+
+  it("defaults pdf viewing to compat mode", () => {
+    expect(useViewerStore.getState().viewerMode).toBe("compat");
+    expect(useViewerStore.getState().visiblePages).toEqual([]);
+    expect(useViewerStore.getState().nativeViewportGestureActive).toBe(false);
+  });
+
+  it("initializes native pdf viewer mode from config", () => {
+    const store = useViewerStore.getState();
+
+    store.initializeStore({ viewerMode: "native" });
+
+    expect(useViewerStore.getState().viewerMode).toBe("native");
+  });
+
+  it("stores visible native pages without changing the current page", () => {
+    const store = useViewerStore.getState();
+
+    store.setDocumentState({
+      currentPage: 3,
+      visiblePages: [{ pageIndex: 2, visibleRatio: 0.75 }],
+    });
+    store.setDocumentState({
+      visiblePages: [{ pageIndex: 4, visibleRatio: 0.5 }],
+    });
+
+    expect(useViewerStore.getState().currentPage).toBe(3);
+    expect(useViewerStore.getState().visiblePages).toEqual([
+      { pageIndex: 4, visibleRatio: 0.5 },
+    ]);
+  });
 });

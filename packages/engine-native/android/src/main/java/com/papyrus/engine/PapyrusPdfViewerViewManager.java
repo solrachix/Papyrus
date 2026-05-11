@@ -38,10 +38,31 @@ public class PapyrusPdfViewerViewManager extends SimpleViewManager<PapyrusPdfVie
         )
       )
       .put(
+        "onPageChange",
+        com.facebook.react.common.MapBuilder.of(
+          "phasedRegistrationNames",
+          com.facebook.react.common.MapBuilder.of("bubbled", "onPageChange")
+        )
+      )
+      .put(
         "onZoomChanged",
         com.facebook.react.common.MapBuilder.of(
           "phasedRegistrationNames",
           com.facebook.react.common.MapBuilder.of("bubbled", "onZoomChanged")
+        )
+      )
+      .put(
+        "onZoomChange",
+        com.facebook.react.common.MapBuilder.of(
+          "phasedRegistrationNames",
+          com.facebook.react.common.MapBuilder.of("bubbled", "onZoomChange")
+        )
+      )
+      .put(
+        "onVisiblePagesChange",
+        com.facebook.react.common.MapBuilder.of(
+          "phasedRegistrationNames",
+          com.facebook.react.common.MapBuilder.of("bubbled", "onVisiblePagesChange")
         )
       )
       .put(

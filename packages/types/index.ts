@@ -3,6 +3,28 @@ export type UITheme = "light" | "dark";
 export type PageTheme = "normal" | "sepia" | "dark" | "high-contrast";
 export type Locale = "en" | "pt-BR";
 export type RenderTargetType = "canvas" | "element" | "webview";
+export type PdfViewerMode = "native" | "compat";
+export type PdfScrollDirection = "vertical" | "horizontal";
+export type PdfPageMode = "single" | "continuous";
+
+export interface PdfVisiblePage {
+  pageIndex: number;
+  visibleRatio: number;
+}
+
+export interface PdfViewportState {
+  zoom: number;
+  currentPage: number;
+  visiblePages: PdfVisiblePage[];
+  isGestureActive: boolean;
+}
+
+export interface PdfViewportCommandHandle {
+  goToPage(page: number): void;
+  setZoom(zoom: number): void;
+  fitToWidth(): void;
+  resetZoom(): void;
+}
 
 export interface FileLike {
   arrayBuffer(): Promise<ArrayBuffer>;
@@ -156,6 +178,7 @@ export interface PapyrusConfig {
   initialZoom?: number;
   initialRotation?: number;
   initialViewMode?: ViewMode;
+  viewerMode?: PdfViewerMode;
   initialUITheme?: UITheme;
   initialPageTheme?: PageTheme;
   initialAccentColor?: string;

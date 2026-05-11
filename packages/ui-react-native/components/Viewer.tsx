@@ -16,12 +16,13 @@ import {
 } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { useViewerStore } from "@papyrus-sdk/core";
-import { DocumentEngine } from "@papyrus-sdk/types";
+import { DocumentEngine, PdfViewerMode } from "@papyrus-sdk/types";
 import PageRenderer from "./PageRenderer";
 import WebViewViewer from "./WebViewViewer";
-import DedicatedAndroidPdfViewer, {
-  getDedicatedAndroidPdfEngineId,
-} from "./DedicatedAndroidPdfViewer";
+import NativePdfDocumentViewer, {
+  getNativePdfEngineId,
+} from "./NativePdfDocumentViewer";
+import { shouldUseNativePdfViewer } from "./nativePdfViewerMode";
 import {
   createBurstMonitor,
   createRenderCounter,
@@ -54,6 +55,7 @@ export interface ViewerProps {
   maxToRenderPerBatch?: number;
   removeClippedSubviews?: boolean;
   useDedicatedAndroidPdfViewer?: boolean;
+  viewerMode?: PdfViewerMode;
 }
 
 const LIST_TOP_PADDING = 18;
@@ -107,6 +109,7 @@ const Viewer: React.FC<ViewerProps> = ({
   maxToRenderPerBatch,
   removeClippedSubviews,
   useDedicatedAndroidPdfViewer,
+  viewerMode,
 }) => {
   const pageCount = useViewerStore((state) => state.pageCount);
   const currentPage = useViewerStore((state) => state.currentPage);
@@ -120,6 +123,7 @@ const Viewer: React.FC<ViewerProps> = ({
   const uiTheme = useViewerStore((state) => state.uiTheme);
   const viewMode = useViewerStore((state) => state.viewMode);
   const zoom = useViewerStore((state) => state.zoom);
+  const storeViewerMode = useViewerStore((state) => state.viewerMode);
   const listRef = useRef<FlatList<any>>(null);
   const horizontalScrollRef = useRef<ScrollView | null>(null);
   const isDark = uiTheme === "dark";
@@ -128,12 +132,15 @@ const Viewer: React.FC<ViewerProps> = ({
   const isSingle = viewMode === "single";
   const renderTargetType = engine.getRenderTargetType?.() ?? "canvas";
   const isWebView = renderTargetType === "webview";
-  const isDedicatedAndroidPdfViewer =
-    Platform.OS === "android" &&
-    !!useDedicatedAndroidPdfViewer &&
-    pageCount > 0 &&
-    !isWebView &&
-    !!getDedicatedAndroidPdfEngineId(engine);
+  const resolvedViewerMode =
+    viewerMode ?? (useDedicatedAndroidPdfViewer ? "native" : storeViewerMode);
+  const nativeEngineId = getNativePdfEngineId(engine);
+  const isNativePdfViewer = shouldUseNativePdfViewer({
+    viewerMode: resolvedViewerMode,
+    pageCount,
+    isWebView,
+    nativeEngineId,
+  });
   const perfEnabled = isMobilePerfEnabled();
   const mountedAtRef = useRef(perfNow());
   const readyLoggedRef = useRef(false);
@@ -1496,10 +1503,10 @@ const Viewer: React.FC<ViewerProps> = ({
     );
   }
 
-  if (isDedicatedAndroidPdfViewer) {
+  if (isNativePdfViewer) {
     return (
       <View style={[styles.container, isDark && styles.containerDark]}>
-        <DedicatedAndroidPdfViewer engine={engine} />
+        <NativePdfDocumentViewer engine={engine} />
       </View>
     );
   }

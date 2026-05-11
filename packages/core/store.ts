@@ -15,6 +15,8 @@ import {
   Locale,
   MobilePrimaryDestination,
   MobileShellState,
+  PdfViewerMode,
+  PdfVisiblePage,
   ReadingMode,
 } from "@papyrus-sdk/types";
 import { papyrusEvents } from "./services/event-emitter";
@@ -47,6 +49,7 @@ interface ViewerState {
   zoom: number;
   rotation: number;
   viewMode: ViewMode;
+  viewerMode: PdfViewerMode;
   uiTheme: UITheme;
   pageTheme: PageTheme;
   locale: Locale;
@@ -88,6 +91,8 @@ interface ViewerState {
   mobileKeyboardOpen: boolean;
   mobileDockVisible: boolean;
   mobileProgressPillVisible: boolean;
+  visiblePages: PdfVisiblePage[];
+  nativeViewportGestureActive: boolean;
   annotationUndoStack: Array<{
     annotations: Annotation[];
     selectedAnnotationId: string | null;
@@ -142,6 +147,7 @@ const getDefaultViewerState = () => ({
   zoom: 1.0,
   rotation: 0,
   viewMode: "continuous" as ViewMode,
+  viewerMode: "compat" as PdfViewerMode,
   uiTheme: "light" as UITheme,
   pageTheme: "normal" as PageTheme,
   locale: "en" as Locale,
@@ -180,6 +186,8 @@ const getDefaultViewerState = () => ({
   mobileKeyboardOpen: false,
   mobileDockVisible: true,
   mobileProgressPillVisible: true,
+  visiblePages: [] as PdfVisiblePage[],
+  nativeViewportGestureActive: false,
   annotationUndoStack: [] as Array<{
     annotations: Annotation[];
     selectedAnnotationId: string | null;
@@ -220,6 +228,7 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
         zoom: config.initialZoom ?? defaults.zoom,
         rotation: config.initialRotation ?? defaults.rotation,
         viewMode: config.initialViewMode ?? defaults.viewMode,
+        viewerMode: config.viewerMode ?? defaults.viewerMode,
         uiTheme: config.initialUITheme ?? defaults.uiTheme,
         pageTheme: config.initialPageTheme ?? defaults.pageTheme,
         locale: config.initialLocale ?? defaults.locale,
