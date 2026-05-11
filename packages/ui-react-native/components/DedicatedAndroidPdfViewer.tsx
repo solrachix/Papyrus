@@ -180,7 +180,9 @@ export default function DedicatedAndroidPdfViewer({
           setDocumentState({ currentPage: event.nativeEvent.page });
         }}
         onZoomChanged={(event) => {
-          setDocumentState({ zoom: event.nativeEvent.zoom });
+          const newZoom = event.nativeEvent.zoom;
+          console.log("[DedicatedAndroidPdfViewer] onZoomChanged:", newZoom);
+          setDocumentState({ zoom: newZoom });
         }}
         onAnnotationCreated={(event) => {
           addAnnotation(event.nativeEvent);

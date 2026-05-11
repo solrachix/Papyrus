@@ -80,8 +80,11 @@ public class PapyrusPdfViewerView extends View {
   private float lastTouchY = 0f;
   private boolean layoutDirty = true;
   private int renderGeneration = 0;
-  private boolean wasScaling = false;
   private boolean isDrawingInk = false;
+  private boolean isPinching = false;
+  private float pinchScale = 1.0f;
+  private float pinchFocusX = 0f;
+  private float pinchFocusY = 0f;
   private List<float[]> inkStrokePoints = new ArrayList<>();
   private int inkStrokePageIndex = -1;
   private long touchDownTime = 0;
@@ -336,10 +339,6 @@ public class PapyrusPdfViewerView extends View {
         return true;
       case MotionEvent.ACTION_UP:
       case MotionEvent.ACTION_CANCEL:
-        if (wasScaling && !scaleDetector.isInProgress()) {
-          wasScaling = false;
-          emitZoomChanged(zoom);
-        }
         if (!scaleDetector.isInProgress() && velocityTracker != null) {
           velocityTracker.addMovement(event);
           velocityTracker.computeCurrentVelocity(1000, 8000);
@@ -998,9 +997,16 @@ public class PapyrusPdfViewerView extends View {
   @Override
   protected void onDraw(Canvas canvas) {
     super.onDraw(canvas);
-    ensureLayout();
+    if (!isPinching) {
+      ensureLayout();
+    }
     canvas.drawColor(resolveBackgroundColor(pageTheme));
     if (pageFrames.isEmpty()) return;
+
+    if (isPinching) {
+      canvas.save();
+      canvas.scale(pinchScale, pinchScale, pinchFocusX, pinchFocusY);
+    }
 
     for (PageFrame frame : pageFrames) {
       int left = Math.round(frame.left - offsetX);
@@ -1038,6 +1044,10 @@ public class PapyrusPdfViewerView extends View {
       }
       drawOverlays(canvas, frame, left, top);
     }
+
+    if (isPinching) {
+      canvas.restore();
+    }
   }
 
   private int computeVisiblePage() {
@@ -1068,6 +1078,7 @@ public class PapyrusPdfViewerView extends View {
 
   private void emitZoomChanged(float zoomValue) {
     try {
+      Log.d(TAG, "emitZoomChanged: zoom=" + zoomValue);
       if (pendingZoomEvent != null) {
         eventThrottleHandler.removeCallbacks(pendingZoomEvent);
       }
@@ -1194,24 +1205,30 @@ public class PapyrusPdfViewerView extends View {
     return new ScaleGestureDetector(context, new ScaleGestureDetector.SimpleOnScaleGestureListener() {
       @Override
       public boolean onScaleBegin(ScaleGestureDetector detector) {
-        wasScaling = true;
+        isPinching = true;
+        pinchScale = 1.0f;
+        pinchFocusX = detector.getFocusX();
+        pinchFocusY = detector.getFocusY();
         return true;
       }
 
       @Override
       public boolean onScale(ScaleGestureDetector detector) {
-        float oldContentWidth = Math.max(1f, contentWidth);
-        float oldContentHeight = Math.max(1f, contentHeight);
-        float focusRatioX = (offsetX + detector.getFocusX()) / oldContentWidth;
-        float focusRatioY = (offsetY + detector.getFocusY()) / oldContentHeight;
-        zoom = clamp(zoom * detector.getScaleFactor(), 0.5f, 5.0f);
-        layoutDirty = true;
-        ensureLayout();
-        offsetX = focusRatioX * contentWidth - detector.getFocusX();
-        offsetY = focusRatioY * contentHeight - detector.getFocusY();
-        clampOffsets();
+        pinchScale *= detector.getScaleFactor();
         invalidate();
         return true;
+      }
+
+      @Override
+      public void onScaleEnd(ScaleGestureDetector detector) {
+        isPinching = false;
+        zoom = clamp(zoom * pinchScale, 0.5f, 5.0f);
+        pinchScale = 1.0f;
+        layoutDirty = true;
+        ensureLayout();
+        clampOffsets();
+        invalidate();
+        emitZoomChanged(zoom);
       }
     });
   }
