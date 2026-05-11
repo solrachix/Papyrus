@@ -160,10 +160,6 @@ export default function DedicatedAndroidPdfViewer({
     selectionRef.current = null;
   }, []);
 
-  if (!engineId) {
-    return <View style={styles.container} />;
-  }
-
   return (
     <View style={styles.container}>
       <PapyrusPdfViewerView
