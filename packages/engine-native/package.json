@@ -47,7 +47,7 @@
     "url": "https://github.com/solrachix/Papyrus/issues"
   },
   "scripts": {
-    "build": "tsup index.ts --dts --format cjs,esm --out-dir dist --clean --sourcemap",
+    "build": "tsup",
     "prepublishOnly": "pnpm build"
   },
   "peerDependencies": {
