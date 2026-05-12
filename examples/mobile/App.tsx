@@ -277,6 +277,7 @@ const App: React.FC = () => {
             virtualWindowSize: VIEWER_VIRTUAL_WINDOW_SIZE,
             maxToRenderPerBatch: VIEWER_MAX_TO_RENDER_PER_BATCH,
             removeClippedSubviews: true,
+            useDedicatedAndroidPdfViewer: activeType === 'pdf',
           }}
         />
         <View pointerEvents="box-none" style={styles.documentSwitcherFrame}>

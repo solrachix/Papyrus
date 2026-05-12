@@ -35,6 +35,7 @@ final class PapyrusEngineStore {
   }
 
   static EngineState getEngine(String engineId) {
+    if (engineId == null) return null;
     return ENGINES.get(engineId);
   }
 

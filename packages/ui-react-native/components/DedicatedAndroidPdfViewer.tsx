@@ -1,0 +1,339 @@
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { Pressable, StyleSheet, View } from "react-native";
+import { useViewerStore } from "@papyrus-sdk/core";
+import { DocumentEngine } from "@papyrus-sdk/types";
+import { PapyrusPdfDocumentView } from "@papyrus-sdk/engine-native";
+import { IconCopy, IconHighlight, IconUnderline, IconCommentBubble } from "../icons";
+
+const TEXT_MARKUP_TOOLS = new Set(["highlight", "underline", "squiggly", "strikeout"]);
+
+const MOBILE_CHROME_HIDE_DELTA = 28;
+const MOBILE_CHROME_SHOW_DELTA = 22;
+const MOBILE_CHROME_SHOW_DELAY_MS = 180;
+const MOBILE_CHROME_TOP_RESET = 16;
+
+type NativeEngineBackdoor = {
+  getNativeEngineId?: () => string;
+};
+
+type DedicatedAndroidPdfViewerProps = {
+  engine: DocumentEngine;
+};
+
+export const getDedicatedAndroidPdfEngineId = (
+  engine: DocumentEngine
+): string | null => {
+  const engineId = (engine as DocumentEngine & NativeEngineBackdoor)
+    .getNativeEngineId?.();
+  return typeof engineId === "string" && engineId.length > 0 ? engineId : null;
+};
+
+type SelectionState = {
+  text: string;
+  pageIndex: number;
+  rects: Array<{ x: number; y: number; width: number; height: number }>;
+} | null;
+
+export default function DedicatedAndroidPdfViewer({
+  engine,
+}: DedicatedAndroidPdfViewerProps) {
+  const pageTheme = useViewerStore((state) => state.pageTheme);
+  const zoom = useViewerStore((state) => state.zoom);
+  const currentPage = useViewerStore((state) => state.currentPage);
+  const activeTool = useViewerStore((state) => state.activeTool);
+  const annotationColor = useViewerStore((state) => state.annotationColor);
+  const inkStrokeWidth = useViewerStore((state) => state.inkStrokeWidth);
+  const annotationOpacity = useViewerStore((state) => state.annotationOpacity);
+  const searchResults = useViewerStore((state) => state.searchResults);
+  const annotations = useViewerStore((state) => state.annotations);
+  const viewMode = useViewerStore((state) => state.viewMode);
+  const nativeViewMode = viewMode === "single" ? "single" : "continuous";
+  const setDocumentState = useViewerStore((state) => state.setDocumentState);
+  const addAnnotation = useViewerStore((state) => state.addAnnotation);
+  const setSelectedAnnotation = useViewerStore((state) => state.setSelectedAnnotation);
+  const engineId = getDedicatedAndroidPdfEngineId(engine);
+
+  const [selection, setSelection] = useState<SelectionState>(null);
+  const selectionRef = useRef<SelectionState>(null);
+
+  // Deduplicate visiblePages events to prevent JS/native loop in page gaps
+  const lastVisiblePagesKeyRef = useRef("");
+
+  // Mobile chrome auto-hide tracking (replicates Viewer.tsx trackMobileChromeByOffset)
+  const lastScrollOffsetYRef = useRef(0);
+  const scrollDownAccumRef = useRef(0);
+  const scrollUpAccumRef = useRef(0);
+  const pendingChromeShowTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const chromeVisibleRef = useRef(true);
+
+  const clearPendingChromeShow = useCallback(() => {
+    if (pendingChromeShowTimeoutRef.current) {
+      clearTimeout(pendingChromeShowTimeoutRef.current);
+      pendingChromeShowTimeoutRef.current = null;
+    }
+  }, []);
+
+  const setMobileChromeVisible = useCallback((visible: boolean, reason: string) => {
+    if (chromeVisibleRef.current === visible) return;
+    chromeVisibleRef.current = visible;
+    setDocumentState({ mobileChromeVisible: visible });
+  }, [setDocumentState]);
+
+  const trackMobileChromeByOffset = useCallback((offsetY: number, reasonPrefix: string) => {
+    const safeOffset = Math.max(0, offsetY);
+    const delta = safeOffset - lastScrollOffsetYRef.current;
+    lastScrollOffsetYRef.current = safeOffset;
+
+    if (safeOffset <= MOBILE_CHROME_TOP_RESET) {
+      scrollDownAccumRef.current = 0;
+      scrollUpAccumRef.current = 0;
+      clearPendingChromeShow();
+      setMobileChromeVisible(true, `${reasonPrefix}.top`);
+      return;
+    }
+
+    if (Math.abs(delta) < 1) return;
+
+    if (delta > 0) {
+      scrollDownAccumRef.current += delta;
+      scrollUpAccumRef.current = 0;
+      clearPendingChromeShow();
+      if (
+        scrollDownAccumRef.current >= MOBILE_CHROME_HIDE_DELTA &&
+        chromeVisibleRef.current
+      ) {
+        scrollDownAccumRef.current = 0;
+        setMobileChromeVisible(false, `${reasonPrefix}.hide`);
+      }
+      return;
+    }
+
+    scrollUpAccumRef.current += -delta;
+    scrollDownAccumRef.current = 0;
+    if (
+      scrollUpAccumRef.current >= MOBILE_CHROME_SHOW_DELTA &&
+      !chromeVisibleRef.current
+    ) {
+      if (!pendingChromeShowTimeoutRef.current) {
+        pendingChromeShowTimeoutRef.current = setTimeout(() => {
+          pendingChromeShowTimeoutRef.current = null;
+          scrollUpAccumRef.current = 0;
+          if (!chromeVisibleRef.current) {
+            setMobileChromeVisible(true, `${reasonPrefix}.show`);
+          }
+        }, MOBILE_CHROME_SHOW_DELAY_MS);
+      }
+    }
+  }, [clearPendingChromeShow, setMobileChromeVisible]);
+
+  useEffect(() => {
+    return () => {
+      clearPendingChromeShow();
+    };
+  }, [clearPendingChromeShow]);
+
+  const applySelection = useCallback((type: "highlight" | "underline" | "squiggly" | "strikeout" | "comment") => {
+    const sel = selectionRef.current;
+    if (!sel || !sel.rects || sel.rects.length === 0) return;
+    const bounds = sel.rects.reduce((acc, r) => ({
+      x: Math.min(acc.x, r.x),
+      y: Math.min(acc.y, r.y),
+      width: Math.max(acc.x + acc.width, r.x + r.width) - Math.min(acc.x, r.x),
+      height: Math.max(acc.y + acc.height, r.y + r.height) - Math.min(acc.y, r.y),
+    }), { x: 1, y: 1, width: 0, height: 0 });
+    addAnnotation({
+      id: Math.random().toString(36).slice(2, 9),
+      pageIndex: sel.pageIndex,
+      type,
+      rect: bounds,
+      rects: sel.rects,
+      color: annotationColor,
+      content: sel.text,
+      createdAt: Date.now(),
+    });
+    setSelection(null);
+    selectionRef.current = null;
+  }, [addAnnotation, annotationColor]);
+
+  const copySelection = useCallback(() => {
+    const sel = selectionRef.current;
+    if (sel?.text) {
+      // Clipboard.setString(sel.text); // Would need @react-native-clipboard/clipboard
+    }
+    setSelection(null);
+    selectionRef.current = null;
+  }, []);
+
+  return (
+    <View style={styles.container}>
+      <PapyrusPdfDocumentView
+        style={styles.viewer}
+        engineId={engineId}
+        pageTheme={pageTheme}
+        zoom={zoom}
+        currentPage={currentPage}
+        activeTool={activeTool}
+        annotationColor={annotationColor}
+        inkStrokeWidth={inkStrokeWidth}
+        annotationOpacity={annotationOpacity}
+        searchResults={searchResults}
+        annotations={annotations}
+        selectionActive={!!selection}
+        viewMode={nativeViewMode}
+        onPageChange={(event) => {
+          setDocumentState({ currentPage: event.nativeEvent.page });
+        }}
+        onZoomChange={(event) => {
+          setDocumentState({ zoom: event.nativeEvent.zoom });
+        }}
+        onVisiblePagesChange={(event) => {
+          const pages = event.nativeEvent.pages ?? [];
+
+          // Filter out micro-visibility near gaps and build stable key
+          const stablePages = pages.filter(
+            (page: { pageIndex: number; visibleRatio: number }) =>
+              page.visibleRatio >= 0.03
+          );
+
+          // Do not update store with empty visiblePages when in a page gap.
+          // This prevents JS/native loop and flicker.
+          if (stablePages.length === 0) {
+            return;
+          }
+
+          const key = stablePages
+            .map(
+              (page: { pageIndex: number; visibleRatio: number }) =>
+                `${page.pageIndex}:${Math.round(page.visibleRatio * 100)}`
+            )
+            .join("|");
+
+          if (key === lastVisiblePagesKeyRef.current) {
+            return;
+          }
+
+          lastVisiblePagesKeyRef.current = key;
+          setDocumentState({ visiblePages: stablePages });
+        }}
+        onAnnotationCreated={(event) => {
+          addAnnotation(event.nativeEvent);
+        }}
+        onAnnotationTap={(event) => {
+          setSelectedAnnotation(event.nativeEvent.id);
+        }}
+        onTextSelected={(event) => {
+          const { text, pageIndex, rects } = event.nativeEvent;
+          if (!rects || rects.length === 0) {
+            setSelection(null);
+            selectionRef.current = null;
+            return;
+          }
+          const sel = { text, pageIndex, rects };
+          setSelection(sel);
+          selectionRef.current = sel;
+          if (TEXT_MARKUP_TOOLS.has(activeTool)) {
+            applySelection(activeTool as "highlight" | "underline" | "squiggly" | "strikeout");
+          }
+        }}
+        onScroll={(event) => {
+          trackMobileChromeByOffset(event.nativeEvent.offsetY, "native.scroll");
+        }}
+      />
+      {selection && (
+        <>
+          <Pressable
+            style={styles.overlay}
+            onPress={() => {
+              setSelection(null);
+              selectionRef.current = null;
+            }}
+          />
+          <View style={styles.selectionToolbar} pointerEvents="box-none">
+            <View style={styles.toolbarContent}>
+              <Pressable
+                onPress={() => {
+                  copySelection();
+                }}
+                style={styles.toolbarButton}
+              >
+                <IconCopy size={20} color="#fff" strokeWidth={2} />
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  applySelection("highlight");
+                }}
+                style={styles.toolbarButton}
+              >
+                <IconHighlight size={22} color="#fbbf24" />
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  applySelection("underline");
+                }}
+                style={styles.toolbarButton}
+              >
+                <IconUnderline size={22} color="#60a5fa" />
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  applySelection("comment");
+                }}
+                style={styles.toolbarButton}
+              >
+                <IconCommentBubble size={22} color="#fff" />
+              </Pressable>
+            </View>
+          </View>
+        </>
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  viewer: {
+    flex: 1,
+  },
+  selectionToolbar: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 120,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 50,
+  },
+  toolbarContent: {
+    flexDirection: "row",
+    backgroundColor: "rgba(30, 30, 30, 0.92)",
+    borderRadius: 16,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    gap: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 10,
+  },
+  toolbarButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: "rgba(255,255,255,0.1)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 40,
+  },
+  toolbarButtonText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+});

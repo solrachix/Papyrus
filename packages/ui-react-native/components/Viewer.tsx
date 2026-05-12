@@ -7,6 +7,7 @@ import React, {
 } from "react";
 import {
   FlatList,
+  Platform,
   ScrollView,
   StyleSheet,
   View,
@@ -15,9 +16,13 @@ import {
 } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { useViewerStore } from "@papyrus-sdk/core";
-import { DocumentEngine } from "@papyrus-sdk/types";
+import { DocumentEngine, PdfViewerMode } from "@papyrus-sdk/types";
 import PageRenderer from "./PageRenderer";
 import WebViewViewer from "./WebViewViewer";
+import NativePdfDocumentViewer, {
+  getNativePdfEngineId,
+} from "./NativePdfDocumentViewer";
+import { shouldUseNativePdfViewer } from "./nativePdfViewerMode";
 import {
   createBurstMonitor,
   createRenderCounter,
@@ -33,19 +38,24 @@ import {
 } from "../gesture/selectionInteraction";
 import {
   DEFAULT_PINCH_ZOOM_BOUNDS,
-  resolveAnchoredViewportOffset,
-  resolveDocumentSurfaceWidth,
-  resolveGlobalHorizontalOffset,
   resolvePinchGestureZoom,
-  resolvePinchPreviewScale,
   sanitizePinchPreviewScale,
 } from "../gesture/pinchZoom";
+import {
+  resolvePdfAnchoredScrollX,
+  resolvePdfAnchoredScrollY,
+  resolvePdfGlobalScrollX,
+  resolvePdfSurfaceWidth,
+  resolvePdfVerticalAnchorMode,
+} from "../viewport/pdfViewportController";
 
 export interface ViewerProps {
   engine: DocumentEngine;
   virtualWindowSize?: number;
   maxToRenderPerBatch?: number;
   removeClippedSubviews?: boolean;
+  useDedicatedAndroidPdfViewer?: boolean;
+  viewerMode?: PdfViewerMode;
 }
 
 const LIST_TOP_PADDING = 18;
@@ -84,8 +94,10 @@ type PendingPinchAnchorRestore = {
   pageIndex: number;
   startPageOffsetY: number;
   startPageHeight: number;
-  startPageWidth: number;
+  startContentHeight: number;
+  usePageVerticalAnchor: boolean;
   startSurfaceScrollX: number;
+  startSurfaceWidth: number;
   pageViewportWidth: number;
   pageHorizontalPadding: number;
   pageViewportContentOffsetX: number;
@@ -96,6 +108,8 @@ const Viewer: React.FC<ViewerProps> = ({
   virtualWindowSize,
   maxToRenderPerBatch,
   removeClippedSubviews,
+  useDedicatedAndroidPdfViewer,
+  viewerMode,
 }) => {
   const pageCount = useViewerStore((state) => state.pageCount);
   const currentPage = useViewerStore((state) => state.currentPage);
@@ -109,6 +123,7 @@ const Viewer: React.FC<ViewerProps> = ({
   const uiTheme = useViewerStore((state) => state.uiTheme);
   const viewMode = useViewerStore((state) => state.viewMode);
   const zoom = useViewerStore((state) => state.zoom);
+  const storeViewerMode = useViewerStore((state) => state.viewerMode);
   const listRef = useRef<FlatList<any>>(null);
   const horizontalScrollRef = useRef<ScrollView | null>(null);
   const isDark = uiTheme === "dark";
@@ -117,6 +132,15 @@ const Viewer: React.FC<ViewerProps> = ({
   const isSingle = viewMode === "single";
   const renderTargetType = engine.getRenderTargetType?.() ?? "canvas";
   const isWebView = renderTargetType === "webview";
+  const resolvedViewerMode =
+    viewerMode ?? (useDedicatedAndroidPdfViewer ? "native" : storeViewerMode);
+  const nativeEngineId = getNativePdfEngineId(engine);
+  const isNativePdfViewer = shouldUseNativePdfViewer({
+    viewerMode: resolvedViewerMode,
+    pageCount,
+    isWebView,
+    nativeEngineId,
+  });
   const perfEnabled = isMobilePerfEnabled();
   const mountedAtRef = useRef(perfNow());
   const readyLoggedRef = useRef(false);
@@ -159,6 +183,9 @@ const Viewer: React.FC<ViewerProps> = ({
   const pinchPreviewZoomRef = useRef(1);
   const pinchFocalPointRef = useRef({ x: 0, y: 0 });
   const pinchUpdateLoggedAtRef = useRef(0);
+  const pinchStartScrollYRef = useRef(0);
+  const pinchStartSurfaceScrollXRef = useRef(0);
+  const pinchStartSurfaceWidthRef = useRef(0);
   const horizontalScrollOffsetRef = useRef(0);
   const pendingPinchAnchorRestoreRef = useRef<PendingPinchAnchorRestore | null>(
     null
@@ -518,14 +545,14 @@ const Viewer: React.FC<ViewerProps> = ({
     if (isDouble) {
       const leftPageWidth = getPageWidthForZoom(0, zoom);
       const doubleContentWidth = leftPageWidth * 2 + columnGap;
-      return resolveDocumentSurfaceWidth({
+      return resolvePdfSurfaceWidth({
         viewportWidth: windowWidth,
         contentWidth: doubleContentWidth,
         horizontalPadding,
       });
     }
 
-    return resolveDocumentSurfaceWidth({
+    return resolvePdfSurfaceWidth({
       viewportWidth: windowWidth,
       contentWidth: getPageWidthForZoom(currentPage - 1, zoom),
       horizontalPadding,
@@ -753,6 +780,9 @@ const Viewer: React.FC<ViewerProps> = ({
       pinchStartZoomRef.current = zoom;
       pinchPreviewZoomRef.current = zoom;
       pinchFocalPointRef.current = { x: focalX, y: focalY };
+      pinchStartScrollYRef.current = lastScrollOffsetYRef.current;
+      pinchStartSurfaceScrollXRef.current = horizontalScrollOffsetRef.current;
+      pinchStartSurfaceWidthRef.current = documentSurfaceWidth;
       pinchUpdateLoggedAtRef.current = 0;
       setLastPinchEndedAt(null);
       handlePinchPreviewScaleChange(1);
@@ -764,6 +794,7 @@ const Viewer: React.FC<ViewerProps> = ({
       }
     },
     [
+      documentSurfaceWidth,
       handleGestureScrollLockChange,
       handlePinchPreviewScaleChange,
       perfEnabled,
@@ -779,10 +810,13 @@ const Viewer: React.FC<ViewerProps> = ({
         pinchStartZoomRef.current,
         scaleFactor
       );
+      const previousZoom = pinchPreviewZoomRef.current;
       pinchPreviewZoomRef.current = nextZoom;
-      handlePinchPreviewScaleChange(
-        resolvePinchPreviewScale(pinchStartZoomRef.current, nextZoom)
-      );
+      handlePinchPreviewScaleChange(1);
+      if (Math.abs(nextZoom - previousZoom) >= 0.004) {
+        setDocumentStateTracked({ zoom: nextZoom }, "pinch.viewerUpdate");
+        engine.setZoom(nextZoom);
+      }
       if (!perfEnabled) return;
       const now = Date.now();
       if (now - pinchUpdateLoggedAtRef.current < 120) return;
@@ -792,7 +826,7 @@ const Viewer: React.FC<ViewerProps> = ({
         nextZoom: Math.round(nextZoom * 100) / 100,
       });
     },
-    [handlePinchPreviewScaleChange, perfEnabled]
+    [engine, handlePinchPreviewScaleChange, perfEnabled, setDocumentStateTracked]
   );
 
   const finishViewerPinch = useCallback(() => {
@@ -800,23 +834,34 @@ const Viewer: React.FC<ViewerProps> = ({
     pinchGestureActiveRef.current = false;
     const focalX = pinchFocalPointRef.current.x;
     const focalY = pinchFocalPointRef.current.y;
-    const viewerScrollOffsetY = lastScrollOffsetYRef.current;
+    const startZoom = pinchStartZoomRef.current;
+    const viewerScrollOffsetY = pinchStartScrollYRef.current;
     const finalZoom = resolvePinchGestureZoom(
       pinchPreviewZoomRef.current || pinchStartZoomRef.current,
       1,
       DEFAULT_PINCH_ZOOM_BOUNDS
     );
     setLastPinchEndedAt(Date.now());
-    if (Math.abs(finalZoom - zoom) >= 0.001) {
+    if (Math.abs(finalZoom - startZoom) >= 0.001) {
       const anchorPageIndex = resolvePinchAnchorPageIndex(
         focalX,
         focalY,
-        zoom,
+        startZoom,
         viewerScrollOffsetY
       );
-      const { pageOffsetY: startPageOffsetY, pageHeight: startPageHeight } =
-        getPageLayoutForZoom(anchorPageIndex, zoom);
-      const startPageWidth = getPageWidthForZoom(anchorPageIndex, zoom);
+      const {
+        pageOffsetY: startPageOffsetY,
+        pageHeight: startPageHeight,
+        totalContentHeight: startContentHeight,
+      } = getPageLayoutForZoom(anchorPageIndex, startZoom);
+      const usePageVerticalAnchor =
+        resolvePdfVerticalAnchorMode({
+          focalY,
+          startScrollY: viewerScrollOffsetY,
+          startPageOffsetY,
+          startPageHeight,
+        }) === "page";
+      const startSurfaceWidth = pinchStartSurfaceWidthRef.current;
       const {
         viewportWidth: pageViewportWidth,
         horizontalPadding: pageHorizontalPadding,
@@ -833,8 +878,10 @@ const Viewer: React.FC<ViewerProps> = ({
         pageIndex: anchorPageIndex,
         startPageOffsetY,
         startPageHeight,
-        startPageWidth,
-        startSurfaceScrollX: horizontalScrollOffsetRef.current,
+        startContentHeight,
+        usePageVerticalAnchor,
+        startSurfaceScrollX: pinchStartSurfaceScrollXRef.current,
+        startSurfaceWidth,
         pageViewportWidth,
         pageHorizontalPadding,
         pageViewportContentOffsetX: Math.max(
@@ -860,9 +907,9 @@ const Viewer: React.FC<ViewerProps> = ({
     }
   }, [
     engine,
+    documentSurfaceWidth,
     getPageLayoutForZoom,
     getPageViewportMetrics,
-    getPageWidthForZoom,
     handleGestureScrollLockChange,
     perfEnabled,
     resetViewerPinchPreview,
@@ -873,9 +920,11 @@ const Viewer: React.FC<ViewerProps> = ({
 
   const scrollHorizontalSurfaceTo = useCallback(
     (offsetX: number) => {
-      const nextOffsetX = resolveGlobalHorizontalOffset({
-        offsetX,
-        surfaceWidth: documentSurfaceWidth,
+      const nextOffsetX = resolvePdfGlobalScrollX({
+        focalViewportX: 0,
+        startSurfaceScrollX: offsetX,
+        startSurfaceWidth: documentSurfaceWidth,
+        endSurfaceWidth: documentSurfaceWidth,
         viewportWidth: windowWidth,
       });
       horizontalScrollOffsetRef.current = nextOffsetX;
@@ -957,15 +1006,17 @@ const Viewer: React.FC<ViewerProps> = ({
         totalContentHeight: endContentHeight,
       } = getPageLayoutForZoom(pendingRestore.pageIndex, zoom);
       const viewerViewportHeight = viewerFrameRef.current.height;
-      const nextScrollY = resolveAnchoredViewportOffset({
-        viewportOffset: pendingRestore.focalY,
-        startScrollOffset: pendingRestore.viewerScrollOffsetY,
-        startItemOffset: pendingRestore.startPageOffsetY,
-        startItemLength: pendingRestore.startPageHeight,
-        endItemOffset: endPageOffsetY,
-        endItemLength: endPageHeight,
-        viewportLength: viewerViewportHeight,
-        endContentLength: endContentHeight,
+      const nextScrollY = resolvePdfAnchoredScrollY({
+        mode: pendingRestore.usePageVerticalAnchor ? "page" : "document",
+        focalY: pendingRestore.focalY,
+        startScrollY: pendingRestore.viewerScrollOffsetY,
+        startPageOffsetY: pendingRestore.startPageOffsetY,
+        startPageHeight: pendingRestore.startPageHeight,
+        startContentHeight: pendingRestore.startContentHeight,
+        endPageOffsetY,
+        endPageHeight,
+        endContentHeight,
+        viewportHeight: viewerViewportHeight,
       });
 
       if (isSingle) {
@@ -981,21 +1032,18 @@ const Viewer: React.FC<ViewerProps> = ({
       }
       lastScrollOffsetYRef.current = nextScrollY;
 
-      const endPageWidth = getPageWidthForZoom(pendingRestore.pageIndex, zoom);
+      const endSurfaceWidth = documentSurfaceWidth;
       const pageViewportContentWidth = Math.max(
         0,
         pendingRestore.pageViewportWidth -
           pendingRestore.pageHorizontalPadding * 2
       );
-      const nextOffsetX = resolveAnchoredViewportOffset({
-        viewportOffset: pendingRestore.pageViewportContentOffsetX,
-        startScrollOffset: pendingRestore.startSurfaceScrollX,
-        startItemOffset: 0,
-        startItemLength: pendingRestore.startPageWidth,
-        endItemOffset: 0,
-        endItemLength: endPageWidth,
-        viewportLength: pageViewportContentWidth,
-        endContentLength: endPageWidth,
+      const nextOffsetX = resolvePdfAnchoredScrollX({
+        focalViewportX: pendingRestore.pageViewportContentOffsetX,
+        startSurfaceScrollX: pendingRestore.startSurfaceScrollX,
+        startSurfaceWidth: pendingRestore.startSurfaceWidth,
+        endSurfaceWidth,
+        viewportWidth: pageViewportContentWidth,
       });
       const appliedOffsetX = scrollHorizontalSurfaceTo(nextOffsetX);
       pendingPinchAnchorRestoreRef.current = null;
@@ -1003,6 +1051,9 @@ const Viewer: React.FC<ViewerProps> = ({
       if (perfEnabled) {
         logPerfEvent("Viewer", "pinch.anchorRestore", {
           page: pendingRestore.pageIndex + 1,
+          verticalAnchor: pendingRestore.usePageVerticalAnchor
+            ? "page"
+            : "document",
           scrollY: Math.round(nextScrollY * 100) / 100,
           scrollX: Math.round(appliedOffsetX * 100) / 100,
           zoom: Math.round(zoom * 100) / 100,
@@ -1017,8 +1068,8 @@ const Viewer: React.FC<ViewerProps> = ({
       }
     };
   }, [
+    documentSurfaceWidth,
     getPageLayoutForZoom,
-    getPageWidthForZoom,
     isSingle,
     perfEnabled,
     scrollHorizontalSurfaceTo,
@@ -1448,6 +1499,14 @@ const Viewer: React.FC<ViewerProps> = ({
     return (
       <View style={[styles.container, isDark && styles.containerDark]}>
         <WebViewViewer engine={engine} />
+      </View>
+    );
+  }
+
+  if (isNativePdfViewer) {
+    return (
+      <View style={[styles.container, isDark && styles.containerDark]}>
+        <NativePdfDocumentViewer engine={engine} />
       </View>
     );
   }

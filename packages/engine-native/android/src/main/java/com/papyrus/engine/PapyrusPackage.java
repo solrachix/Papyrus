@@ -6,7 +6,7 @@ import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.uimanager.ViewManager;
 
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.List;
 
 public class PapyrusPackage implements ReactPackage {
@@ -19,6 +19,9 @@ public class PapyrusPackage implements ReactPackage {
 
   @Override
   public List<ViewManager> createViewManagers(ReactApplicationContext reactContext) {
-    return Collections.singletonList(new PapyrusPageViewManager());
+    return Arrays.<ViewManager>asList(
+      new PapyrusPageViewManager(),
+      new PapyrusPdfViewerViewManager()
+    );
   }
 }

@@ -8,6 +8,7 @@ export { default as BottomBar } from "./components/BottomBar";
 export { default as SettingsSheet } from "./components/SettingsSheet";
 export { default as CoverPreview } from "./components/CoverPreview";
 export { ReadingShell } from "./components/ReadingShell";
+export { default as NativePdfDocumentViewer } from "./components/NativePdfDocumentViewer";
 export { OverflowSheet } from "./components/OverflowSheet";
 export { InfoSheet } from "./components/InfoSheet";
 export { DocumentActionsSheet } from "./components/DocumentActionsSheet";

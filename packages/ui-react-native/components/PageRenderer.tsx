@@ -26,8 +26,11 @@ import {
   type PapyrusPageViewProps,
 } from "@papyrus-sdk/engine-native";
 import { isMobilePerfEnabled, logPerfEvent, perfNow } from "../perf/mobilePerf";
-import { shouldSuppressPressAfterPinch } from "../gesture/pinchZoom";
+import {
+  shouldSuppressPressAfterPinch,
+} from "../gesture/pinchZoom";
 import { shouldEnableSelectionDrag } from "../gesture/selectionInteraction";
+import { resolvePdfCenteredInset } from "../viewport/pdfViewportController";
 import { buildCommentTapGestureDeps } from "./PageRenderer.gesture";
 
 type PageViewComponentType = React.ComponentType<
@@ -1263,13 +1266,17 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     viewportWidth,
     pageWidth + horizontalPadding * 2
   );
+  const pageFrameHorizontalInset = resolvePdfCenteredInset({
+    viewportLength: pageFrameWidth,
+    contentLength: pageWidth,
+  });
   return (
     <View
       style={[
         styles.scrollContent,
         {
           width: pageFrameWidth,
-          paddingHorizontal: horizontalPadding,
+          paddingHorizontal: pageFrameHorizontalInset,
         },
       ]}
     >

@@ -1,6 +1,7 @@
 import type { ComponentType, RefAttributes } from "react";
 import {
   NativeModules,
+  Platform,
   TurboModuleRegistry,
   requireNativeComponent,
   View,
@@ -24,6 +25,8 @@ import {
   SearchResult,
   TextSelection,
   PageTheme,
+  Annotation,
+  PdfVisiblePage,
 } from "@papyrus-sdk/types";
 
 const MODULE_NAME = "PapyrusNativeEngine";
@@ -246,8 +249,37 @@ export type PapyrusPageViewProps = ViewProps & {
   pageTheme?: PageTheme;
 };
 
+export type PapyrusPdfViewerViewProps = ViewProps & {
+  engineId?: string;
+  pageTheme?: PageTheme;
+  zoom?: number;
+  currentPage?: number;
+  activeTool?: string;
+  annotationColor?: string;
+  inkStrokeWidth?: number;
+  annotationOpacity?: number;
+  searchResults?: SearchResult[];
+  annotations?: Annotation[];
+  onPageChanged?: (event: { nativeEvent: { page: number } }) => void;
+  onZoomChanged?: (event: { nativeEvent: { zoom: number } }) => void;
+  onPageChange?: (event: { nativeEvent: { page: number } }) => void;
+  onZoomChange?: (event: { nativeEvent: { zoom: number } }) => void;
+  onVisiblePagesChange?: (event: { nativeEvent: { pages: PdfVisiblePage[] } }) => void;
+  onAnnotationCreated?: (event: { nativeEvent: Annotation }) => void;
+  onTap?: (event: { nativeEvent: { pageIndex: number; x: number; y: number } }) => void;
+  onAnnotationTap?: (event: { nativeEvent: { id: string; pageIndex: number; type: string; color: string } }) => void;
+  onTextSelected?: (event: { nativeEvent: { text: string; pageIndex: number; rects: { x: number; y: number; width: number; height: number }[] } }) => void;
+  onScroll?: (event: { nativeEvent: { offsetY: number } }) => void;
+  selectionActive?: boolean;
+  viewMode?: "continuous" | "single";
+};
+
 type PapyrusPageViewComponent = ComponentType<
   PapyrusPageViewProps & RefAttributes<View>
+>;
+
+type PapyrusPdfViewerViewComponent = ComponentType<
+  PapyrusPdfViewerViewProps & RefAttributes<View>
 >;
 
 const resolveNativeModule = (): NativeEngineModule | null => {
@@ -280,7 +312,27 @@ const resolvePapyrusPageView = (): PapyrusPageViewComponent => {
   }
 };
 
+const resolvePapyrusPdfViewerView = (): PapyrusPdfViewerViewComponent => {
+  const componentName =
+    Platform.OS === "ios" ? "PapyrusPdfDocumentView" : "PapyrusPdfViewerView";
+  try {
+    return requireNativeViewManager<PapyrusPdfViewerViewProps>(
+      componentName
+    ) as unknown as PapyrusPdfViewerViewComponent;
+  } catch {
+    try {
+      return requireNativeComponent<PapyrusPdfViewerViewProps>(
+        componentName
+      ) as unknown as PapyrusPdfViewerViewComponent;
+    } catch {
+      return View as unknown as PapyrusPdfViewerViewComponent;
+    }
+  }
+};
+
 export const PapyrusPageView = resolvePapyrusPageView();
+export const PapyrusPdfViewerView = resolvePapyrusPdfViewerView();
+export const PapyrusPdfDocumentView = PapyrusPdfViewerView;
 
 export class NativeDocumentEngine extends BaseDocumentEngine {
   private nativeModule: NativeEngineModule | null = null;
@@ -356,6 +408,10 @@ export class NativeDocumentEngine extends BaseDocumentEngine {
 
   getRotation(): number {
     return this.rotation;
+  }
+
+  getNativeEngineId(): string {
+    return this.engineId;
   }
 
   async renderPage(
@@ -991,6 +1047,12 @@ export class MobileDocumentEngine extends BaseDocumentEngine {
 
   getRenderTargetType(): RenderTargetType {
     return this.activeEngine.getRenderTargetType?.() ?? "canvas";
+  }
+
+  getNativeEngineId(): string | null {
+    return this.activeEngine === this.pdfEngine
+      ? this.pdfEngine.getNativeEngineId()
+      : null;
   }
 
   attachWebView(bridge: WebViewBridge): void {

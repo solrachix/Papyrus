@@ -11,9 +11,19 @@
 @property (nonatomic, assign) NSInteger currentRotation;
 @property (nonatomic, assign) CGFloat currentScale;
 @property (nonatomic, assign) CGFloat currentZoom;
+@property (nonatomic, assign) NSInteger renderGeneration;
+@property (nonatomic, copy) NSString *currentRenderKey;
 @end
 
 @implementation PapyrusPageView
+
+static NSCache<NSString *, UIImage *> *PapyrusPageImageCache;
+
++ (void)initialize {
+  if (self != [PapyrusPageView class]) return;
+  PapyrusPageImageCache = [NSCache new];
+  PapyrusPageImageCache.totalCostLimit = 32 * 1024 * 1024;
+}
 
 - (instancetype)initWithFrame:(CGRect)frame {
   self = [super initWithFrame:frame];
@@ -23,6 +33,7 @@
     _currentRotation = 0;
     _currentScale = 1.0;
     _currentZoom = 1.0;
+    _renderGeneration = 0;
     _ciContext = [CIContext contextWithOptions:nil];
 
     _pdfView = [[PDFView alloc] initWithFrame:self.bounds];
@@ -67,6 +78,7 @@
   self.currentRotation = rotation;
   self.currentScale = scale;
   self.currentZoom = zoom;
+  self.renderGeneration += 1;
 
   if (!document) {
     self.pdfView.document = nil;
@@ -110,8 +122,54 @@
   PDFPage *page = [self.currentDocument pageAtIndex:self.currentPageIndex];
   if (!page) return;
 
+  NSString *renderKey = [self renderKeyForDocument:self.currentDocument
+                                         pageIndex:self.currentPageIndex
+                                             scale:self.currentScale
+                                              zoom:self.currentZoom
+                                          rotation:self.currentRotation
+                                              size:self.bounds.size];
+  if ([renderKey isEqualToString:self.currentRenderKey] && self.imageView.image) {
+    return;
+  }
+
+  UIImage *cachedImage = [PapyrusPageImageCache objectForKey:renderKey];
+  if (cachedImage) {
+    self.currentRenderKey = renderKey;
+    self.imageView.image = cachedImage;
+    return;
+  }
+
+  NSInteger renderToken = self.renderGeneration;
   UIImage *baseImage = [self renderImageForPage:page];
-  self.imageView.image = [self themedImageFromImage:baseImage];
+  if (renderToken != self.renderGeneration) return;
+  UIImage *themedImage = [self themedImageFromImage:baseImage];
+  if (!themedImage) return;
+  NSUInteger cost = (NSUInteger)(themedImage.size.width * themedImage.scale *
+                                 themedImage.size.height * themedImage.scale * 4);
+  [PapyrusPageImageCache setObject:themedImage forKey:renderKey cost:cost];
+  self.currentRenderKey = renderKey;
+  self.imageView.image = themedImage;
+}
+
+- (NSString *)renderKeyForDocument:(PDFDocument *)document
+                          pageIndex:(NSInteger)pageIndex
+                              scale:(CGFloat)scale
+                               zoom:(CGFloat)zoom
+                           rotation:(NSInteger)rotation
+                               size:(CGSize)size {
+  NSInteger documentIdentity = document ? (NSInteger)(__bridge void *)document : 0;
+  NSInteger width = (NSInteger)llround(MAX(1, size.width));
+  NSInteger height = (NSInteger)llround(MAX(1, size.height));
+  NSInteger scaleBucket = (NSInteger)llround(scale * zoom * 1000.0);
+  NSString *theme = self.pageTheme ?: @"normal";
+  return [NSString stringWithFormat:@"%ld:%ld:%ldx%ld:%ld:%ld:%@",
+                                    (long)documentIdentity,
+                                    (long)pageIndex,
+                                    (long)width,
+                                    (long)height,
+                                    (long)scaleBucket,
+                                    (long)rotation,
+                                    theme];
 }
 
 - (UIImage *)renderImageForPage:(PDFPage *)page {

@@ -109,6 +109,30 @@ test("resolveAnchoredViewportOffset preserves the focal point across content res
   );
 });
 
+test("resolveAnchoredDocumentOffset preserves an absolute focal point across document resize", () => {
+  assert.equal(
+    pinchZoom.resolveAnchoredDocumentOffset({
+      viewportOffset: 240,
+      startScrollOffset: 360,
+      startContentLength: 1200,
+      endContentLength: 1800,
+      viewportLength: 600,
+    }),
+    660
+  );
+
+  assert.equal(
+    pinchZoom.resolveAnchoredDocumentOffset({
+      viewportOffset: 240,
+      startScrollOffset: 0,
+      startContentLength: 500,
+      endContentLength: 500,
+      viewportLength: 600,
+    }),
+    0
+  );
+});
+
 test("resolveClampedScrollOffset keeps a shared horizontal position inside page bounds", () => {
   assert.equal(pinchZoom.resolveClampedScrollOffset(120, 800, 400), 120);
   assert.equal(pinchZoom.resolveClampedScrollOffset(260, 500, 400), 100);
@@ -158,6 +182,47 @@ test("resolveGlobalHorizontalOffset recenters when content fits and clamps when 
       viewportWidth: 400,
     }),
     220
+  );
+});
+
+test("resolveAnchoredHorizontalSurfaceOffset preserves a focal point inside the document surface", () => {
+  assert.equal(
+    pinchZoom.resolveAnchoredHorizontalSurfaceOffset({
+      focalViewportX: 220,
+      startSurfaceScrollX: 160,
+      startSurfaceWidth: 760,
+      endSurfaceWidth: 1040,
+      viewportWidth: 400,
+    }),
+    300
+  );
+
+  assert.equal(
+    pinchZoom.resolveAnchoredHorizontalSurfaceOffset({
+      focalViewportX: 120,
+      startSurfaceScrollX: 40,
+      startSurfaceWidth: 400,
+      endSurfaceWidth: 400,
+      viewportWidth: 400,
+    }),
+    0
+  );
+});
+
+test("resolveCenteredContentInset provides visual centering without scroll overflow", () => {
+  assert.equal(
+    pinchZoom.resolveCenteredContentInset({
+      viewportLength: 400,
+      contentLength: 320,
+    }),
+    40
+  );
+  assert.equal(
+    pinchZoom.resolveCenteredContentInset({
+      viewportLength: 400,
+      contentLength: 520,
+    }),
+    0
   );
 });
 

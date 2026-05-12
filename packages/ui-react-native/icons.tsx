@@ -601,6 +601,29 @@ export const IconToolStrikeout: React.FC<IconProps> = ({
   </Svg>
 );
 
+export const IconCopy: React.FC<IconProps> = ({
+  size = 20,
+  color = defaultColor,
+  strokeWidth = 2,
+}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <Path
+      d="M8 4v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2h-8a2 2 0 0 0-2 2Z"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Path
+      d="M16 20H6a2 2 0 0 1-2-2V8"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
 export const IconToolNote: React.FC<IconProps> = ({
   size = 32,
   color = "#f4c430",
@@ -614,5 +637,73 @@ export const IconToolNote: React.FC<IconProps> = ({
     <Line x1="15" y1="11.4" x2="21.6" y2="11.4" stroke={color} strokeWidth="1.8" strokeLinecap="round" />
     <Line x1="15" y1="14.8" x2="21.6" y2="14.8" stroke={color} strokeWidth="1.8" strokeLinecap="round" />
     <Line x1="15" y1="18.2" x2="19.2" y2="18.2" stroke={color} strokeWidth="1.8" strokeLinecap="round" />
+  </Svg>
+);
+
+export const IconHighlight: React.FC<IconProps> = ({
+  size = 24,
+  color = "#fbbf24",
+}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <Path
+      d="M4 15h16v3a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-3Z"
+      fill={color}
+      opacity="0.85"
+    />
+    <Path
+      d="M6 5h12v10H6V5Z"
+      stroke={color}
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      fill="none"
+    />
+    <Path
+      d="M8 8h8M8 11h5"
+      stroke={color}
+      strokeWidth="2"
+      strokeLinecap="round"
+    />
+  </Svg>
+);
+
+export const IconUnderline: React.FC<IconProps> = ({
+  size = 24,
+  color = "#60a5fa",
+}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <Path
+      d="M6 4v7a6 6 0 0 0 12 0V4"
+      stroke={color}
+      strokeWidth="3"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      fill="none"
+    />
+    <Path
+      d="M4 20.5h16"
+      stroke={color}
+      strokeWidth="4"
+      strokeLinecap="round"
+    />
+  </Svg>
+);
+
+export const IconCommentBubble: React.FC<IconProps> = ({
+  size = 24,
+  color = "#fff",
+}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <Path
+      d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-4l-4 3v-3H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"
+      stroke={color}
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      fill="none"
+    />
+    <Circle cx="9" cy="11" r="1" fill={color} />
+    <Circle cx="12" cy="11" r="1" fill={color} />
+    <Circle cx="15" cy="11" r="1" fill={color} />
   </Svg>
 );
