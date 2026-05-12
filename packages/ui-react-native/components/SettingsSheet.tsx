@@ -1,14 +1,10 @@
-import React, { useCallback, useMemo } from "react";
+import React from "react";
 import { Dimensions, View, Text, Pressable, StyleSheet } from "react-native";
-import BottomSheet, {
-  BottomSheetBackdrop,
-  BottomSheetScrollView,
-  type BottomSheetBackdropProps,
-} from "@gorhom/bottom-sheet";
 import { useViewerStore } from "@papyrus-sdk/core";
 import { DocumentEngine, PageTheme } from "@papyrus-sdk/types";
 import { getStrings } from "../mobileStrings";
 import { IconZoomIn, IconZoomOut } from "../icons";
+import { NativeSheet, NativeSheetScrollView } from "./NativeSheet";
 
 interface SettingsSheetProps {
   engine: DocumentEngine;
@@ -69,23 +65,7 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
   const isPaged = viewMode === "single";
   const isDouble = viewMode === "double";
   const t = getStrings(locale);
-  const snapPoints = useMemo(
-    () => [Math.min(640, Dimensions.get("window").height * 0.72)],
-    []
-  );
-
-  const renderBackdrop = useCallback(
-    (props: BottomSheetBackdropProps) => (
-      <BottomSheetBackdrop
-        {...props}
-        appearsOnIndex={0}
-        disappearsOnIndex={-1}
-        opacity={0.4}
-        pressBehavior="close"
-      />
-    ),
-    []
-  );
+  const sheetMaxHeight = Math.min(640, Dimensions.get("window").height * 0.72);
 
   const handleTransition = (mode: "continuous" | "paged") => {
     if (mode === "paged") {
@@ -117,18 +97,16 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
   };
 
   return (
-    <View style={styles.modalRoot} pointerEvents="box-none">
-      <BottomSheet
-        index={visible ? 0 : -1}
-        snapPoints={snapPoints}
-        enablePanDownToClose
-        onClose={onClose}
-        backdropComponent={renderBackdrop}
-        backgroundStyle={[styles.sheetBackground, isDark && styles.sheetDark]}
-        handleIndicatorStyle={[styles.handle, isDark && styles.handleDark]}
-        handleStyle={styles.handleContainer}
-      >
-        <BottomSheetScrollView
+    <NativeSheet
+      visible={visible}
+      onClose={onClose}
+      isDark={isDark}
+      maxHeight={sheetMaxHeight}
+      showHeader
+      title={locale === "pt-BR" ? "Exibicao" : "Display"}
+      closeAccessibilityLabel="Close settings"
+    >
+        <NativeSheetScrollView
           style={styles.sheet}
           contentContainerStyle={styles.sheetContent}
           showsVerticalScrollIndicator={false}
@@ -417,47 +395,18 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
               </Pressable>
             </View>
           </View>
-        </BottomSheetScrollView>
-      </BottomSheet>
-    </View>
+        </NativeSheetScrollView>
+    </NativeSheet>
   );
 };
 
 const styles = StyleSheet.create({
-  modalRoot: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 30,
-  },
   sheet: {
-    flex: 1,
+    maxHeight: "100%",
   },
   sheetContent: {
     paddingHorizontal: 18,
     paddingBottom: 24,
-  },
-  sheetBackground: {
-    backgroundColor: "#ffffff",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    borderTopWidth: 1,
-    borderTopColor: "#e5e7eb",
-  },
-  sheetDark: {
-    backgroundColor: "#0f1115",
-    borderTopColor: "#1f2937",
-  },
-  handleContainer: {
-    paddingTop: 10,
-    paddingBottom: 12,
-  },
-  handle: {
-    width: 44,
-    height: 4,
-    borderRadius: 999,
-    backgroundColor: "#cbd5f5",
-  },
-  handleDark: {
-    backgroundColor: "#374151",
   },
   section: {
     marginBottom: 16,

@@ -11,17 +11,16 @@ import {
   type LayoutChangeEvent,
   type ViewToken,
 } from "react-native";
-import BottomSheet, {
-  BottomSheetBackdrop,
-  BottomSheetFlatList,
-  BottomSheetScrollView,
-  type BottomSheetBackdropProps,
-} from "@gorhom/bottom-sheet";
 import { useViewerStore } from "@papyrus-sdk/core";
 import { DocumentEngine, DocumentType, OutlineItem } from "@papyrus-sdk/types";
 import { PapyrusPageView } from "@papyrus-sdk/engine-native";
 import { getStrings } from "../mobileStrings";
 import { resolveRightSheetHeight } from "./rightSheetLayout";
+import {
+  NativeSheet,
+  NativeSheetFlatList,
+  NativeSheetScrollView,
+} from "./NativeSheet";
 
 export interface RightSheetProps {
   engine: DocumentEngine;
@@ -222,7 +221,6 @@ const RightSheet: React.FC<RightSheetProps> = ({
     windowHeight: Dimensions.get("window").height,
     showingNotes,
   });
-  const snapPoints = useMemo(() => [sheetHeight], [sheetHeight]);
   const windowWidth = Dimensions.get("window").width;
   const gridGutter = 12;
   const gridPadding = 16;
@@ -465,33 +463,15 @@ const RightSheet: React.FC<RightSheetProps> = ({
     ]
   );
 
-  const renderBackdrop = useCallback(
-    (props: BottomSheetBackdropProps) => (
-      <BottomSheetBackdrop
-        {...props}
-        appearsOnIndex={0}
-        disappearsOnIndex={-1}
-        opacity={0.4}
-        pressBehavior="close"
-      />
-    ),
-    []
-  );
-
   if (!sidebarRightOpen) return null;
 
   return (
-    <View style={styles.modalRoot} pointerEvents="box-none">
-      <BottomSheet
-        index={0}
-        snapPoints={snapPoints}
-        enablePanDownToClose
-        onClose={closeSheet}
-        backdropComponent={renderBackdrop}
-        backgroundStyle={[styles.sheetBackground, isDark && styles.sheetDark]}
-        handleIndicatorStyle={[styles.handle, isDark && styles.handleDark]}
-        handleStyle={styles.handleContainer}
-      >
+    <NativeSheet
+      visible={sidebarRightOpen}
+      onClose={closeSheet}
+      isDark={isDark}
+      maxHeight={sheetHeight}
+    >
         <View style={styles.sheet}>
           <View style={styles.header}>
             <Text style={[styles.sheetTitle, isDark && styles.sheetTitleDark]}>
@@ -565,7 +545,7 @@ const RightSheet: React.FC<RightSheetProps> = ({
               ) : null}
 
               {supportsThumbnails && !showingProgress && pagesMode === "thumbnails" ? (
-                <BottomSheetFlatList
+                <NativeSheetFlatList
                   data={pages}
                   keyExtractor={(item) => `thumb-${item}`}
                   numColumns={2}
@@ -584,7 +564,7 @@ const RightSheet: React.FC<RightSheetProps> = ({
                   renderItem={renderThumbnailItem}
                 />
               ) : showingProgress ? (
-                <BottomSheetScrollView
+                <NativeSheetScrollView
                   contentContainerStyle={styles.summaryContent}
                   showsVerticalScrollIndicator={false}
                 >
@@ -619,9 +599,9 @@ const RightSheet: React.FC<RightSheetProps> = ({
                       </Pressable>
                     );
                   })}
-                </BottomSheetScrollView>
+                </NativeSheetScrollView>
               ) : (
-                <BottomSheetScrollView
+                <NativeSheetScrollView
                   contentContainerStyle={styles.summaryContent}
                   showsVerticalScrollIndicator={false}
                 >
@@ -640,11 +620,11 @@ const RightSheet: React.FC<RightSheetProps> = ({
                       />
                     ))
                   )}
-                </BottomSheetScrollView>
+                </NativeSheetScrollView>
               )}
             </View>
           ) : (
-            <BottomSheetScrollView
+            <NativeSheetScrollView
               contentContainerStyle={styles.content}
               showsVerticalScrollIndicator={false}
             >
@@ -699,46 +679,17 @@ const RightSheet: React.FC<RightSheetProps> = ({
                   ))}
                 </View>
               )}
-            </BottomSheetScrollView>
+            </NativeSheetScrollView>
           )}
         </View>
-      </BottomSheet>
-    </View>
+    </NativeSheet>
   );
 };
 
 const styles = StyleSheet.create({
-  modalRoot: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 30,
-  },
   sheet: {
-    flex: 1,
+    maxHeight: "100%",
     paddingBottom: 16,
-  },
-  sheetBackground: {
-    backgroundColor: "#ffffff",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    borderTopWidth: 1,
-    borderTopColor: "#e5e7eb",
-  },
-  sheetDark: {
-    backgroundColor: "#0f1115",
-    borderTopColor: "#1f2937",
-  },
-  handleContainer: {
-    paddingTop: 10,
-    paddingBottom: 12,
-  },
-  handle: {
-    width: 44,
-    height: 4,
-    borderRadius: 999,
-    backgroundColor: "#cbd5f5",
-  },
-  handleDark: {
-    backgroundColor: "#374151",
   },
   header: {
     paddingHorizontal: 16,

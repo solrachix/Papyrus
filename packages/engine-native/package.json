@@ -1,6 +1,6 @@
 {
   "name": "@papyrus-sdk/engine-native",
-  "version": "0.2.16-beta.3",
+  "version": "0.2.16",
   "license": "MIT",
   "keywords": [
     "papyrus",
@@ -47,8 +47,7 @@
     "url": "https://github.com/solrachix/Papyrus/issues"
   },
   "scripts": {
-    "build": "tsup",
-    "prepublishOnly": "pnpm build"
+    "build": "tsup"
   },
   "peerDependencies": {
     "@papyrus-sdk/core": ">=0.2.18",

@@ -194,8 +194,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.72)",
     backgroundColor: "rgba(255,255,255,0.94)",
-    padding: 12,
-    gap: 10,
+    padding: 8,
+    gap: 8,
     shadowColor: "#0f172a",
     shadowOpacity: 0.12,
     shadowRadius: 20,
@@ -218,7 +218,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#e2e8f0",
     paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingVertical: 3,
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
@@ -229,7 +229,7 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    minHeight: 32,
+    minHeight: 28,
     fontSize: 13,
     color: "#111827",
   },
@@ -239,7 +239,7 @@ const styles = StyleSheet.create({
   closeButton: {
     borderRadius: 12,
     paddingHorizontal: 10,
-    paddingVertical: 8,
+    paddingVertical: 6,
     backgroundColor: "#f1f5f9",
   },
   closeButtonDark: {
