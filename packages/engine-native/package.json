@@ -56,8 +56,8 @@
     "react-native": ">=0.81.0"
   },
   "devDependencies": {
-    "@papyrus-sdk/core": "workspace:*",
-    "@papyrus-sdk/types": "workspace:*",
+    "@papyrus-sdk/core": "0.2.19",
+    "@papyrus-sdk/types": "0.2.12",
     "react-native": "^0.81.0"
   }
 }
