@@ -304,8 +304,8 @@ importers:
         specifier: 5.2.9
         version: 5.2.9(@types/react@19.2.14)(react-native-gesture-handler@2.28.0(react-native@0.81.0(@babel/core@7.29.0)(@react-native-community/cli@20.0.0(typescript@5.9.3))(@react-native/metro-config@0.81.0(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.1.0))(react@19.1.0))(react-native-reanimated@3.19.5(@babel/core@7.29.0)(react-native@0.81.0(@babel/core@7.29.0)(@react-native-community/cli@20.0.0(typescript@5.9.3))(@react-native/metro-config@0.81.0(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.1.0))(react@19.1.0))(react-native@0.81.0(@babel/core@7.29.0)(@react-native-community/cli@20.0.0(typescript@5.9.3))(@react-native/metro-config@0.81.0(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.1.0))(react@19.1.0)
       '@papyrus-sdk/engine-native':
-        specifier: 0.2.15
-        version: 0.2.15(@papyrus-sdk/core@packages+core)(@papyrus-sdk/types@packages+types)(react-native@0.81.0(@babel/core@7.29.0)(@react-native-community/cli@20.0.0(typescript@5.9.3))(@react-native/metro-config@0.81.0(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.1.0))
+        specifier: 0.2.16-beta.2
+        version: link:../engine-native
       react-native-svg:
         specifier: ^15.5.0
         version: 15.15.4(react-native@0.81.0(@babel/core@7.29.0)(@react-native-community/cli@20.0.0(typescript@5.9.3))(@react-native/metro-config@0.81.0(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.1.0))(react@19.1.0)
@@ -1674,13 +1674,6 @@ packages:
   '@npmcli/fs@3.1.1':
     resolution: {integrity: sha512-q9CRWjpHCMIh5sVyefoD1cA7PkvILqCZsnSOEUUivORLjxCO/Irmue2DprETiNgEqktDBZaM1Bi+jrarx1XdCg==}
     engines: {node: ^14.17.0 || ^16.13.0 || >=18.0.0}
-
-  '@papyrus-sdk/engine-native@0.2.15':
-    resolution: {integrity: sha512-AXuYv44Bbep16K09NPKcBGxJWANb2dHhwSBXHBtLniE2PFrY/mxc2y41v3Yzl8hY58zk+1SRAqIp1TrYkHPHiA==}
-    peerDependencies:
-      '@papyrus-sdk/core': '>=0.2.18'
-      '@papyrus-sdk/types': '>=0.2.11'
-      react-native: '>=0.81.0'
 
   '@pkgjs/parseargs@0.11.0':
     resolution: {integrity: sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==}
@@ -8671,12 +8664,6 @@ snapshots:
   '@npmcli/fs@3.1.1':
     dependencies:
       semver: 7.7.4
-
-  '@papyrus-sdk/engine-native@0.2.15(@papyrus-sdk/core@packages+core)(@papyrus-sdk/types@packages+types)(react-native@0.81.0(@babel/core@7.29.0)(@react-native-community/cli@20.0.0(typescript@5.9.3))(@react-native/metro-config@0.81.0(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.1.0))':
-    dependencies:
-      '@papyrus-sdk/core': link:packages/core
-      '@papyrus-sdk/types': link:packages/types
-      react-native: 0.81.0(@babel/core@7.29.0)(@react-native-community/cli@20.0.0(typescript@5.9.3))(@react-native/metro-config@0.81.0(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.1.0)
 
   '@pkgjs/parseargs@0.11.0':
     optional: true

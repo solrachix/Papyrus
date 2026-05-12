@@ -1,6 +1,6 @@
 {
   "name": "@papyrus-sdk/ui-react-native",
-  "version": "0.2.18-beta.7",
+  "version": "0.2.18-beta.8",
   "license": "MIT",
   "keywords": [
     "papyrus",
@@ -43,7 +43,7 @@
   },
   "dependencies": {
     "@gorhom/bottom-sheet": "5.2.9",
-    "@papyrus-sdk/engine-native": "0.2.16-beta.1",
+    "@papyrus-sdk/engine-native": "0.2.16-beta.2",
     "react-native-svg": "^15.5.0"
   },
   "peerDependencies": {
