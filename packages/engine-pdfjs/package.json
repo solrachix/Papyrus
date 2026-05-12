@@ -42,7 +42,7 @@
     "@papyrus-sdk/types": ">=0.2.11"
   },
   "devDependencies": {
-    "@papyrus-sdk/core": "0.2.18",
-    "@papyrus-sdk/types": "0.2.11"
+    "@papyrus-sdk/core": "0.2.19",
+    "@papyrus-sdk/types": "0.2.12"
   }
 }
