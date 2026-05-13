@@ -297,9 +297,6 @@ importers:
 
   packages/ui-react-native:
     dependencies:
-      '@papyrus-sdk/engine-native':
-        specifier: 0.2.16
-        version: link:../engine-native
       react-native-svg:
         specifier: ^15.5.0
         version: 15.15.4(react-native@0.81.0(@babel/core@7.29.0)(@react-native-community/cli@20.0.0(typescript@5.9.3))(@react-native/metro-config@0.81.0(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.1.0))(react@19.1.0)
@@ -310,6 +307,9 @@ importers:
       '@papyrus-sdk/core':
         specifier: 0.2.19
         version: link:../core
+      '@papyrus-sdk/engine-native':
+        specifier: workspace:*
+        version: link:../engine-native
       '@papyrus-sdk/types':
         specifier: 0.2.12
         version: link:../types

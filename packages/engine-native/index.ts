@@ -298,12 +298,12 @@ const resolveNativeModule = (): NativeEngineModule | null => {
 
 const resolvePapyrusPageView = (): PapyrusPageViewComponent => {
   try {
-    return requireNativeViewManager<PapyrusPageViewProps>(
+    return requireNativeComponent<PapyrusPageViewProps>(
       "PapyrusPageView"
     ) as unknown as PapyrusPageViewComponent;
   } catch {
     try {
-      return requireNativeComponent<PapyrusPageViewProps>(
+      return requireNativeViewManager<PapyrusPageViewProps>(
         "PapyrusPageView"
       ) as unknown as PapyrusPageViewComponent;
     } catch {
@@ -316,12 +316,12 @@ const resolvePapyrusPdfViewerView = (): PapyrusPdfViewerViewComponent => {
   const componentName =
     Platform.OS === "ios" ? "PapyrusPdfDocumentView" : "PapyrusPdfViewerView";
   try {
-    return requireNativeViewManager<PapyrusPdfViewerViewProps>(
+    return requireNativeComponent<PapyrusPdfViewerViewProps>(
       componentName
     ) as unknown as PapyrusPdfViewerViewComponent;
   } catch {
     try {
-      return requireNativeComponent<PapyrusPdfViewerViewProps>(
+      return requireNativeViewManager<PapyrusPdfViewerViewProps>(
         componentName
       ) as unknown as PapyrusPdfViewerViewComponent;
     } catch {
