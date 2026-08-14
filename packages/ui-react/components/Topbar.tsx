@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useViewerStore } from "@papyrus-sdk/core";
 import { DocumentEngine, PageTheme } from "@papyrus-sdk/types";
+import { isSingleViewportMode as getIsSingleViewportMode } from "./renderMode";
 
 interface TopbarProps {
   engine: DocumentEngine;
@@ -65,9 +66,7 @@ const Topbar: React.FC<TopbarProps> = ({
   const [isMobileViewport, setIsMobileViewport] = useState(false);
   const pageDigits = Math.max(2, String(pageCount || 1).length);
   const isDark = uiTheme === "dark";
-  const renderTargetType = engine.getRenderTargetType?.() ?? "canvas";
-  const isSingleViewportMode =
-    renderTargetType === "element" || renderTargetType === "webview";
+  const isSingleViewportMode = getIsSingleViewportMode(engine);
   const canUseDOM = typeof document !== "undefined";
   const hasMobileMenu =
     showZoomControls || showPageThemeSelector || showUIToggle || showUpload;
@@ -796,7 +795,7 @@ const Topbar: React.FC<TopbarProps> = ({
             type="file"
             ref={fileInputRef}
             className="hidden"
-            accept=".pdf,.epub,.txt"
+            accept=".pdf,.epub,.txt,.cbz,.cbr"
             onChange={handleFileUpload}
           />
         )}

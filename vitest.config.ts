@@ -22,6 +22,18 @@ export default defineConfig({
         __dirname,
         "packages/engine-text/index.ts"
       ),
+      "@papyrus-sdk/engine-comic-core": path.resolve(
+        __dirname,
+        "packages/engine-comic-core/index.ts"
+      ),
+      "@papyrus-sdk/engine-cbz": path.resolve(
+        __dirname,
+        "packages/engine-cbz/index.ts"
+      ),
+      "@papyrus-sdk/engine-cbr": path.resolve(
+        __dirname,
+        "packages/engine-cbr/index.ts"
+      ),
       react: path.resolve(__dirname, "node_modules/react"),
       "react/jsx-runtime": path.resolve(
         __dirname,

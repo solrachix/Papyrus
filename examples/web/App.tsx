@@ -9,7 +9,12 @@ import { PDFJSEngine } from "@papyrus-sdk/engine-pdfjs";
 import { EPUBEngine } from "@papyrus-sdk/engine-epub";
 import { TextEngine } from "@papyrus-sdk/engine-text";
 import { useViewerStore, papyrusEvents } from "@papyrus-sdk/core";
-import { PapyrusEventType, PapyrusConfig, PageTheme } from "@papyrus-sdk/types";
+import {
+  DocumentEngine,
+  PapyrusEventType,
+  PapyrusConfig,
+  PageTheme,
+} from "@papyrus-sdk/types";
 import {
   SidebarLeft,
   SidebarRight,
@@ -58,14 +63,20 @@ const createInitialConfig = (
   ...overrides,
 });
 
-type EngineKind = "pdf" | "epub" | "text";
+type EngineKind = "pdf" | "epub" | "text" | "cbz" | "cbr";
 type UITheme = "light" | "dark";
 
 const parseEngineKindFromLocation = (): EngineKind => {
   if (typeof window === "undefined") return "pdf";
   const params = new URLSearchParams(window.location.search);
   const fromQuery = (params.get("engine") || "").toLowerCase();
-  if (fromQuery === "pdf" || fromQuery === "epub" || fromQuery === "text") {
+  if (
+    fromQuery === "pdf" ||
+    fromQuery === "epub" ||
+    fromQuery === "text" ||
+    fromQuery === "cbz" ||
+    fromQuery === "cbr"
+  ) {
     return fromQuery;
   }
   return "pdf";
@@ -86,18 +97,51 @@ const usePapyrusDemo = (
 ) => {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [eventLogEnabled, setEventLogEnabled] = useState(false);
+  const [comicEngine, setComicEngine] = useState<DocumentEngine | null>(null);
   const storeInitializedRef = useRef(false);
   const { useRemotePdf, remotePdfUrl } = options ?? {};
 
+  useEffect(() => {
+    if (engineKind !== "cbz" && engineKind !== "cbr") {
+      setComicEngine(null);
+      return;
+    }
+
+    let active = true;
+    setComicEngine(null);
+
+    const loadComicEngine = async () => {
+      try {
+        if (engineKind === "cbz") {
+          const { CBZEngine } = await import("@papyrus-sdk/engine-cbz");
+          if (active) setComicEngine(new CBZEngine());
+        } else {
+          const { createDemoCbrEngine } = await import("./cbrDemo");
+          if (active) setComicEngine(createDemoCbrEngine());
+        }
+      } catch (error) {
+        console.error("Comic engine import failed", error);
+        if (active) setLoadError("Falha ao carregar a engine de quadrinhos.");
+      }
+    };
+
+    loadComicEngine();
+    return () => {
+      active = false;
+    };
+  }, [engineKind]);
+
   const engine = useMemo(() => {
+    if (engineKind === "cbz" || engineKind === "cbr") return comicEngine;
     if (engineKind === "epub") return new EPUBEngine();
     if (engineKind === "text") return new TextEngine();
     return new PDFJSEngine();
-  }, [engineKind]);
+  }, [comicEngine, engineKind]);
 
   const demoSource = useMemo(() => {
     if (engineKind === "epub") return LOCAL_EPUB_URL;
     if (engineKind === "text") return LOCAL_TEXT_URL;
+    if (engineKind === "cbz" || engineKind === "cbr") return null;
     if (useRemotePdf) return remotePdfUrl || REMOTE_PDF_URL;
     return LOCAL_PDF_URL;
   }, [engineKind, useRemotePdf, remotePdfUrl]);
@@ -182,7 +226,9 @@ const usePapyrusDemo = (
           if (
             data.value === "pdf" ||
             data.value === "epub" ||
-            data.value === "text"
+            data.value === "text" ||
+            data.value === "cbz" ||
+            data.value === "cbr"
           ) {
             setEngineKind(data.value as EngineKind);
           }
@@ -193,6 +239,7 @@ const usePapyrusDemo = (
           break;
         }
         case "set-zoom": {
+          if (!engine) return;
           const nextZoom =
             typeof data.value === "number" ? data.value : Number(data.value);
           if (Number.isFinite(nextZoom)) {
@@ -202,6 +249,7 @@ const usePapyrusDemo = (
           break;
         }
         case "go-to-page": {
+          if (!engine) return;
           const nextPage =
             typeof data.value === "number" ? data.value : Number(data.value);
           if (Number.isFinite(nextPage)) {
@@ -247,7 +295,24 @@ const usePapyrusDemo = (
         });
         setLoadError(null);
 
-        await engine.load(demoSource);
+        if (!engine) return;
+
+        const source =
+          engineKind === "cbz"
+            ? await (await import("./comicDemo")).createDemoCbz()
+            : demoSource;
+
+        if (!source) {
+          setDocumentState({
+            isLoaded: true,
+            pageCount: 0,
+            outline: [],
+            currentPage: 1,
+          });
+          return;
+        }
+
+        await engine.load(source);
 
         if (!active) return;
 
@@ -271,7 +336,7 @@ const usePapyrusDemo = (
         }
       } catch (err) {
         console.error("Papyrus Engine Init Failed", err);
-        setLoadError("Falha ao carregar o documento padrao.");
+        setLoadError("Falha ao carregar o documento padrão.");
       }
     };
 
@@ -279,10 +344,11 @@ const usePapyrusDemo = (
 
     return () => {
       active = false;
-      engine.destroy();
+      engine?.destroy();
     };
   }, [
     demoSource,
+    engineKind,
     engine,
     initializeStore,
     setDocumentState,
@@ -353,7 +419,7 @@ const PapyrusViewer: React.FC<{
     });
   }, [syncState, setDocumentState]);
 
-  if (!isLoaded)
+  if (!isLoaded || !engine)
     return <LoadingState error={loadError} className={loadingClassName} />;
 
   return (
@@ -616,7 +682,16 @@ const ConfigPage: React.FC = () => {
                 <option value="pdf">PDF</option>
                 <option value="epub">EPUB</option>
                 <option value="text">TXT</option>
+                <option value="cbz">CBZ (Comic ZIP)</option>
+                <option value="cbr">CBR (RAR via upload)</option>
               </select>
+              {(engineKind === "cbz" || engineKind === "cbr") && (
+                <div className="text-[11px] text-white/50">
+                  {engineKind === "cbz"
+                    ? "O demo gera um CBZ pequeno no navegador."
+                    : "Selecione CBR e use Upload para abrir um arquivo RAR."}
+                </div>
+              )}
             </Section>
 
             {engineKind === "pdf" && (

@@ -1,0 +1,9 @@
+[package]
+name = "papyrus-core-rust"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+lopdf = "0.44"
+
