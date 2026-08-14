@@ -1,0 +1,32 @@
+{
+  "name": "@papyrus-sdk/engine-cbr",
+  "version": "0.1.0",
+  "license": "MIT",
+  "keywords": ["papyrus", "comic", "cbr", "rar", "reader", "engine"],
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsup index.ts --dts --format cjs,esm --out-dir dist --clean --sourcemap"
+  },
+  "dependencies": {
+    "@papyrus-sdk/engine-comic-core": "workspace:*",
+    "libarchive.js": "^2.0.2"
+  },
+  "peerDependencies": {
+    "@papyrus-sdk/core": ">=0.2.19",
+    "@papyrus-sdk/types": ">=0.2.12"
+  },
+  "devDependencies": {
+    "@papyrus-sdk/core": "workspace:*",
+    "@papyrus-sdk/types": "workspace:*"
+  }
+}

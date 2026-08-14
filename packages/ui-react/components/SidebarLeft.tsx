@@ -1,6 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useViewerStore } from "@papyrus-sdk/core";
 import { DocumentEngine, OutlineItem } from "@papyrus-sdk/types";
+import {
+  isContinuousElementMode,
+  isSingleViewportMode as getIsSingleViewportMode,
+} from "./renderMode";
 
 interface SidebarLeftProps {
   engine: DocumentEngine;
@@ -46,6 +50,7 @@ const Thumbnail: React.FC<{
   const renderTargetType =
     (engine.getRenderTargetType?.() as string | undefined) ?? "canvas";
   const isElementRender = renderTargetType === "element";
+  const isContinuousElementPreview = isContinuousElementMode(engine);
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
@@ -59,10 +64,7 @@ const Thumbnail: React.FC<{
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            setIsVisible(true);
-            observer.disconnect();
-          }
+          setIsVisible(entry.isIntersecting);
         });
       },
       { root: root ?? null, rootMargin: "200px" }
@@ -72,15 +74,26 @@ const Thumbnail: React.FC<{
   }, []);
 
   useEffect(() => {
-    if (!isVisible || isElementRender) return;
-    const target =
-      renderTargetType === "element" ? htmlRef.current : canvasRef.current;
-    if (target) {
-      engine.renderPage(pageIndex, target, 0.15).catch((err) => {
-        console.error("[Papyrus] Thumbnail render failed:", err);
-      });
+    if (isElementRender && !isContinuousElementPreview) return;
+    const target = isContinuousElementPreview
+      ? htmlRef.current
+      : canvasRef.current;
+    if (!target) return;
+    if (!isVisible) {
+      if (isContinuousElementPreview) target.replaceChildren();
+      return;
     }
-  }, [engine, pageIndex, renderTargetType, isVisible, isElementRender]);
+    engine.renderPage(pageIndex, target, 0.15).catch((err) => {
+      console.error("[Papyrus] Thumbnail render failed:", err);
+    });
+  }, [
+    engine,
+    pageIndex,
+    renderTargetType,
+    isVisible,
+    isElementRender,
+    isContinuousElementPreview,
+  ]);
 
   return (
     <div
@@ -103,7 +116,7 @@ const Thumbnail: React.FC<{
         >
           <div
             className={`w-[90px] h-[120px] items-center justify-center text-[10px] font-black tracking-wider ${
-              isElementRender ? "flex" : "hidden"
+              isElementRender && !isContinuousElementPreview ? "flex" : "hidden"
             } ${
               isDark
                 ? "bg-[#1f1f1f] text-gray-300"
@@ -121,11 +134,12 @@ const Thumbnail: React.FC<{
           />
           <div
             ref={htmlRef}
+            data-papyrus-render-target="thumbnail"
             className="bg-white"
             style={{
               width: 90,
               height: 120,
-              display: "none",
+              display: isContinuousElementPreview ? "block" : "none",
               overflow: "hidden",
             }}
           />
@@ -154,9 +168,7 @@ const OutlineNode: React.FC<{
     useViewerStore();
   const [expanded, setExpanded] = useState(true);
   const accentSoft = withAlpha(accentColor, 0.2);
-  const renderTargetType = engine.getRenderTargetType?.() ?? "canvas";
-  const isSingleViewportMode =
-    renderTargetType === "element" || renderTargetType === "webview";
+  const isSingleViewportMode = getIsSingleViewportMode(engine);
 
   const matchesSearch =
     outlineSearchQuery === "" ||
@@ -318,9 +330,7 @@ const SidebarLeft: React.FC<SidebarLeftProps> = ({ engine, style }) => {
     accentColor,
   } = useViewerStore();
   const isDark = uiTheme === "dark";
-  const renderTargetType = engine.getRenderTargetType?.() ?? "canvas";
-  const prefersSummaryByDefault =
-    renderTargetType === "element" || renderTargetType === "webview";
+  const prefersSummaryByDefault = getIsSingleViewportMode(engine);
   const autoSummaryKeyRef = useRef<string | null>(null);
 
   useEffect(() => {

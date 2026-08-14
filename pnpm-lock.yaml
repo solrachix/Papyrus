@@ -194,6 +194,9 @@ importers:
 
   examples/web:
     dependencies:
+      '@zip.js/zip.js':
+        specifier: ^2.8.34
+        version: 2.8.49
       pdfjs-dist:
         specifier: ^3.11.174
         version: 3.11.174
@@ -228,6 +231,47 @@ importers:
       zustand:
         specifier: ^5.0.0
         version: 5.0.12(@types/react@19.2.14)(react@19.1.0)
+
+  packages/engine-cbr:
+    dependencies:
+      '@papyrus-sdk/engine-comic-core':
+        specifier: workspace:*
+        version: link:../engine-comic-core
+      libarchive.js:
+        specifier: ^2.0.2
+        version: 2.0.2
+    devDependencies:
+      '@papyrus-sdk/core':
+        specifier: workspace:*
+        version: link:../core
+      '@papyrus-sdk/types':
+        specifier: workspace:*
+        version: link:../types
+
+  packages/engine-cbz:
+    dependencies:
+      '@papyrus-sdk/engine-comic-core':
+        specifier: workspace:*
+        version: link:../engine-comic-core
+      '@zip.js/zip.js':
+        specifier: ^2.8.34
+        version: 2.8.49
+    devDependencies:
+      '@papyrus-sdk/core':
+        specifier: workspace:*
+        version: link:../core
+      '@papyrus-sdk/types':
+        specifier: workspace:*
+        version: link:../types
+
+  packages/engine-comic-core:
+    devDependencies:
+      '@papyrus-sdk/core':
+        specifier: workspace:*
+        version: link:../core
+      '@papyrus-sdk/types':
+        specifier: workspace:*
+        version: link:../types
 
   packages/engine-epub:
     dependencies:
@@ -2504,10 +2548,16 @@ packages:
   '@xmldom/xmldom@0.8.13':
     resolution: {integrity: sha512-KRYzxepc14G/CEpEGc3Yn+JKaAeT63smlDr+vjB8jRfgTBBI9wRj/nkQEO+ucV8p8I9bfKLWp37uHgFrbntPvw==}
     engines: {node: '>=10.0.0'}
+    deprecated: this version has critical issues, please update to the latest version
 
   '@xmldom/xmldom@0.9.10':
     resolution: {integrity: sha512-A9gOqLdi6cV4ibazAjcQufGj0B1y/vDqYrcuP6d/6x8P27gRS8643Dj9o1dEKtB6O7fwxb2FgBmJS2mX7gpvdw==}
     engines: {node: '>=14.6'}
+    deprecated: this version has critical issues, please update to the latest version
+
+  '@zip.js/zip.js@2.8.49':
+    resolution: {integrity: sha512-TY3fKR/IQqPJqrOQAohvW6kv7Qd1aehzU7M7hbqhNNKxVP8uKSMO+aUlBwtdWzTCd62E0YOB+HHW9N0hMihrWw==}
+    engines: {bun: '>=0.7.0', deno: '>=1.0.0', node: '>=18.0.0'}
 
   abbrev@1.1.1:
     resolution: {integrity: sha512-nne9/IiQ/hzIhY6pdDnbBtz7DjPTKrY00P/zvPSm5pOFkl6xuGrGnXn/VtTNNfNtAfZ9/1RtehkszU9qcTii0Q==}
@@ -3032,6 +3082,9 @@ packages:
   combined-stream@1.0.8:
     resolution: {integrity: sha512-FQN4MRfuJeHf7cBbBMJFXhKSDq+2kAArBlmRBvcvFE5BB1HZKXtSFASDhdlz9zOYwxh8lDdnvmMOe/+5cdoEdg==}
     engines: {node: '>= 0.8'}
+
+  comlink@4.4.2:
+    resolution: {integrity: sha512-OxGdvBmJuNKSCMO4NTl1L47VRp6xn2wG4F/2hYzB6tiCb709otOxtEYCSvK80PtjODfXXZu8ds+Nw5kVCjqd2g==}
 
   comma-separated-tokens@2.0.3:
     resolution: {integrity: sha512-Fu4hJdvzeylCfQPp9SGWidpzrMs7tTrlu6Vb8XGaRGck8QSNZJJp538Wrb60Lax4fPwR64ViY468OIUTbRlGZg==}
@@ -4635,6 +4688,9 @@ packages:
   levn@0.4.1:
     resolution: {integrity: sha512-+bT2uH4E5LGE7h/n3evcS/sQlJXCpIp6ym8OWJ5eV6+67Dsql/LaaT7qJBAt2rzfoa/5QBGBhxDix1dMt2kQKQ==}
     engines: {node: '>= 0.8.0'}
+
+  libarchive.js@2.0.2:
+    resolution: {integrity: sha512-JHb+P4suNSjvz/dMdRgOe7JAxluXJeialzSFkKHU5y0ZK+m175drPOaIYW6I9WXSDcPcQ13eCUgMnpgY0ggmoQ==}
 
   lie@3.1.1:
     resolution: {integrity: sha512-RiNhHysUjhrDQntfYSfY4MU24coXXdEOgw9WGcKHNeEwffDYbF//u87M1EWaMGzuFoSbqW0C9C6lEEhDOAswfw==}
@@ -9842,6 +9898,8 @@ snapshots:
 
   '@xmldom/xmldom@0.9.10': {}
 
+  '@zip.js/zip.js@2.8.49': {}
+
   abbrev@1.1.1:
     optional: true
 
@@ -10468,6 +10526,8 @@ snapshots:
   combined-stream@1.0.8:
     dependencies:
       delayed-stream: 1.0.0
+
+  comlink@4.4.2: {}
 
   comma-separated-tokens@2.0.3: {}
 
@@ -12526,6 +12586,10 @@ snapshots:
     dependencies:
       prelude-ls: 1.2.1
       type-check: 0.4.0
+
+  libarchive.js@2.0.2:
+    dependencies:
+      comlink: 4.4.2
 
   lie@3.1.1:
     dependencies:

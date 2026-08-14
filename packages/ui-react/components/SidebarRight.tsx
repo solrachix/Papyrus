@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useViewerStore, SearchService } from "@papyrus-sdk/core";
 import { Annotation, DocumentEngine } from "@papyrus-sdk/types";
+import { isSingleViewportMode as getIsSingleViewportMode } from "./renderMode";
 
 interface SidebarRightProps {
   engine: DocumentEngine;
@@ -49,9 +50,7 @@ const SidebarRight: React.FC<SidebarRightProps> = ({ engine, style }) => {
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
   const searchService = new SearchService(engine);
   const isDark = uiTheme === "dark";
-  const renderTargetType = engine.getRenderTargetType?.() ?? "canvas";
-  const isSingleViewportMode =
-    renderTargetType === "element" || renderTargetType === "webview";
+  const isSingleViewportMode = getIsSingleViewportMode(engine);
   const accentSoft = withAlpha(accentColor, 0.12);
   const resultsCount = searchResults.length;
 

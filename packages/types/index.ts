@@ -38,7 +38,7 @@ export type DocumentSource =
   | { data: ArrayBuffer | Uint8Array }
   | FileLike;
 
-export type DocumentType = "pdf" | "epub" | "text";
+export type DocumentType = "pdf" | "epub" | "text" | "comic";
 
 export type ReadingMode =
   | "focus"
@@ -263,5 +263,6 @@ export interface DocumentEngine {
   getOutline(): Promise<OutlineItem[]>;
   getPageIndex(dest: PageDestination): Promise<number | null>;
   getRenderTargetType?(): RenderTargetType;
+  getPageLayoutMode?(): "single" | "continuous";
   destroy(): void;
 }
