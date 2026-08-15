@@ -2,10 +2,11 @@ use std::collections::{BTreeMap, HashMap};
 use std::sync::OnceLock;
 
 use lopdf::Document;
+use serde::Serialize;
 
 const MAX_PAGE_CONTENT_BYTES: usize = 8 * 1024 * 1024;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct SearchHit {
     pub page_number: u32,
     pub matches: usize,
@@ -130,6 +131,46 @@ impl PdfCore {
             .and_then(|result| result.as_ref().ok())
             .map(|data| data.page_texts.len())
             .unwrap_or(0)
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+mod wasm {
+    use super::PdfCore;
+    use serde_wasm_bindgen::to_value;
+    use wasm_bindgen::prelude::*;
+
+    #[wasm_bindgen]
+    pub struct WasmPdfCore {
+        inner: PdfCore,
+    }
+
+    #[wasm_bindgen]
+    impl WasmPdfCore {
+        #[wasm_bindgen(constructor)]
+        pub fn new(bytes: &[u8]) -> Result<WasmPdfCore, JsValue> {
+            PdfCore::load(bytes)
+                .map(|inner| WasmPdfCore { inner })
+                .map_err(|error| JsValue::from_str(&error))
+        }
+
+        pub fn page_count(&self) -> usize {
+            self.inner.page_count()
+        }
+
+        pub fn page_text(&self, page_number: u32) -> Result<String, JsValue> {
+            self.inner
+                .page_text(page_number)
+                .map_err(|error| JsValue::from_str(&error))
+        }
+
+        pub fn search(&self, query: &str) -> Result<JsValue, JsValue> {
+            let hits = self
+                .inner
+                .search(query)
+                .map_err(|error| JsValue::from_str(&error))?;
+            to_value(&hits).map_err(|error| JsValue::from_str(&error.to_string()))
+        }
     }
 }
 
