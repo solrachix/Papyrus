@@ -23,6 +23,7 @@ import NativePdfDocumentViewer, {
   getNativePdfEngineId,
 } from "./NativePdfDocumentViewer";
 import { shouldUseNativePdfViewer } from "./nativePdfViewerMode";
+import { resolvePdfBasePageWidth } from "./pdfPageMetrics";
 import {
   createBurstMonitor,
   createRenderCounter,
@@ -509,7 +510,10 @@ const Viewer: React.FC<ViewerProps> = ({
   const getPageWidthForZoom = useCallback(
     (pageIndex: number, zoomValue: number) => {
       const safeZoom = Math.max(zoomValue, 0.25);
-      const baseWidth = isDouble ? columnWidth * 0.92 : windowWidth * 0.92;
+      const baseWidth = resolvePdfBasePageWidth({
+        viewportWidth: isDouble ? columnWidth : windowWidth,
+        horizontalPadding: isDouble ? 8 : 16,
+      });
       return baseWidth * safeZoom;
     },
     [columnWidth, isDouble, windowWidth]
@@ -1145,7 +1149,11 @@ const Viewer: React.FC<ViewerProps> = ({
 
     if (isDouble) {
       const safeZoom = Math.max(zoom, 0.25);
-      const pageWidth = columnWidth * 0.92 * safeZoom;
+      const pageWidth =
+        resolvePdfBasePageWidth({
+          viewportWidth: columnWidth,
+          horizontalPadding: 8,
+        }) * safeZoom;
       const estimatedLength =
         pageWidth / DEFAULT_PAGE_ASPECT_RATIO + DOUBLE_PAGE_SPACING;
 
@@ -1166,7 +1174,11 @@ const Viewer: React.FC<ViewerProps> = ({
     }
 
     const safeZoom = Math.max(zoom, 0.25);
-    const pageWidth = windowWidth * 0.92 * safeZoom;
+    const pageWidth =
+      resolvePdfBasePageWidth({
+        viewportWidth: windowWidth,
+        horizontalPadding: 16,
+      }) * safeZoom;
     const estimatedLength =
       pageWidth / DEFAULT_PAGE_ASPECT_RATIO + CONTINUOUS_PAGE_SPACING;
 

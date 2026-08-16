@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useViewerStore } from "@papyrus-sdk/core";
 import { DocumentEngine } from "@papyrus-sdk/types";
 import PageRenderer from "./PageRenderer";
+import { isSingleViewportMode as getIsSingleViewportMode } from "./renderMode";
 
 interface ViewerProps {
   engine: DocumentEngine;
@@ -55,11 +56,9 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
       viewerState as typeof viewerState & {
         mobileTopbarVisible?: boolean;
       }
-    ).mobileTopbarVisible ?? true;
+  ).mobileTopbarVisible ?? true;
   const isDark = uiTheme === "dark";
-  const renderTargetType = engine.getRenderTargetType?.() ?? "canvas";
-  const isSingleViewportMode =
-    renderTargetType === "element" || renderTargetType === "webview";
+  const isSingleViewportMode = getIsSingleViewportMode(engine);
   const viewerRef = useRef<HTMLDivElement>(null);
   const singleNavInFlightRef = useRef(false);
   const colorPickerRef = useRef<HTMLDivElement>(null);

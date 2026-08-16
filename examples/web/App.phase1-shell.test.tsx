@@ -110,6 +110,78 @@ vi.mock("@papyrus-sdk/engine-text", () => ({
   },
 }));
 
+vi.mock("@papyrus-sdk/engine-cbz", () => ({
+  CBZEngine: class {
+    async load() {}
+    getPageCount() {
+      return 2;
+    }
+    getCurrentPage() {
+      return 1;
+    }
+    goToPage() {}
+    setZoom() {}
+    getZoom() {
+      return 1;
+    }
+    rotate() {}
+    getRotation() {
+      return 0;
+    }
+    async renderPage() {}
+    async renderTextLayer() {}
+    async getTextContent() {
+      return [];
+    }
+    async getPageDimensions() {
+      return { width: 900, height: 1200 };
+    }
+    async getOutline() {
+      return [];
+    }
+    async getPageIndex() {
+      return null;
+    }
+    destroy() {}
+  },
+}));
+
+vi.mock("@papyrus-sdk/engine-cbr", () => ({
+  CBREngine: class {
+    async load() {}
+    getPageCount() {
+      return 2;
+    }
+    getCurrentPage() {
+      return 1;
+    }
+    goToPage() {}
+    setZoom() {}
+    getZoom() {
+      return 1;
+    }
+    rotate() {}
+    getRotation() {
+      return 0;
+    }
+    async renderPage() {}
+    async renderTextLayer() {}
+    async getTextContent() {
+      return [];
+    }
+    async getPageDimensions() {
+      return { width: 900, height: 1200 };
+    }
+    async getOutline() {
+      return [];
+    }
+    async getPageIndex() {
+      return null;
+    }
+    destroy() {}
+  },
+}));
+
 vi.mock("@papyrus-sdk/ui-react", () => ({
   Topbar: () => <div data-testid="papyrus-topbar" />,
   SidebarLeft: () => <div data-testid="papyrus-sidebar-left" />,
