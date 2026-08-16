@@ -193,6 +193,29 @@ describe("RustDocumentEngine", () => {
     ]);
   });
 
+  it("mantém resultados de páginas seguintes quando o PDF.js falha em uma página", async () => {
+    const pdfEngine = createPdfEngine();
+    (pdfEngine.getPageCount as ReturnType<typeof vi.fn>).mockReturnValue(2);
+    (pdfEngine.getTextContent as ReturnType<typeof vi.fn>).mockImplementation(
+      async (pageIndex: number) => {
+        if (pageIndex === 0) throw new Error("página corrompida");
+        return [{ str: "resultado fallback" }] as TextItem[];
+      }
+    );
+    const engine = new RustDocumentEngine({
+      pdfEngine,
+      runtimeFactory: {
+        load: vi.fn().mockRejectedValue(new Error("WASM indisponível")),
+      },
+    });
+
+    await engine.load(new Uint8Array([1, 2, 3]));
+
+    await expect(engine.searchText("fallback")).resolves.toEqual([
+      { pageIndex: 1, text: "resultado fallback", matchIndex: 0 },
+    ]);
+  });
+
   it("preserva o início correto do snippet quando a normalização Unicode expande", async () => {
     const pdfEngine = createPdfEngine();
     const prefix = "x".repeat(50);
@@ -216,6 +239,26 @@ describe("RustDocumentEngine", () => {
         text: `${"x".repeat(39)}İstanbul`,
         matchIndex: 0,
       },
+    ]);
+  });
+
+  it("mantém a busca quando o texto extraído separa palavras por quebra de linha", async () => {
+    const pdfEngine = createPdfEngine();
+    const runtime = {
+      pageCount: 1,
+      pageText: vi.fn().mockReturnValue("foo\nbar"),
+      search: vi.fn().mockReturnValue([{ page_number: 1, matches: 1 }]),
+      destroy: vi.fn(),
+    } satisfies RustPdfRuntime;
+    const engine = new RustDocumentEngine({
+      pdfEngine,
+      runtimeFactory: createRuntimeFactory(runtime),
+    });
+
+    await engine.load(new Uint8Array([1, 2, 3]));
+
+    await expect(engine.searchText("foo bar")).resolves.toEqual([
+      { pageIndex: 0, text: "foo\nbar", matchIndex: 0 },
     ]);
   });
 

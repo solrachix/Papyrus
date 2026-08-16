@@ -5,6 +5,7 @@ use lopdf::Document;
 use serde::Serialize;
 
 const MAX_PAGE_CONTENT_BYTES: usize = 8 * 1024 * 1024;
+const MAX_SEARCH_CACHE_ENTRIES: usize = 32;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct SearchHit {
@@ -51,6 +52,30 @@ mod tests {
         assert_eq!(data.normalized_page_texts.len(), 2);
         assert!(!data.normalized_page_texts.contains_key(&2));
     }
+
+    #[test]
+    fn normalizes_case_and_whitespace_for_search() {
+        assert_eq!(super::normalize_search_text(" Foo\n  BAR "), "foo bar");
+    }
+
+    #[test]
+    fn bounds_search_query_cache() {
+        let bytes = std::fs::read("../../examples/web/assets/tracemonkey-pldi-09.pdf")
+            .expect("sample PDF should exist");
+        let core = PdfCore::load(&bytes).expect("sample PDF should load");
+
+        for query_number in 0..64 {
+            core.search(&format!("query-{query_number}"))
+                .expect("search should work");
+        }
+
+        let cache_size = core
+            .search_cache
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .len();
+        assert!(cache_size <= super::MAX_SEARCH_CACHE_ENTRIES);
+    }
 }
 
 impl PdfCore {
@@ -74,18 +99,16 @@ impl PdfCore {
     }
 
     pub fn search(&self, query: &str) -> Result<Vec<SearchHit>, String> {
-        let normalized_query = query.trim().to_lowercase();
+        let normalized_query = normalize_search_text(query);
         if normalized_query.is_empty() {
             return Ok(Vec::new());
         }
 
-        if let Some(cached_hits) = self
+        let mut search_cache = self
             .search_cache
             .lock()
-            .map_err(|error| error.to_string())?
-            .get(&normalized_query)
-            .cloned()
-        {
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if let Some(cached_hits) = search_cache.get(&normalized_query).cloned() {
             return Ok(cached_hits);
         }
 
@@ -100,10 +123,12 @@ impl PdfCore {
                 });
             }
         }
-        self.search_cache
-            .lock()
-            .map_err(|error| error.to_string())?
-            .insert(normalized_query, hits.clone());
+        if search_cache.len() >= MAX_SEARCH_CACHE_ENTRIES {
+            if let Some(oldest_query) = search_cache.keys().next().cloned() {
+                search_cache.remove(&oldest_query);
+            }
+        }
+        search_cache.insert(normalized_query, hits.clone());
         Ok(hits)
     }
 
@@ -131,7 +156,7 @@ impl PdfCore {
         let mut normalized_page_texts = BTreeMap::new();
         for page_number in page_numbers {
             if let Ok(text) = extract_text(page_number) {
-                normalized_page_texts.insert(page_number, text.to_lowercase());
+                normalized_page_texts.insert(page_number, normalize_search_text(&text));
             }
         }
         SearchData { normalized_page_texts }
@@ -149,6 +174,14 @@ impl PdfCore {
             .map(|data| data.normalized_page_texts.len())
             .unwrap_or(0)
     }
+}
+
+fn normalize_search_text(value: &str) -> String {
+    value
+        .to_lowercase()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 #[cfg(target_arch = "wasm32")]

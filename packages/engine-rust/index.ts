@@ -188,7 +188,7 @@ export class RustDocumentEngine extends BaseDocumentEngine {
   }
 
   async searchText(query: string): Promise<SearchResult[]> {
-    const normalizedQuery = query.trim().toLowerCase();
+    const normalizedQuery = normalizeSearchQuery(query);
     if (!normalizedQuery) return [];
     if (!this.runtime) return this.searchWithPdfEngine(query);
 
@@ -217,10 +217,25 @@ export class RustDocumentEngine extends BaseDocumentEngine {
       }
       if (!pageText) continue;
 
-      for (const [matchIndex, range] of findCaseInsensitiveMatches(
+      const ranges = findCaseInsensitiveMatches(
         pageText,
         normalizedQuery
-      ).entries()) {
+      );
+      if (ranges.length === 0 && hit.matches > 0) {
+        console.warn(
+          `[RustDocumentEngine] O índice encontrou ${hit.matches} ocorrência(s) na página ${hit.page_number}, mas o texto não pôde ser mapeado`
+        );
+        results.push({
+          pageIndex: hit.page_number - 1,
+          text: createSnippet(pageText, 0, 0),
+          matchIndex: 0,
+        });
+        continue;
+      }
+
+      for (const [matchIndex, range] of ranges
+        .slice(0, hit.matches)
+        .entries()) {
         results.push({
           pageIndex: hit.page_number - 1,
           text: createSnippet(pageText, range.start, range.end),
@@ -236,7 +251,7 @@ export class RustDocumentEngine extends BaseDocumentEngine {
       return this.pdfEngine.searchText(query);
     }
 
-    const normalizedQuery = query.trim().toLowerCase();
+    const normalizedQuery = normalizeSearchQuery(query);
     if (!normalizedQuery) return [];
 
     const results: SearchResult[] = [];
@@ -245,7 +260,16 @@ export class RustDocumentEngine extends BaseDocumentEngine {
       pageIndex < this.pdfEngine.getPageCount();
       pageIndex += 1
     ) {
-      const textItems = await this.pdfEngine.getTextContent(pageIndex);
+      let textItems: TextItem[];
+      try {
+        textItems = await this.pdfEngine.getTextContent(pageIndex);
+      } catch (error) {
+        console.warn(
+          `[RustDocumentEngine] Texto PDF.js indisponível na página ${pageIndex + 1}; ignorando página`,
+          error
+        );
+        continue;
+      }
       const pageText = textItems.map((item) => item.str).join(" ");
       for (const [matchIndex, range] of findCaseInsensitiveMatches(
         pageText,
@@ -312,6 +336,17 @@ function findCaseInsensitiveMatches(
   const originalEnds: number[] = [];
   for (let index = 0; index < text.length; ) {
     const codePoint = String.fromCodePoint(text.codePointAt(index) ?? 0);
+    if (/\s/u.test(codePoint)) {
+      if (normalizedText.endsWith(" ")) {
+        originalEnds[originalEnds.length - 1] = index + codePoint.length;
+      } else {
+        normalizedText += " ";
+        originalStarts.push(index);
+        originalEnds.push(index + codePoint.length);
+      }
+      index += codePoint.length;
+      continue;
+    }
     const normalizedCodePoint = codePoint.toLowerCase();
     normalizedText += normalizedCodePoint;
     for (let offset = 0; offset < normalizedCodePoint.length; offset += 1) {
@@ -335,6 +370,10 @@ function findCaseInsensitiveMatches(
     );
   }
   return matches;
+}
+
+function normalizeSearchQuery(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/gu, " ");
 }
 
 function normalizeLoadInput(input: DocumentLoadInput): {
