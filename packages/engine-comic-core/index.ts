@@ -16,6 +16,7 @@ import {
 import {
   ComicPageUrlCache,
   DEFAULT_COMIC_PAGE_CACHE_SIZE,
+  DEFAULT_COMIC_THUMBNAIL_CACHE_SIZE,
 } from "./pageUrlCache";
 
 export type ComicArchive = {
@@ -91,6 +92,7 @@ export abstract class ComicEngine extends BaseDocumentEngine {
   private archive: ComicArchive | null = null;
   private pages: ComicArchiveEntry[] = [];
   private pageUrls: ComicPageUrlCache;
+  private thumbnailPageUrls: ComicPageUrlCache;
   private pageSizes = new Map<number, { width: number; height: number }>();
   private currentPage = 1;
   private zoom = 1;
@@ -98,8 +100,11 @@ export abstract class ComicEngine extends BaseDocumentEngine {
 
   constructor(options: ComicEngineOptions = {}) {
     super();
-    this.pageUrls = new ComicPageUrlCache(
-      options.maxCachedPages ?? DEFAULT_COMIC_PAGE_CACHE_SIZE
+    const maxCachedPages =
+      options.maxCachedPages ?? DEFAULT_COMIC_PAGE_CACHE_SIZE;
+    this.pageUrls = new ComicPageUrlCache(maxCachedPages);
+    this.thumbnailPageUrls = new ComicPageUrlCache(
+      Math.min(maxCachedPages, DEFAULT_COMIC_THUMBNAIL_CACHE_SIZE)
     );
   }
 
@@ -171,11 +176,18 @@ export abstract class ComicEngine extends BaseDocumentEngine {
     const page = this.pages[pageIndex];
     if (!element || !page) return;
 
-    let objectUrl = this.pageUrls.get(pageIndex);
+    const isThumbnail =
+      element.dataset?.papyrusRenderTarget === "thumbnail";
+    const pageUrlCache = isThumbnail ? this.thumbnailPageUrls : this.pageUrls;
+    let objectUrl = pageUrlCache.get(pageIndex);
     if (!objectUrl) {
       const blob = await page.read();
       objectUrl = URL.createObjectURL(blob);
-      this.pageUrls.set(pageIndex, objectUrl, this.currentPage - 1);
+      pageUrlCache.set(
+        pageIndex,
+        objectUrl,
+        isThumbnail ? undefined : this.currentPage - 1
+      );
     }
 
     const image = document.createElement("img");
@@ -240,6 +252,7 @@ export abstract class ComicEngine extends BaseDocumentEngine {
 
   destroy(): void {
     this.pageUrls.clear();
+    this.thumbnailPageUrls.clear();
     void this.archive?.dispose?.();
     this.archive = null;
     this.pages = [];

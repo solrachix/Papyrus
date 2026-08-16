@@ -1,4 +1,5 @@
 export const DEFAULT_COMIC_PAGE_CACHE_SIZE = 12;
+export const DEFAULT_COMIC_THUMBNAIL_CACHE_SIZE = 4;
 
 type RevokeObjectUrl = (url: string) => void;
 

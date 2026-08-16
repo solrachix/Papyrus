@@ -589,6 +589,7 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
           bestRatio >= currentRatio + 0.1 ||
           bestRatio >= 0.75);
       if (shouldSwitch) setDocumentState({ currentPage: bestPage });
+      if (shouldSwitch) engine.goToPage(bestPage);
     };
 
     const observer = new IntersectionObserver(
@@ -621,7 +622,13 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
       pageElements.forEach((el) => observer.unobserve(el));
       observer.disconnect();
     };
-  }, [pageCount, setDocumentState, currentPage, isSingleViewportMode]);
+  }, [
+    pageCount,
+    setDocumentState,
+    currentPage,
+    isSingleViewportMode,
+    engine,
+  ]);
 
   const safeCurrentPageIndex = Math.max(
     0,
