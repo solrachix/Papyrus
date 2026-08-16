@@ -20,11 +20,17 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 </GestureHandlerRootView>
 ```
 
-For EPUB/TXT previews on mobile:
+For EPUB/TXT/CBZ previews on mobile:
 
 ```bash
 npm install react-native-webview
 ```
+
+`MobileDocumentEngine` recognizes `.cbz` as `comic` and renders it in the
+same WebView runtime used by the mobile reader: continuous scrolling, lazy
+page extraction, bounded object-URL cache, and on-demand page previews in the
+navigation sheet. CBR is intentionally kept out of the base mobile runtime;
+RAR support needs the optional libarchive worker/WASM payload.
 
 ## Usage
 

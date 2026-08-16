@@ -19,7 +19,7 @@ import {
 } from 'react-native';
 import {MobileDocumentEngine} from '@papyrus-sdk/engine-native';
 import {useViewerStore} from '@papyrus-sdk/core';
-import {PapyrusConfig} from '@papyrus-sdk/types';
+import {DocumentSource, PapyrusConfig} from '@papyrus-sdk/types';
 import {
   ReadingShell,
   ToolDock,
@@ -52,6 +52,42 @@ const SAMPLE_EPUB_DATA_URI = `data:application/epub+zip;base64,${SAMPLE_EPUB_BAS
 const SAMPLE_TEXT =
   'Papyrus SDK\\n\\nThis is a text sample rendered by the mobile WebView runtime.';
 
+const resolveAssetUri = (asset: unknown): string | undefined => {
+  if (typeof asset === 'number') return Image.resolveAssetSource(asset)?.uri;
+  if (typeof asset === 'string') return asset;
+  if (asset && typeof asset === 'object' && 'uri' in asset) {
+    return typeof asset.uri === 'string' ? asset.uri : undefined;
+  }
+  return undefined;
+};
+
+const createMobileEngine = () => {
+  if (process.env.JEST_WORKER_ID) return new MobileDocumentEngine();
+
+  try {
+    const client = require(
+      '@papyrus-sdk/engine-cbr-mobile/runtime/libarchive.js.txt',
+    );
+    const worker = require(
+      '@papyrus-sdk/engine-cbr-mobile/runtime/worker-bundle.js.txt',
+    );
+    const wasm = require('@papyrus-sdk/engine-cbr-mobile/runtime/libarchive.wasm');
+    const cbrClientUrl = resolveAssetUri(client);
+    const cbrWorkerUrl = resolveAssetUri(worker);
+    const cbrWasmUrl = resolveAssetUri(wasm);
+
+    if (cbrClientUrl && cbrWorkerUrl && cbrWasmUrl) {
+      return new MobileDocumentEngine({
+        webViewRuntimeConfig: {cbrClientUrl, cbrWorkerUrl, cbrWasmUrl},
+      });
+    }
+  } catch (error) {
+    console.warn('[Papyrus RN] CBR runtime assets unavailable', error);
+  }
+
+  return new MobileDocumentEngine();
+};
+
 const ACCENT_COLOR = '#2563eb';
 const VIEWER_VIRTUAL_WINDOW_SIZE = 8;
 const VIEWER_MAX_TO_RENDER_PER_BATCH = 6;
@@ -78,8 +114,10 @@ const INITIAL_SDK_CONFIG: PapyrusConfig = {
 };
 
 const App: React.FC = () => {
-  const [engine] = useState(() => new MobileDocumentEngine());
-  const [activeType, setActiveType] = useState<'pdf' | 'epub' | 'text'>('pdf');
+  const [engine] = useState(createMobileEngine);
+  const [activeType, setActiveType] = useState<
+    'pdf' | 'epub' | 'text' | 'comic'
+  >('pdf');
   const [isPicking, setIsPicking] = useState(false);
   const [showDocumentSwitcher, setShowDocumentSwitcher] = useState(true);
   const {
@@ -112,6 +150,12 @@ const App: React.FC = () => {
     if (lowerMime.includes('pdf')) return 'pdf';
     if (lowerMime.includes('epub')) return 'epub';
     if (lowerMime.includes('text')) return 'text';
+    if (
+      lowerMime.includes('comicbook') ||
+      lowerMime.includes('zip') ||
+      lowerMime.includes('rar')
+    )
+      return 'comic';
 
     const candidate = (name ?? uri ?? '')
       .split('?')[0]
@@ -120,6 +164,7 @@ const App: React.FC = () => {
     if (candidate.endsWith('.pdf')) return 'pdf';
     if (candidate.endsWith('.epub')) return 'epub';
     if (candidate.endsWith('.txt')) return 'text';
+    if (candidate.endsWith('.cbz') || candidate.endsWith('.cbr')) return 'comic';
     return null;
   };
 
@@ -132,8 +177,8 @@ const App: React.FC = () => {
   };
 
   const loadDocumentFromSource = async (
-    type: 'pdf' | 'epub' | 'text',
-    source: unknown,
+    type: 'pdf' | 'epub' | 'text' | 'comic',
+    source: DocumentSource,
   ) => {
     setActiveType(type);
     setDocumentState({
@@ -172,13 +217,17 @@ const App: React.FC = () => {
     }
   };
 
-  const loadDocument = async (type: 'pdf' | 'epub' | 'text') => {
+  const loadDocument = async (type: 'pdf' | 'epub' | 'text' | 'comic') => {
     if (type === 'pdf') {
       await loadDocumentFromSource('pdf', DEFAULT_PDF);
       return;
     }
     if (type === 'epub') {
       await loadDocumentFromSource('epub', SAMPLE_EPUB_DATA_URI);
+      return;
+    }
+    if (type === 'comic') {
+      console.warn('[Papyrus RN] Abra um CBZ/CBR pelo seletor de arquivos.');
       return;
     }
     await loadDocumentFromSource('text', SAMPLE_TEXT);
@@ -208,6 +257,10 @@ const App: React.FC = () => {
           documentPickerModule.types.pdf,
           'application/epub+zip',
           documentPickerModule.types.plainText,
+          'application/vnd.comicbook+zip',
+          'application/vnd.comicbook-rar',
+          'application/zip',
+          'application/x-rar-compressed',
         ],
         mode: 'import',
       });
@@ -241,11 +294,20 @@ const App: React.FC = () => {
         return;
       }
 
+      if (docType === 'comic') {
+        await loadDocumentFromSource('comic', {uri});
+        return;
+      }
+
       await loadDocumentFromSource('pdf', {uri});
     } catch (err) {
+      const errorCode =
+        typeof err === 'object' && err !== null && 'code' in err
+          ? err.code
+          : undefined;
       if (
         documentPickerModule.isErrorWithCode?.(err) &&
-        err?.code === documentPickerModule.errorCodes?.OPERATION_CANCELED
+        errorCode === documentPickerModule.errorCodes?.OPERATION_CANCELED
       ) {
         return;
       }

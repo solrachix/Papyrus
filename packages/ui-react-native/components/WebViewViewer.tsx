@@ -8,26 +8,26 @@ import { useViewerStore } from "@papyrus-sdk/core";
 import { DocumentEngine } from "@papyrus-sdk/types";
 
 const runtimeAsset = require("../runtime/index.html");
-const runtimeSource = (() => {
-  if (typeof runtimeAsset === "string") {
-    return { html: runtimeAsset };
+const resolveRuntimeSource = (asset: unknown) => {
+  if (typeof asset === "string") {
+    return { html: asset };
   }
-  if (typeof runtimeAsset === "number") {
-    const resolved = Image.resolveAssetSource(runtimeAsset);
+  if (typeof asset === "number") {
+    const resolved = Image.resolveAssetSource(asset);
     if (resolved?.uri) {
       return { uri: resolved.uri };
     }
   }
   if (
-    runtimeAsset &&
-    typeof runtimeAsset === "object" &&
-    "uri" in runtimeAsset
+    asset &&
+    typeof asset === "object" &&
+    "uri" in asset
   ) {
-    const uri = (runtimeAsset as { uri?: string }).uri;
+    const uri = (asset as { uri?: string }).uri;
     if (uri) return { uri };
   }
   return { html: "" };
-})();
+};
 
 type WebViewBridge = {
   postMessage: (message: string) => void;
@@ -36,6 +36,8 @@ type WebViewBridge = {
 type WebViewBridgeEngine = DocumentEngine & {
   attachWebView?: (bridge: WebViewBridge) => void;
   handleWebViewMessage?: (data: string) => void;
+  getWebViewRuntimeSource?: () => unknown;
+  getWebViewRuntimeConfig?: () => Record<string, string> | undefined;
 };
 
 interface WebViewViewerProps {
@@ -45,9 +47,23 @@ interface WebViewViewerProps {
 const WebViewViewer: React.FC<WebViewViewerProps> = ({ engine }) => {
   const webViewRef = useRef<WebView>(null);
   const { pageTheme } = useViewerStore();
+  const bridgeEngine = engine as WebViewBridgeEngine;
+  const runtimeSource = useMemo(
+    () =>
+      resolveRuntimeSource(
+        bridgeEngine.getWebViewRuntimeSource?.() ?? runtimeAsset
+      ),
+    [bridgeEngine]
+  );
+  const runtimeConfig = bridgeEngine.getWebViewRuntimeConfig?.();
+  const runtimeConfigScript = useMemo(() => {
+    if (!runtimeConfig) return undefined;
+    return `window.__PAPYRUS_RUNTIME_CONFIG__=${JSON.stringify(
+      runtimeConfig
+    )};true;`;
+  }, [runtimeConfig]);
 
   useEffect(() => {
-    const bridgeEngine = engine as WebViewBridgeEngine;
     bridgeEngine.attachWebView?.({
       postMessage: (message: string) => {
         if (__DEV__) {
@@ -58,10 +74,9 @@ const WebViewViewer: React.FC<WebViewViewerProps> = ({ engine }) => {
         webViewRef.current?.postMessage(message);
       },
     });
-  }, [engine]);
+  }, [bridgeEngine]);
 
   const handleMessage = (event: WebViewMessageEvent) => {
-    const bridgeEngine = engine as WebViewBridgeEngine;
     if (__DEV__) {
       console.log("[Papyrus WebView] message", event.nativeEvent.data);
     }
@@ -110,6 +125,7 @@ const WebViewViewer: React.FC<WebViewViewerProps> = ({ engine }) => {
         onMessage={handleMessage}
         onLoadEnd={handleLoadEnd}
         onError={handleError}
+        injectedJavaScriptBeforeContentLoaded={runtimeConfigScript}
         javaScriptEnabled
         domStorageEnabled
         scalesPageToFit

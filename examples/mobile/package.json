@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@papyrus-sdk/core": "workspace:*",
+    "@papyrus-sdk/engine-cbr-mobile": "workspace:*",
     "@papyrus-sdk/engine-native": "workspace:*",
     "@papyrus-sdk/types": "workspace:*",
     "@papyrus-sdk/ui-react-native": "workspace:*",

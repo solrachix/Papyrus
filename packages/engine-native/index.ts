@@ -28,6 +28,7 @@ import {
   Annotation,
   PdfVisiblePage,
 } from "@papyrus-sdk/types";
+import { inferComicFormat, inferDocumentType } from "./documentType";
 
 const MODULE_NAME = "PapyrusNativeEngine";
 
@@ -135,40 +136,6 @@ const normalizeLoadInput = (
   isLoadRequest(input)
     ? { source: input.source, type: input.type }
     : { source: input };
-
-const inferDocumentType = (source: DocumentSource): DocumentType => {
-  if (typeof source === "string") {
-    const dataUri = parseDataUri(source);
-    if (dataUri?.mime) {
-      const mime = dataUri.mime.toLowerCase();
-      if (mime.includes("epub")) return "epub";
-      if (mime.includes("text")) return "text";
-      if (mime.includes("pdf")) return "pdf";
-    }
-
-    const clean = source.split("?")[0].split("#")[0];
-    const ext = clean.includes(".")
-      ? clean.split(".").pop()?.toLowerCase()
-      : undefined;
-    if (ext === "epub") return "epub";
-    if (ext === "txt") return "text";
-    if (ext === "pdf") return "pdf";
-    return "pdf";
-  }
-
-  if (typeof source === "object" && source !== null && "uri" in source) {
-    const uri = source.uri;
-    const clean = uri.split("?")[0].split("#")[0];
-    const ext = clean.includes(".")
-      ? clean.split(".").pop()?.toLowerCase()
-      : undefined;
-    if (ext === "epub") return "epub";
-    if (ext === "txt") return "text";
-    if (ext === "pdf") return "pdf";
-  }
-
-  return "pdf";
-};
 
 type NativeDocumentSource = {
   uri?: string;
@@ -583,6 +550,19 @@ type WebViewBridge = {
   postMessage: (message: string) => void;
 };
 
+export type WebViewRuntimeSource =
+  | string
+  | number
+  | { uri: string };
+
+export type WebViewRuntimeConfig = Record<string, string>;
+
+export type MobileDocumentEngineOptions = {
+  /** Optional asset URI/require result for a runtime extension such as CBR. */
+  webViewRuntimeSource?: WebViewRuntimeSource;
+  webViewRuntimeConfig?: WebViewRuntimeConfig;
+};
+
 type WebViewResponseMessage = {
   type: "response";
   id: string;
@@ -623,6 +603,8 @@ type WebViewSourcePayload =
   | { kind: "text"; text: string };
 
 export class WebViewDocumentEngine extends BaseDocumentEngine {
+  private readonly webViewRuntimeSource?: WebViewRuntimeSource;
+  private readonly webViewRuntimeConfig?: WebViewRuntimeConfig;
   private bridge: WebViewBridge | null = null;
   private ready = false;
   private requestId = 0;
@@ -637,6 +619,20 @@ export class WebViewDocumentEngine extends BaseDocumentEngine {
   private zoom = 1.0;
   private rotation = 0;
   private outline: OutlineItem[] = [];
+
+  constructor(options: MobileDocumentEngineOptions = {}) {
+    super();
+    this.webViewRuntimeSource = options.webViewRuntimeSource;
+    this.webViewRuntimeConfig = options.webViewRuntimeConfig;
+  }
+
+  getWebViewRuntimeSource(): WebViewRuntimeSource | undefined {
+    return this.webViewRuntimeSource;
+  }
+
+  getWebViewRuntimeConfig(): WebViewRuntimeConfig | undefined {
+    return this.webViewRuntimeConfig;
+  }
 
   getRenderTargetType(): "webview" {
     return "webview";
@@ -751,6 +747,9 @@ export class WebViewDocumentEngine extends BaseDocumentEngine {
     }>("load", {
       type: resolvedType,
       source: payloadSource,
+      ...(resolvedType === "comic"
+        ? { format: inferComicFormat(source) }
+        : {}),
     });
 
     if (typeof response?.pageCount === "number")
@@ -827,6 +826,12 @@ export class WebViewDocumentEngine extends BaseDocumentEngine {
       "get-page-dimensions",
       { pageIndex }
     );
+  }
+
+  async getPagePreview(pageIndex: number): Promise<string | null> {
+    return await this.request<string | null>("get-page-preview", {
+      pageIndex,
+    });
   }
 
   async searchText(query: string): Promise<SearchResult[]> {
@@ -993,6 +998,10 @@ export class WebViewDocumentEngine extends BaseDocumentEngine {
         const buffer = await this.readResponseBuffer(response);
         return { kind: "base64", data: encodeBase64(new Uint8Array(buffer)) };
       }
+      if (type === "comic") {
+        const buffer = await this.readResponseBuffer(response);
+        return { kind: "base64", data: encodeBase64(new Uint8Array(buffer)) };
+      }
       return null;
     } catch {
       return null;
@@ -1038,11 +1047,19 @@ export class MobileDocumentEngine extends BaseDocumentEngine {
   private webEngine: WebViewDocumentEngine;
   private activeEngine: DocumentEngine;
 
-  constructor() {
+  constructor(options: MobileDocumentEngineOptions = {}) {
     super();
     this.pdfEngine = new NativeDocumentEngine();
-    this.webEngine = new WebViewDocumentEngine();
+    this.webEngine = new WebViewDocumentEngine(options);
     this.activeEngine = this.pdfEngine;
+  }
+
+  getWebViewRuntimeSource(): WebViewRuntimeSource | undefined {
+    return this.webEngine.getWebViewRuntimeSource();
+  }
+
+  getWebViewRuntimeConfig(): WebViewRuntimeConfig | undefined {
+    return this.webEngine.getWebViewRuntimeConfig();
   }
 
   getRenderTargetType(): RenderTargetType {
@@ -1123,6 +1140,13 @@ export class MobileDocumentEngine extends BaseDocumentEngine {
     pageIndex: number
   ): Promise<{ width: number; height: number }> {
     return await this.activeEngine.getPageDimensions(pageIndex);
+  }
+
+  async getPagePreview(pageIndex: number): Promise<string | null> {
+    const engine = this.activeEngine as DocumentEngine & {
+      getPagePreview?: (pageIndex: number) => Promise<string | null>;
+    };
+    return (await engine.getPagePreview?.(pageIndex)) ?? null;
   }
 
   async searchText(query: string): Promise<SearchResult[]> {

@@ -34,7 +34,7 @@ const config = {
   watchFolders: [workspaceRoot],
   resolver: {
     blockList,
-    assetExts: [...assetExts, 'pdf', 'epub', 'html'],
+    assetExts: [...assetExts, 'pdf', 'epub', 'html', 'wasm', 'txt'],
     nodeModulesPaths: [
       path.resolve(projectRoot, 'node_modules'),
       path.resolve(workspaceRoot, 'node_modules'),

@@ -20371,7 +20371,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     </script>
     <script>
       (function () {
-        const viewer = document.getElementById("viewer");
+        const viewer = document.getElementById('viewer');
         const DEFAULT_FONT_SIZE = 16;
         const TEXT_PAGE_CHUNK = 1600;
 
@@ -20384,27 +20384,59 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         let currentPage = 1;
         let pageCount = 0;
         let zoom = 1.0;
+        let rotation = 0;
+        let comicArchive = null;
+        let comicEntries = [];
+        let comicContainer = null;
+        let comicPages = [];
+        let comicObserver = null;
+        let comicScrollFrame = null;
+        const comicObjectUrls = new Map();
+        const comicLoading = new Map();
+        const comicDimensions = new Map();
+        const COMIC_CACHE_LIMIT = 16;
+        const comicHelpers = window.PapyrusComicRuntime || {
+          isComicImageName: (name) => /\.(?:gif|jpe?g|png|svg|webp)$/i.test(name),
+          sortComicPageNames: (names) =>
+            names.slice().sort((left, right) => {
+              const leftParts = String(left).split(/(\d+)/);
+              const rightParts = String(right).split(/(\d+)/);
+              const length = Math.max(leftParts.length, rightParts.length);
+              for (let index = 0; index < length; index += 1) {
+                const leftPart = leftParts[index] || '';
+                const rightPart = rightParts[index] || '';
+                if (leftPart === rightPart) continue;
+                if (/^\d+$/.test(leftPart) && /^\d+$/.test(rightPart)) {
+                  return Number(leftPart) - Number(rightPart);
+                }
+                return leftPart.localeCompare(rightPart, undefined, {
+                  numeric: true,
+                  sensitivity: 'base',
+                });
+              }
+              return 0;
+            }),
+        };
+        const runtimeConfig = window.__PAPYRUS_RUNTIME_CONFIG__ || {};
+        let comicDispose = null;
 
         const sendMessage = (payload) => {
-          if (
-            window.ReactNativeWebView &&
-            window.ReactNativeWebView.postMessage
-          ) {
+          if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
             window.ReactNativeWebView.postMessage(JSON.stringify(payload));
             return;
           }
           if (window.parent && window.parent !== window) {
-            window.parent.postMessage(payload, "*");
+            window.parent.postMessage(payload, '*');
           }
         };
 
         const sendResponse = (id, ok, data, error) => {
-          sendMessage({ type: "response", id, ok, data, error });
+          sendMessage({ type: 'response', id, ok, data, error });
         };
 
         const sendState = (extra) => {
           sendMessage({
-            type: "state",
+            type: 'state',
             payload: {
               pageCount,
               currentPage,
@@ -20415,70 +20447,41 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         };
 
         const sendEvent = (name, payload) => {
-          sendMessage({ type: "event", name, payload });
+          sendMessage({ type: 'event', name, payload });
         };
 
-        const log = (...args) => {
-          sendEvent("RUNTIME_LOG", {
-            message: args.map((value) => String(value)).join(" "),
-          });
-        };
-
-        const reportError = (error, context) => {
-          const message =
-            error && error.message ? error.message : String(error);
-          const stack = error && error.stack ? error.stack : null;
-          sendEvent("RUNTIME_ERROR", { message, context, stack });
-        };
-
-        const EPUB_OPEN_TIMEOUT_MS = 180000;
-        const EPUB_READY_TIMEOUT_MS = 180000;
-        const EPUB_DISPLAY_TIMEOUT_MS = 30000;
-
-        const withTimeout = async (promise, ms, label) => {
-          let timer = null;
-          try {
-            return await Promise.race([
-              promise,
-              new Promise((_, reject) => {
-                timer = setTimeout(
-                  () => reject(new Error(`Timeout: ${label}`)),
-                  ms
-                );
-              }),
-            ]);
-          } finally {
-            if (timer) {
-              clearTimeout(timer);
-            }
+        const clearComicState = () => {
+          if (comicObserver) {
+            comicObserver.disconnect();
+            comicObserver = null;
           }
+          if (comicScrollFrame !== null) {
+            cancelAnimationFrame(comicScrollFrame);
+            comicScrollFrame = null;
+          }
+          comicObjectUrls.forEach((url) => URL.revokeObjectURL(url));
+          comicObjectUrls.clear();
+          comicLoading.clear();
+          comicDimensions.clear();
+          if (comicDispose) {
+            void comicDispose();
+            comicDispose = null;
+          }
+          comicArchive = null;
+          comicEntries = [];
+          comicContainer = null;
+          comicPages = [];
         };
-
-        const shouldIgnoreError = (error) => {
-          const message =
-            error && error.message ? error.message : String(error || "");
-          return message.includes("ResizeObserver loop");
-        };
-
-        window.addEventListener("error", (event) => {
-          const error = event.error || event.message;
-          if (shouldIgnoreError(error)) return;
-          reportError(error, "window.error");
-        });
-
-        window.addEventListener("unhandledrejection", (event) => {
-          if (shouldIgnoreError(event.reason)) return;
-          reportError(event.reason, "unhandledrejection");
-        });
 
         const clearViewer = () => {
+          clearComicState();
           while (viewer.firstChild) {
             viewer.removeChild(viewer.firstChild);
           }
         };
 
         const decodeBase64 = (value) => {
-          const clean = value.replace(/\s/g, "");
+          const clean = value.replace(/\s/g, '');
           const binary = atob(clean);
           const len = binary.length;
           const bytes = new Uint8Array(len);
@@ -20490,41 +20493,314 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 
         const decodeBase64ToText = (value) => {
           const bytes = decodeBase64(value);
-          return new TextDecoder("utf-8").decode(bytes);
+          return new TextDecoder('utf-8').decode(bytes);
         };
 
-        const fetchUriAsArrayBuffer = async (uri) => {
-          const response = await fetch(uri);
-          const ok = response.ok || response.status === 0;
-          if (!ok) {
-            throw new Error(
-              "Failed to fetch epub uri (" + response.status + ")"
-            );
-          }
-          if (typeof response.arrayBuffer === "function") {
+        const sourceToArrayBuffer = async (source) => {
+          if (source.kind === 'uri') {
+            const response = await fetch(source.uri);
+            if (!response.ok && response.status !== 0) {
+              throw new Error(`Falha ao carregar quadrinho (${response.status})`);
+            }
             return response.arrayBuffer();
           }
-          const blob = await response.blob();
-          return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onerror = () =>
-              reject(new Error("Failed to read epub blob"));
-            reader.onload = () => resolve(reader.result);
-            reader.readAsArrayBuffer(blob);
+          if (source.kind === 'base64') {
+            return decodeBase64(source.data).buffer;
+          }
+          throw new Error('Fonte de quadrinho inválida.');
+        };
+
+        const comicMimeType = (name) => {
+          const extension = name.split('.').pop()?.toLowerCase();
+          if (extension === 'png') return 'image/png';
+          if (extension === 'gif') return 'image/gif';
+          if (extension === 'svg') return 'image/svg+xml';
+          if (extension === 'webp') return 'image/webp';
+          return 'image/jpeg';
+        };
+
+        const updateComicCurrentPage = () => {
+          if (!comicContainer || comicPages.length === 0) return;
+          const viewportTop = comicContainer.scrollTop;
+          let closestIndex = currentPage - 1;
+          let closestDistance = Number.POSITIVE_INFINITY;
+          comicPages.forEach((page, index) => {
+            const distance = Math.abs(page.offsetTop - viewportTop);
+            if (distance < closestDistance) {
+              closestDistance = distance;
+              closestIndex = index;
+            }
+          });
+          const nextPage = Math.max(1, Math.min(pageCount, closestIndex + 1));
+          if (nextPage !== currentPage) {
+            currentPage = nextPage;
+            sendState();
+          }
+        };
+
+        const scheduleComicCurrentPage = () => {
+          if (comicScrollFrame !== null) return;
+          comicScrollFrame = requestAnimationFrame(() => {
+            comicScrollFrame = null;
+            updateComicCurrentPage();
           });
         };
 
+        const evictComicUrls = () => {
+          if (comicObjectUrls.size <= COMIC_CACHE_LIMIT) return;
+          const protectedIndexes = new Set([
+            currentPage - 1,
+            currentPage,
+            currentPage - 2,
+          ]);
+          for (const [index, url] of comicObjectUrls) {
+            if (comicObjectUrls.size <= COMIC_CACHE_LIMIT) break;
+            if (protectedIndexes.has(index)) continue;
+            URL.revokeObjectURL(url);
+            comicObjectUrls.delete(index);
+            const image = comicPages[index]?.querySelector('img');
+            if (image) image.removeAttribute('src');
+          }
+        };
+
+        const ensureComicPage = async (pageIndex) => {
+          if (comicObjectUrls.has(pageIndex)) {
+            const image = comicPages[pageIndex]?.querySelector('img');
+            if (image && !image.src) image.src = comicObjectUrls.get(pageIndex);
+            return comicObjectUrls.get(pageIndex);
+          }
+          if (comicLoading.has(pageIndex)) return comicLoading.get(pageIndex);
+
+          const entry = comicEntries[pageIndex];
+          if (!entry) throw new Error(`Página de quadrinho inválida: ${pageIndex}`);
+          const pending = entry.async('blob').then((blob) => {
+            const url = URL.createObjectURL(
+              new Blob([blob], { type: comicMimeType(entry.name) })
+            );
+            comicObjectUrls.set(pageIndex, url);
+            const image = comicPages[pageIndex]?.querySelector('img');
+            if (image) image.src = url;
+            evictComicUrls();
+            return url;
+          });
+          comicLoading.set(pageIndex, pending);
+          try {
+            return await pending;
+          } finally {
+            comicLoading.delete(pageIndex);
+          }
+        };
+
+        const renderComicPage = (pageIndex) => {
+          const image = comicPages[pageIndex]?.querySelector('img');
+          if (!image) return;
+          image.style.width = `${Math.max(40, Math.round(100 * zoom))}%`;
+          image.style.transform = `rotate(${rotation}deg)`;
+        };
+
+        const applyComicLayout = () => {
+          comicPages.forEach((_, pageIndex) => renderComicPage(pageIndex));
+        };
+
+        const loadComic = async (source, format) => {
+          clearViewer();
+          let entries;
+          if (format === 'cbr') {
+            const clientUrl = runtimeConfig.cbrClientUrl;
+            const workerUrl = runtimeConfig.cbrWorkerUrl;
+            const wasmUrl = runtimeConfig.cbrWasmUrl;
+            if (!clientUrl || !workerUrl || !wasmUrl) {
+              throw new Error(
+                'CBR no mobile exige o pacote opcional de runtime libarchive.'
+              );
+            }
+
+            const [clientSource, workerSource] = await Promise.all([
+              fetch(clientUrl).then((response) => response.text()),
+              fetch(workerUrl).then((response) => response.text()),
+            ]);
+            const patchedWorkerSource = workerSource.replace(
+              /new URL\("libarchive\.wasm",import\.meta\.url\)\.href/g,
+              JSON.stringify(wasmUrl)
+            );
+            const workerObjectUrl = URL.createObjectURL(
+              new Blob([patchedWorkerSource], { type: 'text/javascript' })
+            );
+            const clientObjectUrl = URL.createObjectURL(
+              new Blob([clientSource], { type: 'text/javascript' })
+            );
+            try {
+              const archiveModule = await import(clientObjectUrl);
+              archiveModule.Archive.init({ workerUrl: workerObjectUrl });
+              const bytes = await sourceToArrayBuffer(source);
+              const file = new File([bytes], 'comic.cbr', {
+                type: 'application/vnd.comicbook-rar',
+              });
+              const archive = await archiveModule.Archive.open(file);
+              const files = await archive.getFilesArray();
+              entries = files
+                .filter(
+                  (item) => {
+                    const name = `${item?.path || ''}${item?.file?.name || ''}`;
+                    return item?.file && comicHelpers.isComicImageName(name);
+                  }
+                )
+                .map((item) => {
+                  const name = `${item.path || ''}${item.file.name}`;
+                  return {
+                    name,
+                    async: async () => item.file.extract(),
+                  };
+                });
+              comicDispose = async () => {
+                await archive.close();
+                URL.revokeObjectURL(workerObjectUrl);
+                URL.revokeObjectURL(clientObjectUrl);
+              };
+            } catch (error) {
+              URL.revokeObjectURL(workerObjectUrl);
+              URL.revokeObjectURL(clientObjectUrl);
+              throw error;
+            }
+          } else {
+            if (!window.JSZip) {
+              throw new Error('O runtime ZIP do leitor mobile não foi carregado.');
+            }
+
+            const bytes = await sourceToArrayBuffer(source);
+            comicArchive = await window.JSZip.loadAsync(bytes);
+            entries = Object.keys(comicArchive.files)
+              .filter((name) => {
+                const entry = comicArchive.files[name];
+                return !entry.dir && comicHelpers.isComicImageName(name);
+              })
+              .map((name) => comicArchive.files[name]);
+          }
+
+          const names = comicHelpers.sortComicPageNames(
+            entries.map((entry) => entry.name)
+          );
+          const entriesByName = new Map(entries.map((entry) => [entry.name, entry]));
+          comicEntries = names.map((name) => entriesByName.get(name));
+          if (comicEntries.length === 0) {
+            if (comicDispose) {
+              await comicDispose();
+              comicDispose = null;
+            }
+            throw new Error('O arquivo não contém páginas de imagem.');
+          }
+
+          comicContainer = document.createElement('div');
+          comicContainer.style.width = '100%';
+          comicContainer.style.height = '100%';
+          comicContainer.style.overflow = 'auto';
+          comicContainer.style.padding = '16px 0 120px';
+          comicContainer.style.boxSizing = 'border-box';
+          comicContainer.style.background = '#ffffff';
+          comicContainer.addEventListener('scroll', scheduleComicCurrentPage, {
+            passive: true,
+          });
+          viewer.style.overflow = 'hidden';
+          viewer.appendChild(comicContainer);
+
+          comicPages = comicEntries.map((entry, pageIndex) => {
+            const page = document.createElement('div');
+            page.dataset.pageIndex = String(pageIndex);
+            page.style.width = '100%';
+            page.style.minHeight = '80px';
+            page.style.display = 'flex';
+            page.style.justifyContent = 'center';
+            page.style.alignItems = 'flex-start';
+            page.style.padding = '0 12px 20px';
+            page.style.boxSizing = 'border-box';
+
+            const image = document.createElement('img');
+            image.alt = `Página ${pageIndex + 1}`;
+            image.draggable = false;
+            image.decoding = 'async';
+            image.loading = 'lazy';
+            image.style.display = 'block';
+            image.style.maxWidth = 'none';
+            image.style.height = 'auto';
+            image.style.userSelect = 'none';
+            image.addEventListener('load', () => {
+              if (image.naturalWidth > 0 && image.naturalHeight > 0) {
+                comicDimensions.set(pageIndex, {
+                  width: image.naturalWidth,
+                  height: image.naturalHeight,
+                });
+              }
+            });
+            page.appendChild(image);
+            comicContainer.appendChild(page);
+            return page;
+          });
+
+          if (typeof IntersectionObserver === 'function') {
+            comicObserver = new IntersectionObserver(
+              (observations) => {
+                observations.forEach((observation) => {
+                  if (!observation.isIntersecting) return;
+                  const pageIndex = Number(observation.target.dataset.pageIndex);
+                  void ensureComicPage(pageIndex).catch((error) =>
+                    sendEvent('RUNTIME_ERROR', {
+                      message: error?.message || String(error),
+                      context: 'comic.page',
+                    })
+                  );
+                });
+                scheduleComicCurrentPage();
+              },
+              { root: comicContainer, rootMargin: '600px 0px' }
+            );
+            comicPages.forEach((page) => comicObserver.observe(page));
+          } else {
+            for (let pageIndex = 0; pageIndex < Math.min(3, comicPages.length); pageIndex += 1) {
+              void ensureComicPage(pageIndex);
+            }
+          }
+          pageCount = comicPages.length;
+          currentPage = 1;
+          await ensureComicPage(0);
+          applyComicLayout();
+          return { pageCount };
+        };
+
+        const getComicPagePreview = async (pageIndex) => {
+          const entry = comicEntries[pageIndex];
+          if (!entry) return null;
+          const data = await entry.async('base64');
+          return `data:${comicMimeType(entry.name)};base64,${data}`;
+        };
+
+        const getComicPageDimensions = async (pageIndex) => {
+          const known = comicDimensions.get(pageIndex);
+          if (known) return known;
+          await ensureComicPage(pageIndex);
+          const image = comicPages[pageIndex]?.querySelector('img');
+          if (image && !image.complete) {
+            await new Promise((resolve) => {
+              image.addEventListener('load', resolve, { once: true });
+              image.addEventListener('error', resolve, { once: true });
+            });
+          }
+          return (
+            comicDimensions.get(pageIndex) || {
+              width: image?.naturalWidth || 0,
+              height: image?.naturalHeight || 0,
+            }
+          );
+        };
+
         const normalizeHref = (href) => {
-          if (!href) return "";
-          return href.split("#")[0];
+          if (!href) return '';
+          return href.split('#')[0];
         };
 
         const getSpineIndexByHref = (href) => {
           const normalized = normalizeHref(href);
           if (!normalized) return -1;
-          return spineItems.findIndex(
-            (item) => normalizeHref(item.href) === normalized
-          );
+          return spineItems.findIndex((item) => normalizeHref(item.href) === normalized);
         };
 
         const buildOutline = async () => {
@@ -20533,11 +20809,9 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           const toc = nav && nav.toc ? nav.toc : [];
 
           const mapItem = (item) => {
-            const title = item.label || item.title || "";
-            const pageIndex = getSpineIndexByHref(item.href || "");
-            const children = Array.isArray(item.subitems)
-              ? item.subitems.map(mapItem)
-              : [];
+            const title = item.label || item.title || '';
+            const pageIndex = getSpineIndexByHref(item.href || '');
+            const children = Array.isArray(item.subitems) ? item.subitems.map(mapItem) : [];
             const outlineItem = { title, pageIndex };
             if (children.length > 0) outlineItem.children = children;
             return outlineItem;
@@ -20549,10 +20823,10 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         const applyEpubZoom = () => {
           if (!rendition || !rendition.themes) return;
           const fontSize = `${Math.round(zoom * 100)}%`;
-          if (typeof rendition.themes.fontSize === "function") {
+          if (typeof rendition.themes.fontSize === 'function') {
             rendition.themes.fontSize(fontSize);
-          } else if (typeof rendition.themes.override === "function") {
-            rendition.themes.override("font-size", fontSize);
+          } else if (typeof rendition.themes.override === 'function') {
+            rendition.themes.override('font-size', fontSize);
           }
         };
 
@@ -20563,14 +20837,13 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         };
 
         const renderTextPage = (pageIndex) => {
-          const text = textPages[pageIndex] || "";
+          const text = textPages[pageIndex] || '';
           if (!textContainer) {
-            textContainer = document.createElement("div");
-            textContainer.style.padding = "24px";
-            textContainer.style.lineHeight = "1.6";
-            textContainer.style.whiteSpace = "pre-wrap";
-            textContainer.style.fontFamily =
-              'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
+            textContainer = document.createElement('div');
+            textContainer.style.padding = '24px';
+            textContainer.style.lineHeight = '1.6';
+            textContainer.style.whiteSpace = 'pre-wrap';
+            textContainer.style.fontFamily = 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
             viewer.appendChild(textContainer);
           }
           textContainer.textContent = text;
@@ -20582,18 +20855,18 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           for (let i = 0; i < text.length; i += TEXT_PAGE_CHUNK) {
             pages.push(text.slice(i, i + TEXT_PAGE_CHUNK));
           }
-          return pages.length > 0 ? pages : [""];
+          return pages.length > 0 ? pages : [''];
         };
 
         const loadText = async (source) => {
-          let text = "";
-          if (source.kind === "uri") {
+          let text = '';
+          if (source.kind === 'uri') {
             const res = await fetch(source.uri);
             text = await res.text();
-          } else if (source.kind === "base64") {
+          } else if (source.kind === 'base64') {
             text = decodeBase64ToText(source.data);
-          } else if (source.kind === "text") {
-            text = source.text || "";
+          } else if (source.kind === 'text') {
+            text = source.text || '';
           }
 
           clearViewer();
@@ -20606,44 +20879,25 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         };
 
         const loadEpub = async (source) => {
-          log("epub.load:start", source.kind);
-          if (rendition && typeof rendition.destroy === "function") {
+          if (rendition && typeof rendition.destroy === 'function') {
             rendition.destroy();
           }
-          if (book && typeof book.destroy === "function") {
+          if (book && typeof book.destroy === 'function') {
             book.destroy();
           }
 
-          if (source.kind === "base64") {
-            book = ePub();
-            await withTimeout(
-              book.open(source.data, "base64"),
-              EPUB_OPEN_TIMEOUT_MS,
-              "epub.open"
-            );
-          } else if (source.kind === "uri") {
-            log("epub.load:fetch-uri");
-            const data = await withTimeout(
-              fetchUriAsArrayBuffer(source.uri),
-              EPUB_OPEN_TIMEOUT_MS,
-              "epub.fetch"
-            );
-            const input = data instanceof Uint8Array ? data.buffer : data;
-            book = ePub(input, { openAs: "epub" });
-          } else {
-            let data = null;
-            if (source.kind === "text") {
-              const encoder = new TextEncoder();
-              data = encoder.encode(source.text || "").buffer;
-            }
-            const input = data instanceof Uint8Array ? data.buffer : data;
-            book = ePub(input, { openAs: "epub" });
+          let data = null;
+          if (source.kind === 'uri') {
+            data = source.uri;
+          } else if (source.kind === 'base64') {
+            data = decodeBase64(source.data);
+          } else if (source.kind === 'text') {
+            const encoder = new TextEncoder();
+            data = encoder.encode(source.text || '').buffer;
           }
-          if (book && book.opened) {
-            await withTimeout(book.opened, EPUB_OPEN_TIMEOUT_MS, "epub.opened");
-          }
-          await withTimeout(book.ready, EPUB_READY_TIMEOUT_MS, "epub.ready");
-          log("epub.load:ready");
+
+          book = ePub(data);
+          await book.ready;
 
           spineItems = book.spine && book.spine.items ? book.spine.items : [];
           pageCount = spineItems.length;
@@ -20651,64 +20905,38 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 
           clearViewer();
           rendition = book.renderTo(viewer, {
-            width: "100%",
-            height: "100%",
-            flow: "paginated",
-            spread: "none",
+            width: '100%',
+            height: '100%',
+            flow: 'paginated',
+            spread: 'none',
           });
 
           if (rendition && rendition.hooks && rendition.hooks.content) {
             rendition.hooks.content.register((contents) => {
-              const frame =
-                contents && contents.document
-                  ? contents.document.defaultView.frameElement
-                  : null;
+              const frame = contents && contents.document ? contents.document.defaultView.frameElement : null;
               if (frame) {
-                frame.setAttribute(
-                  "sandbox",
-                  "allow-scripts allow-same-origin"
-                );
+                frame.setAttribute('sandbox', 'allow-scripts allow-same-origin');
               }
             });
           }
 
-          if (rendition && typeof rendition.on === "function") {
-            rendition.on("selected", (cfiRange, contents) => {
-              const selection =
-                contents && contents.window
-                  ? contents.window.getSelection()
-                  : null;
-              const text = selection ? selection.toString().trim() : "";
+          if (rendition && typeof rendition.on === 'function') {
+            rendition.on('selected', (cfiRange, contents) => {
+              const selection = contents && contents.window ? contents.window.getSelection() : null;
+              const text = selection ? selection.toString().trim() : '';
               if (text) {
-                sendEvent("TEXT_SELECTED", {
-                  text,
-                  pageIndex: Math.max(0, currentPage - 1),
-                });
+                sendEvent('TEXT_SELECTED', { text, pageIndex: Math.max(0, currentPage - 1) });
               }
-              if (
-                rendition &&
-                rendition.annotations &&
-                typeof rendition.annotations.remove === "function"
-              ) {
-                rendition.annotations.remove(cfiRange, "highlight");
+              if (rendition && rendition.annotations && typeof rendition.annotations.remove === 'function') {
+                rendition.annotations.remove(cfiRange, 'highlight');
               }
             });
           }
 
-          try {
-            await withTimeout(
-              displayEpubPage(0),
-              EPUB_DISPLAY_TIMEOUT_MS,
-              "epub.display"
-            );
-            log("epub.load:displayed");
-          } catch (err) {
-            reportError(err, "epub.display");
-          }
+          await displayEpubPage(0);
           applyEpubZoom();
 
           const outline = await buildOutline();
-          log("epub.load:outline", outline.length);
           return { pageCount, outline };
         };
 
@@ -20723,41 +20951,34 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         };
 
         const getTextContent = async (pageIndex) => {
-          if (currentType === "text") {
-            const text = textPages[pageIndex] || "";
-            return [
-              {
-                str: text,
-                dir: "ltr",
-                width: 0,
-                height: 0,
-                transform: [1, 0, 0, 1, 0, 0],
-                fontName: "default",
-              },
-            ];
+          if (currentType === 'text') {
+            const text = textPages[pageIndex] || '';
+            return [{
+              str: text,
+              dir: 'ltr',
+              width: 0,
+              height: 0,
+              transform: [1, 0, 0, 1, 0, 0],
+              fontName: 'default',
+            }];
           }
 
-          if (currentType === "epub") {
+          if (currentType === 'epub') {
             if (!book) return [];
             const item = spineItems[pageIndex];
             if (!item) return [];
             try {
               const section = book.spine.get(item.idref || item.href);
-              const text =
-                section && typeof section.text === "function"
-                  ? await section.text()
-                  : "";
+              const text = section && typeof section.text === 'function' ? await section.text() : '';
               if (!text) return [];
-              return [
-                {
-                  str: text,
-                  dir: "ltr",
-                  width: 0,
-                  height: 0,
-                  transform: [1, 0, 0, 1, 0, 0],
-                  fontName: "default",
-                },
-              ];
+              return [{
+                str: text,
+                dir: 'ltr',
+                width: 0,
+                height: 0,
+                transform: [1, 0, 0, 1, 0, 0],
+                fontName: 'default',
+              }];
             } catch (err) {
               return [];
             }
@@ -20768,7 +20989,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 
         const getPageText = async (pageIndex) => {
           const items = await getTextContent(pageIndex);
-          return items.map((item) => item.str).join(" ");
+          return items.map((item) => item.str).join(' ');
         };
 
         const searchText = async (query) => {
@@ -20784,11 +21005,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             while (pos !== -1) {
               const start = Math.max(0, pos - 20);
               const end = Math.min(text.length, pos + query.length + 20);
-              results.push({
-                pageIndex: i,
-                text: text.substring(start, end),
-                matchIndex,
-              });
+              results.push({ pageIndex: i, text: text.substring(start, end), matchIndex });
               matchIndex += 1;
               pos = lower.indexOf(normalized, pos + 1);
             }
@@ -20804,11 +21021,11 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 
         const getPageIndex = (dest) => {
           if (!dest) return null;
-          if (typeof dest === "string") return getSpineIndexByHref(dest);
-          if (typeof dest !== "object") return null;
-          if (dest.kind === "href") return getSpineIndexByHref(dest.value);
-          if (dest.kind === "pageIndex") return dest.value;
-          if (dest.kind === "pageNumber") return Math.max(0, dest.value - 1);
+          if (typeof dest === 'string') return getSpineIndexByHref(dest);
+          if (typeof dest !== 'object') return null;
+          if (dest.kind === 'href') return getSpineIndexByHref(dest.value);
+          if (dest.kind === 'pageIndex') return dest.value;
+          if (dest.kind === 'pageNumber') return Math.max(0, dest.value - 1);
           return null;
         };
 
@@ -20822,53 +21039,70 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         };
 
         const applyZoom = () => {
-          if (currentType === "text") {
+          if (currentType === 'text') {
             applyTextZoom();
-          } else if (currentType === "epub") {
+          } else if (currentType === 'epub') {
             applyEpubZoom();
+          } else if (currentType === 'comic') {
+            applyComicLayout();
           }
         };
 
         const handleCommand = async (message) => {
           const { id, kind, payload } = message;
-          log("command", kind);
 
           try {
-            if (kind === "load") {
+            if (kind === 'load') {
               currentType = payload.type;
               zoom = 1.0;
 
-              if (currentType === "text") {
+              if (currentType === 'text') {
                 const result = await loadText(payload.source);
                 sendState();
                 sendResponse(id, true, result);
                 return;
               }
 
-              if (currentType === "epub") {
+              if (currentType === 'epub') {
                 const result = await loadEpub(payload.source);
                 sendState({ outline: result.outline || [] });
                 sendResponse(id, true, result);
                 return;
               }
 
-              throw new Error("Unsupported document type");
+              if (currentType === 'comic') {
+                const result = await loadComic(payload.source, payload.format || 'cbz');
+                sendState();
+                sendResponse(id, true, result);
+                return;
+              }
+
+              throw new Error('Unsupported document type');
             }
 
-            if (kind === "go-to-page") {
+            if (kind === 'go-to-page') {
               const page = Math.max(1, payload.page || 1);
-              if (currentType === "text") {
+              if (currentType === 'text') {
                 currentPage = page;
                 renderTextPage(page - 1);
                 sendState();
-              } else if (currentType === "epub") {
+              } else if (currentType === 'epub') {
                 await displayEpubPage(page - 1);
+              } else if (currentType === 'comic') {
+                currentPage = page;
+                const target = comicPages[page - 1];
+                if (target) {
+                  await ensureComicPage(page - 1);
+                  target.scrollIntoView({ block: 'start' });
+                  renderComicPage(page - 1);
+                  sendState();
+                }
               }
               sendResponse(id, true, { currentPage });
               return;
             }
 
-            if (kind === "set-zoom") {
+            if (kind === 'set-zoom') {
               zoom = Math.max(0.5, Math.min(4.0, payload.zoom || 1.0));
               applyZoom();
               sendState();
@@ -20876,89 +21110,96 @@ https://github.com/nodeca/pako/blob/main/LICENSE
               return;
             }
 
-            if (kind === "set-rotation") {
+            if (kind === 'set-rotation') {
+              rotation = ((payload.rotation || 0) % 360 + 360) % 360;
+              if (currentType === 'comic') applyComicLayout();
               sendResponse(id, true, {});
               return;
             }
 
-            if (kind === "get-text-content") {
+            if (kind === 'get-text-content') {
               const items = await getTextContent(payload.pageIndex || 0);
               sendResponse(id, true, items);
               return;
             }
 
-            if (kind === "get-page-dimensions") {
-              sendResponse(id, true, getPageDimensions());
+            if (kind === 'get-page-dimensions') {
+              if (currentType === 'comic') {
+                sendResponse(
+                  id,
+                  true,
+                  await getComicPageDimensions(payload.pageIndex || 0)
+                );
+              } else {
+                sendResponse(id, true, getPageDimensions());
+              }
               return;
             }
 
-            if (kind === "search-text") {
-              const results = await searchText(payload.query || "");
+            if (kind === 'get-page-preview') {
+              if (currentType !== 'comic') {
+                sendResponse(id, true, null);
+                return;
+              }
+              sendResponse(
+                id,
+                true,
+                await getComicPagePreview(payload.pageIndex || 0)
+              );
+              return;
+            }
+
+            if (kind === 'search-text') {
+              const results = await searchText(payload.query || '');
               sendResponse(id, true, results);
               return;
             }
 
-            if (kind === "select-text") {
+            if (kind === 'select-text') {
               const selection = await selectText(payload.pageIndex || 0);
               sendResponse(id, true, selection);
               return;
             }
 
-            if (kind === "get-outline") {
+            if (kind === 'get-outline') {
               const outline = await buildOutline();
               sendResponse(id, true, outline);
               return;
             }
 
-            if (kind === "get-page-index") {
+            if (kind === 'get-page-index') {
               const index = getPageIndex(payload.dest);
               sendResponse(id, true, index);
               return;
             }
 
-            if (kind === "destroy") {
+            if (kind === 'destroy') {
               clearViewer();
               sendResponse(id, true, {});
               return;
             }
 
-            sendResponse(id, false, null, "Unknown command");
+            sendResponse(id, false, null, 'Unknown command');
           } catch (err) {
-            sendResponse(
-              id,
-              false,
-              null,
-              err && err.message ? err.message : String(err)
-            );
+            sendResponse(id, false, null, err && err.message ? err.message : String(err));
           }
         };
 
         const onMessage = (event) => {
           let message = null;
-          const raw = event && typeof event === "object" ? event.data : null;
+          const raw = event && typeof event === 'object' ? event.data : null;
 
-          if (raw && typeof raw === "object" && raw.kind && raw.id) {
+          if (raw && typeof raw === 'object' && raw.kind && raw.id) {
             message = raw;
-          } else if (typeof raw === "string") {
-            if (raw.startsWith("setImmediate$")) {
-              return;
-            }
+          } else if (typeof raw === 'string') {
+            if (raw.startsWith('setImmediate$')) return;
             const trimmed = raw.trim();
-            if (
-              !trimmed ||
-              (!trimmed.startsWith("{") && !trimmed.startsWith("["))
-            ) {
+            if (!trimmed || (!trimmed.startsWith('{') && !trimmed.startsWith('['))) {
               return;
             }
             try {
               message = JSON.parse(trimmed);
             } catch (err) {
-              sendEvent("RUNTIME_ERROR", {
-                message: "Failed to parse message",
-                context: "runtime.onMessage",
-                stack: err && err.stack ? err.stack : null,
-                preview: trimmed.slice(0, 200),
-              });
               return;
             }
           } else {
@@ -20969,10 +21210,10 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           handleCommand(message);
         };
 
-        window.addEventListener("message", onMessage);
-        document.addEventListener("message", onMessage);
+        window.addEventListener('message', onMessage);
+        document.addEventListener('message', onMessage);
 
-        sendMessage({ type: "ready" });
+        sendMessage({ type: 'ready' });
       })();
     </script>
   </body>

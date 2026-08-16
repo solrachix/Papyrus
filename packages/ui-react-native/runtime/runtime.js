@@ -12,6 +12,41 @@
   let currentPage = 1;
   let pageCount = 0;
   let zoom = 1.0;
+  let rotation = 0;
+  let comicArchive = null;
+  let comicEntries = [];
+  let comicContainer = null;
+  let comicPages = [];
+  let comicObserver = null;
+  let comicScrollFrame = null;
+  const comicObjectUrls = new Map();
+  const comicLoading = new Map();
+  const comicDimensions = new Map();
+  const COMIC_CACHE_LIMIT = 16;
+  const comicHelpers = window.PapyrusComicRuntime || {
+    isComicImageName: (name) => /\.(?:gif|jpe?g|png|svg|webp)$/i.test(name),
+    sortComicPageNames: (names) =>
+      names.slice().sort((left, right) => {
+        const leftParts = String(left).split(/(\d+)/);
+        const rightParts = String(right).split(/(\d+)/);
+        const length = Math.max(leftParts.length, rightParts.length);
+        for (let index = 0; index < length; index += 1) {
+          const leftPart = leftParts[index] || '';
+          const rightPart = rightParts[index] || '';
+          if (leftPart === rightPart) continue;
+          if (/^\d+$/.test(leftPart) && /^\d+$/.test(rightPart)) {
+            return Number(leftPart) - Number(rightPart);
+          }
+          return leftPart.localeCompare(rightPart, undefined, {
+            numeric: true,
+            sensitivity: 'base',
+          });
+        }
+        return 0;
+      }),
+  };
+  const runtimeConfig = window.__PAPYRUS_RUNTIME_CONFIG__ || {};
+  let comicDispose = null;
 
   const sendMessage = (payload) => {
     if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
@@ -43,7 +78,31 @@
     sendMessage({ type: 'event', name, payload });
   };
 
+  const clearComicState = () => {
+    if (comicObserver) {
+      comicObserver.disconnect();
+      comicObserver = null;
+    }
+    if (comicScrollFrame !== null) {
+      cancelAnimationFrame(comicScrollFrame);
+      comicScrollFrame = null;
+    }
+    comicObjectUrls.forEach((url) => URL.revokeObjectURL(url));
+    comicObjectUrls.clear();
+    comicLoading.clear();
+    comicDimensions.clear();
+    if (comicDispose) {
+      void comicDispose();
+      comicDispose = null;
+    }
+    comicArchive = null;
+    comicEntries = [];
+    comicContainer = null;
+    comicPages = [];
+  };
+
   const clearViewer = () => {
+    clearComicState();
     while (viewer.firstChild) {
       viewer.removeChild(viewer.firstChild);
     }
@@ -63,6 +122,302 @@
   const decodeBase64ToText = (value) => {
     const bytes = decodeBase64(value);
     return new TextDecoder('utf-8').decode(bytes);
+  };
+
+  const sourceToArrayBuffer = async (source) => {
+    if (source.kind === 'uri') {
+      const response = await fetch(source.uri);
+      if (!response.ok && response.status !== 0) {
+        throw new Error(`Falha ao carregar quadrinho (${response.status})`);
+      }
+      return response.arrayBuffer();
+    }
+    if (source.kind === 'base64') {
+      return decodeBase64(source.data).buffer;
+    }
+    throw new Error('Fonte de quadrinho inválida.');
+  };
+
+  const comicMimeType = (name) => {
+    const extension = name.split('.').pop()?.toLowerCase();
+    if (extension === 'png') return 'image/png';
+    if (extension === 'gif') return 'image/gif';
+    if (extension === 'svg') return 'image/svg+xml';
+    if (extension === 'webp') return 'image/webp';
+    return 'image/jpeg';
+  };
+
+  const updateComicCurrentPage = () => {
+    if (!comicContainer || comicPages.length === 0) return;
+    const viewportTop = comicContainer.scrollTop;
+    let closestIndex = currentPage - 1;
+    let closestDistance = Number.POSITIVE_INFINITY;
+    comicPages.forEach((page, index) => {
+      const distance = Math.abs(page.offsetTop - viewportTop);
+      if (distance < closestDistance) {
+        closestDistance = distance;
+        closestIndex = index;
+      }
+    });
+    const nextPage = Math.max(1, Math.min(pageCount, closestIndex + 1));
+    if (nextPage !== currentPage) {
+      currentPage = nextPage;
+      sendState();
+    }
+  };
+
+  const scheduleComicCurrentPage = () => {
+    if (comicScrollFrame !== null) return;
+    comicScrollFrame = requestAnimationFrame(() => {
+      comicScrollFrame = null;
+      updateComicCurrentPage();
+    });
+  };
+
+  const evictComicUrls = () => {
+    if (comicObjectUrls.size <= COMIC_CACHE_LIMIT) return;
+    const protectedIndexes = new Set([
+      currentPage - 1,
+      currentPage,
+      currentPage - 2,
+    ]);
+    for (const [index, url] of comicObjectUrls) {
+      if (comicObjectUrls.size <= COMIC_CACHE_LIMIT) break;
+      if (protectedIndexes.has(index)) continue;
+      URL.revokeObjectURL(url);
+      comicObjectUrls.delete(index);
+      const image = comicPages[index]?.querySelector('img');
+      if (image) image.removeAttribute('src');
+    }
+  };
+
+  const ensureComicPage = async (pageIndex) => {
+    if (comicObjectUrls.has(pageIndex)) {
+      const image = comicPages[pageIndex]?.querySelector('img');
+      if (image && !image.src) image.src = comicObjectUrls.get(pageIndex);
+      return comicObjectUrls.get(pageIndex);
+    }
+    if (comicLoading.has(pageIndex)) return comicLoading.get(pageIndex);
+
+    const entry = comicEntries[pageIndex];
+    if (!entry) throw new Error(`Página de quadrinho inválida: ${pageIndex}`);
+    const pending = entry.async('blob').then((blob) => {
+      const url = URL.createObjectURL(
+        new Blob([blob], { type: comicMimeType(entry.name) })
+      );
+      comicObjectUrls.set(pageIndex, url);
+      const image = comicPages[pageIndex]?.querySelector('img');
+      if (image) image.src = url;
+      evictComicUrls();
+      return url;
+    });
+    comicLoading.set(pageIndex, pending);
+    try {
+      return await pending;
+    } finally {
+      comicLoading.delete(pageIndex);
+    }
+  };
+
+  const renderComicPage = (pageIndex) => {
+    const image = comicPages[pageIndex]?.querySelector('img');
+    if (!image) return;
+    image.style.width = `${Math.max(40, Math.round(100 * zoom))}%`;
+    image.style.transform = `rotate(${rotation}deg)`;
+  };
+
+  const applyComicLayout = () => {
+    comicPages.forEach((_, pageIndex) => renderComicPage(pageIndex));
+  };
+
+  const loadComic = async (source, format) => {
+    clearViewer();
+    let entries;
+    if (format === 'cbr') {
+      const clientUrl = runtimeConfig.cbrClientUrl;
+      const workerUrl = runtimeConfig.cbrWorkerUrl;
+      const wasmUrl = runtimeConfig.cbrWasmUrl;
+      if (!clientUrl || !workerUrl || !wasmUrl) {
+        throw new Error(
+          'CBR no mobile exige o pacote opcional de runtime libarchive.'
+        );
+      }
+
+      const [clientSource, workerSource] = await Promise.all([
+        fetch(clientUrl).then((response) => response.text()),
+        fetch(workerUrl).then((response) => response.text()),
+      ]);
+      const patchedWorkerSource = workerSource.replace(
+        /new URL\("libarchive\.wasm",import\.meta\.url\)\.href/g,
+        JSON.stringify(wasmUrl)
+      );
+      const workerObjectUrl = URL.createObjectURL(
+        new Blob([patchedWorkerSource], { type: 'text/javascript' })
+      );
+      const clientObjectUrl = URL.createObjectURL(
+        new Blob([clientSource], { type: 'text/javascript' })
+      );
+      try {
+        const archiveModule = await import(clientObjectUrl);
+        archiveModule.Archive.init({ workerUrl: workerObjectUrl });
+        const bytes = await sourceToArrayBuffer(source);
+        const file = new File([bytes], 'comic.cbr', {
+          type: 'application/vnd.comicbook-rar',
+        });
+        const archive = await archiveModule.Archive.open(file);
+        const files = await archive.getFilesArray();
+        entries = files
+          .filter(
+            (item) => {
+              const name = `${item?.path || ''}${item?.file?.name || ''}`;
+              return item?.file && comicHelpers.isComicImageName(name);
+            }
+          )
+          .map((item) => {
+            const name = `${item.path || ''}${item.file.name}`;
+            return {
+              name,
+              async: async () => item.file.extract(),
+            };
+          });
+        comicDispose = async () => {
+          await archive.close();
+          URL.revokeObjectURL(workerObjectUrl);
+          URL.revokeObjectURL(clientObjectUrl);
+        };
+      } catch (error) {
+        URL.revokeObjectURL(workerObjectUrl);
+        URL.revokeObjectURL(clientObjectUrl);
+        throw error;
+      }
+    } else {
+      if (!window.JSZip) {
+        throw new Error('O runtime ZIP do leitor mobile não foi carregado.');
+      }
+
+      const bytes = await sourceToArrayBuffer(source);
+      comicArchive = await window.JSZip.loadAsync(bytes);
+      entries = Object.keys(comicArchive.files)
+        .filter((name) => {
+          const entry = comicArchive.files[name];
+          return !entry.dir && comicHelpers.isComicImageName(name);
+        })
+        .map((name) => comicArchive.files[name]);
+    }
+
+    const names = comicHelpers.sortComicPageNames(
+      entries.map((entry) => entry.name)
+    );
+    const entriesByName = new Map(entries.map((entry) => [entry.name, entry]));
+    comicEntries = names.map((name) => entriesByName.get(name));
+    if (comicEntries.length === 0) {
+      if (comicDispose) {
+        await comicDispose();
+        comicDispose = null;
+      }
+      throw new Error('O arquivo não contém páginas de imagem.');
+    }
+
+    comicContainer = document.createElement('div');
+    comicContainer.style.width = '100%';
+    comicContainer.style.height = '100%';
+    comicContainer.style.overflow = 'auto';
+    comicContainer.style.padding = '16px 0 120px';
+    comicContainer.style.boxSizing = 'border-box';
+    comicContainer.style.background = '#ffffff';
+    comicContainer.addEventListener('scroll', scheduleComicCurrentPage, {
+      passive: true,
+    });
+    viewer.style.overflow = 'hidden';
+    viewer.appendChild(comicContainer);
+
+    comicPages = comicEntries.map((entry, pageIndex) => {
+      const page = document.createElement('div');
+      page.dataset.pageIndex = String(pageIndex);
+      page.style.width = '100%';
+      page.style.minHeight = '80px';
+      page.style.display = 'flex';
+      page.style.justifyContent = 'center';
+      page.style.alignItems = 'flex-start';
+      page.style.padding = '0 12px 20px';
+      page.style.boxSizing = 'border-box';
+
+      const image = document.createElement('img');
+      image.alt = `Página ${pageIndex + 1}`;
+      image.draggable = false;
+      image.decoding = 'async';
+      image.loading = 'lazy';
+      image.style.display = 'block';
+      image.style.maxWidth = 'none';
+      image.style.height = 'auto';
+      image.style.userSelect = 'none';
+      image.addEventListener('load', () => {
+        if (image.naturalWidth > 0 && image.naturalHeight > 0) {
+          comicDimensions.set(pageIndex, {
+            width: image.naturalWidth,
+            height: image.naturalHeight,
+          });
+        }
+      });
+      page.appendChild(image);
+      comicContainer.appendChild(page);
+      return page;
+    });
+
+    if (typeof IntersectionObserver === 'function') {
+      comicObserver = new IntersectionObserver(
+        (observations) => {
+          observations.forEach((observation) => {
+            if (!observation.isIntersecting) return;
+            const pageIndex = Number(observation.target.dataset.pageIndex);
+            void ensureComicPage(pageIndex).catch((error) =>
+              sendEvent('RUNTIME_ERROR', {
+                message: error?.message || String(error),
+                context: 'comic.page',
+              })
+            );
+          });
+          scheduleComicCurrentPage();
+        },
+        { root: comicContainer, rootMargin: '600px 0px' }
+      );
+      comicPages.forEach((page) => comicObserver.observe(page));
+    } else {
+      for (let pageIndex = 0; pageIndex < Math.min(3, comicPages.length); pageIndex += 1) {
+        void ensureComicPage(pageIndex);
+      }
+    }
+    pageCount = comicPages.length;
+    currentPage = 1;
+    await ensureComicPage(0);
+    applyComicLayout();
+    return { pageCount };
+  };
+
+  const getComicPagePreview = async (pageIndex) => {
+    const entry = comicEntries[pageIndex];
+    if (!entry) return null;
+    const data = await entry.async('base64');
+    return `data:${comicMimeType(entry.name)};base64,${data}`;
+  };
+
+  const getComicPageDimensions = async (pageIndex) => {
+    const known = comicDimensions.get(pageIndex);
+    if (known) return known;
+    await ensureComicPage(pageIndex);
+    const image = comicPages[pageIndex]?.querySelector('img');
+    if (image && !image.complete) {
+      await new Promise((resolve) => {
+        image.addEventListener('load', resolve, { once: true });
+        image.addEventListener('error', resolve, { once: true });
+      });
+    }
+    return (
+      comicDimensions.get(pageIndex) || {
+        width: image?.naturalWidth || 0,
+        height: image?.naturalHeight || 0,
+      }
+    );
   };
 
   const normalizeHref = (href) => {
@@ -316,6 +671,8 @@
       applyTextZoom();
     } else if (currentType === 'epub') {
       applyEpubZoom();
+    } else if (currentType === 'comic') {
+      applyComicLayout();
     }
   };
 
@@ -341,6 +698,13 @@
           return;
         }
 
+        if (currentType === 'comic') {
+          const result = await loadComic(payload.source, payload.format || 'cbz');
+          sendState();
+          sendResponse(id, true, result);
+          return;
+        }
+
         throw new Error('Unsupported document type');
       }
 
@@ -352,6 +716,15 @@
           sendState();
         } else if (currentType === 'epub') {
           await displayEpubPage(page - 1);
+        } else if (currentType === 'comic') {
+          currentPage = page;
+          const target = comicPages[page - 1];
+          if (target) {
+            await ensureComicPage(page - 1);
+            target.scrollIntoView({ block: 'start' });
+            renderComicPage(page - 1);
+            sendState();
+          }
         }
         sendResponse(id, true, { currentPage });
         return;
@@ -366,6 +739,8 @@
       }
 
       if (kind === 'set-rotation') {
+        rotation = ((payload.rotation || 0) % 360 + 360) % 360;
+        if (currentType === 'comic') applyComicLayout();
         sendResponse(id, true, {});
         return;
       }
@@ -377,7 +752,28 @@
       }
 
       if (kind === 'get-page-dimensions') {
-        sendResponse(id, true, getPageDimensions());
+        if (currentType === 'comic') {
+          sendResponse(
+            id,
+            true,
+            await getComicPageDimensions(payload.pageIndex || 0)
+          );
+        } else {
+          sendResponse(id, true, getPageDimensions());
+        }
+        return;
+      }
+
+      if (kind === 'get-page-preview') {
+        if (currentType !== 'comic') {
+          sendResponse(id, true, null);
+          return;
+        }
+        sendResponse(
+          id,
+          true,
+          await getComicPagePreview(payload.pageIndex || 0)
+        );
         return;
       }
 
