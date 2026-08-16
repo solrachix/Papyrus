@@ -146,4 +146,102 @@ describe("RustDocumentEngine", () => {
 
     expect(engine.getPageCount()).toBe(1000);
   });
+
+  it("usa o PDF.js quando a inicialização do WASM falha", async () => {
+    const pdfEngine = createPdfEngine();
+    (pdfEngine.getPageCount as ReturnType<typeof vi.fn>).mockReturnValue(2);
+    (
+      pdfEngine as unknown as DocumentEngine & {
+        searchText: ReturnType<typeof vi.fn>;
+      }
+    ).searchText = vi
+      .fn()
+      .mockResolvedValue([
+        { pageIndex: 1, text: "resultado PDF.js", matchIndex: 0 },
+      ]);
+    const runtimeFactory: RustPdfRuntimeFactory = {
+      load: vi.fn().mockRejectedValue(new Error("WASM indisponível")),
+    };
+    const engine = new RustDocumentEngine({ pdfEngine, runtimeFactory });
+
+    await expect(engine.load(new Uint8Array([1, 2, 3]))).resolves.toBeUndefined();
+    await expect(engine.searchText("texto")).resolves.toEqual([
+      { pageIndex: 1, text: "resultado PDF.js", matchIndex: 0 },
+    ]);
+
+    expect(engine.getPageCount()).toBe(2);
+    expect(pdfEngine.searchText).toHaveBeenCalledWith("texto");
+  });
+
+  it("faz busca pelo texto do PDF.js quando ele não expõe searchText", async () => {
+    const pdfEngine = createPdfEngine();
+    (pdfEngine.getPageCount as ReturnType<typeof vi.fn>).mockReturnValue(1);
+    (pdfEngine.getTextContent as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { str: "PDF.js fallback text" },
+    ] as TextItem[]);
+    const engine = new RustDocumentEngine({
+      pdfEngine,
+      runtimeFactory: {
+        load: vi.fn().mockRejectedValue(new Error("WASM indisponível")),
+      },
+    });
+
+    await engine.load(new Uint8Array([1, 2, 3]));
+
+    await expect(engine.searchText("fallback")).resolves.toEqual([
+      { pageIndex: 0, text: "PDF.js fallback text", matchIndex: 0 },
+    ]);
+  });
+
+  it("preserva o início correto do snippet quando a normalização Unicode expande", async () => {
+    const pdfEngine = createPdfEngine();
+    const prefix = "x".repeat(50);
+    const pageText = `${prefix}İstanbul`;
+    const runtime = {
+      pageCount: 1,
+      pageText: vi.fn().mockReturnValue(pageText),
+      search: vi.fn().mockReturnValue([{ page_number: 1, matches: 1 }]),
+      destroy: vi.fn(),
+    } satisfies RustPdfRuntime;
+    const engine = new RustDocumentEngine({
+      pdfEngine,
+      runtimeFactory: createRuntimeFactory(runtime),
+    });
+
+    await engine.load(new Uint8Array([1, 2, 3]));
+
+    await expect(engine.searchText("stanbul")).resolves.toEqual([
+      {
+        pageIndex: 0,
+        text: `${"x".repeat(39)}İstanbul`,
+        matchIndex: 0,
+      },
+    ]);
+  });
+
+  it("ignora uma página cujo texto não pode ser lido e mantém os outros resultados", async () => {
+    const pdfEngine = createPdfEngine();
+    const runtime = {
+      pageCount: 2,
+      pageText: vi.fn((pageNumber: number) => {
+        if (pageNumber === 1) throw new Error("página excedeu o limite");
+        return "resultado válido";
+      }),
+      search: vi.fn().mockReturnValue([
+        { page_number: 1, matches: 1 },
+        { page_number: 2, matches: 1 },
+      ]),
+      destroy: vi.fn(),
+    } satisfies RustPdfRuntime;
+    const engine = new RustDocumentEngine({
+      pdfEngine,
+      runtimeFactory: createRuntimeFactory(runtime),
+    });
+
+    await engine.load(new Uint8Array([1, 2, 3]));
+
+    await expect(engine.searchText("válido")).resolves.toEqual([
+      { pageIndex: 1, text: "resultado válido", matchIndex: 0 },
+    ]);
+  });
 });

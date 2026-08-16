@@ -1,5 +1,5 @@
-use std::collections::{BTreeMap, HashMap};
-use std::sync::OnceLock;
+use std::collections::BTreeMap;
+use std::sync::{Mutex, OnceLock};
 
 use lopdf::Document;
 use serde::Serialize;
@@ -13,13 +13,13 @@ pub struct SearchHit {
 }
 
 struct SearchData {
-    page_texts: BTreeMap<u32, String>,
-    search_index: HashMap<String, BTreeMap<u32, usize>>,
+    normalized_page_texts: BTreeMap<u32, String>,
 }
 
 pub struct PdfCore {
     document: Document,
-    search_data: OnceLock<Result<SearchData, String>>,
+    search_data: OnceLock<SearchData>,
+    search_cache: Mutex<BTreeMap<String, Vec<SearchHit>>>,
 }
 
 #[cfg(test)]
@@ -37,6 +37,20 @@ mod tests {
         assert!(core.has_search_index());
         assert_eq!(core.indexed_page_count(), core.page_count());
     }
+
+    #[test]
+    fn skips_pages_that_fail_text_extraction() {
+        let data = PdfCore::build_search_data_from_pages([1, 2, 3], |page_number| {
+            if page_number == 2 {
+                Err("page too large".to_owned())
+            } else {
+                Ok(format!("page {page_number}"))
+            }
+        });
+
+        assert_eq!(data.normalized_page_texts.len(), 2);
+        assert!(!data.normalized_page_texts.contains_key(&2));
+    }
 }
 
 impl PdfCore {
@@ -45,6 +59,7 @@ impl PdfCore {
         Ok(Self {
             document,
             search_data: OnceLock::new(),
+            search_cache: Mutex::new(BTreeMap::new()),
         })
     }
 
@@ -64,20 +79,20 @@ impl PdfCore {
             return Ok(Vec::new());
         }
 
-        let data = self.get_search_data()?;
-        if let Some(indexed_pages) = data.search_index.get(&normalized_query) {
-            return Ok(indexed_pages
-                .iter()
-                .map(|(&page_number, &matches)| SearchHit {
-                    page_number,
-                    matches,
-                })
-                .collect());
+        if let Some(cached_hits) = self
+            .search_cache
+            .lock()
+            .map_err(|error| error.to_string())?
+            .get(&normalized_query)
+            .cloned()
+        {
+            return Ok(cached_hits);
         }
 
+        let data = self.get_search_data();
         let mut hits = Vec::new();
-        for (&page_number, text) in &data.page_texts {
-            let matches = text.to_lowercase().match_indices(&normalized_query).count();
+        for (&page_number, normalized_text) in &data.normalized_page_texts {
+            let matches = normalized_text.match_indices(&normalized_query).count();
             if matches > 0 {
                 hits.push(SearchHit {
                     page_number,
@@ -85,38 +100,41 @@ impl PdfCore {
                 });
             }
         }
+        self.search_cache
+            .lock()
+            .map_err(|error| error.to_string())?
+            .insert(normalized_query, hits.clone());
         Ok(hits)
     }
 
-    fn get_search_data(&self) -> Result<&SearchData, String> {
-        match self
-            .search_data
+    fn get_search_data(&self) -> &SearchData {
+        self.search_data
             .get_or_init(|| Self::build_search_data(&self.document))
-        {
-            Ok(data) => Ok(data),
-            Err(error) => Err(error.clone()),
-        }
     }
 
-    fn build_search_data(document: &Document) -> Result<SearchData, String> {
-        let mut page_texts = BTreeMap::new();
-        let mut search_index: HashMap<String, BTreeMap<u32, usize>> = HashMap::new();
-
-        for page_number in document.get_pages().keys().copied() {
-            let text = document
+    fn build_search_data(document: &Document) -> SearchData {
+        Self::build_search_data_from_pages(document.get_pages().keys().copied(), |page_number| {
+            document
                 .extract_text_with_limit(&[page_number], MAX_PAGE_CONTENT_BYTES)
-                .map_err(|error| error.to_string())?;
-            for token in tokenize(&text.to_lowercase()) {
-                let pages = search_index.entry(token).or_default();
-                *pages.entry(page_number).or_default() += 1;
-            }
-            page_texts.insert(page_number, text);
-        }
-
-        Ok(SearchData {
-            page_texts,
-            search_index,
+                .map_err(|error| error.to_string())
         })
+    }
+
+    fn build_search_data_from_pages<I, F>(
+        page_numbers: I,
+        mut extract_text: F,
+    ) -> SearchData
+    where
+        I: IntoIterator<Item = u32>,
+        F: FnMut(u32) -> Result<String, String>,
+    {
+        let mut normalized_page_texts = BTreeMap::new();
+        for page_number in page_numbers {
+            if let Ok(text) = extract_text(page_number) {
+                normalized_page_texts.insert(page_number, text.to_lowercase());
+            }
+        }
+        SearchData { normalized_page_texts }
     }
 
     #[cfg(test)]
@@ -128,8 +146,7 @@ impl PdfCore {
     fn indexed_page_count(&self) -> usize {
         self.search_data
             .get()
-            .and_then(|result| result.as_ref().ok())
-            .map(|data| data.page_texts.len())
+            .map(|data| data.normalized_page_texts.len())
             .unwrap_or(0)
     }
 }
@@ -172,10 +189,4 @@ mod wasm {
             to_value(&hits).map_err(|error| JsValue::from_str(&error.to_string()))
         }
     }
-}
-
-fn tokenize(text: &str) -> impl Iterator<Item = String> + '_ {
-    text.split(|character: char| !(character.is_alphanumeric() || character == '-'))
-        .filter(|token| !token.is_empty())
-        .map(str::to_owned)
 }

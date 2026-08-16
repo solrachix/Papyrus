@@ -57,8 +57,18 @@ export function createWasmRustRuntimeFactory(
         get pageCount() {
           return core?.page_count() ?? 0;
         },
-        pageText: (pageNumber) => core?.page_text(pageNumber) ?? "",
-        search: (query) => core?.search(query) ?? [],
+        pageText: (pageNumber) => {
+          if (!core) return "";
+          try {
+            return core.page_text(pageNumber) ?? "";
+          } catch {
+            return "";
+          }
+        },
+        search: (query) => {
+          if (!core) return [];
+          return core.search(query) ?? [];
+        },
         destroy: () => {
           if (!core) return;
           const currentCore = core;
@@ -98,12 +108,20 @@ export class RustDocumentEngine extends BaseDocumentEngine {
     }
 
     const bytes = await resolvePdfBytes(source);
-    const nextRuntime = await this.runtimeFactory.load(bytes);
+    let nextRuntime: RustPdfRuntime | null = null;
+    try {
+      nextRuntime = await this.runtimeFactory.load(bytes);
+    } catch (error) {
+      console.warn(
+        "[RustDocumentEngine] WASM indisponível; usando o engine PDF.js",
+        error
+      );
+    }
 
     try {
       await this.pdfEngine.load({ type: "pdf", source: bytes });
     } catch (error) {
-      nextRuntime.destroy?.();
+      nextRuntime?.destroy?.();
       throw error;
     }
 
@@ -169,41 +187,78 @@ export class RustDocumentEngine extends BaseDocumentEngine {
     return this.pdfEngine.getPageDimensions(pageIndex);
   }
 
-  searchText(query: string): Promise<SearchResult[]> {
-    if (!this.runtime) return Promise.resolve([]);
+  async searchText(query: string): Promise<SearchResult[]> {
+    const normalizedQuery = query.trim().toLowerCase();
+    if (!normalizedQuery) return [];
+    if (!this.runtime) return this.searchWithPdfEngine(query);
 
-    const normalizedQuery = query.trim().toLocaleLowerCase();
-    if (!normalizedQuery) return Promise.resolve([]);
+    let hits: RustSearchHit[];
+    try {
+      hits = this.runtime.search(query);
+    } catch (error) {
+      console.warn(
+        "[RustDocumentEngine] Busca Rust indisponível; usando o engine PDF.js",
+        error
+      );
+      return this.searchWithPdfEngine(query);
+    }
 
     const results: SearchResult[] = [];
-    for (const hit of this.runtime.search(query)) {
-      const pageText = this.runtime.pageText(hit.page_number);
-      const lowerPageText = pageText.toLocaleLowerCase();
-      let position = lowerPageText.indexOf(normalizedQuery);
-      let matchIndex = 0;
-
-      while (position !== -1) {
-        results.push({
-          pageIndex: hit.page_number - 1,
-          text: createSnippet(pageText, position, normalizedQuery.length),
-          matchIndex,
-        });
-        matchIndex += 1;
-        position = lowerPageText.indexOf(
-          normalizedQuery,
-          position + Math.max(normalizedQuery.length, 1)
+    for (const hit of hits) {
+      let pageText: string;
+      try {
+        pageText = this.runtime.pageText(hit.page_number);
+      } catch (error) {
+        console.warn(
+          `[RustDocumentEngine] Texto indisponível na página ${hit.page_number}; ignorando resultado`,
+          error
         );
+        continue;
       }
+      if (!pageText) continue;
 
-      if (matchIndex === 0 && hit.matches > 0) {
+      for (const [matchIndex, range] of findCaseInsensitiveMatches(
+        pageText,
+        normalizedQuery
+      ).entries()) {
         results.push({
           pageIndex: hit.page_number - 1,
-          text: createSnippet(pageText, 0, normalizedQuery.length),
-          matchIndex: 0,
+          text: createSnippet(pageText, range.start, range.end),
+          matchIndex,
         });
       }
     }
-    return Promise.resolve(results);
+    return results;
+  }
+
+  private async searchWithPdfEngine(query: string): Promise<SearchResult[]> {
+    if (typeof this.pdfEngine.searchText === "function") {
+      return this.pdfEngine.searchText(query);
+    }
+
+    const normalizedQuery = query.trim().toLowerCase();
+    if (!normalizedQuery) return [];
+
+    const results: SearchResult[] = [];
+    for (
+      let pageIndex = 0;
+      pageIndex < this.pdfEngine.getPageCount();
+      pageIndex += 1
+    ) {
+      const textItems = await this.pdfEngine.getTextContent(pageIndex);
+      const pageText = textItems.map((item) => item.str).join(" ");
+      for (const [matchIndex, range] of findCaseInsensitiveMatches(
+        pageText,
+        normalizedQuery
+      ).entries()) {
+        results.push({
+          pageIndex,
+          text: createSnippet(pageText, range.start, range.end),
+          matchIndex,
+        });
+      }
+    }
+    return results;
   }
 
   selectText(
@@ -230,16 +285,56 @@ export class RustDocumentEngine extends BaseDocumentEngine {
   }
 
   destroy(): void {
-    this.runtime?.destroy?.();
+    try {
+      this.runtime?.destroy?.();
+    } catch (error) {
+      console.warn("[RustDocumentEngine] Falha ao liberar runtime", error);
+    }
     this.runtime = null;
     this.pdfEngine.destroy();
   }
 }
 
-function createSnippet(text: string, position: number, queryLength: number): string {
-  const start = Math.max(0, position - 40);
-  const end = Math.min(text.length, position + queryLength + 40);
-  return text.substring(start, end);
+function createSnippet(text: string, start: number, end: number): string {
+  const snippetStart = Math.max(0, start - 40);
+  const snippetEnd = Math.min(text.length, end + 40);
+  return text.substring(snippetStart, snippetEnd);
+}
+
+function findCaseInsensitiveMatches(
+  text: string,
+  normalizedQuery: string
+): Array<{ start: number; end: number }> {
+  if (!normalizedQuery) return [];
+
+  let normalizedText = "";
+  const originalStarts: number[] = [];
+  const originalEnds: number[] = [];
+  for (let index = 0; index < text.length; ) {
+    const codePoint = String.fromCodePoint(text.codePointAt(index) ?? 0);
+    const normalizedCodePoint = codePoint.toLowerCase();
+    normalizedText += normalizedCodePoint;
+    for (let offset = 0; offset < normalizedCodePoint.length; offset += 1) {
+      originalStarts.push(index);
+      originalEnds.push(index + codePoint.length);
+    }
+    index += codePoint.length;
+  }
+
+  const matches: Array<{ start: number; end: number }> = [];
+  let position = normalizedText.indexOf(normalizedQuery);
+  while (position !== -1) {
+    const endPosition = position + normalizedQuery.length - 1;
+    matches.push({
+      start: originalStarts[position] ?? 0,
+      end: originalEnds[endPosition] ?? originalStarts[position] ?? 0,
+    });
+    position = normalizedText.indexOf(
+      normalizedQuery,
+      position + Math.max(normalizedQuery.length, 1)
+    );
+  }
+  return matches;
 }
 
 function normalizeLoadInput(input: DocumentLoadInput): {

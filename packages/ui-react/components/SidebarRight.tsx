@@ -61,9 +61,15 @@ const SidebarRight: React.FC<SidebarRightProps> = ({ engine, style }) => {
       return;
     }
     setIsSearching(true);
-    const results = await searchService.search(query);
-    setSearch(query, results);
-    setIsSearching(false);
+    try {
+      const results = await searchService.search(query);
+      setSearch(query, results);
+    } catch (error) {
+      console.error("[SidebarRight] Falha ao buscar no documento", error);
+      setSearch(query, []);
+    } finally {
+      setIsSearching(false);
+    }
   };
 
   const jumpToAnnotation = (annotation: Annotation) => {
