@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { inferDocumentType } from "./documentType";
+import {
+  inferComicFormat,
+  inferDocumentType,
+  resolveComicFormat,
+} from "./documentType";
 
 describe("inferDocumentType", () => {
   it.each([
@@ -15,5 +19,12 @@ describe("inferDocumentType", () => {
     expect(inferDocumentType("file:///documents/book.epub")).toBe("epub");
     expect(inferDocumentType("file:///documents/book.txt")).toBe("text");
     expect(inferDocumentType("file:///documents/book.pdf")).toBe("pdf");
+  });
+
+  it("allows an explicit comic format when the URI has no extension", () => {
+    expect(inferComicFormat({ uri: "content://picker/book" })).toBe("cbz");
+    expect(
+      resolveComicFormat({ uri: "content://picker/book" }, "cbr")
+    ).toBe("cbr");
   });
 });

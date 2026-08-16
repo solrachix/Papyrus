@@ -2,7 +2,10 @@
   if (typeof module === "object" && module.exports) {
     module.exports = factory();
   } else {
-    root.PapyrusComicRuntime = factory();
+    root.PapyrusComicRuntime = Object.assign(
+      factory(),
+      root.PapyrusComicRuntime || {}
+    );
   }
 })(typeof self === "object" ? self : this, function () {
   var IMAGE_EXTENSIONS = /\.(?:gif|jpe?g|png|svg|webp)$/i;
@@ -58,10 +61,27 @@
     };
   }
 
+  function getComicPageAspectRatio(width, height) {
+    var safeWidth = Math.max(1, Number(width) || 1);
+    var safeHeight = Math.max(1, Number(height) || 1);
+    return safeWidth + " / " + safeHeight;
+  }
+
+  function isCurrentComicPageLoad(
+    loadGeneration,
+    currentGeneration,
+    entry,
+    currentEntry
+  ) {
+    return loadGeneration === currentGeneration && entry === currentEntry;
+  }
+
   return {
     isComicImageName: isComicImageName,
     sortComicPageNames: sortComicPageNames,
     patchCbrWorkerSource: patchCbrWorkerSource,
     getComicPreviewSize: getComicPreviewSize,
+    getComicPageAspectRatio: getComicPageAspectRatio,
+    isCurrentComicPageLoad: isCurrentComicPageLoad,
   };
 });

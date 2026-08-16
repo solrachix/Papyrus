@@ -11,8 +11,8 @@
     "./runtime/libarchive.wasm": "./runtime/libarchive.wasm"
   },
   "peerDependencies": {
-    "@papyrus-sdk/engine-native": ">=0.2.17",
-    "@papyrus-sdk/ui-react-native": ">=0.2.19"
+    "@papyrus-sdk/engine-native": ">=0.2.18",
+    "@papyrus-sdk/ui-react-native": ">=0.2.21"
   },
   "repository": {
     "type": "git",

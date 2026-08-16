@@ -19,7 +19,11 @@ import {
 } from 'react-native';
 import {MobileDocumentEngine} from '@papyrus-sdk/engine-native';
 import {useViewerStore} from '@papyrus-sdk/core';
-import {DocumentSource, PapyrusConfig} from '@papyrus-sdk/types';
+import {
+  ComicFormat,
+  DocumentSource,
+  PapyrusConfig,
+} from '@papyrus-sdk/types';
 import {
   ReadingShell,
   ToolDock,
@@ -168,6 +172,18 @@ const App: React.FC = () => {
     return null;
   };
 
+  const inferComicFormat = (
+    name?: string,
+    mimeType?: string,
+    uri?: string,
+  ): ComicFormat => {
+    const candidate = (name ?? uri ?? '').toLowerCase();
+    const lowerMime = (mimeType ?? '').toLowerCase();
+    return lowerMime.includes('rar') || candidate.endsWith('.cbr')
+      ? 'cbr'
+      : 'cbz';
+  };
+
   const loadTextFromUri = async (uri: string) => {
     const response = await fetch(uri);
     if (!response.ok) {
@@ -179,6 +195,7 @@ const App: React.FC = () => {
   const loadDocumentFromSource = async (
     type: 'pdf' | 'epub' | 'text' | 'comic',
     source: DocumentSource,
+    format?: ComicFormat,
   ) => {
     setActiveType(type);
     setDocumentState({
@@ -192,7 +209,11 @@ const App: React.FC = () => {
     });
 
     try {
-      await engine.load({type, source});
+      await engine.load({
+        type,
+        source,
+        ...(type === 'comic' && format ? {format} : {}),
+      });
 
       if (INITIAL_SDK_CONFIG.initialZoom)
         engine.setZoom(INITIAL_SDK_CONFIG.initialZoom);
@@ -279,23 +300,57 @@ const App: React.FC = () => {
         return;
       }
 
+      const prepareWebViewUri = async () => {
+        if (
+          typeof documentPickerModule.keepLocalCopy !== 'function' ||
+          (!uri.startsWith('content://') && !uri.startsWith('file://'))
+        ) {
+          return uri;
+        }
+
+        const copies = await documentPickerModule.keepLocalCopy({
+          files: [
+            {
+              uri,
+              fileName: result.name ?? 'papyrus-document',
+            },
+          ],
+          destination: 'cachesDirectory',
+        });
+        const copy = Array.isArray(copies) ? copies[0] : copies;
+        if (copy?.status === 'success' && copy.localUri) {
+          return copy.localUri;
+        }
+        throw new Error(
+          copy?.copyError ??
+            '[Papyrus RN] Não foi possível preparar o arquivo local',
+        );
+      };
+
       if (docType === 'text') {
+        const webViewUri = await prepareWebViewUri();
         try {
-          await loadDocumentFromSource('text', {uri});
+          await loadDocumentFromSource('text', {uri: webViewUri});
         } catch {
-          const text = await loadTextFromUri(uri);
+          const text = await loadTextFromUri(webViewUri);
           await loadDocumentFromSource('text', text);
         }
         return;
       }
 
       if (docType === 'epub') {
-        await loadDocumentFromSource('epub', {uri});
+        await loadDocumentFromSource('epub', {
+          uri: await prepareWebViewUri(),
+        });
         return;
       }
 
       if (docType === 'comic') {
-        await loadDocumentFromSource('comic', {uri});
+        await loadDocumentFromSource(
+          'comic',
+          {uri: await prepareWebViewUri()},
+          inferComicFormat(result.name, result.type, uri),
+        );
         return;
       }
 

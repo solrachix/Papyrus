@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   getComicPreviewSize,
+  getComicPageAspectRatio,
+  isCurrentComicPageLoad,
   isComicImageName,
   patchCbrWorkerSource,
   sortComicPageNames,
@@ -42,5 +44,34 @@ describe("mobile comic runtime helpers", () => {
   it("caps comic previews without upscaling them", () => {
     expect(getComicPreviewSize(1600, 2400)).toEqual({ width: 240, height: 360 });
     expect(getComicPreviewSize(120, 180)).toEqual({ width: 120, height: 180 });
+  });
+
+  it("keeps the page geometry when a cached image URL is evicted", () => {
+    expect(getComicPageAspectRatio(1200, 1800)).toBe("1200 / 1800");
+    expect(getComicPageAspectRatio(0, 0)).toBe("1 / 1");
+  });
+
+  it("rejects page extraction completions from an older document", () => {
+    const entry = { name: "old.jpg" };
+    const currentEntry = { name: "new.jpg" };
+
+    expect(isCurrentComicPageLoad(2, 3, entry, currentEntry)).toBe(false);
+    expect(isCurrentComicPageLoad(3, 3, entry, currentEntry)).toBe(false);
+    expect(isCurrentComicPageLoad(3, 3, entry, entry)).toBe(true);
+  });
+
+  it("embeds the tested helpers in the shipped runtimes", () => {
+    const runtime = readFileSync(
+      resolve(process.cwd(), "packages/ui-react-native/runtime/runtime.js"),
+      "utf8"
+    );
+    const html = readFileSync(
+      resolve(process.cwd(), "packages/ui-react-native/runtime/index.html"),
+      "utf8"
+    );
+
+    expect(runtime.match(/function getComicPageAspectRatio/g)).toHaveLength(1);
+    expect(html.match(/function getComicPageAspectRatio/g)).toHaveLength(1);
+    expect(html).toContain("root.PapyrusComicRuntime");
   });
 });

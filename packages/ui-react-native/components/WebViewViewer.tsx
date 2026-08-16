@@ -6,6 +6,7 @@ import WebView, {
 } from "react-native-webview";
 import { useViewerStore } from "@papyrus-sdk/core";
 import { DocumentEngine } from "@papyrus-sdk/types";
+import { parseWebViewState } from "./webViewState";
 
 const runtimeAsset = require("../runtime/index.html");
 const resolveRuntimeSource = (asset: unknown) => {
@@ -77,6 +78,26 @@ const WebViewViewer: React.FC<WebViewViewerProps> = ({ engine }) => {
   }, [bridgeEngine]);
 
   const handleMessage = (event: WebViewMessageEvent) => {
+    const state = parseWebViewState(event.nativeEvent.data);
+    if (state) {
+      const viewerState = useViewerStore.getState();
+      const nextState: Parameters<typeof viewerState.setDocumentState>[0] = {};
+      if (
+        state.currentPage !== undefined &&
+        state.currentPage !== viewerState.currentPage
+      ) {
+        nextState.currentPage = state.currentPage;
+      }
+      if (
+        state.pageCount !== undefined &&
+        state.pageCount !== viewerState.pageCount
+      ) {
+        nextState.pageCount = state.pageCount;
+      }
+      if (Object.keys(nextState).length > 0) {
+        viewerState.setDocumentState(nextState);
+      }
+    }
     if (__DEV__) {
       console.log("[Papyrus WebView] message", event.nativeEvent.data);
     }

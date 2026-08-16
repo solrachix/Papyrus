@@ -1,3 +1,93 @@
+/* @papyrus-comic-runtime:start */
+(function (root, factory) {
+  if (typeof module === "object" && module.exports) {
+    module.exports = factory();
+  } else {
+    root.PapyrusComicRuntime = Object.assign(
+      factory(),
+      root.PapyrusComicRuntime || {}
+    );
+  }
+})(typeof self === "object" ? self : this, function () {
+  var IMAGE_EXTENSIONS = /\.(?:gif|jpe?g|png|svg|webp)$/i;
+
+  function isComicImageName(name) {
+    return typeof name === "string" && IMAGE_EXTENSIONS.test(name);
+  }
+
+  function naturalCompare(left, right) {
+    var leftParts = String(left).split(/(\d+)/);
+    var rightParts = String(right).split(/(\d+)/);
+    var length = Math.max(leftParts.length, rightParts.length);
+
+    for (var index = 0; index < length; index += 1) {
+      var leftPart = leftParts[index] || "";
+      var rightPart = rightParts[index] || "";
+      if (leftPart === rightPart) continue;
+
+      var leftNumber = /^\d+$/.test(leftPart) ? Number(leftPart) : null;
+      var rightNumber = /^\d+$/.test(rightPart) ? Number(rightPart) : null;
+      if (leftNumber !== null && rightNumber !== null) {
+        return leftNumber - rightNumber;
+      }
+      return leftPart.localeCompare(rightPart, undefined, {
+        numeric: true,
+        sensitivity: "base",
+      });
+    }
+
+    return 0;
+  }
+
+  function sortComicPageNames(names) {
+    return names.slice().sort(naturalCompare);
+  }
+
+  function patchCbrWorkerSource(workerSource, wasmUrl) {
+    return workerSource.replace(
+      /new URL\("libarchive\.wasm",import\.meta\.url\)\.href/g,
+      JSON.stringify(wasmUrl)
+    );
+  }
+
+  function getComicPreviewSize(width, height, maxWidth, maxHeight) {
+    var safeWidth = Math.max(1, Number(width) || 1);
+    var safeHeight = Math.max(1, Number(height) || 1);
+    var widthLimit = maxWidth || 240;
+    var heightLimit = maxHeight || 360;
+    var scale = Math.min(1, widthLimit / safeWidth, heightLimit / safeHeight);
+    return {
+      width: Math.max(1, Math.round(safeWidth * scale)),
+      height: Math.max(1, Math.round(safeHeight * scale)),
+    };
+  }
+
+  function getComicPageAspectRatio(width, height) {
+    var safeWidth = Math.max(1, Number(width) || 1);
+    var safeHeight = Math.max(1, Number(height) || 1);
+    return safeWidth + " / " + safeHeight;
+  }
+
+  function isCurrentComicPageLoad(
+    loadGeneration,
+    currentGeneration,
+    entry,
+    currentEntry
+  ) {
+    return loadGeneration === currentGeneration && entry === currentEntry;
+  }
+
+  return {
+    isComicImageName: isComicImageName,
+    sortComicPageNames: sortComicPageNames,
+    patchCbrWorkerSource: patchCbrWorkerSource,
+    getComicPreviewSize: getComicPreviewSize,
+    getComicPageAspectRatio: getComicPageAspectRatio,
+    isCurrentComicPageLoad: isCurrentComicPageLoad,
+  };
+});
+/* @papyrus-comic-runtime:end */
+
 (function () {
   const viewer = document.getElementById('viewer');
   const DEFAULT_FONT_SIZE = 16;
@@ -26,46 +116,10 @@
   const comicPreviewLoading = new Map();
   const COMIC_CACHE_LIMIT = 16;
   const COMIC_PREVIEW_CACHE_LIMIT = 8;
-  const comicHelpers = window.PapyrusComicRuntime || {
-    isComicImageName: (name) => /\.(?:gif|jpe?g|png|svg|webp)$/i.test(name),
-    sortComicPageNames: (names) =>
-      names.slice().sort((left, right) => {
-        const leftParts = String(left).split(/(\d+)/);
-        const rightParts = String(right).split(/(\d+)/);
-        const length = Math.max(leftParts.length, rightParts.length);
-        for (let index = 0; index < length; index += 1) {
-          const leftPart = leftParts[index] || '';
-          const rightPart = rightParts[index] || '';
-          if (leftPart === rightPart) continue;
-          if (/^\d+$/.test(leftPart) && /^\d+$/.test(rightPart)) {
-            return Number(leftPart) - Number(rightPart);
-          }
-          return leftPart.localeCompare(rightPart, undefined, {
-            numeric: true,
-            sensitivity: 'base',
-          });
-        }
-        return 0;
-      }),
-    patchCbrWorkerSource: (workerSource, wasmUrl) =>
-      workerSource.replace(
-        /new URL\("libarchive\.wasm",import\.meta\.url\)\.href/g,
-        JSON.stringify(wasmUrl)
-      ),
-    getComicPreviewSize: (width, height, maxWidth, maxHeight) => {
-      const safeWidth = Math.max(1, Number(width) || 1);
-      const safeHeight = Math.max(1, Number(height) || 1);
-      const widthLimit = maxWidth || 240;
-      const heightLimit = maxHeight || 360;
-      const scale = Math.min(1, widthLimit / safeWidth, heightLimit / safeHeight);
-      return {
-        width: Math.max(1, Math.round(safeWidth * scale)),
-        height: Math.max(1, Math.round(safeHeight * scale)),
-      };
-    },
-  };
+  const comicHelpers = window.PapyrusComicRuntime || {};
   const runtimeConfig = window.__PAPYRUS_RUNTIME_CONFIG__ || {};
   let comicDispose = null;
+  let comicGeneration = 0;
 
   const sendMessage = (payload) => {
     if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
@@ -120,6 +174,7 @@
   });
 
   const clearComicState = () => {
+    comicGeneration += 1;
     if (comicObserver) {
       comicObserver.disconnect();
       comicObserver = null;
@@ -230,6 +285,16 @@
       URL.revokeObjectURL(url);
       comicObjectUrls.delete(index);
       const image = comicPages[index]?.querySelector('img');
+      const page = comicPages[index];
+      const dimensions = comicDimensions.get(index);
+      const width = dimensions?.width || image?.naturalWidth || 0;
+      const height = dimensions?.height || image?.naturalHeight || 0;
+      if (page && width > 0 && height > 0) {
+        page.style.aspectRatio = comicHelpers.getComicPageAspectRatio(
+          width,
+          height
+        );
+      }
       if (image) image.removeAttribute('src');
     }
   };
@@ -244,7 +309,18 @@
 
     const entry = comicEntries[pageIndex];
     if (!entry) throw new Error(`Página de quadrinho inválida: ${pageIndex}`);
+    const loadGeneration = comicGeneration;
     const pending = entry.async('blob').then((blob) => {
+      if (
+        !comicHelpers.isCurrentComicPageLoad(
+          loadGeneration,
+          comicGeneration,
+          entry,
+          comicEntries[pageIndex]
+        )
+      ) {
+        return null;
+      }
       const url = URL.createObjectURL(
         new Blob([blob], { type: comicMimeType(entry.name) })
       );
@@ -258,7 +334,9 @@
     try {
       return await pending;
     } finally {
-      comicLoading.delete(pageIndex);
+      if (comicLoading.get(pageIndex) === pending) {
+        comicLoading.delete(pageIndex);
+      }
     }
   };
 
@@ -400,6 +478,10 @@
             width: image.naturalWidth,
             height: image.naturalHeight,
           });
+          page.style.aspectRatio = comicHelpers.getComicPageAspectRatio(
+            image.naturalWidth,
+            image.naturalHeight
+          );
         }
       });
       page.appendChild(image);
@@ -445,12 +527,12 @@
       reader.readAsDataURL(new Blob([blob], { type: mimeType }));
     });
 
-  const createComicPagePreview = async (entry) => {
+  const createComicPagePreview = async (pageIndex) => {
+    const entry = comicEntries[pageIndex];
+    if (!entry) return null;
     const mimeType = comicMimeType(entry.name);
-    const blob = await entry.async('blob');
-    const sourceUrl = URL.createObjectURL(
-      new Blob([blob], { type: mimeType })
-    );
+    const sourceUrl = await ensureComicPage(pageIndex);
+    if (!sourceUrl) return null;
     try {
       const image = new Image();
       image.decoding = 'async';
@@ -473,9 +555,13 @@
       context.drawImage(image, 0, 0, size.width, size.height);
       return canvas.toDataURL('image/jpeg', 0.78);
     } catch {
-      return await readComicBlobAsDataUrl(blob, mimeType);
-    } finally {
-      URL.revokeObjectURL(sourceUrl);
+      try {
+        const response = await fetch(sourceUrl);
+        const blob = await response.blob();
+        return await readComicBlobAsDataUrl(blob, mimeType);
+      } catch {
+        return null;
+      }
     }
   };
 
@@ -488,7 +574,18 @@
     if (comicPreviewLoading.has(pageIndex)) {
       return comicPreviewLoading.get(pageIndex);
     }
-    const pending = createComicPagePreview(entry).then((preview) => {
+    const loadGeneration = comicGeneration;
+    const pending = createComicPagePreview(pageIndex).then((preview) => {
+      if (
+        !comicHelpers.isCurrentComicPageLoad(
+          loadGeneration,
+          comicGeneration,
+          entry,
+          comicEntries[pageIndex]
+        )
+      ) {
+        return null;
+      }
       comicPreviewCache.set(pageIndex, preview);
       while (comicPreviewCache.size > COMIC_PREVIEW_CACHE_LIMIT) {
         comicPreviewCache.delete(comicPreviewCache.keys().next().value);
@@ -499,7 +596,9 @@
     try {
       return await pending;
     } finally {
-      comicPreviewLoading.delete(pageIndex);
+      if (comicPreviewLoading.get(pageIndex) === pending) {
+        comicPreviewLoading.delete(pageIndex);
+      }
     }
   };
 

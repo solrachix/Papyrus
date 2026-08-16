@@ -1,4 +1,8 @@
-import type { DocumentSource, DocumentType } from "@papyrus-sdk/types";
+import type {
+  ComicFormat,
+  DocumentSource,
+  DocumentType,
+} from "@papyrus-sdk/types";
 
 const parseDataUri = (
   value: string
@@ -25,7 +29,7 @@ const typeFromExtension = (value: string): DocumentType | null => {
   return null;
 };
 
-export const inferComicFormat = (source: DocumentSource): "cbz" | "cbr" => {
+export const inferComicFormat = (source: DocumentSource): ComicFormat => {
   const candidate =
     typeof source === "string"
       ? source
@@ -39,6 +43,11 @@ export const inferComicFormat = (source: DocumentSource): "cbz" | "cbr" => {
   }
   return "cbz";
 };
+
+export const resolveComicFormat = (
+  source: DocumentSource,
+  explicitFormat?: ComicFormat
+): ComicFormat => explicitFormat ?? inferComicFormat(source);
 
 export const inferDocumentType = (source: DocumentSource): DocumentType => {
   if (typeof source === "string") {

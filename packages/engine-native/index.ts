@@ -16,6 +16,7 @@ import {
   DocumentEngine,
   DocumentSource,
   DocumentType,
+  ComicFormat,
   PageDestination,
   PapyrusEventType,
   RenderTargetType,
@@ -28,7 +29,7 @@ import {
   Annotation,
   PdfVisiblePage,
 } from "@papyrus-sdk/types";
-import { inferComicFormat, inferDocumentType } from "./documentType";
+import { inferDocumentType, resolveComicFormat } from "./documentType";
 
 const MODULE_NAME = "PapyrusNativeEngine";
 
@@ -61,7 +62,8 @@ const looksLikeUri = (value: string): boolean =>
   value.startsWith("/") ||
   value.startsWith("./") ||
   value.startsWith("../") ||
-  value.startsWith("file://");
+  value.startsWith("file://") ||
+  value.startsWith("content://");
 
 const isLikelyBase64 = (value: string): boolean => {
   if (looksLikeUri(value)) return false;
@@ -72,6 +74,9 @@ const isLikelyBase64 = (value: string): boolean => {
 
 const isHttpUri = (value: string): boolean =>
   value.startsWith("http://") || value.startsWith("https://");
+
+const isLocalUri = (value: string): boolean =>
+  value.startsWith("content://") || value.startsWith("file://");
 
 const decodeBase64 = (value: string): Uint8Array => {
   const clean = value.replace(/[^A-Za-z0-9+/=]/g, "");
@@ -132,9 +137,9 @@ const isLoadRequest = (
 
 const normalizeLoadInput = (
   input: DocumentLoadInput
-): { source: DocumentSource; type?: DocumentType } =>
+): { source: DocumentSource; type?: DocumentType; format?: ComicFormat } =>
   isLoadRequest(input)
-    ? { source: input.source, type: input.type }
+    ? { source: input.source, type: input.type, format: input.format }
     : { source: input };
 
 type NativeDocumentSource = {
@@ -729,7 +734,7 @@ export class WebViewDocumentEngine extends BaseDocumentEngine {
   }
 
   async load(input: DocumentLoadInput): Promise<void> {
-    const { source, type } = normalizeLoadInput(input);
+    const { source, type, format } = normalizeLoadInput(input);
     const resolvedType = type ?? inferDocumentType(source);
     if (resolvedType === "pdf") {
       throw new Error(
@@ -748,7 +753,7 @@ export class WebViewDocumentEngine extends BaseDocumentEngine {
       type: resolvedType,
       source: payloadSource,
       ...(resolvedType === "comic"
-        ? { format: inferComicFormat(source) }
+        ? { format: resolveComicFormat(source, format) }
         : {}),
     });
 
@@ -896,7 +901,8 @@ export class WebViewDocumentEngine extends BaseDocumentEngine {
     await this.ensureReady();
     const id = `${Date.now()}-${this.requestId++}`;
     return new Promise<T>((resolve, reject) => {
-      const timeoutMs = kind === "load" ? 180000 : 8000;
+      const timeoutMs =
+        kind === "load" ? 180000 : kind === "get-page-preview" ? 30000 : 8000;
       const timeoutId = setTimeout(() => {
         this.pending.delete(id);
         reject(new Error(`[Papyrus] WebView response timeout: ${kind}`));
@@ -938,6 +944,9 @@ export class WebViewDocumentEngine extends BaseDocumentEngine {
           const fetched = await this.fetchRemoteSource(type, source);
           if (fetched) return fetched;
         }
+        if (isLocalUri(source)) {
+          return await this.fetchLocalSource(type, source);
+        }
         return { kind: "uri", uri: source };
       }
 
@@ -957,6 +966,9 @@ export class WebViewDocumentEngine extends BaseDocumentEngine {
       if (isHttpUri(uri)) {
         const fetched = await this.fetchRemoteSource(type, uri);
         if (fetched) return fetched;
+      }
+      if (isLocalUri(uri)) {
+        return await this.fetchLocalSource(type, uri);
       }
       return { kind: "uri", uri };
     }
@@ -1005,6 +1017,31 @@ export class WebViewDocumentEngine extends BaseDocumentEngine {
       return null;
     } catch {
       return null;
+    }
+  }
+
+  private async fetchLocalSource(
+    type: DocumentType,
+    uri: string
+  ): Promise<WebViewSourcePayload> {
+    try {
+      const response = await fetch(uri);
+      if (!response.ok && response.status !== 0) {
+        throw new Error(`status ${response.status}`);
+      }
+      if (type === "text") {
+        return { kind: "text", text: await response.text() };
+      }
+      if (type === "epub" || type === "comic") {
+        const buffer = await this.readResponseBuffer(response);
+        return { kind: "base64", data: encodeBase64(new Uint8Array(buffer)) };
+      }
+      throw new Error(`tipo não suportado: ${type}`);
+    } catch (error) {
+      const reason = error instanceof Error ? `: ${error.message}` : "";
+      throw new Error(
+        `[WebViewDocumentEngine] Não foi possível ler o arquivo local ${uri}${reason}`
+      );
     }
   }
 
@@ -1081,11 +1118,15 @@ export class MobileDocumentEngine extends BaseDocumentEngine {
   }
 
   async load(input: DocumentLoadInput): Promise<void> {
-    const { source, type } = normalizeLoadInput(input);
+    const { source, type, format } = normalizeLoadInput(input);
     const resolvedType = type ?? inferDocumentType(source);
     this.activeEngine =
       resolvedType === "pdf" ? this.pdfEngine : this.webEngine;
-    await this.activeEngine.load({ type: resolvedType, source });
+    await this.activeEngine.load({
+      type: resolvedType,
+      source,
+      ...(resolvedType === "comic" && format ? { format } : {}),
+    });
   }
 
   getPageCount(): number {
