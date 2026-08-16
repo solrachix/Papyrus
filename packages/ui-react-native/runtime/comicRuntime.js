@@ -39,5 +39,29 @@
     return names.slice().sort(naturalCompare);
   }
 
-  return { isComicImageName: isComicImageName, sortComicPageNames: sortComicPageNames };
+  function patchCbrWorkerSource(workerSource, wasmUrl) {
+    return workerSource.replace(
+      /new URL\("libarchive\.wasm",import\.meta\.url\)\.href/g,
+      JSON.stringify(wasmUrl)
+    );
+  }
+
+  function getComicPreviewSize(width, height, maxWidth, maxHeight) {
+    var safeWidth = Math.max(1, Number(width) || 1);
+    var safeHeight = Math.max(1, Number(height) || 1);
+    var widthLimit = maxWidth || 240;
+    var heightLimit = maxHeight || 360;
+    var scale = Math.min(1, widthLimit / safeWidth, heightLimit / safeHeight);
+    return {
+      width: Math.max(1, Math.round(safeWidth * scale)),
+      height: Math.max(1, Math.round(safeHeight * scale)),
+    };
+  }
+
+  return {
+    isComicImageName: isComicImageName,
+    sortComicPageNames: sortComicPageNames,
+    patchCbrWorkerSource: patchCbrWorkerSource,
+    getComicPreviewSize: getComicPreviewSize,
+  };
 });

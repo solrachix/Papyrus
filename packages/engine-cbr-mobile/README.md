@@ -28,3 +28,13 @@ const engine = new MobileDocumentEngine({
 ```
 
 Depois, carregue o arquivo com `{ type: "comic", source: { uri } }`.
+
+## Plataforma e validação
+
+O runtime CBR usa `import()` de um módulo ESM em `blob:` e um `Worker` para o
+libarchive. O fluxo está preparado para Android WebView, mas CBR mobile ainda
+é experimental: esta implementação não foi validada em um dispositivo Android
+ou iOS nesta versão. Antes de publicar para produção, valide o picker e o
+acesso a `content://`/`file://` em cada plataforma; se o sandbox do WebView
+impedir a leitura, o app deverá copiar o arquivo para uma área acessível ou
+entregar os bytes pelo lado nativo.

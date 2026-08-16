@@ -32,6 +32,11 @@ page extraction, bounded object-URL cache, and on-demand page previews in the
 navigation sheet. CBR is intentionally kept out of the base mobile runtime;
 RAR support needs the optional libarchive worker/WASM payload.
 
+CBR mobile support is experimental and requires
+`@papyrus-sdk/engine-cbr-mobile`. Its Android WebView flow is not a substitute
+for device validation on iOS or Android, especially for picker-provided
+`content://` and `file://` sources.
+
 ## Usage
 
 ```tsx
