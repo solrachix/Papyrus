@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { useViewerStore } from "@papyrus-sdk/core";
 import { DocumentEngine, PageTheme } from "@papyrus-sdk/types";
 import { isSingleViewportMode as getIsSingleViewportMode } from "./renderMode";
+import { loadDocumentFromUpload } from "./uploadDocument";
 
 interface TopbarProps {
   engine: DocumentEngine;
@@ -182,19 +183,7 @@ const Topbar: React.FC<TopbarProps> = ({
     event.target.value = "";
     if (!file) return;
 
-    setDocumentState({ isLoaded: false });
-    try {
-      await engine.load(file);
-      setDocumentState({
-        isLoaded: true,
-        pageCount: engine.getPageCount(),
-        currentPage: 1,
-        outline: await engine.getOutline(),
-      });
-    } catch (err) {
-      console.error("Upload failed", err);
-      setDocumentState({ isLoaded: true });
-    }
+    await loadDocumentFromUpload(engine, file, setDocumentState);
   };
 
   const toggleToolDock = () => {

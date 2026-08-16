@@ -64,7 +64,10 @@ const Thumbnail: React.FC<{
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
-          setIsVisible(entry.isIntersecting);
+          if (entry.isIntersecting) {
+            setIsVisible(true);
+            observer.disconnect();
+          }
         });
       },
       { root: root ?? null, rootMargin: "200px" }

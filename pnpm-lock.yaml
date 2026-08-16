@@ -307,6 +307,15 @@ importers:
         specifier: workspace:*
         version: link:../types
 
+  packages/engine-rust:
+    devDependencies:
+      '@papyrus-sdk/core':
+        specifier: workspace:*
+        version: link:../core
+      '@papyrus-sdk/types':
+        specifier: workspace:*
+        version: link:../types
+
   packages/engine-text:
     devDependencies:
       '@papyrus-sdk/core':
