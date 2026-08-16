@@ -44,6 +44,7 @@ const SidebarRight: React.FC<SidebarRightProps> = ({ engine, style }) => {
 
   const [query, setQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const [contentDrafts, setContentDrafts] = useState<Record<string, string>>(
     {}
   );
@@ -57,13 +58,21 @@ const SidebarRight: React.FC<SidebarRightProps> = ({ engine, style }) => {
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!query.trim()) {
+      setSearchError(null);
       setSearch("", []);
       return;
     }
     setIsSearching(true);
-    const results = await searchService.search(query);
-    setSearch(query, results);
-    setIsSearching(false);
+    setSearchError(null);
+    try {
+      const results = await searchService.search(query);
+      setSearch(query, results);
+    } catch (error) {
+      console.error("[SidebarRight] Falha ao buscar no documento", error);
+      setSearchError("Não foi possível concluir a busca neste documento.");
+    } finally {
+      setIsSearching(false);
+    }
   };
 
   const jumpToAnnotation = (annotation: Annotation) => {
@@ -229,7 +238,13 @@ const SidebarRight: React.FC<SidebarRightProps> = ({ engine, style }) => {
               </div>
             )}
 
-            {!isSearching &&
+            {!isSearching && searchError && (
+              <div className="py-12 text-center text-[10px] font-bold uppercase tracking-widest text-red-400">
+                {searchError}
+              </div>
+            )}
+
+            {!isSearching && !searchError &&
               searchResults.map((res, idx) => (
                 <div
                   key={idx}

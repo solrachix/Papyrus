@@ -1,0 +1,79 @@
+name: Rust WASM
+
+on:
+  push:
+    paths:
+      - ".github/workflows/rust-wasm.yml"
+      - "crates/papyrus-core-rust/**"
+      - "packages/engine-rust/wasm/**"
+      - "scripts/build-rust-wasm.mjs"
+  pull_request:
+    paths:
+      - ".github/workflows/rust-wasm.yml"
+      - "crates/papyrus-core-rust/**"
+      - "packages/engine-rust/wasm/**"
+      - "scripts/build-rust-wasm.mjs"
+
+permissions:
+  contents: read
+
+jobs:
+  verify-generated-wasm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          targets: wasm32-unknown-unknown
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install wasm-bindgen CLI
+        run: cargo install wasm-bindgen-cli --version 0.2.127 --locked
+
+      - name: Regenerate WASM artifacts
+        run: node scripts/build-rust-wasm.mjs
+
+      - name: Fail if generated JS glue is stale
+        run: git diff --exit-code -- packages/engine-rust/wasm/papyrus_core_rust.js
+
+      - name: Smoke test generated WASM
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+
+          const generatedModulePath = "/tmp/papyrus_core_rust.mjs";
+          const generatedWasmPath = "/tmp/papyrus_core_rust_bg.wasm";
+          fs.copyFileSync(
+            "packages/engine-rust/wasm/papyrus_core_rust.js",
+            generatedModulePath
+          );
+          fs.copyFileSync(
+            "packages/engine-rust/wasm/papyrus_core_rust_bg.wasm",
+            generatedWasmPath
+          );
+
+          const wasmModule = await import(`file://${generatedModulePath}`);
+          await wasmModule.default(
+            new Uint8Array(fs.readFileSync(generatedWasmPath))
+          );
+          const core = new wasmModule.WasmPdfCore(
+            new Uint8Array(
+              fs.readFileSync("examples/web/assets/tracemonkey-pldi-09.pdf")
+            )
+          );
+          if (core.page_count() !== 14) {
+            throw new Error(`unexpected page count: ${core.page_count()}`);
+          }
+          if (!core.search_page(1, "the")) {
+            throw new Error("expected a search hit on page 1");
+          }
+          if (!core.search_page_text(1)) {
+            throw new Error("expected cached page text");
+          }
+          core.free();
+          NODE

@@ -32,6 +32,7 @@ import {
 import { shouldEnableSelectionDrag } from "../gesture/selectionInteraction";
 import { resolvePdfCenteredInset } from "../viewport/pdfViewportController";
 import { buildCommentTapGestureDeps } from "./PageRenderer.gesture";
+import { resolvePdfBasePageWidth } from "./pdfPageMetrics";
 
 type PageViewComponentType = React.ComponentType<
   PapyrusPageViewProps & React.RefAttributes<any>
@@ -1259,7 +1260,10 @@ const PageRenderer: React.FC<PageRendererProps> = ({
       ? pageSize.width / pageSize.height
       : 0.77;
   const containerWidth = availableWidth ?? windowWidth;
-  const baseWidth = containerWidth * 0.92;
+  const baseWidth = resolvePdfBasePageWidth({
+    viewportWidth: containerWidth,
+    horizontalPadding,
+  });
   const pageWidth = isNative ? baseWidth * zoom : baseWidth;
   const pageHeight = pageWidth / aspectRatio;
   const pageFrameWidth = Math.max(

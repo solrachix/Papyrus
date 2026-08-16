@@ -6,6 +6,10 @@ import React, {
   useState,
 } from "react";
 import { PDFJSEngine } from "@papyrus-sdk/engine-pdfjs";
+import {
+  RustDocumentEngine,
+  createBundledWasmRustRuntimeFactory,
+} from "@papyrus-sdk/engine-rust";
 import { EPUBEngine } from "@papyrus-sdk/engine-epub";
 import { TextEngine } from "@papyrus-sdk/engine-text";
 import { useViewerStore, papyrusEvents } from "@papyrus-sdk/core";
@@ -63,7 +67,7 @@ const createInitialConfig = (
   ...overrides,
 });
 
-type EngineKind = "pdf" | "epub" | "text" | "cbz" | "cbr";
+type EngineKind = "pdf" | "rust" | "epub" | "text" | "cbz" | "cbr";
 type UITheme = "light" | "dark";
 
 const parseEngineKindFromLocation = (): EngineKind => {
@@ -72,6 +76,7 @@ const parseEngineKindFromLocation = (): EngineKind => {
   const fromQuery = (params.get("engine") || "").toLowerCase();
   if (
     fromQuery === "pdf" ||
+    fromQuery === "rust" ||
     fromQuery === "epub" ||
     fromQuery === "text" ||
     fromQuery === "cbz" ||
@@ -135,6 +140,12 @@ const usePapyrusDemo = (
     if (engineKind === "cbz" || engineKind === "cbr") return comicEngine;
     if (engineKind === "epub") return new EPUBEngine();
     if (engineKind === "text") return new TextEngine();
+    if (engineKind === "rust") {
+      return new RustDocumentEngine({
+        pdfEngine: new PDFJSEngine(),
+        runtimeFactory: createBundledWasmRustRuntimeFactory(),
+      });
+    }
     return new PDFJSEngine();
   }, [comicEngine, engineKind]);
 
@@ -521,7 +532,7 @@ const ConfigPage: React.FC = () => {
     ].join("\n");
 
     const remotePdfLine =
-      engineKind === "pdf" && useRemotePdf
+      (engineKind === "pdf" || engineKind === "rust") && useRemotePdf
         ? `\nawait engine.load("${remotePdfUrl}");`
         : "";
 
@@ -680,6 +691,7 @@ const ConfigPage: React.FC = () => {
                 onChange={(e) => setEngineKind(e.target.value as EngineKind)}
               >
                 <option value="pdf">PDF</option>
+                <option value="rust">PDF + Rust (experimental)</option>
                 <option value="epub">EPUB</option>
                 <option value="text">TXT</option>
                 <option value="cbz">CBZ (Comic ZIP)</option>
@@ -694,7 +706,7 @@ const ConfigPage: React.FC = () => {
               )}
             </Section>
 
-            {engineKind === "pdf" && (
+            {(engineKind === "pdf" || engineKind === "rust") && (
               <Section id="pdf" title="PDF remoto">
                 <label className="flex items-center gap-2 text-xs bg-white/5 border border-white/10 rounded-md px-2 py-2">
                   <input
