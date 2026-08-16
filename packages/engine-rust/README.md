@@ -29,3 +29,8 @@ pnpm --filter @papyrus-sdk/engine-rust build
 Esta é a primeira fatia da migração. `renderPage`, `renderTextLayer`,
 `getTextContent`, dimensões, outline e seleção ainda ficam no PDF.js para
 preservar o comportamento visual enquanto a busca Rust é medida em uso real.
+
+A busca no navegador consulta as páginas em lotes assíncronos para não bloquear
+o thread principal em PDFs grandes. O core mantém um cache LRU limitado a 64 MiB
+do texto extraído; o cache evita reextrair as páginas a cada nova consulta sem
+fazer a memória crescer indefinidamente.

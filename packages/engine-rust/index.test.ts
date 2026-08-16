@@ -81,6 +81,54 @@ describe("RustDocumentEngine", () => {
     ]);
   });
 
+  it("faz a busca Rust por páginas e cede o thread entre lotes", async () => {
+    const pdfEngine = createPdfEngine();
+    const runtime = {
+      pageCount: 17,
+      pageText: vi.fn().mockReturnValue("texto em cache"),
+      search: vi.fn(),
+      searchPage: vi.fn((query: string, pageNumber: number) =>
+        query === "cache" && pageNumber === 17
+          ? { page_number: pageNumber, matches: 1 }
+          : null
+      ),
+      searchPageText: vi.fn().mockReturnValue("texto em cache"),
+      destroy: vi.fn(),
+    } satisfies RustPdfRuntime;
+    const engine = new RustDocumentEngine({
+      pdfEngine,
+      runtimeFactory: createRuntimeFactory(runtime),
+    });
+
+    await engine.load(new Uint8Array([1, 2, 3]));
+
+    await expect(engine.searchText("cache")).resolves.toEqual([
+      { pageIndex: 16, text: "texto em cache", matchIndex: 0 },
+    ]);
+    expect(runtime.search).not.toHaveBeenCalled();
+    expect(runtime.searchPage).toHaveBeenCalledTimes(17);
+    expect(runtime.searchPageText).toHaveBeenCalledWith(17);
+    expect(runtime.pageText).not.toHaveBeenCalled();
+  });
+
+  it("não cria snippet quando o índice não consegue mapear a ocorrência", async () => {
+    const pdfEngine = createPdfEngine();
+    const runtime = {
+      pageCount: 1,
+      pageText: vi.fn().mockReturnValue("texto sem correspondência"),
+      search: vi.fn().mockReturnValue([{ page_number: 1, matches: 1 }]),
+      destroy: vi.fn(),
+    } satisfies RustPdfRuntime;
+    const engine = new RustDocumentEngine({
+      pdfEngine,
+      runtimeFactory: createRuntimeFactory(runtime),
+    });
+
+    await engine.load(new Uint8Array([1, 2, 3]));
+
+    await expect(engine.searchText("ausente")).resolves.toEqual([]);
+  });
+
   it("mantém operações de renderização no engine PDF", async () => {
     const pdfEngine = createPdfEngine();
     const engine = new RustDocumentEngine({

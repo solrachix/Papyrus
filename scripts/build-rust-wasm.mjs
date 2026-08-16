@@ -5,9 +5,11 @@ import { fileURLToPath } from "node:url";
 
 const rootDir = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const crateDir = join(rootDir, "crates", "papyrus-core-rust");
+const targetDir = process.env.CARGO_TARGET_DIR
+  ? resolve(process.env.CARGO_TARGET_DIR)
+  : join(crateDir, "target");
 const wasmPath = join(
-  crateDir,
-  "target",
+  targetDir,
   "wasm32-unknown-unknown",
   "release",
   "papyrus_core_rust.wasm"

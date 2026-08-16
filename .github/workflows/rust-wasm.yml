@@ -1,0 +1,41 @@
+name: Rust WASM
+
+on:
+  push:
+    paths:
+      - ".github/workflows/rust-wasm.yml"
+      - "crates/papyrus-core-rust/**"
+      - "packages/engine-rust/wasm/**"
+      - "scripts/build-rust-wasm.mjs"
+  pull_request:
+    paths:
+      - ".github/workflows/rust-wasm.yml"
+      - "crates/papyrus-core-rust/**"
+      - "packages/engine-rust/wasm/**"
+      - "scripts/build-rust-wasm.mjs"
+
+permissions:
+  contents: read
+
+jobs:
+  verify-generated-wasm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install wasm-bindgen CLI
+        run: cargo install wasm-bindgen-cli --version 0.2.127 --locked
+
+      - name: Regenerate WASM artifacts
+        run: node scripts/build-rust-wasm.mjs
+
+      - name: Fail if generated artifacts are stale
+        run: git diff --exit-code -- packages/engine-rust/wasm

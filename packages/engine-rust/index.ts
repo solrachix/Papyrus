@@ -21,6 +21,8 @@ export interface RustPdfRuntime {
   readonly pageCount: number;
   pageText(pageNumber: number): string;
   search(query: string): RustSearchHit[];
+  searchPage?(query: string, pageNumber: number): RustSearchHit | null;
+  searchPageText?(pageNumber: number): string;
   destroy?(): void;
 }
 
@@ -36,6 +38,8 @@ export interface RustDocumentEngineOptions {
 export interface WasmRustPdfCore {
   page_count(): number;
   page_text(pageNumber: number): string;
+  search_page_text(pageNumber: number): string;
+  search_page(pageNumber: number, query: string): RustSearchHit | null;
   search(query: string): RustSearchHit[];
   free?(): void;
 }
@@ -64,6 +68,18 @@ export function createWasmRustRuntimeFactory(
           } catch {
             return "";
           }
+        },
+        searchPageText: (pageNumber) => {
+          if (!core) return "";
+          try {
+            return core.search_page_text(pageNumber) ?? "";
+          } catch {
+            return "";
+          }
+        },
+        searchPage: (query, pageNumber) => {
+          if (!core) return null;
+          return core.search_page(pageNumber, query) ?? null;
         },
         search: (query) => {
           if (!core) return [];
@@ -192,6 +208,10 @@ export class RustDocumentEngine extends BaseDocumentEngine {
     if (!normalizedQuery) return [];
     if (!this.runtime) return this.searchWithPdfEngine(query);
 
+    if (this.runtime.searchPage) {
+      return this.searchByPages(query, normalizedQuery);
+    }
+
     let hits: RustSearchHit[];
     try {
       hits = this.runtime.search(query);
@@ -225,11 +245,6 @@ export class RustDocumentEngine extends BaseDocumentEngine {
         console.warn(
           `[RustDocumentEngine] O índice encontrou ${hit.matches} ocorrência(s) na página ${hit.page_number}, mas o texto não pôde ser mapeado`
         );
-        results.push({
-          pageIndex: hit.page_number - 1,
-          text: createSnippet(pageText, 0, 0),
-          matchIndex: 0,
-        });
         continue;
       }
 
@@ -241,6 +256,65 @@ export class RustDocumentEngine extends BaseDocumentEngine {
           text: createSnippet(pageText, range.start, range.end),
           matchIndex,
         });
+      }
+    }
+    return results;
+  }
+
+  private async searchByPages(
+    query: string,
+    normalizedQuery: string
+  ): Promise<SearchResult[]> {
+    const runtime = this.runtime;
+    if (!runtime?.searchPage) return [];
+
+    const results: SearchResult[] = [];
+    for (let pageNumber = 1; pageNumber <= runtime.pageCount; pageNumber += 1) {
+      let hit: RustSearchHit | null;
+      try {
+        hit = runtime.searchPage(query, pageNumber);
+      } catch (error) {
+        console.warn(
+          `[RustDocumentEngine] Busca indisponível na página ${pageNumber}; ignorando página`,
+          error
+        );
+        continue;
+      }
+      if (!hit || hit.matches <= 0) continue;
+
+      const pageTextReader = runtime.searchPageText ?? runtime.pageText;
+      let pageText: string;
+      try {
+        pageText = pageTextReader(pageNumber);
+      } catch (error) {
+        console.warn(
+          `[RustDocumentEngine] Texto indisponível na página ${pageNumber}; ignorando resultado`,
+          error
+        );
+        continue;
+      }
+      if (!pageText) continue;
+
+      const ranges = findCaseInsensitiveMatches(pageText, normalizedQuery);
+      if (ranges.length === 0) {
+        console.warn(
+          `[RustDocumentEngine] O índice encontrou ${hit.matches} ocorrência(s) na página ${pageNumber}, mas o texto não pôde ser mapeado`
+        );
+        continue;
+      }
+
+      for (const [matchIndex, range] of ranges
+        .slice(0, hit.matches)
+        .entries()) {
+        results.push({
+          pageIndex: pageNumber - 1,
+          text: createSnippet(pageText, range.start, range.end),
+          matchIndex,
+        });
+      }
+
+      if (pageNumber % SEARCH_PAGE_BATCH_SIZE === 0) {
+        await yieldToEventLoop();
       }
     }
     return results;
@@ -374,6 +448,12 @@ function findCaseInsensitiveMatches(
 
 function normalizeSearchQuery(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/gu, " ");
+}
+
+const SEARCH_PAGE_BATCH_SIZE = 16;
+
+function yieldToEventLoop(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
 function normalizeLoadInput(input: DocumentLoadInput): {

@@ -65,6 +65,42 @@ export class WasmPdfCore {
         }
         return takeFromExternrefTable0(ret[0]);
     }
+    /**
+     * @param {number} page_number
+     * @param {string} query
+     * @returns {any}
+     */
+    search_page(page_number, query) {
+        const ptr0 = passStringToWasm0(query, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.wasmpdfcore_search_page(this.__wbg_ptr, page_number, ptr0, len0);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
+     * @param {number} page_number
+     * @returns {string}
+     */
+    search_page_text(page_number) {
+        let deferred2_0;
+        let deferred2_1;
+        try {
+            const ret = wasm.wasmpdfcore_search_page_text(this.__wbg_ptr, page_number);
+            var ptr1 = ret[0];
+            var len1 = ret[1];
+            if (ret[3]) {
+                ptr1 = 0; len1 = 0;
+                throw takeFromExternrefTable0(ret[2]);
+            }
+            deferred2_0 = ptr1;
+            deferred2_1 = len1;
+            return getStringFromWasm0(ptr1, len1);
+        } finally {
+            wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
+        }
+    }
 }
 if (Symbol.dispose) WasmPdfCore.prototype[Symbol.dispose] = WasmPdfCore.prototype.free;
 function __wbg_get_imports() {
