@@ -248,7 +248,7 @@ const App: React.FC = () => {
       return;
     }
     if (type === 'comic') {
-      console.warn('[Papyrus RN] Abra um CBZ/CBR pelo seletor de arquivos.');
+      await openLocalDocument();
       return;
     }
     await loadDocumentFromSource('text', SAMPLE_TEXT);
@@ -432,12 +432,16 @@ const App: React.FC = () => {
                 </Pressable>
               </View>
               <View style={styles.documentTypeRow}>
-                {(['pdf', 'epub', 'text'] as const).map(type => {
+                {(['pdf', 'epub', 'text', 'comic'] as const).map(type => {
                   const isActive = type === activeType;
+                  const label = type === 'comic' ? 'CBZ/CBR' : type.toUpperCase();
                   return (
                     <Pressable
                       key={type}
                       onPress={() => loadDocument(type)}
+                      accessibilityRole="button"
+                      accessibilityLabel={label}
+                      testID={`papyrus-document-type-${type}`}
                       style={[
                         styles.typeButton,
                         uiTheme === 'dark' && styles.typeButtonDark,
@@ -449,7 +453,7 @@ const App: React.FC = () => {
                           uiTheme === 'dark' && styles.typeButtonTextDark,
                           isActive && styles.typeButtonTextActive,
                         ]}>
-                        {type.toUpperCase()}
+                        {label}
                       </Text>
                     </Pressable>
                   );
