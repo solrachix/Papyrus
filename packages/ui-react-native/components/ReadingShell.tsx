@@ -25,7 +25,7 @@ type ReadingShellProps = {
   title?: string;
   documentType?: DocumentType;
   thumbsInitialCount?: number;
-  viewerProps?: React.ComponentProps<typeof Viewer>;
+  viewerProps?: Omit<React.ComponentProps<typeof Viewer>, "engine">;
 };
 
 export function ReadingShell({

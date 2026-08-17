@@ -107,3 +107,15 @@ it('keeps the document switcher below the page counter', async () => {
   expect(switcherFrame.props.style.top).toBeGreaterThanOrEqual(132);
   expect(switcherFrame.props.style.paddingHorizontal).toBe(16);
 });
+
+it('shows a CBZ/CBR option in the document switcher', async () => {
+  let tree: renderer.ReactTestRenderer;
+  await renderer.act(async () => {
+    tree = renderer.create(<App />);
+    await Promise.resolve();
+  });
+
+  expect(
+    tree!.root.findByProps({testID: 'papyrus-document-type-comic'}),
+  ).toBeTruthy();
+});

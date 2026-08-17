@@ -60,6 +60,9 @@ importers:
       '@papyrus-sdk/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@papyrus-sdk/engine-cbr-mobile':
+        specifier: workspace:*
+        version: link:../../packages/engine-cbr-mobile
       '@papyrus-sdk/engine-native':
         specifier: workspace:*
         version: link:../../packages/engine-native
@@ -247,6 +250,15 @@ importers:
       '@papyrus-sdk/types':
         specifier: workspace:*
         version: link:../types
+
+  packages/engine-cbr-mobile:
+    dependencies:
+      '@papyrus-sdk/engine-native':
+        specifier: '>=0.2.18'
+        version: link:../engine-native
+      '@papyrus-sdk/ui-react-native':
+        specifier: '>=0.2.21'
+        version: link:../ui-react-native
 
   packages/engine-cbz:
     dependencies:

@@ -19,8 +19,11 @@ type CbrFile = {
 };
 
 export class CBREngine extends ComicEngine {
-  constructor(options?: ComicEngineOptions) {
+  private readonly workerUrl?: string | URL;
+
+  constructor(options: CBREngineOptions = {}) {
     super(options);
+    this.workerUrl = options.workerUrl;
   }
 
   protected async openArchive(source: DocumentSource): Promise<ComicArchive> {
@@ -28,6 +31,7 @@ export class CBREngine extends ComicEngine {
     const file = new File([blob], "comic.cbr", {
       type: "application/vnd.comicbook-rar",
     });
+    Archive.init({ workerUrl: this.workerUrl });
     const archive = await Archive.open(file);
 
     try {
@@ -53,5 +57,10 @@ export class CBREngine extends ComicEngine {
     }
   }
 }
+
+export type CBREngineOptions = ComicEngineOptions & {
+  /** URL emitted/copied by the application for libarchive.js' web worker. */
+  workerUrl?: string | URL;
+};
 
 export { ComicEngine } from "@papyrus-sdk/engine-comic-core";

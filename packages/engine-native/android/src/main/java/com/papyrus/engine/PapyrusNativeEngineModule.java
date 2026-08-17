@@ -4,6 +4,7 @@ import android.content.ContentResolver;
 import android.content.Context;
 import android.net.Uri;
 import android.os.ParcelFileDescriptor;
+import android.util.Base64;
 import android.view.View;
 
 import com.facebook.react.bridge.Arguments;
@@ -22,6 +23,7 @@ import com.facebook.react.uimanager.UIManagerModule;
 import com.shockwave.pdfium.PdfDocument;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -52,6 +54,57 @@ public class PapyrusNativeEngineModule extends ReactContextBaseJavaModule {
   @ReactMethod
   public void destroyEngine(String engineId) {
     PapyrusEngineStore.destroyEngine(engineId);
+  }
+
+  @ReactMethod
+  public void readFileChunk(String uriValue, double offsetValue, int length, Promise promise) {
+    executor.execute(() -> {
+      try {
+        if (length <= 0 || length > 4 * 1024 * 1024) {
+          throw new IOException("Invalid file chunk length");
+        }
+
+        Uri uri = Uri.parse(uriValue);
+        InputStream inputStream;
+        if ("file".equalsIgnoreCase(uri.getScheme())) {
+          inputStream = new FileInputStream(new File(uri.getPath()));
+        } else if ("content".equalsIgnoreCase(uri.getScheme())) {
+          ContentResolver resolver = reactContext.getContentResolver();
+          inputStream = resolver.openInputStream(uri);
+          if (inputStream == null) throw new IOException("Unable to read content URI");
+        } else {
+          throw new IOException("Unsupported local file URI");
+        }
+
+        try (InputStream stream = inputStream) {
+          long remaining = Math.max(0L, (long) offsetValue);
+          while (remaining > 0) {
+            long skipped = stream.skip(remaining);
+            if (skipped <= 0) {
+              if (stream.read() < 0) break;
+              skipped = 1;
+            }
+            remaining -= skipped;
+          }
+
+          byte[] buffer = new byte[length];
+          int read = 0;
+          while (read < length) {
+            int count = stream.read(buffer, read, length - read);
+            if (count < 0) break;
+            if (count == 0) continue;
+            read += count;
+          }
+
+          WritableMap result = Arguments.createMap();
+          result.putString("data", Base64.encodeToString(buffer, 0, read, Base64.NO_WRAP));
+          result.putBoolean("done", read < length);
+          promise.resolve(result);
+        }
+      } catch (Throwable error) {
+        promise.reject("papyrus_file_chunk_failed", error);
+      }
+    });
   }
 
   @ReactMethod

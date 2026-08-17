@@ -77,15 +77,18 @@ const Thumbnail: React.FC<{
   }, []);
 
   useEffect(() => {
-    if (!isVisible || (isElementRender && !isContinuousElementPreview)) return;
+    if (isElementRender && !isContinuousElementPreview) return;
     const target = isContinuousElementPreview
       ? htmlRef.current
       : canvasRef.current;
-    if (target) {
-      engine.renderPage(pageIndex, target, 0.15).catch((err) => {
-        console.error("[Papyrus] Thumbnail render failed:", err);
-      });
+    if (!target) return;
+    if (!isVisible) {
+      if (isContinuousElementPreview) target.replaceChildren();
+      return;
     }
+    engine.renderPage(pageIndex, target, 0.15).catch((err) => {
+      console.error("[Papyrus] Thumbnail render failed:", err);
+    });
   }, [
     engine,
     pageIndex,
@@ -134,6 +137,7 @@ const Thumbnail: React.FC<{
           />
           <div
             ref={htmlRef}
+            data-papyrus-render-target="thumbnail"
             className="bg-white"
             style={{
               width: 90,

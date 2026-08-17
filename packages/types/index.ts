@@ -39,6 +39,7 @@ export type DocumentSource =
   | FileLike;
 
 export type DocumentType = "pdf" | "epub" | "text" | "comic";
+export type ComicFormat = "cbz" | "cbr";
 
 export type ReadingMode =
   | "focus"
@@ -104,6 +105,7 @@ export interface CapabilityState {
 export interface DocumentLoadRequest {
   type: DocumentType;
   source: DocumentSource;
+  format?: ComicFormat;
 }
 
 export type DocumentLoadInput = DocumentSource | DocumentLoadRequest;
@@ -255,6 +257,8 @@ export interface DocumentEngine {
   getPageDimensions(
     pageIndex: number
   ): Promise<{ width: number; height: number }>;
+  /** Optional low-resolution preview used by mobile navigation sheets. */
+  getPagePreview?(pageIndex: number): Promise<string | null>;
   searchText?(query: string): Promise<SearchResult[]>;
   selectText?(
     pageIndex: number,

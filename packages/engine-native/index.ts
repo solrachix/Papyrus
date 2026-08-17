@@ -16,6 +16,7 @@ import {
   DocumentEngine,
   DocumentSource,
   DocumentType,
+  ComicFormat,
   PageDestination,
   PapyrusEventType,
   RenderTargetType,
@@ -28,6 +29,7 @@ import {
   Annotation,
   PdfVisiblePage,
 } from "@papyrus-sdk/types";
+import { inferDocumentType, resolveComicFormat } from "./documentType";
 
 const MODULE_NAME = "PapyrusNativeEngine";
 
@@ -60,7 +62,8 @@ const looksLikeUri = (value: string): boolean =>
   value.startsWith("/") ||
   value.startsWith("./") ||
   value.startsWith("../") ||
-  value.startsWith("file://");
+  value.startsWith("file://") ||
+  value.startsWith("content://");
 
 const isLikelyBase64 = (value: string): boolean => {
   if (looksLikeUri(value)) return false;
@@ -71,6 +74,9 @@ const isLikelyBase64 = (value: string): boolean => {
 
 const isHttpUri = (value: string): boolean =>
   value.startsWith("http://") || value.startsWith("https://");
+
+const isLocalUri = (value: string): boolean =>
+  value.startsWith("content://") || value.startsWith("file://");
 
 const decodeBase64 = (value: string): Uint8Array => {
   const clean = value.replace(/[^A-Za-z0-9+/=]/g, "");
@@ -131,44 +137,10 @@ const isLoadRequest = (
 
 const normalizeLoadInput = (
   input: DocumentLoadInput
-): { source: DocumentSource; type?: DocumentType } =>
+): { source: DocumentSource; type?: DocumentType; format?: ComicFormat } =>
   isLoadRequest(input)
-    ? { source: input.source, type: input.type }
+    ? { source: input.source, type: input.type, format: input.format }
     : { source: input };
-
-const inferDocumentType = (source: DocumentSource): DocumentType => {
-  if (typeof source === "string") {
-    const dataUri = parseDataUri(source);
-    if (dataUri?.mime) {
-      const mime = dataUri.mime.toLowerCase();
-      if (mime.includes("epub")) return "epub";
-      if (mime.includes("text")) return "text";
-      if (mime.includes("pdf")) return "pdf";
-    }
-
-    const clean = source.split("?")[0].split("#")[0];
-    const ext = clean.includes(".")
-      ? clean.split(".").pop()?.toLowerCase()
-      : undefined;
-    if (ext === "epub") return "epub";
-    if (ext === "txt") return "text";
-    if (ext === "pdf") return "pdf";
-    return "pdf";
-  }
-
-  if (typeof source === "object" && source !== null && "uri" in source) {
-    const uri = source.uri;
-    const clean = uri.split("?")[0].split("#")[0];
-    const ext = clean.includes(".")
-      ? clean.split(".").pop()?.toLowerCase()
-      : undefined;
-    if (ext === "epub") return "epub";
-    if (ext === "txt") return "text";
-    if (ext === "pdf") return "pdf";
-  }
-
-  return "pdf";
-};
 
 type NativeDocumentSource = {
   uri?: string;
@@ -242,6 +214,11 @@ type NativeEngineModule = {
     engineId: string,
     dest: NativePageDestination
   ) => Promise<number | null>;
+  readFileChunk?: (
+    uri: string,
+    offset: number,
+    length: number
+  ) => Promise<{ data: string; done: boolean }>;
 };
 
 export type PapyrusPageViewProps = ViewProps & {
@@ -583,6 +560,19 @@ type WebViewBridge = {
   postMessage: (message: string) => void;
 };
 
+export type WebViewRuntimeSource =
+  | string
+  | number
+  | { uri: string };
+
+export type WebViewRuntimeConfig = Record<string, string>;
+
+export type MobileDocumentEngineOptions = {
+  /** Optional asset URI/require result for a runtime extension such as CBR. */
+  webViewRuntimeSource?: WebViewRuntimeSource;
+  webViewRuntimeConfig?: WebViewRuntimeConfig;
+};
+
 type WebViewResponseMessage = {
   type: "response";
   id: string;
@@ -607,6 +597,21 @@ type WebViewStateMessage = {
   };
 };
 
+type WebViewAssetRequestMessage = {
+  type: "asset-request";
+  id: string;
+  url: string;
+  encoding: "text" | "base64";
+};
+
+type WebViewFileChunkRequestMessage = {
+  type: "file-chunk-request";
+  id: string;
+  uri: string;
+  offset: number;
+  length: number;
+};
+
 type WebViewReadyMessage = {
   type: "ready";
 };
@@ -615,6 +620,8 @@ type WebViewRuntimeMessage =
   | WebViewResponseMessage
   | WebViewEventMessage
   | WebViewStateMessage
+  | WebViewAssetRequestMessage
+  | WebViewFileChunkRequestMessage
   | WebViewReadyMessage;
 
 type WebViewSourcePayload =
@@ -623,6 +630,8 @@ type WebViewSourcePayload =
   | { kind: "text"; text: string };
 
 export class WebViewDocumentEngine extends BaseDocumentEngine {
+  private readonly webViewRuntimeSource?: WebViewRuntimeSource;
+  private readonly webViewRuntimeConfig?: WebViewRuntimeConfig;
   private bridge: WebViewBridge | null = null;
   private ready = false;
   private requestId = 0;
@@ -637,6 +646,20 @@ export class WebViewDocumentEngine extends BaseDocumentEngine {
   private zoom = 1.0;
   private rotation = 0;
   private outline: OutlineItem[] = [];
+
+  constructor(options: MobileDocumentEngineOptions = {}) {
+    super();
+    this.webViewRuntimeSource = options.webViewRuntimeSource;
+    this.webViewRuntimeConfig = options.webViewRuntimeConfig;
+  }
+
+  getWebViewRuntimeSource(): WebViewRuntimeSource | undefined {
+    return this.webViewRuntimeSource;
+  }
+
+  getWebViewRuntimeConfig(): WebViewRuntimeConfig | undefined {
+    return this.webViewRuntimeConfig;
+  }
 
   getRenderTargetType(): "webview" {
     return "webview";
@@ -657,6 +680,16 @@ export class WebViewDocumentEngine extends BaseDocumentEngine {
     }
 
     if (!message) return;
+
+    if (message.type === "asset-request") {
+      void this.handleAssetRequest(message);
+      return;
+    }
+
+    if (message.type === "file-chunk-request") {
+      void this.handleFileChunkRequest(message);
+      return;
+    }
 
     if (message.type === "ready") {
       this.ready = true;
@@ -732,8 +765,85 @@ export class WebViewDocumentEngine extends BaseDocumentEngine {
     }
   }
 
+  private async handleAssetRequest(
+    message: WebViewAssetRequestMessage,
+  ): Promise<void> {
+    const bridge = this.bridge;
+    if (!bridge) return;
+
+    try {
+      const response = await fetch(message.url);
+      if (!response.ok) {
+        throw new Error(`status ${response.status}`);
+      }
+
+      const data =
+        message.encoding === "text"
+          ? await response.text()
+          : `data:application/wasm;base64,${encodeBase64(
+              new Uint8Array(await response.arrayBuffer()),
+            )}`;
+      bridge.postMessage(
+        JSON.stringify({
+          type: "asset-response",
+          id: message.id,
+          ok: true,
+          data,
+        }),
+      );
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      bridge.postMessage(
+        JSON.stringify({
+          type: "asset-response",
+          id: message.id,
+          ok: false,
+          error: reason,
+        }),
+      );
+    }
+  }
+
+  private async handleFileChunkRequest(
+    message: WebViewFileChunkRequestMessage,
+  ): Promise<void> {
+    const bridge = this.bridge;
+    if (!bridge) return;
+
+    try {
+      const nativeModule = resolveNativeModule();
+      if (!nativeModule?.readFileChunk) {
+        throw new Error("Leitura nativa de arquivos não está disponível");
+      }
+      const result = await nativeModule.readFileChunk(
+        message.uri,
+        message.offset,
+        message.length,
+      );
+      bridge.postMessage(
+        JSON.stringify({
+          type: "file-chunk-response",
+          id: message.id,
+          ok: true,
+          data: result.data,
+          done: result.done,
+        }),
+      );
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      bridge.postMessage(
+        JSON.stringify({
+          type: "file-chunk-response",
+          id: message.id,
+          ok: false,
+          error: reason,
+        }),
+      );
+    }
+  }
+
   async load(input: DocumentLoadInput): Promise<void> {
-    const { source, type } = normalizeLoadInput(input);
+    const { source, type, format } = normalizeLoadInput(input);
     const resolvedType = type ?? inferDocumentType(source);
     if (resolvedType === "pdf") {
       throw new Error(
@@ -751,6 +861,9 @@ export class WebViewDocumentEngine extends BaseDocumentEngine {
     }>("load", {
       type: resolvedType,
       source: payloadSource,
+      ...(resolvedType === "comic"
+        ? { format: resolveComicFormat(source, format) }
+        : {}),
     });
 
     if (typeof response?.pageCount === "number")
@@ -829,6 +942,12 @@ export class WebViewDocumentEngine extends BaseDocumentEngine {
     );
   }
 
+  async getPagePreview(pageIndex: number): Promise<string | null> {
+    return await this.request<string | null>("get-page-preview", {
+      pageIndex,
+    });
+  }
+
   async searchText(query: string): Promise<SearchResult[]> {
     return await this.request<SearchResult[]>("search-text", { query });
   }
@@ -891,7 +1010,8 @@ export class WebViewDocumentEngine extends BaseDocumentEngine {
     await this.ensureReady();
     const id = `${Date.now()}-${this.requestId++}`;
     return new Promise<T>((resolve, reject) => {
-      const timeoutMs = kind === "load" ? 180000 : 8000;
+      const timeoutMs =
+        kind === "load" ? 180000 : kind === "get-page-preview" ? 30000 : 8000;
       const timeoutId = setTimeout(() => {
         this.pending.delete(id);
         reject(new Error(`[Papyrus] WebView response timeout: ${kind}`));
@@ -933,6 +1053,9 @@ export class WebViewDocumentEngine extends BaseDocumentEngine {
           const fetched = await this.fetchRemoteSource(type, source);
           if (fetched) return fetched;
         }
+        if (isLocalUri(source)) {
+          return await this.fetchLocalSource(type, source);
+        }
         return { kind: "uri", uri: source };
       }
 
@@ -952,6 +1075,9 @@ export class WebViewDocumentEngine extends BaseDocumentEngine {
       if (isHttpUri(uri)) {
         const fetched = await this.fetchRemoteSource(type, uri);
         if (fetched) return fetched;
+      }
+      if (isLocalUri(uri)) {
+        return await this.fetchLocalSource(type, uri);
       }
       return { kind: "uri", uri };
     }
@@ -993,9 +1119,38 @@ export class WebViewDocumentEngine extends BaseDocumentEngine {
         const buffer = await this.readResponseBuffer(response);
         return { kind: "base64", data: encodeBase64(new Uint8Array(buffer)) };
       }
+      if (type === "comic") {
+        const buffer = await this.readResponseBuffer(response);
+        return { kind: "base64", data: encodeBase64(new Uint8Array(buffer)) };
+      }
       return null;
     } catch {
       return null;
+    }
+  }
+
+  private async fetchLocalSource(
+    type: DocumentType,
+    uri: string
+  ): Promise<WebViewSourcePayload> {
+    if (type === "epub" || type === "comic") {
+      return { kind: "uri", uri };
+    }
+
+    try {
+      const response = await fetch(uri);
+      if (!response.ok && response.status !== 0) {
+        throw new Error(`status ${response.status}`);
+      }
+      if (type === "text") {
+        return { kind: "text", text: await response.text() };
+      }
+      throw new Error(`tipo não suportado: ${type}`);
+    } catch (error) {
+      const reason = error instanceof Error ? `: ${error.message}` : "";
+      throw new Error(
+        `[WebViewDocumentEngine] Não foi possível ler o arquivo local ${uri}${reason}`
+      );
     }
   }
 
@@ -1038,11 +1193,19 @@ export class MobileDocumentEngine extends BaseDocumentEngine {
   private webEngine: WebViewDocumentEngine;
   private activeEngine: DocumentEngine;
 
-  constructor() {
+  constructor(options: MobileDocumentEngineOptions = {}) {
     super();
     this.pdfEngine = new NativeDocumentEngine();
-    this.webEngine = new WebViewDocumentEngine();
+    this.webEngine = new WebViewDocumentEngine(options);
     this.activeEngine = this.pdfEngine;
+  }
+
+  getWebViewRuntimeSource(): WebViewRuntimeSource | undefined {
+    return this.webEngine.getWebViewRuntimeSource();
+  }
+
+  getWebViewRuntimeConfig(): WebViewRuntimeConfig | undefined {
+    return this.webEngine.getWebViewRuntimeConfig();
   }
 
   getRenderTargetType(): RenderTargetType {
@@ -1064,11 +1227,15 @@ export class MobileDocumentEngine extends BaseDocumentEngine {
   }
 
   async load(input: DocumentLoadInput): Promise<void> {
-    const { source, type } = normalizeLoadInput(input);
+    const { source, type, format } = normalizeLoadInput(input);
     const resolvedType = type ?? inferDocumentType(source);
     this.activeEngine =
       resolvedType === "pdf" ? this.pdfEngine : this.webEngine;
-    await this.activeEngine.load({ type: resolvedType, source });
+    await this.activeEngine.load({
+      type: resolvedType,
+      source,
+      ...(resolvedType === "comic" && format ? { format } : {}),
+    });
   }
 
   getPageCount(): number {
@@ -1123,6 +1290,13 @@ export class MobileDocumentEngine extends BaseDocumentEngine {
     pageIndex: number
   ): Promise<{ width: number; height: number }> {
     return await this.activeEngine.getPageDimensions(pageIndex);
+  }
+
+  async getPagePreview(pageIndex: number): Promise<string | null> {
+    const engine = this.activeEngine as DocumentEngine & {
+      getPagePreview?: (pageIndex: number) => Promise<string | null>;
+    };
+    return (await engine.getPagePreview?.(pageIndex)) ?? null;
   }
 
   async searchText(query: string): Promise<SearchResult[]> {
