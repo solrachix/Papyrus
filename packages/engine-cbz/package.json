@@ -1,6 +1,6 @@
 {
   "name": "@papyrus-sdk/engine-cbz",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "license": "MIT",
   "keywords": ["papyrus", "comic", "cbz", "reader", "engine"],
   "main": "dist/index.js",
@@ -18,7 +18,7 @@
     "build": "tsup index.ts --dts --format cjs,esm --out-dir dist --clean --sourcemap"
   },
   "dependencies": {
-    "@papyrus-sdk/engine-comic-core": "workspace:*",
+    "@papyrus-sdk/engine-comic-core": "^0.1.0",
     "@zip.js/zip.js": "^2.8.34"
   },
   "peerDependencies": {
