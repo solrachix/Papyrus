@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Image, StyleSheet, View } from "react-native";
 import WebView, {
   type WebViewMessageEvent,
@@ -9,7 +9,9 @@ import { DocumentEngine } from "@papyrus-sdk/types";
 import { parseWebViewState } from "./webViewState";
 
 const runtimeAsset = require("../runtime/index.html");
-const resolveRuntimeSource = (asset: unknown) => {
+type RuntimeSource = { html: string; baseUrl?: string } | { uri: string };
+
+const resolveRuntimeSource = (asset: unknown): RuntimeSource => {
   if (typeof asset === "string") {
     return { html: asset };
   }
@@ -56,6 +58,45 @@ const WebViewViewer: React.FC<WebViewViewerProps> = ({ engine }) => {
       ),
     [bridgeEngine]
   );
+  const [runtimeHtml, setRuntimeHtml] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    if ("html" in runtimeSource) {
+      setRuntimeHtml(runtimeSource.html);
+      return () => {
+        active = false;
+      };
+    }
+
+    setRuntimeHtml(null);
+    void fetch(runtimeSource.uri)
+      .then((response) => {
+        if (!response.ok) throw new Error(`status ${response.status}`);
+        return response.text();
+      })
+      .then((html) => {
+        if (active) setRuntimeHtml(html);
+      })
+      .catch(() => {
+        if (active) setRuntimeHtml(null);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [runtimeSource]);
+
+  const webViewSource = useMemo<RuntimeSource>(() => {
+    if (runtimeHtml !== null) {
+      return {
+        html: runtimeHtml,
+        baseUrl: "http://localhost:3005/",
+      };
+    }
+    if ("uri" in runtimeSource) return { html: "" };
+    return runtimeSource;
+  }, [runtimeHtml, runtimeSource]);
   const runtimeConfig = bridgeEngine.getWebViewRuntimeConfig?.();
   const runtimeConfigScript = useMemo(() => {
     if (!runtimeConfig) return undefined;
@@ -141,7 +182,7 @@ const WebViewViewer: React.FC<WebViewViewerProps> = ({ engine }) => {
     <View style={styles.container}>
       <WebView
         ref={webViewRef}
-        source={runtimeSource}
+        source={webViewSource}
         originWhitelist={["*"]}
         onMessage={handleMessage}
         onLoadEnd={handleLoadEnd}

@@ -68,6 +68,25 @@
     return safeWidth + " / " + safeHeight;
   }
 
+  function getProtectedComicPageIndexes(
+    currentPage,
+    visiblePageIndexes,
+    loadingPageIndexes
+  ) {
+    var protectedIndexes = new Set([
+      currentPage - 1,
+      currentPage,
+      currentPage - 2,
+    ]);
+    (visiblePageIndexes || []).forEach(function (pageIndex) {
+      protectedIndexes.add(pageIndex);
+    });
+    (loadingPageIndexes || []).forEach(function (pageIndex) {
+      protectedIndexes.add(pageIndex);
+    });
+    return protectedIndexes;
+  }
+
   function isCurrentComicPageLoad(
     loadGeneration,
     currentGeneration,
@@ -83,6 +102,7 @@
     patchCbrWorkerSource: patchCbrWorkerSource,
     getComicPreviewSize: getComicPreviewSize,
     getComicPageAspectRatio: getComicPageAspectRatio,
+    getProtectedComicPageIndexes: getProtectedComicPageIndexes,
     isCurrentComicPageLoad: isCurrentComicPageLoad,
   };
 });
@@ -109,6 +129,7 @@
   let comicPages = [];
   let comicObserver = null;
   let comicScrollFrame = null;
+  const comicVisiblePages = new Set();
   const comicObjectUrls = new Map();
   const comicLoading = new Map();
   const comicDimensions = new Map();
@@ -133,6 +154,80 @@
 
   const sendResponse = (id, ok, data, error) => {
     sendMessage({ type: 'response', id, ok, data, error });
+  };
+
+  const runtimeAssetRequests = new Map();
+  const fileChunkRequests = new Map();
+
+  const requestRuntimeAsset = (url, encoding) =>
+    new Promise((resolve, reject) => {
+      const id = `runtime-asset-${Date.now()}-${Math.random()}`;
+      const timeout = setTimeout(() => {
+        runtimeAssetRequests.delete(id);
+        reject(new Error(`Tempo esgotado ao carregar asset CBR: ${url}`));
+      }, 15000);
+      runtimeAssetRequests.set(id, {resolve, reject, timeout});
+      sendMessage({type: 'asset-request', id, url, encoding});
+    });
+
+  const encodeArrayBufferAsDataUrl = async (buffer) => {
+    const bytes = new Uint8Array(buffer);
+    let binary = '';
+    const chunkSize = 0x8000;
+    for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+      binary += String.fromCharCode(
+        ...bytes.subarray(offset, Math.min(offset + chunkSize, bytes.length)),
+      );
+    }
+    return `data:application/wasm;base64,${btoa(binary)}`;
+  };
+
+  const fetchRuntimeAsset = async (url, encoding) => {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`status ${response.status}`);
+      if (encoding === 'text') return await response.text();
+      return await encodeArrayBufferAsDataUrl(await response.arrayBuffer());
+    } catch {
+      return await requestRuntimeAsset(url, encoding);
+    }
+  };
+
+  const requestLocalFileChunk = (uri, offset, length) =>
+    new Promise((resolve, reject) => {
+      const id = `file-chunk-${Date.now()}-${Math.random()}`;
+      const timeout = setTimeout(() => {
+        fileChunkRequests.delete(id);
+        reject(new Error(`Tempo esgotado ao ler arquivo local: ${uri}`));
+      }, 30000);
+      fileChunkRequests.set(id, {resolve, reject, timeout});
+      sendMessage({type: 'file-chunk-request', id, uri, offset, length});
+    });
+
+  const readLocalFile = async (uri) => {
+    const chunkSize = 1024 * 1024;
+    const chunks = [];
+    let offset = 0;
+    let totalLength = 0;
+    while (true) {
+      const result = await requestLocalFileChunk(uri, offset, chunkSize);
+      const bytes = decodeBase64(result.data || '');
+      if (bytes.length === 0 && !result.done) {
+        throw new Error('Leitura nativa retornou um chunk vazio.');
+      }
+      chunks.push(bytes);
+      totalLength += bytes.length;
+      offset += bytes.length;
+      if (result.done) break;
+    }
+
+    const output = new Uint8Array(totalLength);
+    let outputOffset = 0;
+    chunks.forEach((chunk) => {
+      output.set(chunk, outputOffset);
+      outputOffset += chunk.length;
+    });
+    return output.buffer;
   };
 
   const sendState = (extra) => {
@@ -186,6 +281,7 @@
     comicObjectUrls.forEach((url) => URL.revokeObjectURL(url));
     comicObjectUrls.clear();
     comicLoading.clear();
+    comicVisiblePages.clear();
     comicDimensions.clear();
     comicPreviewCache.clear();
     comicPreviewLoading.clear();
@@ -224,6 +320,9 @@
 
   const sourceToArrayBuffer = async (source) => {
     if (source.kind === 'uri') {
+      if (/^(?:file|content):\/\//i.test(source.uri)) {
+        return readLocalFile(source.uri);
+      }
       const response = await fetch(source.uri);
       if (!response.ok && response.status !== 0) {
         throw new Error(`Falha ao carregar quadrinho (${response.status})`);
@@ -274,11 +373,11 @@
 
   const evictComicUrls = () => {
     if (comicObjectUrls.size <= COMIC_CACHE_LIMIT) return;
-    const protectedIndexes = new Set([
-      currentPage - 1,
+    const protectedIndexes = comicHelpers.getProtectedComicPageIndexes(
       currentPage,
-      currentPage - 2,
-    ]);
+      Array.from(comicVisiblePages),
+      Array.from(comicLoading.keys())
+    );
     for (const [index, url] of comicObjectUrls) {
       if (comicObjectUrls.size <= COMIC_CACHE_LIMIT) break;
       if (protectedIndexes.has(index)) continue;
@@ -336,6 +435,7 @@
     } finally {
       if (comicLoading.get(pageIndex) === pending) {
         comicLoading.delete(pageIndex);
+        evictComicUrls();
       }
     }
   };
@@ -364,14 +464,16 @@
         );
       }
 
-      const [clientSource, workerSource] = await Promise.all([
-        fetch(clientUrl).then((response) => response.text()),
-        fetch(workerUrl).then((response) => response.text()),
-      ]);
-      const patchedWorkerSource = comicHelpers.patchCbrWorkerSource(
-        workerSource,
-        wasmUrl
-      );
+            const [clientSource, workerSource, wasmSource] = await Promise.all([
+              fetchRuntimeAsset(clientUrl, 'text'),
+              fetchRuntimeAsset(workerUrl, 'text'),
+              runtimeConfig.cbrWasmDataUrl ||
+                fetchRuntimeAsset(wasmUrl, 'base64'),
+            ]);
+            const patchedWorkerSource = comicHelpers.patchCbrWorkerSource(
+              workerSource,
+              wasmSource
+            );
       const workerObjectUrl = URL.createObjectURL(
         new Blob([patchedWorkerSource], { type: 'text/javascript' })
       );
@@ -380,9 +482,25 @@
       );
       try {
         const archiveModule = await import(clientObjectUrl);
-        archiveModule.Archive.init({ workerUrl: workerObjectUrl });
+        const createCbrWorker = () => {
+          const worker = new Worker(workerObjectUrl, {type: 'module'});
+          worker.addEventListener('error', (event) => {
+            sendEvent('RUNTIME_ERROR', {
+              message: `CBR worker: ${event?.message || 'falha ao executar o worker'}`,
+              context: 'comic.worker',
+            });
+          });
+          worker.addEventListener('messageerror', () => {
+            sendEvent('RUNTIME_ERROR', {
+              message: 'CBR worker: falha ao transferir mensagem',
+              context: 'comic.worker',
+            });
+          });
+          return worker;
+        };
+        archiveModule.Archive.init({ getWorker: createCbrWorker });
         const bytes = await sourceToArrayBuffer(source);
-        const file = new File([bytes], 'comic.cbr', {
+        const file = new Blob([bytes], {
           type: 'application/vnd.comicbook-rar',
         });
         const archive = await archiveModule.Archive.open(file);
@@ -493,8 +611,12 @@
       comicObserver = new IntersectionObserver(
         (observations) => {
           observations.forEach((observation) => {
-            if (!observation.isIntersecting) return;
             const pageIndex = Number(observation.target.dataset.pageIndex);
+            if (!observation.isIntersecting) {
+              comicVisiblePages.delete(pageIndex);
+              return;
+            }
+            comicVisiblePages.add(pageIndex);
             void ensureComicPage(pageIndex).catch((error) =>
               sendEvent('RUNTIME_ERROR', {
                 message: error?.message || String(error),
@@ -1018,7 +1140,7 @@
     let message = null;
     const raw = event && typeof event === 'object' ? event.data : null;
 
-    if (raw && typeof raw === 'object' && raw.kind && raw.id) {
+    if (raw && typeof raw === 'object' && (raw.kind || raw.type) && raw.id) {
       message = raw;
     } else if (typeof raw === 'string') {
       if (raw.startsWith('setImmediate$')) return;
@@ -1035,7 +1157,29 @@
       return;
     }
 
-    if (!message || !message.kind || message.id == null) return;
+    if (!message || message.id == null) return;
+
+    if (message.type === 'asset-response') {
+      const pending = runtimeAssetRequests.get(message.id);
+      if (!pending) return;
+      runtimeAssetRequests.delete(message.id);
+      clearTimeout(pending.timeout);
+      if (message.ok) pending.resolve(message.data);
+      else pending.reject(new Error(message.error || 'Falha ao carregar asset CBR.'));
+      return;
+    }
+
+    if (message.type === 'file-chunk-response') {
+      const pending = fileChunkRequests.get(message.id);
+      if (!pending) return;
+      fileChunkRequests.delete(message.id);
+      clearTimeout(pending.timeout);
+      if (message.ok) pending.resolve(message);
+      else pending.reject(new Error(message.error || 'Falha ao ler arquivo local.'));
+      return;
+    }
+
+    if (!message.kind) return;
     handleCommand(message);
   };
 

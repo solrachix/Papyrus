@@ -214,6 +214,11 @@ type NativeEngineModule = {
     engineId: string,
     dest: NativePageDestination
   ) => Promise<number | null>;
+  readFileChunk?: (
+    uri: string,
+    offset: number,
+    length: number
+  ) => Promise<{ data: string; done: boolean }>;
 };
 
 export type PapyrusPageViewProps = ViewProps & {
@@ -592,6 +597,21 @@ type WebViewStateMessage = {
   };
 };
 
+type WebViewAssetRequestMessage = {
+  type: "asset-request";
+  id: string;
+  url: string;
+  encoding: "text" | "base64";
+};
+
+type WebViewFileChunkRequestMessage = {
+  type: "file-chunk-request";
+  id: string;
+  uri: string;
+  offset: number;
+  length: number;
+};
+
 type WebViewReadyMessage = {
   type: "ready";
 };
@@ -600,6 +620,8 @@ type WebViewRuntimeMessage =
   | WebViewResponseMessage
   | WebViewEventMessage
   | WebViewStateMessage
+  | WebViewAssetRequestMessage
+  | WebViewFileChunkRequestMessage
   | WebViewReadyMessage;
 
 type WebViewSourcePayload =
@@ -658,6 +680,16 @@ export class WebViewDocumentEngine extends BaseDocumentEngine {
     }
 
     if (!message) return;
+
+    if (message.type === "asset-request") {
+      void this.handleAssetRequest(message);
+      return;
+    }
+
+    if (message.type === "file-chunk-request") {
+      void this.handleFileChunkRequest(message);
+      return;
+    }
 
     if (message.type === "ready") {
       this.ready = true;
@@ -730,6 +762,83 @@ export class WebViewDocumentEngine extends BaseDocumentEngine {
 
     if (__DEV__) {
       console.warn("[Papyrus WebView] Unknown message", message);
+    }
+  }
+
+  private async handleAssetRequest(
+    message: WebViewAssetRequestMessage,
+  ): Promise<void> {
+    const bridge = this.bridge;
+    if (!bridge) return;
+
+    try {
+      const response = await fetch(message.url);
+      if (!response.ok) {
+        throw new Error(`status ${response.status}`);
+      }
+
+      const data =
+        message.encoding === "text"
+          ? await response.text()
+          : `data:application/wasm;base64,${encodeBase64(
+              new Uint8Array(await response.arrayBuffer()),
+            )}`;
+      bridge.postMessage(
+        JSON.stringify({
+          type: "asset-response",
+          id: message.id,
+          ok: true,
+          data,
+        }),
+      );
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      bridge.postMessage(
+        JSON.stringify({
+          type: "asset-response",
+          id: message.id,
+          ok: false,
+          error: reason,
+        }),
+      );
+    }
+  }
+
+  private async handleFileChunkRequest(
+    message: WebViewFileChunkRequestMessage,
+  ): Promise<void> {
+    const bridge = this.bridge;
+    if (!bridge) return;
+
+    try {
+      const nativeModule = resolveNativeModule();
+      if (!nativeModule?.readFileChunk) {
+        throw new Error("Leitura nativa de arquivos não está disponível");
+      }
+      const result = await nativeModule.readFileChunk(
+        message.uri,
+        message.offset,
+        message.length,
+      );
+      bridge.postMessage(
+        JSON.stringify({
+          type: "file-chunk-response",
+          id: message.id,
+          ok: true,
+          data: result.data,
+          done: result.done,
+        }),
+      );
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      bridge.postMessage(
+        JSON.stringify({
+          type: "file-chunk-response",
+          id: message.id,
+          ok: false,
+          error: reason,
+        }),
+      );
     }
   }
 
@@ -1024,6 +1133,10 @@ export class WebViewDocumentEngine extends BaseDocumentEngine {
     type: DocumentType,
     uri: string
   ): Promise<WebViewSourcePayload> {
+    if (type === "epub" || type === "comic") {
+      return { kind: "uri", uri };
+    }
+
     try {
       const response = await fetch(uri);
       if (!response.ok && response.status !== 0) {
@@ -1031,10 +1144,6 @@ export class WebViewDocumentEngine extends BaseDocumentEngine {
       }
       if (type === "text") {
         return { kind: "text", text: await response.text() };
-      }
-      if (type === "epub" || type === "comic") {
-        const buffer = await this.readResponseBuffer(response);
-        return { kind: "base64", data: encodeBase64(new Uint8Array(buffer)) };
       }
       throw new Error(`tipo não suportado: ${type}`);
     } catch (error) {

@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import {
   getComicPreviewSize,
   getComicPageAspectRatio,
+  getProtectedComicPageIndexes,
   isCurrentComicPageLoad,
   isComicImageName,
   patchCbrWorkerSource,
@@ -51,6 +52,14 @@ describe("mobile comic runtime helpers", () => {
     expect(getComicPageAspectRatio(0, 0)).toBe("1 / 1");
   });
 
+  it("protects visible and pending pages from URL eviction", () => {
+    expect(
+      Array.from(getProtectedComicPageIndexes(1, [3, 4], [5])).sort(
+        (left, right) => left - right
+      )
+    ).toEqual([-1, 0, 1, 3, 4, 5]);
+  });
+
   it("rejects page extraction completions from an older document", () => {
     const entry = { name: "old.jpg" };
     const currentEntry = { name: "new.jpg" };
@@ -73,5 +82,9 @@ describe("mobile comic runtime helpers", () => {
     expect(runtime.match(/function getComicPageAspectRatio/g)).toHaveLength(1);
     expect(html.match(/function getComicPageAspectRatio/g)).toHaveLength(1);
     expect(html).toContain("root.PapyrusComicRuntime");
+    expect(runtime).toContain("getProtectedComicPageIndexes");
+    expect(html).toContain("getProtectedComicPageIndexes");
+    expect(runtime).toContain("file-chunk-request");
+    expect(html).toContain("file-chunk-request");
   });
 });

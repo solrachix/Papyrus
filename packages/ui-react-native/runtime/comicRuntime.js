@@ -67,6 +67,25 @@
     return safeWidth + " / " + safeHeight;
   }
 
+  function getProtectedComicPageIndexes(
+    currentPage,
+    visiblePageIndexes,
+    loadingPageIndexes
+  ) {
+    var protectedIndexes = new Set([
+      currentPage - 1,
+      currentPage,
+      currentPage - 2,
+    ]);
+    (visiblePageIndexes || []).forEach(function (pageIndex) {
+      protectedIndexes.add(pageIndex);
+    });
+    (loadingPageIndexes || []).forEach(function (pageIndex) {
+      protectedIndexes.add(pageIndex);
+    });
+    return protectedIndexes;
+  }
+
   function isCurrentComicPageLoad(
     loadGeneration,
     currentGeneration,
@@ -82,6 +101,7 @@
     patchCbrWorkerSource: patchCbrWorkerSource,
     getComicPreviewSize: getComicPreviewSize,
     getComicPageAspectRatio: getComicPageAspectRatio,
+    getProtectedComicPageIndexes: getProtectedComicPageIndexes,
     isCurrentComicPageLoad: isCurrentComicPageLoad,
   };
 });
