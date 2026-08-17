@@ -2,6 +2,7 @@
 const { spawnSync, execSync } = require('node:child_process');
 const path = require('node:path');
 const fs = require('node:fs');
+const { getPublicPackageDirs } = require('./public-packages');
 
 const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const pnpmCmd = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
@@ -12,17 +13,13 @@ const dryRun = args.has('--dry-run');
 const bumpIndex = process.argv.indexOf('--bump');
 const bump = bumpIndex > -1 ? process.argv[bumpIndex + 1] : null;
 
-const packages = [
-  'packages/types',
-  'packages/core',
-  'packages/engine-epub',
-  'packages/engine-text',
-  'packages/engine-pdfjs',
-  'packages/engine-native',
-  'packages/ui-react',
-  'packages/ui-react-native',
-  'packages/expo-plugin',
-];
+const packages = getPublicPackageDirs();
+
+const packageHasBuildScript = (pkg) => {
+  const packagePath = path.resolve(process.cwd(), pkg, 'package.json');
+  const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
+  return typeof packageJson.scripts?.build === 'string';
+};
 
 const getBaseRef = () => {
   const envRef = process.env.BASE_REF;
@@ -124,6 +121,10 @@ if (bump) {
 
 changedPackages.forEach((pkg) => {
   const cwd = path.resolve(process.cwd(), pkg);
+  if (!packageHasBuildScript(pkg)) {
+    console.log(`[publish-changed] Skipping build for ${pkg} (no build script)`);
+    return;
+  }
   run(pnpmCmd, ['build'], cwd);
 });
 

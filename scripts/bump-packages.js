@@ -1,20 +1,11 @@
 #!/usr/bin/env node
 const { spawnSync } = require('node:child_process');
+const { getPublicPackageDirs } = require('./public-packages');
 
 const bump = process.argv[2] || 'patch';
 const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 
-const packages = [
-  'packages/types',
-  'packages/core',
-  'packages/engine-epub',
-  'packages/engine-text',
-  'packages/engine-pdfjs',
-  'packages/engine-native',
-  'packages/ui-react',
-  'packages/ui-react-native',
-  'packages/expo-plugin',
-];
+const packages = getPublicPackageDirs();
 
 for (const pkg of packages) {
   console.log(`Bumping ${pkg} (${bump})`);
