@@ -19,7 +19,11 @@ import {
 } from 'react-native';
 import {MobileDocumentEngine} from '@papyrus-sdk/engine-native';
 import {useViewerStore} from '@papyrus-sdk/core';
-import {PapyrusConfig} from '@papyrus-sdk/types';
+import {
+  ComicFormat,
+  DocumentSource,
+  PapyrusConfig,
+} from '@papyrus-sdk/types';
 import {
   ReadingShell,
   ToolDock,
@@ -52,6 +56,42 @@ const SAMPLE_EPUB_DATA_URI = `data:application/epub+zip;base64,${SAMPLE_EPUB_BAS
 const SAMPLE_TEXT =
   'Papyrus SDK\\n\\nThis is a text sample rendered by the mobile WebView runtime.';
 
+const resolveAssetUri = (asset: unknown): string | undefined => {
+  if (typeof asset === 'number') return Image.resolveAssetSource(asset)?.uri;
+  if (typeof asset === 'string') return asset;
+  if (asset && typeof asset === 'object' && 'uri' in asset) {
+    return typeof asset.uri === 'string' ? asset.uri : undefined;
+  }
+  return undefined;
+};
+
+const createMobileEngine = () => {
+  if (process.env.JEST_WORKER_ID) return new MobileDocumentEngine();
+
+  try {
+    const client = require(
+      '@papyrus-sdk/engine-cbr-mobile/runtime/libarchive.js.txt',
+    );
+    const worker = require(
+      '@papyrus-sdk/engine-cbr-mobile/runtime/worker-bundle.js.txt',
+    );
+    const wasm = require('@papyrus-sdk/engine-cbr-mobile/runtime/libarchive.wasm');
+    const cbrClientUrl = resolveAssetUri(client);
+    const cbrWorkerUrl = resolveAssetUri(worker);
+    const cbrWasmUrl = resolveAssetUri(wasm);
+
+    if (cbrClientUrl && cbrWorkerUrl && cbrWasmUrl) {
+      return new MobileDocumentEngine({
+        webViewRuntimeConfig: {cbrClientUrl, cbrWorkerUrl, cbrWasmUrl},
+      });
+    }
+  } catch (error) {
+    console.warn('[Papyrus RN] CBR runtime assets unavailable', error);
+  }
+
+  return new MobileDocumentEngine();
+};
+
 const ACCENT_COLOR = '#2563eb';
 const VIEWER_VIRTUAL_WINDOW_SIZE = 8;
 const VIEWER_MAX_TO_RENDER_PER_BATCH = 6;
@@ -78,8 +118,10 @@ const INITIAL_SDK_CONFIG: PapyrusConfig = {
 };
 
 const App: React.FC = () => {
-  const [engine] = useState(() => new MobileDocumentEngine());
-  const [activeType, setActiveType] = useState<'pdf' | 'epub' | 'text'>('pdf');
+  const [engine] = useState(createMobileEngine);
+  const [activeType, setActiveType] = useState<
+    'pdf' | 'epub' | 'text' | 'comic'
+  >('pdf');
   const [isPicking, setIsPicking] = useState(false);
   const [showDocumentSwitcher, setShowDocumentSwitcher] = useState(true);
   const {
@@ -112,6 +154,12 @@ const App: React.FC = () => {
     if (lowerMime.includes('pdf')) return 'pdf';
     if (lowerMime.includes('epub')) return 'epub';
     if (lowerMime.includes('text')) return 'text';
+    if (
+      lowerMime.includes('comicbook') ||
+      lowerMime.includes('zip') ||
+      lowerMime.includes('rar')
+    )
+      return 'comic';
 
     const candidate = (name ?? uri ?? '')
       .split('?')[0]
@@ -120,7 +168,20 @@ const App: React.FC = () => {
     if (candidate.endsWith('.pdf')) return 'pdf';
     if (candidate.endsWith('.epub')) return 'epub';
     if (candidate.endsWith('.txt')) return 'text';
+    if (candidate.endsWith('.cbz') || candidate.endsWith('.cbr')) return 'comic';
     return null;
+  };
+
+  const inferComicFormat = (
+    name?: string,
+    mimeType?: string,
+    uri?: string,
+  ): ComicFormat => {
+    const candidate = (name ?? uri ?? '').toLowerCase();
+    const lowerMime = (mimeType ?? '').toLowerCase();
+    return lowerMime.includes('rar') || candidate.endsWith('.cbr')
+      ? 'cbr'
+      : 'cbz';
   };
 
   const loadTextFromUri = async (uri: string) => {
@@ -132,8 +193,9 @@ const App: React.FC = () => {
   };
 
   const loadDocumentFromSource = async (
-    type: 'pdf' | 'epub' | 'text',
-    source: unknown,
+    type: 'pdf' | 'epub' | 'text' | 'comic',
+    source: DocumentSource,
+    format?: ComicFormat,
   ) => {
     setActiveType(type);
     setDocumentState({
@@ -147,7 +209,11 @@ const App: React.FC = () => {
     });
 
     try {
-      await engine.load({type, source});
+      await engine.load({
+        type,
+        source,
+        ...(type === 'comic' && format ? {format} : {}),
+      });
 
       if (INITIAL_SDK_CONFIG.initialZoom)
         engine.setZoom(INITIAL_SDK_CONFIG.initialZoom);
@@ -172,13 +238,17 @@ const App: React.FC = () => {
     }
   };
 
-  const loadDocument = async (type: 'pdf' | 'epub' | 'text') => {
+  const loadDocument = async (type: 'pdf' | 'epub' | 'text' | 'comic') => {
     if (type === 'pdf') {
       await loadDocumentFromSource('pdf', DEFAULT_PDF);
       return;
     }
     if (type === 'epub') {
       await loadDocumentFromSource('epub', SAMPLE_EPUB_DATA_URI);
+      return;
+    }
+    if (type === 'comic') {
+      await openLocalDocument();
       return;
     }
     await loadDocumentFromSource('text', SAMPLE_TEXT);
@@ -208,6 +278,10 @@ const App: React.FC = () => {
           documentPickerModule.types.pdf,
           'application/epub+zip',
           documentPickerModule.types.plainText,
+          'application/vnd.comicbook+zip',
+          'application/vnd.comicbook-rar',
+          'application/zip',
+          'application/x-rar-compressed',
         ],
         mode: 'import',
       });
@@ -226,26 +300,69 @@ const App: React.FC = () => {
         return;
       }
 
+      const prepareWebViewUri = async () => {
+        if (
+          typeof documentPickerModule.keepLocalCopy !== 'function' ||
+          (!uri.startsWith('content://') && !uri.startsWith('file://'))
+        ) {
+          return uri;
+        }
+
+        const copies = await documentPickerModule.keepLocalCopy({
+          files: [
+            {
+              uri,
+              fileName: result.name ?? 'papyrus-document',
+            },
+          ],
+          destination: 'cachesDirectory',
+        });
+        const copy = Array.isArray(copies) ? copies[0] : copies;
+        if (copy?.status === 'success' && copy.localUri) {
+          return copy.localUri;
+        }
+        throw new Error(
+          copy?.copyError ??
+            '[Papyrus RN] Não foi possível preparar o arquivo local',
+        );
+      };
+
       if (docType === 'text') {
+        const webViewUri = await prepareWebViewUri();
         try {
-          await loadDocumentFromSource('text', {uri});
+          await loadDocumentFromSource('text', {uri: webViewUri});
         } catch {
-          const text = await loadTextFromUri(uri);
+          const text = await loadTextFromUri(webViewUri);
           await loadDocumentFromSource('text', text);
         }
         return;
       }
 
       if (docType === 'epub') {
-        await loadDocumentFromSource('epub', {uri});
+        await loadDocumentFromSource('epub', {
+          uri: await prepareWebViewUri(),
+        });
+        return;
+      }
+
+      if (docType === 'comic') {
+        await loadDocumentFromSource(
+          'comic',
+          {uri: await prepareWebViewUri()},
+          inferComicFormat(result.name, result.type, uri),
+        );
         return;
       }
 
       await loadDocumentFromSource('pdf', {uri});
     } catch (err) {
+      const errorCode =
+        typeof err === 'object' && err !== null && 'code' in err
+          ? err.code
+          : undefined;
       if (
         documentPickerModule.isErrorWithCode?.(err) &&
-        err?.code === documentPickerModule.errorCodes?.OPERATION_CANCELED
+        errorCode === documentPickerModule.errorCodes?.OPERATION_CANCELED
       ) {
         return;
       }
@@ -315,12 +432,16 @@ const App: React.FC = () => {
                 </Pressable>
               </View>
               <View style={styles.documentTypeRow}>
-                {(['pdf', 'epub', 'text'] as const).map(type => {
+                {(['pdf', 'epub', 'text', 'comic'] as const).map(type => {
                   const isActive = type === activeType;
+                  const label = type === 'comic' ? 'CBZ/CBR' : type.toUpperCase();
                   return (
                     <Pressable
                       key={type}
                       onPress={() => loadDocument(type)}
+                      accessibilityRole="button"
+                      accessibilityLabel={label}
+                      testID={`papyrus-document-type-${type}`}
                       style={[
                         styles.typeButton,
                         uiTheme === 'dark' && styles.typeButtonDark,
@@ -332,7 +453,7 @@ const App: React.FC = () => {
                           uiTheme === 'dark' && styles.typeButtonTextDark,
                           isActive && styles.typeButtonTextActive,
                         ]}>
-                        {type.toUpperCase()}
+                        {label}
                       </Text>
                     </Pressable>
                   );

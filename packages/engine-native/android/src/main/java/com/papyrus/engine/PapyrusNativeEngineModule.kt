@@ -11,7 +11,9 @@ import expo.modules.kotlin.Promise
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import expo.modules.kotlin.typedarray.Uint8Array
+import android.util.Base64
 import java.io.File
+import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
 import java.io.InputStream
@@ -34,6 +36,49 @@ class PapyrusNativeEngineModule : Module() {
 
     Function("destroyEngine") { engineId: String ->
       PapyrusEngineStore.destroyEngine(engineId)
+    }
+
+    AsyncFunction("readFileChunk") { uriValue: String, offsetValue: Double, length: Int ->
+      if (length <= 0 || length > 4 * 1024 * 1024) {
+        throw IOException("Invalid file chunk length")
+      }
+
+      val uri = Uri.parse(uriValue)
+      val inputStream: InputStream = when (uri.scheme?.lowercase()) {
+        "file" -> FileInputStream(File(uri.path ?: throw IOException("Invalid file URI")))
+        "content" -> {
+          val context = appContext.reactContext ?: throw IOException("React context missing")
+          context.contentResolver.openInputStream(uri)
+            ?: throw IOException("Unable to read content URI")
+        }
+        else -> throw IOException("Unsupported local file URI")
+      }
+
+      inputStream.use { stream ->
+        var remaining = maxOf(0L, offsetValue.toLong())
+        while (remaining > 0) {
+          val skipped = stream.skip(remaining)
+          if (skipped <= 0L) {
+            if (stream.read() < 0) break
+            remaining -= 1
+          } else {
+            remaining -= skipped
+          }
+        }
+
+        val buffer = ByteArray(length)
+        var read = 0
+        while (read < length) {
+          val count = stream.read(buffer, read, length - read)
+          if (count < 0) break
+          if (count > 0) read += count
+        }
+
+        mapOf(
+          "data" to Base64.encodeToString(buffer, 0, read, Base64.NO_WRAP),
+          "done" to (read < length),
+        )
+      }
     }
 
     AsyncFunction("load") { engineId: String, source: Map<String, Any?>, promise: Promise ->

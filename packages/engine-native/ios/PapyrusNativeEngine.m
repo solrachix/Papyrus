@@ -84,6 +84,44 @@ RCT_EXPORT_METHOD(destroyEngine:(NSString *)engineId) {
   [[PapyrusEngineStore shared] destroyEngine:engineId];
 }
 
+RCT_EXPORT_METHOD(readFileChunk:(NSString *)uriValue
+                  offset:(nonnull NSNumber *)offsetValue
+                  length:(nonnull NSNumber *)lengthValue
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject) {
+  NSUInteger length = lengthValue.unsignedIntegerValue;
+  if (length == 0 || length > 4 * 1024 * 1024) {
+    reject(@"papyrus_file_chunk_failed", @"Invalid file chunk length", nil);
+    return;
+  }
+
+  NSURL *url = [NSURL URLWithString:uriValue];
+  if (!url.isFileURL) {
+    reject(@"papyrus_file_chunk_failed", @"Unsupported local file URI", nil);
+    return;
+  }
+
+  NSError *error = nil;
+  NSFileHandle *file = [NSFileHandle fileHandleForReadingFromURL:url error:&error];
+  if (!file) {
+    reject(@"papyrus_file_chunk_failed", @"Failed to open local file", error);
+    return;
+  }
+
+  @try {
+    [file seekToFileOffset:offsetValue.unsignedLongLongValue];
+    NSData *data = [file readDataOfLength:length];
+    [file closeFile];
+    resolve(@{
+      @"data": [data base64EncodedStringWithOptions:0],
+      @"done": @(data.length < length),
+    });
+  } @catch (NSException *exception) {
+    [file closeFile];
+    reject(@"papyrus_file_chunk_failed", exception.reason ?: @"Failed to read local file", nil);
+  }
+}
+
 RCT_EXPORT_METHOD(load:(NSString *)engineId
                   source:(NSDictionary *)source
                   resolver:(RCTPromiseResolveBlock)resolve

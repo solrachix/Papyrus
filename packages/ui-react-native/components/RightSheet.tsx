@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Dimensions,
+  Image,
   Platform,
   Pressable,
   StyleSheet,
@@ -66,6 +67,7 @@ const PageThumbnail: React.FC<{
   frameHeight: number;
   accentColor: string;
   useNativePreview: boolean;
+  useImagePreview: boolean;
   shouldRenderPreview: boolean;
   onPress: () => void;
 }> = ({
@@ -79,11 +81,13 @@ const PageThumbnail: React.FC<{
   frameHeight,
   accentColor,
   useNativePreview,
+  useImagePreview,
   shouldRenderPreview,
   onPress,
 }) => {
   const viewRef = useRef<any>(null);
   const [layoutReady, setLayoutReady] = useState(false);
+  const [previewUri, setPreviewUri] = useState<string | null>(null);
 
   useEffect(() => {
     if (!layoutReady || !useNativePreview || !shouldRenderPreview) return;
@@ -100,6 +104,31 @@ const PageThumbnail: React.FC<{
     useNativePreview,
     zoom,
   ]);
+
+  useEffect(() => {
+    if (!useImagePreview || !shouldRenderPreview) {
+      setPreviewUri(null);
+      return;
+    }
+
+    let active = true;
+    const previewEngine = engine as DocumentEngine & {
+      getPagePreview?: (index: number) => Promise<string | null>;
+    };
+    const request = previewEngine.getPagePreview?.(pageIndex);
+    if (!request) return;
+    void request
+      .then((uri) => {
+        if (active) setPreviewUri(uri);
+      })
+      .catch(() => {
+        if (active) setPreviewUri(null);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [engine, pageIndex, shouldRenderPreview, useImagePreview]);
 
   const handleLayout = (event: LayoutChangeEvent) => {
     if (event.nativeEvent.layout.width && event.nativeEvent.layout.height) {
@@ -124,6 +153,12 @@ const PageThumbnail: React.FC<{
       >
         {useNativePreview && shouldRenderPreview ? (
           <PapyrusPageView ref={viewRef} style={styles.thumbView} />
+        ) : useImagePreview && shouldRenderPreview && previewUri ? (
+          <Image
+            source={{ uri: previewUri }}
+            resizeMode="contain"
+            style={styles.thumbImage}
+          />
         ) : (
           <View style={[styles.thumbFallback, isDark && styles.thumbFallbackDark]}>
             <Text
@@ -212,8 +247,17 @@ const RightSheet: React.FC<RightSheetProps> = ({
     accentColor,
   } = useViewerStore();
   const [pagesMode, setPagesMode] = useState<"thumbnails" | "summary">(
-    documentType === "pdf" ? "thumbnails" : "summary"
+    documentType === "pdf" || documentType === "comic"
+      ? "thumbnails"
+      : "summary"
   );
+  useEffect(() => {
+    setPagesMode(
+      documentType === "pdf" || documentType === "comic"
+        ? "thumbnails"
+        : "summary"
+    );
+  }, [documentType]);
   const isDark = uiTheme === "dark";
   const t = getStrings(locale);
   const showingNotes = sidebarRightTab === "annotations";
@@ -231,6 +275,10 @@ const RightSheet: React.FC<RightSheetProps> = ({
     UIManager.getViewManagerConfig?.("PapyrusPageView")
   );
   const useNativePreview = renderTarget !== "webview" && hasNativePageView;
+  const useImagePreview =
+    documentType === "comic" &&
+    renderTarget === "webview" &&
+    typeof engine.getPagePreview === "function";
   const thumbnailDimensionsCacheRef = useRef<
     Map<number, { width: number; height: number }>
   >(new Map());
@@ -426,7 +474,7 @@ const RightSheet: React.FC<RightSheetProps> = ({
   const renderThumbnailItem = useCallback(
     ({ item }: { item: number }) => {
       const shouldRenderPreview =
-        useNativePreview &&
+        (useNativePreview || useImagePreview) &&
         (visibleThumbnailPages.has(item) ||
           item < resolvedThumbsPrewarmCount ||
           Math.abs(item + 1 - currentPage) <= 1);
@@ -442,6 +490,7 @@ const RightSheet: React.FC<RightSheetProps> = ({
           frameHeight={getThumbnailFrameHeight(item)}
           accentColor={accentColor}
           useNativePreview={useNativePreview}
+          useImagePreview={useImagePreview}
           shouldRenderPreview={shouldRenderPreview}
           onPress={() => jumpToPage(item)}
         />
@@ -458,6 +507,7 @@ const RightSheet: React.FC<RightSheetProps> = ({
       jumpToPage,
       resolvedThumbsPrewarmCount,
       useNativePreview,
+      useImagePreview,
       visibleThumbnailPages,
       zoom,
     ]
@@ -787,6 +837,10 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   thumbView: {
+    width: "100%",
+    height: "100%",
+  },
+  thumbImage: {
     width: "100%",
     height: "100%",
   },
