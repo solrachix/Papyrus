@@ -37,3 +37,35 @@ pelo controle de upload local. Três execuções chegaram a 1007 canvases em
 auxiliares. Isso mede o carregamento do documento e o primeiro lote de
 renderização da UI virtualizada; não significa que as 1000 páginas principais
 foram rasterizadas simultaneamente.
+
+## PoC CBZ: zip.js vs Rust
+
+Este PoC compara o backend atual `@zip.js/zip.js` com o núcleo Rust
+`papyrus-cbz-rust` usando exatamente o mesmo arquivo CBZ.
+
+```bash
+node scripts/benchmarks/generate-cbz.mjs --pages 1000 --page-size 65536 --output /tmp/papyrus-benchmark.cbz
+node scripts/benchmarks/benchmark-cbz.mjs /tmp/papyrus-benchmark.cbz --iterations 5
+cargo run --release --manifest-path crates/papyrus-cbz-rust/Cargo.toml --bin benchmark-cbz -- /tmp/papyrus-benchmark.cbz --iterations 5
+```
+
+Os dois benchmarks imprimem JSON com SHA-256 do fixture, quantidade de páginas,
+mediana das amostras e checksums dos bytes extraídos. O fixture usa bytes
+sintéticos determinísticos com extensão `.jpg`; ele mede ZIP/CBZ, não
+decodificação de imagem.
+
+O PoC mede abertura/listagem, extração da primeira/meio/última página e
+extração de todas as páginas. Ele não mede renderização DOM, `createImageBitmap`,
+WASM no navegador, FFI mobile ou cache de URLs. O adaptador experimental já
+está em `packages/engine-cbz-rust` e pode ser validado no demo com:
+
+```bash
+pnpm dev:web
+# abra http://localhost:3005/render?engine=rust-cbz
+```
+
+Compare com `engine=cbz` para separar o custo do runtime Rust do restante do
+viewer. Ainda não há um número de ganho de desempenho no navegador; a validação
+atual prova o fluxo funcional e mantém `zip.js` como fallback. CBR/RAR continua
+fora porque o backend atual usa `libarchive`; uma versão Rust precisa de uma
+comparação específica de runtime, compatibilidade e empacotamento.

@@ -44,6 +44,7 @@ export default defineConfig(({ mode }) => {
         { find: '@papyrus-sdk/ui-react/base.css', replacement: `${rootDir}/packages/ui-react/base.css` },
         { find: '@papyrus-sdk/ui-react', replacement: `${rootDir}/packages/ui-react/index.ts` },
         { find: '@papyrus-sdk/engine-rust', replacement: `${rootDir}/packages/engine-rust/index.ts` },
+        { find: '@papyrus-sdk/engine-cbz-rust', replacement: `${rootDir}/packages/engine-cbz-rust/index.ts` },
         { find: '@', replacement: rootDir },
         { find: /^@papyrus-sdk\/(.*)$/, replacement: `${rootDir}/packages/$1` },
       ],
