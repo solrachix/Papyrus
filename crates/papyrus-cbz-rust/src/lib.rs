@@ -112,7 +112,8 @@ impl CbzCore {
             .archive
             .by_index(page.archive_index)
             .map_err(|error| CbzError(format!("falha ao ler página CBZ: {error}")))?;
-        let mut bytes = Vec::with_capacity(entry.size() as usize);
+        const MAX_PAGE_PREALLOCATION: u64 = 64 * 1024 * 1024;
+        let mut bytes = Vec::with_capacity(entry.size().min(MAX_PAGE_PREALLOCATION) as usize);
         entry
             .read_to_end(&mut bytes)
             .map_err(|error| CbzError(format!("falha ao extrair página CBZ: {error}")))?;

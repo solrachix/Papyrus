@@ -16,7 +16,8 @@
   "files": ["dist", "wasm"],
   "scripts": {
     "build": "tsup index.ts --dts --format cjs,esm --out-dir dist --clean --sourcemap && node copy-wasm.mjs",
-    "build:wasm": "node ../../scripts/build-cbz-rust-wasm.mjs"
+    "build:wasm": "node ../../scripts/build-cbz-rust-wasm.mjs",
+    "test:dist": "pnpm build && cd ../.. && pnpm exec vitest run packages/engine-cbz-rust/dist-smoke.test.ts"
   },
   "dependencies": {
     "@papyrus-sdk/engine-cbz": "workspace:*",
