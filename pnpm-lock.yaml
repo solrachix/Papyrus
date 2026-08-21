@@ -238,7 +238,7 @@ importers:
   packages/engine-cbr:
     dependencies:
       '@papyrus-sdk/engine-comic-core':
-        specifier: workspace:*
+        specifier: ^0.1.0
         version: link:../engine-comic-core
       libarchive.js:
         specifier: ^2.0.2
@@ -263,7 +263,7 @@ importers:
   packages/engine-cbz:
     dependencies:
       '@papyrus-sdk/engine-comic-core':
-        specifier: workspace:*
+        specifier: ^0.1.0
         version: link:../engine-comic-core
       '@zip.js/zip.js':
         specifier: ^2.8.34
