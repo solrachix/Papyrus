@@ -67,7 +67,14 @@ const createInitialConfig = (
   ...overrides,
 });
 
-type EngineKind = "pdf" | "rust" | "epub" | "text" | "cbz" | "cbr";
+type EngineKind =
+  | "pdf"
+  | "rust"
+  | "epub"
+  | "text"
+  | "cbz"
+  | "rust-cbz"
+  | "cbr";
 type UITheme = "light" | "dark";
 
 const parseEngineKindFromLocation = (): EngineKind => {
@@ -80,6 +87,7 @@ const parseEngineKindFromLocation = (): EngineKind => {
     fromQuery === "epub" ||
     fromQuery === "text" ||
     fromQuery === "cbz" ||
+    fromQuery === "rust-cbz" ||
     fromQuery === "cbr"
   ) {
     return fromQuery;
@@ -107,7 +115,11 @@ const usePapyrusDemo = (
   const { useRemotePdf, remotePdfUrl } = options ?? {};
 
   useEffect(() => {
-    if (engineKind !== "cbz" && engineKind !== "cbr") {
+    if (
+      engineKind !== "cbz" &&
+      engineKind !== "rust-cbz" &&
+      engineKind !== "cbr"
+    ) {
       setComicEngine(null);
       return;
     }
@@ -117,7 +129,14 @@ const usePapyrusDemo = (
 
     const loadComicEngine = async () => {
       try {
-        if (engineKind === "cbz") {
+        if (engineKind === "cbz" || engineKind === "rust-cbz") {
+          if (engineKind === "rust-cbz") {
+            const { RustCBZEngine } = await import(
+              "@papyrus-sdk/engine-cbz-rust"
+            );
+            if (active) setComicEngine(new RustCBZEngine());
+            return;
+          }
           const { CBZEngine } = await import("@papyrus-sdk/engine-cbz");
           if (active) setComicEngine(new CBZEngine());
         } else {
@@ -137,7 +156,13 @@ const usePapyrusDemo = (
   }, [engineKind]);
 
   const engine = useMemo(() => {
-    if (engineKind === "cbz" || engineKind === "cbr") return comicEngine;
+    if (
+      engineKind === "cbz" ||
+      engineKind === "rust-cbz" ||
+      engineKind === "cbr"
+    ) {
+      return comicEngine;
+    }
     if (engineKind === "epub") return new EPUBEngine();
     if (engineKind === "text") return new TextEngine();
     if (engineKind === "rust") {
@@ -152,7 +177,13 @@ const usePapyrusDemo = (
   const demoSource = useMemo(() => {
     if (engineKind === "epub") return LOCAL_EPUB_URL;
     if (engineKind === "text") return LOCAL_TEXT_URL;
-    if (engineKind === "cbz" || engineKind === "cbr") return null;
+    if (
+      engineKind === "cbz" ||
+      engineKind === "rust-cbz" ||
+      engineKind === "cbr"
+    ) {
+      return null;
+    }
     if (useRemotePdf) return remotePdfUrl || REMOTE_PDF_URL;
     return LOCAL_PDF_URL;
   }, [engineKind, useRemotePdf, remotePdfUrl]);
@@ -239,6 +270,7 @@ const usePapyrusDemo = (
             data.value === "epub" ||
             data.value === "text" ||
             data.value === "cbz" ||
+            data.value === "rust-cbz" ||
             data.value === "cbr"
           ) {
             setEngineKind(data.value as EngineKind);
@@ -309,7 +341,7 @@ const usePapyrusDemo = (
         if (!engine) return;
 
         const source =
-          engineKind === "cbz"
+          engineKind === "cbz" || engineKind === "rust-cbz"
             ? await (await import("./comicDemo")).createDemoCbz()
             : demoSource;
 
@@ -695,12 +727,17 @@ const ConfigPage: React.FC = () => {
                 <option value="epub">EPUB</option>
                 <option value="text">TXT</option>
                 <option value="cbz">CBZ (Comic ZIP)</option>
+                <option value="rust-cbz">CBZ + Rust/WASM (experimental)</option>
                 <option value="cbr">CBR (RAR via upload)</option>
               </select>
-              {(engineKind === "cbz" || engineKind === "cbr") && (
+              {(engineKind === "cbz" ||
+                engineKind === "rust-cbz" ||
+                engineKind === "cbr") && (
                 <div className="text-[11px] text-white/50">
                   {engineKind === "cbz"
                     ? "O demo gera um CBZ pequeno no navegador."
+                    : engineKind === "rust-cbz"
+                    ? "O demo usa o núcleo Rust/WASM e cai para zip.js se necessário."
                     : "Selecione CBR e use Upload para abrir um arquivo RAR."}
                 </div>
               )}

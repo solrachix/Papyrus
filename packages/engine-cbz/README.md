@@ -20,3 +20,10 @@ await engine.load({ type: "comic", source: { uri: "https://example.com/book.cbz"
 
 `maxCachedPages` limits the number of extracted page images kept in memory.
 The default is `12`.
+
+## Rust/WASM experiment
+
+The repository also contains `@papyrus-sdk/engine-cbz-rust`, an experimental
+adapter that uses the Rust/WASM archive core and falls back to this zip.js
+implementation if the WASM runtime cannot initialize. The regular `CBZEngine`
+remains the stable comparison path.

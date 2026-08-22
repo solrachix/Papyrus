@@ -276,6 +276,22 @@ importers:
         specifier: workspace:*
         version: link:../types
 
+  packages/engine-cbz-rust:
+    dependencies:
+      '@papyrus-sdk/engine-cbz':
+        specifier: workspace:*
+        version: link:../engine-cbz
+      '@papyrus-sdk/engine-comic-core':
+        specifier: workspace:*
+        version: link:../engine-comic-core
+    devDependencies:
+      '@papyrus-sdk/core':
+        specifier: workspace:*
+        version: link:../core
+      '@papyrus-sdk/types':
+        specifier: workspace:*
+        version: link:../types
+
   packages/engine-comic-core:
     devDependencies:
       '@papyrus-sdk/core':
