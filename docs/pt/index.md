@@ -4,7 +4,10 @@ title: Papyrus
 titleTemplate: false
 description: SDK open source de PDF, EPUB e TXT para leitores de documentos web e mobile.
 hero:
-  name: Papyrus
+  image:
+    src: /brand/logo.png
+    alt: Papyrus
+  name: ''
   text: SDK open source de PDF/EPUB/TXT
   tagline: Monte leitores com busca, anotacoes e temas para web e mobile (React + React Native).
   actions:

@@ -42,6 +42,34 @@ const LOCAL_TEXT_URL = new URL(
 ).toString();
 
 const ACCENT_COLOR = "#2563eb";
+const CONFIG_THEME_VARS = {
+  light: {
+    surface: "#f8fafc",
+    surface2: "#ffffff",
+    border: "#cbd5e1",
+    text: "#0f172a",
+    textMuted: "#64748b",
+    canvas: "#e2e8f0",
+  },
+  dark: {
+    surface: "#111827",
+    surface2: "#1f2937",
+    border: "#273244",
+    text: "#e2e8f0",
+    textMuted: "#94a3b8",
+    canvas: "#0b1220",
+  },
+} as const;
+const getInitialConfigTheme = (): UITheme => {
+  if (typeof window === "undefined" || window.parent === window) return "dark";
+  try {
+    return window.parent.document.documentElement.classList.contains("dark")
+      ? "dark"
+      : "light";
+  } catch {
+    return "dark";
+  }
+};
 const createInitialConfig = (
   isEmbedded: boolean,
   overrides?: Partial<PapyrusConfig>
@@ -522,7 +550,7 @@ const RenderPage: React.FC = () => {
 
 const ConfigPage: React.FC = () => {
   const [engineKind, setEngineKind] = useState<EngineKind>("pdf");
-  const [uiTheme, setUiTheme] = useState<UITheme>("dark");
+  const [uiTheme, setUiTheme] = useState<UITheme>(getInitialConfigTheme);
   const [pageTheme, setPageTheme] = useState<PageTheme>("sepia");
   const [accentColor, setAccentColor] = useState(ACCENT_COLOR);
   const [title, setTitle] = useState("Papyrus Demo");
@@ -546,6 +574,72 @@ const ConfigPage: React.FC = () => {
   const [themeText, setThemeText] = useState("#e2e8f0");
   const [themeTextMuted, setThemeTextMuted] = useState("#94a3b8");
   const [themeCanvas, setThemeCanvas] = useState("#0b1220");
+
+  useEffect(() => {
+    const theme = CONFIG_THEME_VARS[uiTheme];
+    setThemeSurface(theme.surface);
+    setThemeSurface2(theme.surface2);
+    setThemeBorder(theme.border);
+    setThemeText(theme.text);
+    setThemeTextMuted(theme.textMuted);
+    setThemeCanvas(theme.canvas);
+  }, [uiTheme]);
+
+  useEffect(() => {
+    const onDocsTheme = (event: MessageEvent<DemoMessage>) => {
+      if (event.origin !== window.location.origin) return;
+      if (event.source !== window.parent) return;
+      if (event.data?.source !== "papyrus-docs") return;
+      if (
+        event.data.action === "set-ui-theme" &&
+        (event.data.value === "light" || event.data.value === "dark")
+      ) {
+        setUiTheme(event.data.value);
+      }
+    };
+
+    window.addEventListener("message", onDocsTheme);
+    return () => window.removeEventListener("message", onDocsTheme);
+  }, []);
+
+  const renderHref = useMemo(() => {
+    if (typeof window === "undefined") return "?view=render";
+    const url = new URL(window.location.href);
+    url.hash = "";
+    url.searchParams.set("view", "render");
+    return `${url.pathname}${url.search}${url.hash}`;
+  }, []);
+  const isEmbedded = useMemo(
+    () =>
+      typeof window !== "undefined" &&
+      window.parent &&
+      window.parent !== window,
+    []
+  );
+  const [isHostedFullscreen, setIsHostedFullscreen] = useState(false);
+
+  useEffect(() => {
+    const onParentMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+      if (event.source !== window.parent) return;
+      if (event.data?.type !== "papyrus-demo-fullscreen") return;
+      setIsHostedFullscreen(event.data.fullscreen === true);
+    };
+
+    window.addEventListener("message", onParentMessage);
+    return () => window.removeEventListener("message", onParentMessage);
+  }, []);
+
+  const openPreviewFullscreen = () => {
+    if (isEmbedded) {
+      window.parent.postMessage(
+        { type: "papyrus-demo-fullscreen", fullscreen: true },
+        window.location.origin
+      );
+      return;
+    }
+    setIsFullscreen(true);
+  };
 
   const initialConfigRef = useRef(
     createInitialConfig(false, {
@@ -700,7 +794,27 @@ const ConfigPage: React.FC = () => {
   };
 
   return (
-    <div className="h-screen w-screen bg-[#0b0f1a] text-white">
+    <>
+      <style>{`
+        .papyrus-config-light { background: #f1f5f9; color: #0f172a; }
+        .papyrus-config-light [class~="bg-white/5"] { background-color: rgba(255,255,255,.78); }
+        .papyrus-config-light [class~="bg-white/10"] { background-color: rgba(255,255,255,.92); }
+        .papyrus-config-light [class~="border-white/10"] { border-color: #cbd5e1; }
+        .papyrus-config-light [class~="text-white/50"],
+        .papyrus-config-light [class~="text-white/60"],
+        .papyrus-config-light [class~="text-white/70"],
+        .papyrus-config-light [class~="text-white/80"] { color: #64748b; }
+        .papyrus-config-light [class~="text-white"] { color: #0f172a; }
+        .papyrus-config-light [class~="bg-[#0f172a]"] { background-color: #ffffff; }
+        .papyrus-config-light select,
+        .papyrus-config-light input { color: #0f172a; }
+        .papyrus-config-light option { background: #ffffff; color: #0f172a; }
+      `}</style>
+      <div
+        className={`papyrus-config h-screen w-screen ${
+          uiTheme === "light" ? "papyrus-config-light" : "bg-[#0b0f1a] text-white"
+        }`}
+      >
       <div className="h-full grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-0">
         <div className="min-w-0 p-4 sm:p-6 border-r border-white/10 overflow-y-auto">
           <div className="flex items-center justify-between mb-6">
@@ -708,7 +822,7 @@ const ConfigPage: React.FC = () => {
               Papyrus Config
             </div>
             <a
-              href="/render"
+              href={renderHref}
               className="text-xs text-blue-300 hover:text-blue-200"
             >
               Abrir /render
@@ -945,13 +1059,15 @@ const ConfigPage: React.FC = () => {
         <div className="min-w-0 p-4 sm:p-6 lg:border-l border-white/10">
           <div className="flex items-center justify-between text-xs uppercase tracking-widest text-white/50 mb-3">
             <span>Preview</span>
-            <button
-              type="button"
-              onClick={() => setIsFullscreen(true)}
-              className="text-[10px] px-3 py-1.5 rounded-full border border-white/10 bg-white/5 hover:bg-white/10"
-            >
-              Expandir
-            </button>
+            {!isHostedFullscreen && (
+              <button
+                type="button"
+                onClick={openPreviewFullscreen}
+                className="text-[10px] px-3 py-1.5 rounded-full border border-white/10 bg-white/5 hover:bg-white/10"
+              >
+                Expandir
+              </button>
+            )}
           </div>
           <div
             className="min-w-0 h-[60vh] lg:h-[calc(100vh-120px)] rounded-2xl border border-white/10 overflow-hidden shadow-2xl bg-[#0f172a]"
@@ -1020,12 +1136,13 @@ const ConfigPage: React.FC = () => {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 };
 
 const App: React.FC = () => {
-  const view = useMemo(() => {
+  const getView = (): "config" | "render" => {
     if (typeof window === "undefined") return "config";
     const { pathname, hash, search } = window.location;
     if (pathname.startsWith("/render")) return "render";
@@ -1033,6 +1150,17 @@ const App: React.FC = () => {
     const params = new URLSearchParams(search);
     if (params.get("view") === "render") return "render";
     return "config";
+  };
+  const [view, setView] = useState<"config" | "render">(getView);
+
+  useEffect(() => {
+    const updateView = () => setView(getView());
+    window.addEventListener("hashchange", updateView);
+    window.addEventListener("popstate", updateView);
+    return () => {
+      window.removeEventListener("hashchange", updateView);
+      window.removeEventListener("popstate", updateView);
+    };
   }, []);
 
   if (view === "render") return <RenderPage />;

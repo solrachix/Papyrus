@@ -187,7 +187,11 @@ const Topbar: React.FC<TopbarProps> = ({
   };
 
   const toggleToolDock = () => {
-    setDocumentState({ toolDockOpen: !toolDockOpen });
+    // Read the latest singleton state so the control still toggles correctly
+    // after a document load or when the topbar and viewer render separately.
+    setDocumentState({
+      toolDockOpen: !useViewerStore.getState().toolDockOpen,
+    });
   };
 
   const themes: { id: PageTheme; name: string; color: string }[] = [
@@ -447,6 +451,8 @@ const Topbar: React.FC<TopbarProps> = ({
             className={`p-2 rounded-md ${
               isDark ? "hover:bg-white/10" : "hover:bg-gray-100"
             }`}
+            aria-label="Alternar painel de miniaturas"
+            title="Alternar painel de miniaturas"
           >
             <svg
               className="w-5 h-5"
@@ -482,12 +488,19 @@ const Topbar: React.FC<TopbarProps> = ({
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
+            aria-hidden="true"
           >
             <path
               strokeLinecap="round"
               strokeLinejoin="round"
               strokeWidth={2}
-              d="M16.862 3.487a2.25 2.25 0 013.182 3.182L8.22 18.492a4.5 4.5 0 01-1.897 1.12l-2.692.898.898-2.692a4.5 4.5 0 011.12-1.897L16.862 3.487z"
+              d="M4 5.5A1.5 1.5 0 015.5 4h13A1.5 1.5 0 0120 5.5v13a1.5 1.5 0 01-1.5 1.5h-13A1.5 1.5 0 014 18.5v-13z"
+            />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M8 8h8M8 12h5M8 16h3"
             />
           </svg>
         </button>

@@ -39,3 +39,14 @@ fails. The regular `engine=cbz` route remains available as the baseline.
 CBR still uses `libarchive.js`. A Rust RAR/CBR engine is not integrated yet and
 requires a separate benchmark for compatibility, extraction, memory, and
 artifact size before it should replace the current path.
+
+## React Native monorepo integration
+
+The SDK does not own the consumer app's Metro configuration. In a pnpm
+monorepo, configure Metro so `@papyrus-sdk/core` resolves to one physical
+installation shared by the app and `@papyrus-sdk/ui-react-native` (for example,
+with an explicit `extraNodeModules`/`resolveRequest` mapping). Duplicate core
+instances create separate viewer stores: the document can report a valid page
+count while the native PDF viewer remains blank because it is observing a
+different store. After changing package versions or Metro configuration,
+restart Metro with a clean cache and rebuild the native app.

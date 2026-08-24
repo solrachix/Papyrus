@@ -39,3 +39,15 @@ fluxo `zip.js`. A rota `engine=cbz` permanece disponível como baseline.
 CBR ainda usa `libarchive.js`. Uma engine Rust para RAR/CBR não faz parte da
 integração atual e só deve ser adotada depois de um benchmark específico de
 compatibilidade, extração, memória e tamanho do artefato.
+
+## Integração com React Native em monorepo
+
+O SDK não controla a configuração do Metro do app consumidor. Em um monorepo
+com pnpm, configure o Metro para que `@papyrus-sdk/core` resolva para uma única
+instalação física compartilhada pelo app e por
+`@papyrus-sdk/ui-react-native` (por exemplo, usando um mapeamento explícito em
+`extraNodeModules`/`resolveRequest`). Duas instâncias do core criam stores
+separados: o documento pode informar um `pageCount` válido enquanto o
+visualizador PDF nativo permanece em branco por observar outra store. Depois
+de alterar versões dos pacotes ou a configuração do Metro, reinicie o Metro
+com cache limpo e faça o rebuild do app nativo.

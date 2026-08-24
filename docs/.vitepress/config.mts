@@ -19,6 +19,7 @@ const OG_IMAGE = process.env.VITEPRESS_OG_IMAGE || (SITE_URL ? `${SITE_URL}/og.p
 const CLOUDFLARE_BEACON_TOKEN = '9b6604661443464da2c87c6fe162e76b';
 
 const head = [
+  ['link', { rel: 'icon', type: 'image/png', href: '/Papyrus/brand/favicon.png' }],
   ['meta', { name: 'keywords', content: KEYWORDS }],
   ['meta', { property: 'og:type', content: 'website' }],
   ['meta', { property: 'og:site_name', content: SITE_NAME }],
@@ -190,6 +191,8 @@ export default defineConfig({
     return tags;
   },
   themeConfig: {
+    logo: '/brand/mark.png',
+    siteTitle: 'Papyrus',
     search: {
       provider: 'local',
     },
