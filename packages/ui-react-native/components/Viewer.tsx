@@ -439,7 +439,6 @@ const Viewer: React.FC<ViewerProps> = ({
 
   const trackMobileChromeByOffset = useCallback(
     (offsetY: number, reasonPrefix: string) => {
-      if (isWebView) return;
       if (pageCount <= 0) return;
 
       const safeOffset = Math.max(0, offsetY);
@@ -487,7 +486,7 @@ const Viewer: React.FC<ViewerProps> = ({
         }
       }
     },
-    [clearPendingChromeShow, isWebView, pageCount, setMobileChromeVisible]
+    [clearPendingChromeShow, pageCount, setMobileChromeVisible]
   );
 
   useEffect(() => {
@@ -1417,6 +1416,17 @@ const Viewer: React.FC<ViewerProps> = ({
     [perfEnabled, trackMobileChromeByOffset]
   );
 
+  const handleWebViewScroll = useCallback(
+    (offsetY: number) => {
+      trackMobileChromeByOffset(offsetY, "scroll.continuous");
+    },
+    [trackMobileChromeByOffset]
+  );
+
+  const handleWebViewTap = useCallback(() => {
+    setMobileChromeVisible(!chromeVisibleRef.current, "webview.tap");
+  }, [setMobileChromeVisible]);
+
   const keyExtractor = useCallback(
     (item: number | { left: number; right: number | null }) => {
       if (typeof item === "number") return `page-${item}`;
@@ -1510,7 +1520,11 @@ const Viewer: React.FC<ViewerProps> = ({
   if (isWebView) {
     return (
       <View style={[styles.container, isDark && styles.containerDark]}>
-        <WebViewViewer engine={engine} />
+        <WebViewViewer
+          engine={engine}
+          onScrollOffset={handleWebViewScroll}
+          onTap={handleWebViewTap}
+        />
       </View>
     );
   }

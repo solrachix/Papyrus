@@ -87,4 +87,44 @@ describe("mobile comic runtime helpers", () => {
     expect(runtime).toContain("file-chunk-request");
     expect(html).toContain("file-chunk-request");
   });
+
+  it("loads local EPUB files through the native chunk bridge", () => {
+    const runtime = readFileSync(
+      resolve(process.cwd(), "packages/ui-react-native/runtime/runtime.js"),
+      "utf8"
+    );
+    const html = readFileSync(
+      resolve(process.cwd(), "packages/ui-react-native/runtime/index.html"),
+      "utf8"
+    );
+
+    expect(runtime).toContain("data = await sourceToArrayBuffer(source);");
+    expect(html).toContain("data = await sourceToArrayBuffer(source);");
+    expect(runtime).not.toContain("data = source.uri;");
+    expect(html).not.toContain("data = source.uri;");
+  });
+
+  it("uses continuous scrolling for EPUB rendition", () => {
+    const runtime = readFileSync(
+      resolve(process.cwd(), "packages/ui-react-native/runtime/runtime.js"),
+      "utf8"
+    );
+    const html = readFileSync(
+      resolve(process.cwd(), "packages/ui-react-native/runtime/index.html"),
+      "utf8"
+    );
+
+    expect(runtime).toContain("manager: 'continuous'");
+    expect(html).toContain("manager: 'continuous'");
+    expect(runtime).toContain("flow: 'scrolled-continuous'");
+    expect(html).toContain("flow: 'scrolled-continuous'");
+    expect(runtime).toContain("rendition.on('relocated'");
+    expect(html).toContain("rendition.on('relocated'");
+    expect(runtime).toContain("sendEvent('VIEWER_SCROLL'");
+    expect(html).toContain("sendEvent('VIEWER_SCROLL'");
+    expect(runtime).toContain("sendEvent('VIEWER_TAP'");
+    expect(html).toContain("sendEvent('VIEWER_TAP'");
+    expect(runtime).not.toContain("flow: 'paginated'");
+    expect(html).not.toContain("flow: 'paginated'");
+  });
 });
