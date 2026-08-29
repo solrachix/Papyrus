@@ -194,6 +194,8 @@ const Viewer: React.FC<ViewerProps> = ({
   const pinchPreviewNegativeFocalY = useRef(new Animated.Value(0)).current;
   const [lastPinchEndedAt, setLastPinchEndedAt] = useState<number | null>(null);
   const pinchGestureActiveRef = useRef(false);
+  const currentPageRef = useRef(currentPage);
+  currentPageRef.current = currentPage;
   const pinchStartZoomRef = useRef(1);
   const pinchPreviewZoomRef = useRef(1);
   const pinchFocalPointRef = useRef({ x: 0, y: 0 });
@@ -801,14 +803,14 @@ const Viewer: React.FC<ViewerProps> = ({
       if (
         pendingZoom == null ||
         Math.abs(renderedZoom - pendingZoom) >= 0.001 ||
-        pageIndex !== Math.max(0, currentPage - 1)
+        pageIndex !== Math.max(0, currentPageRef.current - 1)
       ) {
         return;
       }
       pendingPinchRenderZoomRef.current = null;
       resetViewerPinchPreview();
     },
-    [currentPage, resetViewerPinchPreview]
+    [resetViewerPinchPreview]
   );
 
   const beginViewerPinch = useCallback(

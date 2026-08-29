@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useViewerStore } from "@papyrus-sdk/core";
 import { DocumentEngine } from "@papyrus-sdk/types";
 import PageRenderer from "./PageRenderer";
@@ -727,24 +727,27 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
       return { ...prev, [pageIndex]: size };
     });
   };
-  const handlePinchRenderReady = (pageIndex: number, renderedZoom: number) => {
-    const pendingZoom = pinchRef.current.pendingCommitZoom;
-    const pendingPages = pinchRef.current.pendingReadyPageIndexes;
-    if (
-      pendingZoom == null ||
-      Math.abs(renderedZoom - pendingZoom) >= 0.001 ||
-      !pendingPages
-    ) {
-      return;
-    }
-    pendingPages.delete(pageIndex);
-    if (pendingPages.size === 0 && pinchSurfaceRef.current) {
-      pinchSurfaceRef.current.style.transform = "";
-      pinchSurfaceRef.current.style.transformOrigin = "";
-      pinchRef.current.pendingCommitZoom = null;
-      pinchRef.current.pendingReadyPageIndexes = null;
-    }
-  };
+  const handlePinchRenderReady = useCallback(
+    (pageIndex: number, renderedZoom: number) => {
+      const pendingZoom = pinchRef.current.pendingCommitZoom;
+      const pendingPages = pinchRef.current.pendingReadyPageIndexes;
+      if (
+        pendingZoom == null ||
+        Math.abs(renderedZoom - pendingZoom) >= 0.001 ||
+        !pendingPages
+      ) {
+        return;
+      }
+      pendingPages.delete(pageIndex);
+      if (pendingPages.size === 0 && pinchSurfaceRef.current) {
+        pinchSurfaceRef.current.style.transform = "";
+        pinchSurfaceRef.current.style.transformOrigin = "";
+        pinchRef.current.pendingCommitZoom = null;
+        pinchRef.current.pendingReadyPageIndexes = null;
+      }
+    },
+    []
+  );
   const tools = [
     { id: "select", name: "Select", icon: "M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5" },
     {
@@ -846,12 +849,7 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
       const focalViewportX = pinchRef.current.focalViewportX;
       const focalViewportY = pinchRef.current.focalViewportY;
     pinchRef.current.pendingCommitZoom = nextZoom;
-      pinchRef.current.pendingReadyPageIndexes = new Set(
-        Array.from(
-          { length: Math.max(0, virtualEnd - virtualStart + 1) },
-          (_, index) => virtualStart + index
-        )
-      );
+      pinchRef.current.pendingReadyPageIndexes = new Set([safeCurrentPageIndex]);
       engine.setZoom(nextZoom);
       setDocumentState({ zoom: nextZoom });
       requestAnimationFrame(() => {
