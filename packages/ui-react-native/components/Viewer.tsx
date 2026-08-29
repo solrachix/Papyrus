@@ -41,6 +41,7 @@ import {
 import {
   DEFAULT_PINCH_ZOOM_BOUNDS,
   resolvePinchGestureZoom,
+  resolvePinchPreviewScale,
   sanitizePinchPreviewScale,
 } from "../gesture/pinchZoom";
 import {
@@ -818,13 +819,10 @@ const Viewer: React.FC<ViewerProps> = ({
         pinchStartZoomRef.current,
         scaleFactor
       );
-      const previousZoom = pinchPreviewZoomRef.current;
       pinchPreviewZoomRef.current = nextZoom;
-      handlePinchPreviewScaleChange(1);
-      if (Math.abs(nextZoom - previousZoom) >= 0.004) {
-        setDocumentStateTracked({ zoom: nextZoom }, "pinch.viewerUpdate");
-        engine.setZoom(nextZoom);
-      }
+      handlePinchPreviewScaleChange(
+        resolvePinchPreviewScale(pinchStartZoomRef.current, nextZoom)
+      );
       if (!perfEnabled) return;
       const now = Date.now();
       if (now - pinchUpdateLoggedAtRef.current < 120) return;
@@ -834,8 +832,17 @@ const Viewer: React.FC<ViewerProps> = ({
         nextZoom: Math.round(nextZoom * 100) / 100,
       });
     },
-    [engine, handlePinchPreviewScaleChange, perfEnabled, setDocumentStateTracked]
+    [handlePinchPreviewScaleChange, perfEnabled]
   );
+
+  const cancelViewerPinch = useCallback(() => {
+    if (!pinchGestureActiveRef.current) return;
+    pinchGestureActiveRef.current = false;
+    pendingPinchAnchorRestoreRef.current = null;
+    pinchPreviewZoomRef.current = pinchStartZoomRef.current;
+    handlePinchPreviewScaleChange(1);
+    handleGestureScrollLockChange(false);
+  }, [handleGestureScrollLockChange, handlePinchPreviewScaleChange]);
 
   const finishViewerPinch = useCallback(() => {
     if (!pinchGestureActiveRef.current) return;
@@ -973,11 +980,14 @@ const Viewer: React.FC<ViewerProps> = ({
           finishViewerPinch();
         })
         .onFinalize(() => {
-          finishViewerPinch();
+          if (pinchGestureActiveRef.current) {
+            cancelViewerPinch();
+          }
           resetViewerPinchPreview();
           handleGestureScrollLockChange(false);
         }),
     [
+      cancelViewerPinch,
       beginViewerPinch,
       finishViewerPinch,
       handleGestureScrollLockChange,
