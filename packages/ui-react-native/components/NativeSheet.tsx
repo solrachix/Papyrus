@@ -15,6 +15,7 @@ import {
 import { IconClose } from "../icons";
 import { getNativeSheetSizeStyle } from "./nativeSheetLayout";
 import { usePapyrusSafeAreaInsets } from "./PapyrusSafeArea";
+import { getNativeSheetPalette } from "./readerSheetPresentation";
 
 export type NativeSheetProps = {
   visible: boolean;
@@ -40,6 +41,7 @@ export function NativeSheet({
   sheetStyle,
 }: NativeSheetProps) {
   const insets = usePapyrusSafeAreaInsets();
+  const palette = getNativeSheetPalette(Boolean(isDark));
   return (
     <Modal
       animationType="fade"
@@ -60,6 +62,10 @@ export function NativeSheet({
             isDark && styles.sheetDark,
             getNativeSheetSizeStyle(maxHeight),
             { paddingBottom: insets.bottom },
+            {
+              backgroundColor: palette.backgroundColor,
+              borderTopColor: palette.borderColor,
+            },
             sheetStyle,
           ]}
         >
@@ -70,13 +76,14 @@ export function NativeSheet({
                 style={[
                   styles.closeButton,
                   isDark && styles.closeButtonDark,
+                  { backgroundColor: palette.closeBackgroundColor },
                 ]}
                 accessibilityLabel={closeAccessibilityLabel}
               >
-                <IconClose size={18} color={isDark ? "#f8fafc" : "#111827"} />
+                <IconClose size={18} color={palette.textColor} />
               </Pressable>
               <Text
-                style={[styles.title, isDark && styles.titleDark]}
+                style={[styles.title, { color: palette.textColor }]}
                 numberOfLines={1}
               >
                 {title}

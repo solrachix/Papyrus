@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   getAnnotationKindLabel,
+  getNativeSheetPalette,
   getReaderSheetPalette,
 } from "./readerSheetPresentation";
 
@@ -31,5 +32,10 @@ describe("reader sheet presentation", () => {
     expect(getAnnotationKindLabel("comment", "pt-BR")).toBe("NOTA");
     expect(getAnnotationKindLabel("highlight", "pt-BR")).toBe("DESTAQUE");
     expect(getAnnotationKindLabel("underline", "en")).toBe("UNDERLINE");
+  });
+
+  it("uses the same neutral palette for the shared native sheet", () => {
+    expect(getNativeSheetPalette(true).backgroundColor).toBe("#111318");
+    expect(getNativeSheetPalette(false).backgroundColor).toBe("#fbfaf6");
   });
 });

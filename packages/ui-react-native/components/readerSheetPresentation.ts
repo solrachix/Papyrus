@@ -33,6 +33,16 @@ const DARK_PALETTE: ReaderSheetPalette = {
 export const getReaderSheetPalette = (isDark: boolean): ReaderSheetPalette =>
   isDark ? DARK_PALETTE : LIGHT_PALETTE;
 
+export const getNativeSheetPalette = (isDark: boolean) => {
+  const palette = getReaderSheetPalette(isDark);
+  return {
+    backgroundColor: palette.surface,
+    borderColor: palette.divider,
+    closeBackgroundColor: palette.closeSurface,
+    textColor: palette.text,
+  };
+};
+
 const ANNOTATION_KIND_LABELS: Record<string, { en: string; "pt-BR": string }> =
   {
     comment: { en: "NOTE", "pt-BR": "NOTA" },
