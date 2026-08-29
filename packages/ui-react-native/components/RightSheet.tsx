@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   Dimensions,
   Image,
@@ -15,6 +21,7 @@ import {
 import { useViewerStore } from "@papyrus-sdk/core";
 import { DocumentEngine, DocumentType, OutlineItem } from "@papyrus-sdk/types";
 import { PapyrusPageView } from "@papyrus-sdk/engine-native";
+import { IconClose } from "../icons";
 import { getStrings } from "../mobileStrings";
 import {
   resolveRightSheetHeight,
@@ -25,6 +32,10 @@ import {
   NativeSheetFlatList,
   NativeSheetScrollView,
 } from "./NativeSheet";
+import {
+  getAnnotationKindLabel,
+  getReaderSheetPalette,
+} from "./readerSheetPresentation";
 
 export interface RightSheetProps {
   engine: DocumentEngine;
@@ -163,7 +174,9 @@ const PageThumbnail: React.FC<{
             style={styles.thumbImage}
           />
         ) : (
-          <View style={[styles.thumbFallback, isDark && styles.thumbFallbackDark]}>
+          <View
+            style={[styles.thumbFallback, isDark && styles.thumbFallbackDark]}
+          >
             <Text
               style={[
                 styles.thumbFallbackText,
@@ -262,6 +275,7 @@ const RightSheet: React.FC<RightSheetProps> = ({
     );
   }, [documentType]);
   const isDark = uiTheme === "dark";
+  const palette = getReaderSheetPalette(isDark);
   const t = getStrings(locale);
   const showingNotes = sidebarRightTab === "annotations";
   const sheetHeight = resolveRightSheetHeight({
@@ -290,9 +304,9 @@ const RightSheet: React.FC<RightSheetProps> = ({
     typeof setTimeout
   > | null>(null);
   const [thumbnailLayoutRevision, setThumbnailLayoutRevision] = useState(0);
-  const [visibleThumbnailPages, setVisibleThumbnailPages] = useState<Set<number>>(
-    () => new Set()
-  );
+  const [visibleThumbnailPages, setVisibleThumbnailPages] = useState<
+    Set<number>
+  >(() => new Set());
   const resolvedThumbsInitialCount = useMemo(
     () =>
       resolvePositiveInt(
@@ -450,7 +464,9 @@ const RightSheet: React.FC<RightSheetProps> = ({
       pages.map((pageIndex) => ({
         pageIndex,
         percent:
-          pageCount <= 1 ? 100 : Math.round(((pageIndex + 1) / pageCount) * 100),
+          pageCount <= 1
+            ? 100
+            : Math.round(((pageIndex + 1) / pageCount) * 100),
       })),
     [pageCount, pages]
   );
@@ -524,61 +540,64 @@ const RightSheet: React.FC<RightSheetProps> = ({
       onClose={closeSheet}
       isDark={isDark}
       maxHeight={sheetHeight}
+      closeAccessibilityLabel={`${t.close} ${
+        showingNotes ? t.notes.toLowerCase() : t.contents.toLowerCase()
+      }`}
+      sheetStyle={{
+        backgroundColor: palette.surface,
+        borderTopColor: palette.divider,
+      }}
     >
-        <View style={styles.sheet}>
-          <View style={styles.header}>
-            <Text style={[styles.sheetTitle, isDark && styles.sheetTitleDark]}>
-              {showingNotes ? t.notes : navigationTitle}
-            </Text>
-            {!showingNotes ? (
-              <Pressable
-                onPress={showingProgress ? undefined : onOpenPageJump}
-                disabled={showingProgress || pageCount <= 0}
-                style={styles.pageStatusHit}
-                accessibilityLabel="Open page jump"
-              >
-                <Text style={[styles.pageStatus, isDark && styles.pageStatusDark]}>
-                  {showingProgress
-                    ? `${Math.round((currentPage / Math.max(pageCount, 1)) * 100)}%`
-                    : `${currentPage}/${pageCount}`}
-                </Text>
-              </Pressable>
-            ) : null}
-          </View>
-
+      <View style={styles.sheet}>
+        <View style={styles.header}>
+          <Text style={[styles.sheetTitle, isDark && styles.sheetTitleDark]}>
+            {showingNotes ? t.notes : navigationTitle}
+          </Text>
           {!showingNotes ? (
-            <View style={styles.pagesContent}>
-              {!showingProgress ? (
-                <View style={styles.pageHeader}>
-                  <View style={[styles.segmented, isDark && styles.segmentedDark]}>
-                    {supportsThumbnails ? (
-                      <Pressable
-                        onPress={() => setPagesMode("thumbnails")}
-                        style={[
-                          styles.segmentButton,
-                          pagesMode === "thumbnails" && styles.segmentButtonActive,
-                          pagesMode === "thumbnails" && {
-                            backgroundColor: accentColor,
-                          },
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.segmentText,
-                            isDark && styles.segmentTextDark,
-                            pagesMode === "thumbnails" && styles.segmentTextActive,
-                          ]}
-                        >
-                          {thumbnailLabel}
-                        </Text>
-                      </Pressable>
-                    ) : null}
+            <Pressable
+              onPress={showingProgress ? undefined : onOpenPageJump}
+              disabled={showingProgress || pageCount <= 0}
+              style={styles.pageStatusHit}
+              accessibilityLabel="Open page jump"
+            >
+              <Text
+                style={[styles.pageStatus, isDark && styles.pageStatusDark]}
+              >
+                {showingProgress
+                  ? `${Math.round(
+                      (currentPage / Math.max(pageCount, 1)) * 100
+                    )}%`
+                  : `${currentPage}/${pageCount}`}
+              </Text>
+            </Pressable>
+          ) : null}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${t.close} ${
+              showingNotes ? t.notes.toLowerCase() : t.contents.toLowerCase()
+            }`}
+            onPress={closeSheet}
+            style={[styles.closeButton, isDark && styles.closeButtonDark]}
+          >
+            <IconClose size={18} color={palette.text} />
+          </Pressable>
+        </View>
+
+        {!showingNotes ? (
+          <View style={styles.pagesContent}>
+            {!showingProgress ? (
+              <View style={styles.pageHeader}>
+                <View
+                  style={[styles.segmented, isDark && styles.segmentedDark]}
+                >
+                  {supportsThumbnails ? (
                     <Pressable
-                      onPress={() => setPagesMode("summary")}
+                      onPress={() => setPagesMode("thumbnails")}
                       style={[
                         styles.segmentButton,
-                        pagesMode === "summary" && styles.segmentButtonActive,
-                        pagesMode === "summary" && {
+                        pagesMode === "thumbnails" &&
+                          styles.segmentButtonActive,
+                        pagesMode === "thumbnails" && {
                           backgroundColor: accentColor,
                         },
                       ]}
@@ -587,154 +606,176 @@ const RightSheet: React.FC<RightSheetProps> = ({
                         style={[
                           styles.segmentText,
                           isDark && styles.segmentTextDark,
-                          pagesMode === "summary" && styles.segmentTextActive,
+                          pagesMode === "thumbnails" &&
+                            styles.segmentTextActive,
                         ]}
                       >
-                        {summaryLabel}
+                        {thumbnailLabel}
                       </Text>
                     </Pressable>
-                  </View>
-                </View>
-              ) : null}
-
-              {supportsThumbnails && !showingProgress && pagesMode === "thumbnails" ? (
-                <NativeSheetFlatList
-                  data={pages}
-                  keyExtractor={(item) => `thumb-${item}`}
-                  numColumns={2}
-                  contentContainerStyle={styles.thumbGrid}
-                  columnWrapperStyle={styles.thumbRow}
-                  showsVerticalScrollIndicator={false}
-                  initialNumToRender={normalizedThumbsInitialCount}
-                  windowSize={THUMBNAILS_WINDOW_SIZE}
-                  maxToRenderPerBatch={THUMBNAILS_MAX_TO_RENDER_PER_BATCH}
-                  updateCellsBatchingPeriod={
-                    THUMBNAILS_UPDATE_CELLS_BATCHING_PERIOD
-                  }
-                  removeClippedSubviews
-                  viewabilityConfig={{ itemVisiblePercentThreshold: 20 }}
-                  onViewableItemsChanged={onThumbnailsViewableItemsChanged}
-                  renderItem={renderThumbnailItem}
-                />
-              ) : showingProgress ? (
-                <NativeSheetScrollView
-                  contentContainerStyle={styles.summaryContent}
-                  showsVerticalScrollIndicator={false}
-                >
-                  {progressEntries.map((entry) => {
-                    const isActive = entry.pageIndex + 1 === currentPage;
-                    return (
-                      <Pressable
-                        key={`progress-${entry.pageIndex}`}
-                        onPress={() => jumpToPage(entry.pageIndex)}
-                        style={[
-                          styles.progressRow,
-                          isDark && styles.progressRowDark,
-                          isActive && { borderColor: accentColor },
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.progressLabel,
-                            isDark && styles.progressLabelDark,
-                          ]}
-                        >
-                          {entry.percent}%
-                        </Text>
-                        <Text
-                          style={[
-                            styles.progressMeta,
-                            isDark && styles.progressMetaDark,
-                          ]}
-                        >
-                          {t.page} {entry.pageIndex + 1}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </NativeSheetScrollView>
-              ) : (
-                <NativeSheetScrollView
-                  contentContainerStyle={styles.summaryContent}
-                  showsVerticalScrollIndicator={false}
-                >
-                  {outline.length === 0 ? (
-                    <Text style={[styles.emptyText, isDark && styles.emptyTextDark]}>
-                      {t.noSummary}
-                    </Text>
-                  ) : (
-                    outline.map((item, index) => (
-                      <OutlineNode
-                        key={`${item.title}-${index}`}
-                        item={item}
-                        isDark={isDark}
-                        untitledLabel={t.untitled}
-                        onSelect={jumpToPage}
-                      />
-                    ))
-                  )}
-                </NativeSheetScrollView>
-              )}
-            </View>
-          ) : (
-            <NativeSheetScrollView
-              contentContainerStyle={styles.content}
-              showsVerticalScrollIndicator={false}
-            >
-              {annotations.length === 0 ? (
-                <Text style={[styles.emptyText, isDark && styles.emptyTextDark]}>
-                  {t.noAnnotations}
-                </Text>
-              ) : (
-                <View>
-                  {annotations.map((ann) => (
-                    <Pressable
-                      key={ann.id}
-                      onPress={() => {
-                        setSelectedAnnotation(ann.id);
-                        triggerScrollToPage(ann.pageIndex);
-                        closeSheet();
-                      }}
-                      style={[styles.noteCard, isDark && styles.noteCardDark]}
+                  ) : null}
+                  <Pressable
+                    onPress={() => setPagesMode("summary")}
+                    style={[
+                      styles.segmentButton,
+                      pagesMode === "summary" && styles.segmentButtonActive,
+                      pagesMode === "summary" && {
+                        backgroundColor: accentColor,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.segmentText,
+                        isDark && styles.segmentTextDark,
+                        pagesMode === "summary" && styles.segmentTextActive,
+                      ]}
                     >
-                      <View style={styles.noteHeader}>
-                        <View
-                          style={[styles.noteDot, { backgroundColor: ann.color }]}
-                        />
-                        <Text
-                          style={[styles.noteTitle, isDark && styles.noteTitleDark]}
-                        >
-                          {t.page} {ann.pageIndex + 1}
-                        </Text>
-                      </View>
+                      {summaryLabel}
+                    </Text>
+                  </Pressable>
+                </View>
+              </View>
+            ) : null}
+
+            {supportsThumbnails &&
+            !showingProgress &&
+            pagesMode === "thumbnails" ? (
+              <NativeSheetFlatList
+                data={pages}
+                keyExtractor={(item) => `thumb-${item}`}
+                numColumns={2}
+                contentContainerStyle={styles.thumbGrid}
+                columnWrapperStyle={styles.thumbRow}
+                showsVerticalScrollIndicator={false}
+                initialNumToRender={normalizedThumbsInitialCount}
+                windowSize={THUMBNAILS_WINDOW_SIZE}
+                maxToRenderPerBatch={THUMBNAILS_MAX_TO_RENDER_PER_BATCH}
+                updateCellsBatchingPeriod={
+                  THUMBNAILS_UPDATE_CELLS_BATCHING_PERIOD
+                }
+                removeClippedSubviews
+                viewabilityConfig={{ itemVisiblePercentThreshold: 20 }}
+                onViewableItemsChanged={onThumbnailsViewableItemsChanged}
+                renderItem={renderThumbnailItem}
+              />
+            ) : showingProgress ? (
+              <NativeSheetScrollView
+                contentContainerStyle={styles.summaryContent}
+                showsVerticalScrollIndicator={false}
+              >
+                {progressEntries.map((entry) => {
+                  const isActive = entry.pageIndex + 1 === currentPage;
+                  return (
+                    <Pressable
+                      key={`progress-${entry.pageIndex}`}
+                      onPress={() => jumpToPage(entry.pageIndex)}
+                      style={[
+                        styles.progressRow,
+                        isDark && styles.progressRowDark,
+                        isActive && { borderColor: accentColor },
+                      ]}
+                    >
                       <Text
                         style={[
-                          styles.noteType,
-                          isDark && styles.noteTypeDark,
-                          { color: accentColor },
+                          styles.progressLabel,
+                          isDark && styles.progressLabelDark,
                         ]}
                       >
-                        {ann.type === "comment" || ann.type === "text"
-                          ? t.note.toUpperCase()
-                          : ann.type.toUpperCase()}
+                        {entry.percent}%
                       </Text>
-                      {ann.content ? (
-                        <Text
-                          style={[
-                            styles.noteContent,
-                            isDark && styles.noteContentDark,
-                          ]}
-                        >
-                          {ann.content}
-                        </Text>
-                      ) : null}
+                      <Text
+                        style={[
+                          styles.progressMeta,
+                          isDark && styles.progressMetaDark,
+                        ]}
+                      >
+                        {t.page} {entry.pageIndex + 1}
+                      </Text>
                     </Pressable>
-                  ))}
-                </View>
-              )}
-            </NativeSheetScrollView>
-          )}
-        </View>
+                  );
+                })}
+              </NativeSheetScrollView>
+            ) : (
+              <NativeSheetScrollView
+                contentContainerStyle={styles.summaryContent}
+                showsVerticalScrollIndicator={false}
+              >
+                {outline.length === 0 ? (
+                  <Text
+                    style={[styles.emptyText, isDark && styles.emptyTextDark]}
+                  >
+                    {t.noSummary}
+                  </Text>
+                ) : (
+                  outline.map((item, index) => (
+                    <OutlineNode
+                      key={`${item.title}-${index}`}
+                      item={item}
+                      isDark={isDark}
+                      untitledLabel={t.untitled}
+                      onSelect={jumpToPage}
+                    />
+                  ))
+                )}
+              </NativeSheetScrollView>
+            )}
+          </View>
+        ) : (
+          <NativeSheetScrollView
+            contentContainerStyle={styles.notesContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {annotations.length === 0 ? (
+              <Text style={[styles.emptyText, isDark && styles.emptyTextDark]}>
+                {t.noAnnotations}
+              </Text>
+            ) : (
+              <View>
+                {annotations.map((ann) => (
+                  <Pressable
+                    key={ann.id}
+                    onPress={() => {
+                      setSelectedAnnotation(ann.id);
+                      triggerScrollToPage(ann.pageIndex);
+                      closeSheet();
+                    }}
+                    style={[
+                      styles.noteCard,
+                      {
+                        backgroundColor: palette.elevatedSurface,
+                        borderColor: palette.divider,
+                      },
+                    ]}
+                  >
+                    <View style={styles.noteHeader}>
+                      <View
+                        style={[styles.noteDot, { backgroundColor: ann.color }]}
+                      />
+                      <Text style={[styles.noteTitle, { color: palette.text }]}>
+                        {t.page} {ann.pageIndex + 1}
+                      </Text>
+                    </View>
+                    <Text style={[styles.noteType, { color: accentColor }]}>
+                      {getAnnotationKindLabel(ann.type, locale)}
+                    </Text>
+                    {ann.content ? (
+                      <Text
+                        style={[
+                          styles.noteContent,
+                          { color: palette.mutedText },
+                        ]}
+                      >
+                        {ann.content}
+                      </Text>
+                    ) : null}
+                  </Pressable>
+                ))}
+              </View>
+            )}
+          </NativeSheetScrollView>
+        )}
+      </View>
     </NativeSheet>
   );
 };
@@ -747,8 +788,10 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: 16,
+    paddingTop: 4,
+    paddingBottom: 8,
     marginBottom: 10,
-    gap: 4,
+    gap: 8,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -784,6 +827,20 @@ const styles = StyleSheet.create({
   },
   pageStatusDark: {
     color: "#e5e7eb",
+  },
+  closeButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#eef2f7",
+    borderWidth: 1,
+    borderColor: "#d9e1ec",
+  },
+  closeButtonDark: {
+    backgroundColor: "#1b2230",
+    borderColor: "#2b3445",
   },
   segmented: {
     flexDirection: "row",
@@ -877,6 +934,11 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 16,
     paddingBottom: 16,
+  },
+  notesContent: {
+    paddingHorizontal: 16,
+    paddingTop: 4,
+    paddingBottom: 24,
   },
   summaryContent: {
     paddingBottom: 24,

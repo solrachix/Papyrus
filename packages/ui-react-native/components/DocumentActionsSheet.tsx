@@ -1,13 +1,8 @@
 import React from "react";
-import {
-  Modal,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { useViewerStore } from "@papyrus-sdk/core";
-import { usePapyrusSafeAreaInsets } from "./PapyrusSafeArea";
+import { NativeSheet } from "./NativeSheet";
+import { getReaderSheetPalette } from "./readerSheetPresentation";
 
 type DocumentActionsSheetProps = {
   visible: boolean;
@@ -20,65 +15,53 @@ export function DocumentActionsSheet({
 }: DocumentActionsSheetProps) {
   const { uiTheme } = useViewerStore();
   const isDark = uiTheme === "dark";
-  const insets = usePapyrusSafeAreaInsets();
+  const palette = getReaderSheetPalette(isDark);
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable
-          onPress={(event) => event.stopPropagation()}
-          style={[styles.card, isDark && styles.cardDark, { paddingBottom: 16 + insets.bottom }]}
+    <NativeSheet
+      visible={visible}
+      onClose={onClose}
+      isDark={isDark}
+      maxHeight="55%"
+      showHeader
+      title="Document actions"
+      closeAccessibilityLabel="Close document actions"
+      sheetStyle={{
+        paddingHorizontal: 16,
+        paddingBottom: 16,
+        backgroundColor: palette.surface,
+        borderTopColor: palette.divider,
+      }}
+    >
+      <View style={styles.actionList}>
+        <View
+          style={[
+            styles.actionItem,
+            {
+              backgroundColor: palette.elevatedSurface,
+              borderColor: palette.divider,
+            },
+          ]}
         >
-          <Text style={[styles.eyebrow, isDark && styles.eyebrowDark]}>
-            Document actions
-          </Text>
-          <View style={styles.actionList}>
-            <View style={[styles.actionItem, isDark && styles.actionItemDark]}>
-              <Text style={[styles.actionText, isDark && styles.actionTextDark]}>
-                Share
-              </Text>
-            </View>
-            <View style={[styles.actionItem, isDark && styles.actionItemDark]}>
-              <Text style={[styles.actionText, isDark && styles.actionTextDark]}>
-                Export
-              </Text>
-            </View>
-          </View>
-          <Pressable onPress={onClose} style={styles.closeButton} accessibilityLabel="Close actions sheet">
-            <Text style={styles.closeText}>Close</Text>
-          </Pressable>
-        </Pressable>
-      </Pressable>
-    </Modal>
+          <Text style={[styles.actionText, { color: palette.text }]}>Share</Text>
+        </View>
+        <View
+          style={[
+            styles.actionItem,
+            {
+              backgroundColor: palette.elevatedSurface,
+              borderColor: palette.divider,
+            },
+          ]}
+        >
+          <Text style={[styles.actionText, { color: palette.text }]}>Export</Text>
+        </View>
+      </View>
+    </NativeSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: "rgba(15, 23, 42, 0.35)",
-    justifyContent: "flex-end",
-    padding: 16,
-  },
-  card: {
-    borderRadius: 24,
-    backgroundColor: "#ffffff",
-    padding: 18,
-    gap: 10,
-  },
-  cardDark: {
-    backgroundColor: "#0f1115",
-  },
-  eyebrow: {
-    fontSize: 11,
-    fontWeight: "700",
-    letterSpacing: 1,
-    textTransform: "uppercase",
-    color: "#64748b",
-  },
-  eyebrowDark: {
-    color: "#94a3b8",
-  },
   actionList: {
     gap: 10,
   },
@@ -87,28 +70,10 @@ const styles = StyleSheet.create({
     backgroundColor: "#f8fafc",
     paddingHorizontal: 14,
     paddingVertical: 12,
-  },
-  actionItemDark: {
-    backgroundColor: "#111827",
+    borderWidth: 1,
   },
   actionText: {
     fontSize: 14,
-    fontWeight: "700",
-    color: "#0f172a",
-  },
-  actionTextDark: {
-    color: "#f8fafc",
-  },
-  closeButton: {
-    marginTop: 4,
-    alignSelf: "flex-start",
-    borderRadius: 999,
-    backgroundColor: "#0f172a",
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-  },
-  closeText: {
-    color: "#ffffff",
     fontWeight: "700",
   },
 });
