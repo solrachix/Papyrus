@@ -23,6 +23,7 @@ interface PageRendererProps {
     pageIndex: number,
     size: { width: number; height: number }
   ) => void;
+  onRenderReady?: (pageIndex: number, renderedZoom: number) => void;
 }
 
 const SCALE_PRECISION = 1000;
@@ -33,6 +34,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   availableWidth,
   availableHeight,
   onMeasuredSize,
+  onRenderReady,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -290,6 +292,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({
           textLayerRef.current.style.height = `${displaySize.height}px`;
         }
         setTextLayerVersion((v) => v + 1);
+        onRenderReady?.(pageIndex, zoom);
       } catch (err) {
         if (!active) return;
         console.error("[Papyrus] Falha na renderização:", err);
@@ -312,6 +315,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     pageSize,
     renderZoomDependency,
     renderRotationDependency,
+    onRenderReady,
   ]);
 
   useEffect(() => {

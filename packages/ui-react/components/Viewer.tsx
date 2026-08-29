@@ -86,6 +86,7 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
     startZoom: number;
     pendingZoom: number | null;
     pendingCommitZoom: number | null;
+    pendingReadyPageIndexes: Set<number> | null;
     focalViewportX: number;
     focalViewportY: number;
     startScrollLeft: number;
@@ -96,6 +97,7 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
     startZoom: 1,
     pendingZoom: null,
     pendingCommitZoom: null,
+    pendingReadyPageIndexes: null,
     focalViewportX: 0,
     focalViewportY: 0,
     startScrollLeft: 0,
@@ -244,6 +246,12 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
       pinchRef.current.active ||
       pendingCommitZoom == null ||
       Math.abs(zoom - pendingCommitZoom) >= 0.001
+    ) {
+      return;
+    }
+    if (
+      pinchRef.current.pendingReadyPageIndexes &&
+      pinchRef.current.pendingReadyPageIndexes.size > 0
     ) {
       return;
     }
@@ -696,9 +704,9 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
       isSingleViewportMode
         ? {
             ...(style ?? {}),
-            overflow: "hidden",
+            overflow: "auto",
             overflowY: "hidden",
-            overflowX: "hidden",
+            overflowX: "auto",
             overscrollBehavior: "none",
           }
         : style ?? {},
@@ -718,6 +726,24 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
         return prev;
       return { ...prev, [pageIndex]: size };
     });
+  };
+  const handlePinchRenderReady = (pageIndex: number, renderedZoom: number) => {
+    const pendingZoom = pinchRef.current.pendingCommitZoom;
+    const pendingPages = pinchRef.current.pendingReadyPageIndexes;
+    if (
+      pendingZoom == null ||
+      Math.abs(renderedZoom - pendingZoom) >= 0.001 ||
+      !pendingPages
+    ) {
+      return;
+    }
+    pendingPages.delete(pageIndex);
+    if (pendingPages.size === 0 && pinchSurfaceRef.current) {
+      pinchSurfaceRef.current.style.transform = "";
+      pinchSurfaceRef.current.style.transformOrigin = "";
+      pinchRef.current.pendingCommitZoom = null;
+      pinchRef.current.pendingReadyPageIndexes = null;
+    }
   };
   const tools = [
     { id: "select", name: "Select", icon: "M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5" },
@@ -819,7 +845,13 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
       const startScrollTop = pinchRef.current.startScrollTop;
       const focalViewportX = pinchRef.current.focalViewportX;
       const focalViewportY = pinchRef.current.focalViewportY;
-      pinchRef.current.pendingCommitZoom = nextZoom;
+    pinchRef.current.pendingCommitZoom = nextZoom;
+      pinchRef.current.pendingReadyPageIndexes = new Set(
+        Array.from(
+          { length: Math.max(0, virtualEnd - virtualStart + 1) },
+          (_, index) => virtualStart + index
+        )
+      );
       engine.setZoom(nextZoom);
       setDocumentState({ zoom: nextZoom });
       requestAnimationFrame(() => {
@@ -842,6 +874,7 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
       });
     } else {
       pinchRef.current.pendingCommitZoom = null;
+      pinchRef.current.pendingReadyPageIndexes = null;
       if (pinchSurfaceRef.current) {
         pinchSurfaceRef.current.style.transform = "";
         pinchSurfaceRef.current.style.transformOrigin = "";
@@ -858,6 +891,7 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
     pinchRef.current.active = false;
     pinchRef.current.pendingZoom = null;
     pinchRef.current.pendingCommitZoom = null;
+    pinchRef.current.pendingReadyPageIndexes = null;
     pinchRef.current.startDistance = 0;
     event.preventDefault();
   };
@@ -897,6 +931,7 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
                 availableWidth={availableWidth ?? undefined}
                 availableHeight={availableHeight ?? undefined}
                 onMeasuredSize={handlePageMeasured}
+                onRenderReady={handlePinchRenderReady}
               />
             ) : (
               <div
