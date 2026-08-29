@@ -210,6 +210,11 @@ const Viewer: React.FC<ViewerProps> = ({
   const pinchAnchorRestoreFrameRef = useRef<number | null>(null);
   const viewerFrameRef = useRef({ y: 0, height: 0 });
   const viewerContentHeightRef = useRef(0);
+  const listLayoutMetricsRef = useRef<{
+    offsets: number[];
+    lengths: number[];
+    estimatedLength: number;
+  } | null>(null);
   const resolvedWindowSize = useMemo(
     () =>
       resolvePositiveInt(
@@ -601,6 +606,23 @@ const Viewer: React.FC<ViewerProps> = ({
 
   const getPageLayoutForZoom = useCallback(
     (pageIndex: number, zoomValue: number) => {
+      const cachedMetrics = listLayoutMetricsRef.current;
+      if (cachedMetrics && Math.abs(zoomValue - zoom) < 0.001) {
+        const itemIndex = isDouble ? Math.floor(pageIndex / 2) : pageIndex;
+        const safeIndex = Math.max(
+          0,
+          Math.min(itemIndex, cachedMetrics.lengths.length - 1)
+        );
+        const lastIndex = cachedMetrics.lengths.length - 1;
+        return {
+          pageOffsetY: cachedMetrics.offsets[safeIndex] ?? LIST_TOP_PADDING,
+          pageHeight: getPageHeightForZoom(pageIndex, zoomValue),
+          totalContentHeight:
+            (cachedMetrics.offsets[lastIndex] ?? LIST_TOP_PADDING) +
+            (cachedMetrics.lengths[lastIndex] ?? cachedMetrics.estimatedLength) +
+            LIST_BOTTOM_PADDING,
+        };
+      }
       if (isSingle) {
         const pageHeight = getPageHeightForZoom(pageIndex, zoomValue);
         return {
@@ -693,7 +715,7 @@ const Viewer: React.FC<ViewerProps> = ({
           LIST_BOTTOM_PADDING,
       };
     },
-    [getPageHeightForZoom, isDouble, isSingle, pageCount, rows]
+    [getPageHeightForZoom, isDouble, isSingle, pageCount, rows, zoom]
   );
 
   const resolvePinchAnchorPageIndex = useCallback(
@@ -1267,6 +1289,7 @@ const Viewer: React.FC<ViewerProps> = ({
     windowWidth,
     zoom,
   ]);
+  listLayoutMetricsRef.current = listLayoutMetrics;
 
   const getFallbackOffsetForIndex = useCallback(
     (index: number) => {
