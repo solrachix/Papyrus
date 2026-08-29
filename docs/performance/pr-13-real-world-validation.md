@@ -38,18 +38,18 @@ O pinch real também mostrou clipping horizontal após o zoom. O jump distante t
 
 Capturas locais usadas durante a validação: `/tmp/papyrus-android-real-pinch-final.png`, `/tmp/papyrus-android-large-1000.png`, `/tmp/papyrus-android-large-after-scroll.png`, `/tmp/papyrus-android-page-jump-10-final.png` e `/tmp/papyrus-android-after-rotation.png`.
 
-## Falhas de teste comparadas com a main
+## Verificação do module graph React/Zustand
 
-O teste direcionado foi executado nos dois worktrees, sem alterações locais:
+Após remover os diretórios `node_modules` gerados somente da worktree da PR e executar uma instalação limpa com lockfile congelado, o teste direcionado passou:
 
 ```text
 pnpm exec vitest run examples/web/App.phase1-shell.test.tsx
 ```
 
-- PR 13 / head `bdf05f2`: 2 testes falharam com `TypeError: Cannot read properties of null (reading 'useCallback')`, na integração Zustand/React usada por `examples/web/App.tsx`.
+- PR 13 / head atual: 2 testes passaram.
 - `main` / `715eeba`: 2 testes passaram.
 
-Portanto, as duas falhas não foram comprovadas como preexistentes na `main` atual; elas são reproduzíveis na branch da PR 13 e devem permanecer explicitamente acompanhadas antes de chamar a suíte de verde.
+As falhas anteriores eram efeito de estado residual da instalação da worktree. O bisect sem reinstalação por commit foi inconclusivo e não deve ser usado como evidência de regressão.
 
 ## Limitações
 
@@ -57,3 +57,4 @@ Portanto, as duas falhas não foram comprovadas como preexistentes na `main` atu
 - As métricas Android são de um AVD Pixel 7 API 35, não de aparelhos físicos.
 - Os resultados Android acima são evidência de diagnóstico, não metas de produto.
 - A atualização do protocolo separa sessões de frame por cenário, diferencia render abandonado de cancelamento real, agrega percentis das repetições e chama a memória de `heapAtSnapshotBytes`, pois uma leitura única não é pico de memória.
+- Suíte final na instalação limpa: 52 arquivos, 175 testes aprovados e 2 ignorados.
