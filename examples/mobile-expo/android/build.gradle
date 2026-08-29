@@ -24,6 +24,10 @@ buildscript {
 ext {
     // Expo modules read kotlinVersion from rootProject.ext.
     kotlinVersion = findProperty('android.kotlinVersion') ?: '1.9.25'
+
+    // The monorepo hoists Expo modules alongside another React Native app.
+    // Keep expo-dev-launcher on the RN 0.76 source set used by this Expo 52 example.
+    reactNativeVersion = '0.76.0'
 }
 
 apply plugin: "com.facebook.react.rootproject"
