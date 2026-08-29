@@ -39,4 +39,28 @@ describe("mobile sheet dependencies", () => {
       expect(source).not.toMatch(/\bModal\b/);
     }
   });
+
+  it("keeps the sheet title before a right-aligned close control", () => {
+    const nativeSheet = readFileSync(
+      resolve(packageRoot, "components", "NativeSheet.tsx"),
+      "utf8"
+    );
+    const rightSheet = readFileSync(
+      resolve(packageRoot, "components", "RightSheet.tsx"),
+      "utf8"
+    );
+
+    expect(nativeSheet).toMatch(
+      /styles\.header[\s\S]*styles\.headerSpacer[\s\S]*styles\.title[\s\S]*styles\.closeButton/
+    );
+    expect(rightSheet).toContain("width: 42");
+    expect(rightSheet).toContain("borderRadius: 21");
+
+    const topbar = readFileSync(
+      resolve(packageRoot, "components", "Topbar.tsx"),
+      "utf8"
+    );
+    expect(topbar).toContain("includeFontPadding: false");
+    expect(topbar).toContain('textAlignVertical: "center"');
+  });
 });

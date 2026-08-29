@@ -1,5 +1,11 @@
 import React, { useState } from "react";
-import { View, Text, Pressable, StyleSheet, useWindowDimensions } from "react-native";
+import {
+  View,
+  Text,
+  Pressable,
+  StyleSheet,
+  useWindowDimensions,
+} from "react-native";
 import { useViewerStore } from "@papyrus-sdk/core";
 import { IconSettings, IconChevronLeft, IconChevronRight } from "../icons";
 import { DocumentEngine } from "@papyrus-sdk/types";
@@ -77,11 +83,24 @@ const Topbar: React.FC<TopbarProps> = ({
   return (
     <>
       <View
-        style={[styles.chromeFrame, { paddingTop: insets.top, paddingLeft: MOBILE_CHROME_METRICS.screenPadding + insets.left, paddingRight: MOBILE_CHROME_METRICS.screenPadding + insets.right }]}
+        style={[
+          styles.chromeFrame,
+          {
+            paddingTop: insets.top,
+            paddingLeft: MOBILE_CHROME_METRICS.screenPadding + insets.left,
+            paddingRight: MOBILE_CHROME_METRICS.screenPadding + insets.right,
+          },
+        ]}
         pointerEvents="box-none"
         testID="papyrus-floating-top-controls"
       >
-        <View style={[styles.container, isDark && styles.containerDark, isLandscape && styles.containerLandscape]}>
+        <View
+          style={[
+            styles.container,
+            isDark && styles.containerDark,
+            isLandscape && styles.containerLandscape,
+          ]}
+        >
           <View style={styles.leftGroup}>
             {onLogoPress ? (
               <Pressable
@@ -238,8 +257,11 @@ const styles = StyleSheet.create({
   },
   brandText: {
     fontSize: 14,
+    lineHeight: 18,
     fontWeight: "800",
     color: "#111827",
+    includeFontPadding: false,
+    textAlignVertical: "center",
     flexShrink: 1,
     flexGrow: 1,
   },

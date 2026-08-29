@@ -71,6 +71,13 @@ export function NativeSheet({
         >
           {showHeader ? (
             <View style={styles.header}>
+              <View style={styles.headerSpacer} />
+              <Text
+                style={[styles.title, { color: palette.textColor }]}
+                numberOfLines={1}
+              >
+                {title}
+              </Text>
               <Pressable
                 onPress={onClose}
                 style={[
@@ -82,13 +89,6 @@ export function NativeSheet({
               >
                 <IconClose size={18} color={palette.textColor} />
               </Pressable>
-              <Text
-                style={[styles.title, { color: palette.textColor }]}
-                numberOfLines={1}
-              >
-                {title}
-              </Text>
-              <View style={styles.headerSpacer} />
             </View>
           ) : null}
           {children}
