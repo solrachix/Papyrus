@@ -13,6 +13,7 @@ import {
   type ViewStyle,
 } from "react-native";
 import { IconClose } from "../icons";
+import { getNativeSheetSizeStyle } from "./nativeSheetLayout";
 
 export type NativeSheetProps = {
   visible: boolean;
@@ -55,7 +56,7 @@ export function NativeSheet({
           style={[
             styles.sheet,
             isDark && styles.sheetDark,
-            maxHeight ? { maxHeight } : null,
+            getNativeSheetSizeStyle(maxHeight),
             sheetStyle,
           ]}
         >

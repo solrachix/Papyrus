@@ -16,7 +16,10 @@ import { useViewerStore } from "@papyrus-sdk/core";
 import { DocumentEngine, DocumentType, OutlineItem } from "@papyrus-sdk/types";
 import { PapyrusPageView } from "@papyrus-sdk/engine-native";
 import { getStrings } from "../mobileStrings";
-import { resolveRightSheetHeight } from "./rightSheetLayout";
+import {
+  resolveRightSheetHeight,
+  supportsPageThumbnails,
+} from "./rightSheetLayout";
 import {
   NativeSheet,
   NativeSheetFlatList,
@@ -310,7 +313,7 @@ const RightSheet: React.FC<RightSheetProps> = ({
   );
   const showingProgress =
     documentType === "text" || activeMobileDestination === "progress";
-  const supportsThumbnails = documentType !== "text";
+  const supportsThumbnails = supportsPageThumbnails(documentType);
   const navigationTitle = showingProgress
     ? t.progress
     : documentType === "epub" || activeMobileDestination === "contents"
@@ -738,6 +741,7 @@ const RightSheet: React.FC<RightSheetProps> = ({
 
 const styles = StyleSheet.create({
   sheet: {
+    flex: 1,
     maxHeight: "100%",
     paddingBottom: 16,
   },
