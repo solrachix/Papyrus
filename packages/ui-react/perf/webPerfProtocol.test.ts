@@ -35,7 +35,9 @@ describe("web performance protocol", () => {
             { name: "jump.start", timestampMs: 300 },
             { name: "jump.end", timestampMs: 420 },
             { name: "jump.start", timestampMs: 600 },
-            { name: "jump.end", timestampMs: 780 },
+            { name: "pinch.frames", scope: "pinch", payload: { label: "pinch", total: 20, over16ms: 2, over33ms: 1, maxIntervalMs: 40 } },
+            { name: "pinch.frames", scope: "pinch", payload: { label: "pinch", total: 22, over16ms: 5, over33ms: 2, maxIntervalMs: 70 } },
+            { name: "pinch.frames", scope: "pinch", payload: { label: "pinch", total: 18, over16ms: 1, over33ms: 0, maxIntervalMs: 32 } },
           ],
           measures: [
             {
@@ -50,6 +52,8 @@ describe("web performance protocol", () => {
               name: "zoom.commitToSurfaceReady",
               durationMs: 260,
             },
+            { name: "jump.duration", durationMs: 120 },
+            { name: "jump.duration", durationMs: 180 },
           ],
           frames: { total: 20, over16ms: 2, over33ms: 1, maxIntervalMs: 40 },
           dom: { pageContainers: 13, canvases: 7, pageRenderers: 4 },
@@ -81,7 +85,13 @@ describe("web performance protocol", () => {
           p95Ms: 260,
           maxMs: 260,
         },
-        frameDrops: { over16ms: 2, over33ms: 1, maxIntervalMs: 40 },
+        frameDrops: {
+          sessions: 3,
+          totalFrames: 60,
+          over16ms: { samples: 3, medianMs: 2, p90Ms: 5, p95Ms: 5, maxMs: 5 },
+          over33ms: { samples: 3, medianMs: 1, p90Ms: 2, p95Ms: 2, maxMs: 2 },
+          maxIntervalMs: { samples: 3, medianMs: 40, p90Ms: 70, p95Ms: 70, maxMs: 70 },
+        },
         heapAtSnapshotBytes: 900,
         jumpLatencyMs: {
           samples: 2,

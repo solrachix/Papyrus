@@ -30,4 +30,15 @@ describe("web Viewer pinch integration contract", () => {
       touchEnd.indexOf("engine.setZoom(nextZoom)")
     );
   });
+
+  it("replaces an orphaned frame session when a new pinch starts", () => {
+    const pinchStart = viewerSource.slice(
+      viewerSource.indexOf("const handleTouchStart"),
+      viewerSource.indexOf("const handleTouchMove")
+    );
+
+    expect(pinchStart.indexOf("webPerf.stopFrameSampling()")).toBeLessThan(
+      pinchStart.indexOf('webPerf.startFrameSampling("pinch")')
+    );
+  });
 });

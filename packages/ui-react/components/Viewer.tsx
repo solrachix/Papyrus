@@ -883,6 +883,7 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
       (touchA.clientX + touchB.clientX) / 2 - (viewerRect?.left ?? 0);
     pinchRef.current.focalViewportY =
       (touchA.clientY + touchB.clientY) / 2 - (viewerRect?.top ?? 0);
+    webPerf.stopFrameSampling();
     if (pinchSurfaceRef.current) {
       pinchSurfaceRef.current.style.transformOrigin = `${pinchRef.current.focalViewportX}px ${pinchRef.current.focalViewportY}px`;
       pinchSurfaceRef.current.style.transform = "scale(1)";

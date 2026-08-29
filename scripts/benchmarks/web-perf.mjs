@@ -56,18 +56,24 @@ const summarizeSamples = (values) => {
   };
 };
 
-const collectJumpLatencies = (events) => {
-  const starts = events.filter((event) => event?.name === 'jump.start');
-  const ends = events.filter((event) => event?.name === 'jump.end');
-  const latencies = [];
-  for (let index = 0; index < Math.min(starts.length, ends.length); index += 1) {
-    const start = starts[index]?.timestampMs;
-    const end = ends[index]?.timestampMs;
-    if (typeof start === 'number' && typeof end === 'number' && end >= start) {
-      latencies.push(end - start);
-    }
+const summarizeFrameSessions = (events, fallback) => {
+  const sessions = events
+    .filter((event) => event?.name === 'pinch.frames' && event?.scope === 'pinch')
+    .map((event) => event.payload)
+    .filter((payload) => payload && typeof payload === 'object');
+  if (sessions.length === 0) {
+    return fallback && typeof fallback === 'object'
+      ? { sessions: 1, totalFrames: fallback.total ?? null, over16ms: fallback.over16ms ?? null, over33ms: fallback.over33ms ?? null, maxIntervalMs: fallback.maxIntervalMs ?? null }
+      : null;
   }
-  return latencies;
+  const values = (key) => sessions.map((session) => session[key]);
+  return {
+    sessions: sessions.length,
+    totalFrames: values('total').reduce((total, value) => total + (Number.isFinite(value) ? value : 0), 0),
+    over16ms: summarizeSamples(values('over16ms')),
+    over33ms: summarizeSamples(values('over33ms')),
+    maxIntervalMs: summarizeSamples(values('maxIntervalMs')),
+  };
 };
 
 const summarizeSnapshot = (snapshot) => {
@@ -76,21 +82,17 @@ const summarizeSnapshot = (snapshot) => {
   const zoomLatencies = measures
     .filter((measure) => measure?.name === 'zoom.commitToSurfaceReady')
     .map((measure) => measure.durationMs);
-  const jumpLatencyMs = summarizeSamples(collectJumpLatencies(events));
+  const jumpDurations = measures
+    .filter((measure) => measure?.name === 'jump.duration')
+    .map((measure) => measure.durationMs);
+  const jumpLatencyMs = summarizeSamples(jumpDurations);
   const frames = snapshot?.frames;
   const dom = snapshot?.dom;
   const memory = snapshot?.memory;
 
   return {
     zoomCommitToSurfaceReadyMs: summarizeSamples(zoomLatencies),
-    frameDrops:
-      frames && typeof frames === 'object'
-        ? {
-            over16ms: frames.over16ms ?? null,
-            over33ms: frames.over33ms ?? null,
-            maxIntervalMs: frames.maxIntervalMs ?? null,
-          }
-        : null,
+    frameDrops: summarizeFrameSessions(events, frames),
     heapAtSnapshotBytes:
       memory && typeof memory.usedJSHeapSize === 'number'
         ? memory.usedJSHeapSize
