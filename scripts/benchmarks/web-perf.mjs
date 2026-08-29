@@ -43,30 +43,46 @@ const protocol = {
   ],
 };
 
-const findTimestamp = (events, name) => {
-  const event = events.find((candidate) => candidate?.name === name);
-  return typeof event?.timestampMs === 'number' ? event.timestampMs : null;
+const summarizeSamples = (values) => {
+  const samples = values.filter((value) => Number.isFinite(value)).sort((a, b) => a - b);
+  if (samples.length === 0) return null;
+  const percentile = (rank) => samples[Math.min(samples.length - 1, Math.ceil(samples.length * rank) - 1)];
+  return {
+    samples: samples.length,
+    medianMs: percentile(0.5),
+    p90Ms: percentile(0.9),
+    p95Ms: percentile(0.95),
+    maxMs: samples[samples.length - 1],
+  };
+};
+
+const collectJumpLatencies = (events) => {
+  const starts = events.filter((event) => event?.name === 'jump.start');
+  const ends = events.filter((event) => event?.name === 'jump.end');
+  const latencies = [];
+  for (let index = 0; index < Math.min(starts.length, ends.length); index += 1) {
+    const start = starts[index]?.timestampMs;
+    const end = ends[index]?.timestampMs;
+    if (typeof start === 'number' && typeof end === 'number' && end >= start) {
+      latencies.push(end - start);
+    }
+  }
+  return latencies;
 };
 
 const summarizeSnapshot = (snapshot) => {
   const events = Array.isArray(snapshot?.events) ? snapshot.events : [];
   const measures = Array.isArray(snapshot?.measures) ? snapshot.measures : [];
-  const zoomMeasure = measures.find(
-    (measure) => measure?.name === 'zoom.commitToSurfaceReady',
-  );
-  const jumpStart = findTimestamp(events, 'jump.start');
-  const jumpEnd = findTimestamp(events, 'jump.end');
-  const jumpLatencyMs =
-    jumpStart != null && jumpEnd != null && jumpEnd >= jumpStart
-      ? jumpEnd - jumpStart
-      : null;
+  const zoomLatencies = measures
+    .filter((measure) => measure?.name === 'zoom.commitToSurfaceReady')
+    .map((measure) => measure.durationMs);
+  const jumpLatencyMs = summarizeSamples(collectJumpLatencies(events));
   const frames = snapshot?.frames;
   const dom = snapshot?.dom;
   const memory = snapshot?.memory;
 
   return {
-    zoomCommitToSurfaceReadyMs:
-      typeof zoomMeasure?.durationMs === 'number' ? zoomMeasure.durationMs : null,
+    zoomCommitToSurfaceReadyMs: summarizeSamples(zoomLatencies),
     frameDrops:
       frames && typeof frames === 'object'
         ? {
@@ -75,7 +91,7 @@ const summarizeSnapshot = (snapshot) => {
             maxIntervalMs: frames.maxIntervalMs ?? null,
           }
         : null,
-    peakMemoryBytes:
+    heapAtSnapshotBytes:
       memory && typeof memory.usedJSHeapSize === 'number'
         ? memory.usedJSHeapSize
         : null,
@@ -89,6 +105,11 @@ const summarizeSnapshot = (snapshot) => {
 const formatMetric = (value, suffix = '') =>
   value == null ? 'indisponível' : `${value}${suffix}`;
 
+const formatSummary = (summary) =>
+  summary == null
+    ? 'indisponível'
+    : `${summary.medianMs} / ${summary.p90Ms} / ${summary.p95Ms} / ${summary.maxMs} ms (n=${summary.samples})`;
+
 const renderMarkdown = (report) => `# Papyrus — Web performance
 
 - Status: **${report.status}**
@@ -97,12 +118,12 @@ const renderMarkdown = (report) => `# Papyrus — Web performance
 
 | Métrica | Valor |
 | --- | ---: |
-| Commit de zoom → surface pronta | ${formatMetric(report.metrics.zoomCommitToSurfaceReadyMs, ' ms')} |
+| Commit de zoom → surface pronta (mediana / P90 / P95 / máx.) | ${formatSummary(report.metrics.zoomCommitToSurfaceReadyMs)} |
 | Frames acima de 16,67 ms | ${formatMetric(report.metrics.frameDrops?.over16ms)} |
 | Frames acima de 33,33 ms | ${formatMetric(report.metrics.frameDrops?.over33ms)} |
 | Maior intervalo entre frames | ${formatMetric(report.metrics.frameDrops?.maxIntervalMs, ' ms')} |
-| Peak de heap JS | ${formatMetric(report.metrics.peakMemoryBytes, ' bytes')} |
-| Jump latency | ${formatMetric(report.metrics.jumpLatencyMs, ' ms')} |
+| Heap JS no snapshot | ${formatMetric(report.metrics.heapAtSnapshotBytes, ' bytes')} |
+| Jump latency (mediana / P90 / P95 / máx.) | ${formatSummary(report.metrics.jumpLatencyMs)} |
 | Wrappers | ${formatMetric(report.metrics.wrappers)} |
 | Canvas | ${formatMetric(report.metrics.canvases)} |
 | PageRenderers | ${formatMetric(report.metrics.pageRenderers)} |
@@ -125,7 +146,7 @@ const report = {
     : {
         zoomCommitToSurfaceReadyMs: null,
         frameDrops: null,
-        peakMemoryBytes: null,
+        heapAtSnapshotBytes: null,
         jumpLatencyMs: null,
         wrappers: null,
         canvases: null,

@@ -111,6 +111,42 @@ describe("web performance collector", () => {
     });
   });
 
+  it("resets frame counters and returns an isolated named session", () => {
+    let frameCallback: ((timestamp: number) => void) | null = null;
+    const collector = createWebPerfCollector({
+      enabled: true,
+      runId: "run-session",
+      scenario: "interactive",
+      windowRef: {
+        requestAnimationFrame: vi.fn((callback: (timestamp: number) => void) => {
+          frameCallback = callback;
+          return 1;
+        }),
+        cancelAnimationFrame: vi.fn(),
+      },
+    });
+
+    collector.startFrameSampling("pinch");
+    frameCallback?.(100);
+    frameCallback?.(120);
+    expect(collector.stopFrameSampling()).toEqual({
+      label: "pinch",
+      total: 2,
+      over16ms: 1,
+      over33ms: 0,
+      maxIntervalMs: 20,
+    });
+
+    collector.startFrameSampling("jump");
+    frameCallback?.(500);
+    expect(collector.snapshot().frames).toEqual({
+      total: 1,
+      over16ms: 0,
+      over33ms: 0,
+      maxIntervalMs: 0,
+    });
+  });
+
   it("uses the query flag only as an explicit opt-in and tolerates missing observers", () => {
     const collector = createWebPerfCollector({
       runId: "run-query",

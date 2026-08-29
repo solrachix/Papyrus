@@ -41,6 +41,14 @@ type WebPerformanceObserverConstructor = new (
   }) => void
 ) => WebPerformanceObserver;
 
+export type WebFrameSamplingSession = {
+  label: string;
+  total: number;
+  over16ms: number;
+  over33ms: number;
+  maxIntervalMs: number;
+};
+
 export type WebPerfSnapshot = PerfTelemetrySnapshot & {
   frames: {
     total: number;
@@ -66,8 +74,8 @@ export type WebPerfSnapshot = PerfTelemetrySnapshot & {
 export type WebPerfCollector = Omit<PerfTelemetry, "snapshot" | "mark" | "measure"> & {
   mark: (name: string, timestampMs?: number) => void;
   measure: (name: string, startMark: string, endMark: string) => void;
-  startFrameSampling: () => void;
-  stopFrameSampling: () => void;
+  startFrameSampling: (label?: string) => void;
+  stopFrameSampling: () => WebFrameSamplingSession | null;
   recordViewerWindow: (root: ParentNode | null) => void;
   snapshot: () => WebPerfSnapshot;
 };
@@ -170,9 +178,11 @@ export const createWebPerfCollector = ({
   let frameOver16 = 0;
   let frameOver33 = 0;
   let maxFrameInterval = 0;
+  let frameSamplingLabel = "default";
   let longTaskObserver: WebPerformanceObserver | null = null;
 
-  const stopFrameSampling = () => {
+  const stopFrameSampling = (): WebFrameSamplingSession | null => {
+    if (!frameSamplingActive) return null;
     frameSamplingActive = false;
     if (frameHandle !== null) {
       windowRef?.cancelAnimationFrame?.(frameHandle);
@@ -180,6 +190,13 @@ export const createWebPerfCollector = ({
     }
     longTaskObserver?.disconnect();
     longTaskObserver = null;
+    return {
+      label: frameSamplingLabel,
+      total: frameTotal,
+      over16ms: frameOver16,
+      over33ms: frameOver33,
+      maxIntervalMs: maxFrameInterval,
+    };
   };
 
   const startLongTaskObserver = () => {
@@ -198,10 +215,16 @@ export const createWebPerfCollector = ({
     }
   };
 
-  const startFrameSampling = () => {
+  const startFrameSampling = (label = "default") => {
     if (!isEnabled || frameSamplingActive || !windowRef?.requestAnimationFrame) {
       return;
     }
+    frameSamplingLabel = label;
+    previousFrameTimestamp = null;
+    frameTotal = 0;
+    frameOver16 = 0;
+    frameOver33 = 0;
+    maxFrameInterval = 0;
     frameSamplingActive = true;
     startLongTaskObserver();
     const tick = (timestamp: number) => {

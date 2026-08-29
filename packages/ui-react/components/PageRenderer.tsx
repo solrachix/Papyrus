@@ -398,7 +398,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({
       active = false;
       if (!completed) {
         webPerf.event(
-          "render.cancel",
+          "render.abandoned",
           { pageIndex, zoom, generation },
           undefined,
           "page"

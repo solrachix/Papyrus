@@ -16,7 +16,7 @@ describe("web performance protocol", () => {
     expect(report.status).toBe("not-run");
     expect(report.metrics.zoomCommitToSurfaceReadyMs).toBeNull();
     expect(report.metrics.frameDrops).toBeNull();
-    expect(report.metrics.peakMemoryBytes).toBeNull();
+    expect(report.metrics.heapAtSnapshotBytes).toBeNull();
     expect(report.metrics.jumpLatencyMs).toBeNull();
     expect(report.limitations.some((limitation: string) => limitation.includes("snapshot do browser"))).toBe(true);
   });
@@ -34,11 +34,21 @@ describe("web performance protocol", () => {
             { name: "surface.ready", timestampMs: 250 },
             { name: "jump.start", timestampMs: 300 },
             { name: "jump.end", timestampMs: 420 },
+            { name: "jump.start", timestampMs: 600 },
+            { name: "jump.end", timestampMs: 780 },
           ],
           measures: [
             {
               name: "zoom.commitToSurfaceReady",
               durationMs: 150,
+            },
+            {
+              name: "zoom.commitToSurfaceReady",
+              durationMs: 220,
+            },
+            {
+              name: "zoom.commitToSurfaceReady",
+              durationMs: 260,
             },
           ],
           frames: { total: 20, over16ms: 2, over33ms: 1, maxIntervalMs: 40 },
@@ -64,16 +74,28 @@ describe("web performance protocol", () => {
 
       expect(report.status).toBe("captured");
       expect(report.metrics).toMatchObject({
-        zoomCommitToSurfaceReadyMs: 150,
+        zoomCommitToSurfaceReadyMs: {
+          samples: 3,
+          medianMs: 220,
+          p90Ms: 260,
+          p95Ms: 260,
+          maxMs: 260,
+        },
         frameDrops: { over16ms: 2, over33ms: 1, maxIntervalMs: 40 },
-        peakMemoryBytes: 900,
-        jumpLatencyMs: 120,
+        heapAtSnapshotBytes: 900,
+        jumpLatencyMs: {
+          samples: 2,
+          medianMs: 120,
+          p90Ms: 180,
+          p95Ms: 180,
+          maxMs: 180,
+        },
         wrappers: 13,
         canvases: 7,
         pageRenderers: 4,
       });
       expect(readFileSync(markdown, "utf8")).toContain("large-1000");
-      expect(readFileSync(markdown, "utf8")).toContain("150 ms");
+      expect(readFileSync(markdown, "utf8")).toContain("220 / 260 / 260 / 260 ms (n=3)");
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }

@@ -91,6 +91,9 @@ de hardware; a memória só aparece quando `performance.memory` existe.
 
 ## Medição no browser
 
+O relatório versionado da validação Android da PR 13 está em
+[`docs/performance/pr-13-real-world-validation.md`](../../docs/performance/pr-13-real-world-validation.md).
+
 Com o demo web em `http://localhost:3005/`, o PDF de 1000 páginas foi carregado
 pelo controle de upload local. Três execuções chegaram a 1007 canvases em
 686–763 ms: 996 thumbnails, 7 páginas principais visíveis e 4 canvases

@@ -244,11 +244,6 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
   }, [mobileTopbarVisible]);
 
   useEffect(() => {
-    webPerf.startFrameSampling();
-    return () => webPerf.stopFrameSampling();
-  }, [webPerf]);
-
-  useEffect(() => {
     const root = viewerRef.current;
     if (!root) return;
     let scrolling = false;
@@ -813,6 +808,10 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
       }
       pendingPages.delete(pageIndex);
       if (pendingPages.size === 0 && pinchSurfaceRef.current) {
+        const frameSession = webPerf.stopFrameSampling();
+        if (frameSession) {
+          webPerf.event("pinch.frames", frameSession, undefined, "pinch");
+        }
         webPerf.mark("surface.ready");
         webPerf.measure(
           "zoom.commitToSurfaceReady",
@@ -888,6 +887,7 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
       pinchSurfaceRef.current.style.transformOrigin = `${pinchRef.current.focalViewportX}px ${pinchRef.current.focalViewportY}px`;
       pinchSurfaceRef.current.style.transform = "scale(1)";
     }
+    webPerf.startFrameSampling("pinch");
     webPerf.event("pinch.start", { zoom }, undefined, "pinch");
     webPerf.mark("pinch.start");
     event.preventDefault();
@@ -960,7 +960,10 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
         });
       });
     } else {
-      if (wasActive) webPerf.event("pinch.cancel", { zoom }, undefined, "pinch");
+      if (wasActive) {
+        webPerf.stopFrameSampling();
+        webPerf.event("pinch.cancel", { zoom }, undefined, "pinch");
+      }
       pinchRef.current.pendingCommitZoom = null;
       pinchRef.current.pendingReadyPageIndexes = null;
       if (pinchSurfaceRef.current) {
@@ -973,6 +976,7 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
 
   const handleTouchCancel = (event: React.TouchEvent<HTMLDivElement>) => {
     if (pinchRef.current.active) {
+      webPerf.stopFrameSampling();
       webPerf.event("pinch.cancel", { zoom }, undefined, "pinch");
     }
     if (pinchSurfaceRef.current) {
