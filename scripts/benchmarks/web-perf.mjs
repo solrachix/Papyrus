@@ -112,6 +112,12 @@ const formatSummary = (summary) =>
     ? 'indisponível'
     : `${summary.medianMs} / ${summary.p90Ms} / ${summary.p95Ms} / ${summary.maxMs} ms (n=${summary.samples})`;
 
+const formatDistribution = (summary, unit = '') => {
+  if (summary == null) return 'indisponível';
+  if (typeof summary === 'number') return `${summary}${unit}`;
+  return `${summary.medianMs}${unit} / ${summary.p90Ms}${unit} / ${summary.p95Ms}${unit} / ${summary.maxMs}${unit} (n=${summary.samples})`;
+};
+
 const renderMarkdown = (report) => `# Papyrus — Web performance
 
 - Status: **${report.status}**
@@ -121,9 +127,11 @@ const renderMarkdown = (report) => `# Papyrus — Web performance
 | Métrica | Valor |
 | --- | ---: |
 | Commit de zoom → surface pronta (mediana / P90 / P95 / máx.) | ${formatSummary(report.metrics.zoomCommitToSurfaceReadyMs)} |
-| Frames acima de 16,67 ms | ${formatMetric(report.metrics.frameDrops?.over16ms)} |
-| Frames acima de 33,33 ms | ${formatMetric(report.metrics.frameDrops?.over33ms)} |
-| Maior intervalo entre frames | ${formatMetric(report.metrics.frameDrops?.maxIntervalMs, ' ms')} |
+| Sessões de pinch | ${formatMetric(report.metrics.frameDrops?.sessions)} |
+| Frames amostrados | ${formatMetric(report.metrics.frameDrops?.totalFrames)} |
+| Frames acima de 16,67 ms (mediana / P90 / P95 / máx.) | ${formatDistribution(report.metrics.frameDrops?.over16ms)} |
+| Frames acima de 33,33 ms (mediana / P90 / P95 / máx.) | ${formatDistribution(report.metrics.frameDrops?.over33ms)} |
+| Maior intervalo entre frames (mediana / P90 / P95 / máx.) | ${formatDistribution(report.metrics.frameDrops?.maxIntervalMs, ' ms')} |
 | Heap JS no snapshot | ${formatMetric(report.metrics.heapAtSnapshotBytes, ' bytes')} |
 | Jump latency (mediana / P90 / P95 / máx.) | ${formatSummary(report.metrics.jumpLatencyMs)} |
 | Wrappers | ${formatMetric(report.metrics.wrappers)} |

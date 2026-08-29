@@ -106,6 +106,10 @@ describe("web performance protocol", () => {
       });
       expect(readFileSync(markdown, "utf8")).toContain("large-1000");
       expect(readFileSync(markdown, "utf8")).toContain("220 / 260 / 260 / 260 ms (n=3)");
+      expect(readFileSync(markdown, "utf8")).toContain("Sessões de pinch | 3");
+      expect(readFileSync(markdown, "utf8")).toContain("Frames amostrados | 60");
+      expect(readFileSync(markdown, "utf8")).toContain("2 / 5 / 5 / 5 (n=3)");
+      expect(readFileSync(markdown, "utf8")).not.toContain("[object Object]");
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }
