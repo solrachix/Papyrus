@@ -35,23 +35,23 @@
 
 **Arquivos:** criar `packages/core/perfTelemetry.ts` e `packages/core/perfTelemetry.test.ts`.
 
-- [ ] Escrever testes falhando para eventos com `runId`, `scenario`, `runtime`, `timestampMs`, `scope`, `name` e payload; cobrir duração commit→surface-ready, contadores e eventos fora de ordem.
-- [ ] Rodar `pnpm exec vitest run packages/core/perfTelemetry.test.ts` e confirmar falha por módulo ausente.
-- [ ] Implementar um recorder em memória opt-in com `mark`, `measure`, `increment`, `sample` e `snapshot`; limitar o contrato a dados serializáveis.
-- [ ] Garantir que o recorder desabilitado não leia memória, não faça `console.log` e não altere o caminho de renderização.
-- [ ] Rodar o teste focado e confirmar PASS.
-- [ ] Rodar `pnpm exec vitest run packages/core/perfTelemetry.test.ts packages/core/renderGeneration.test.ts packages/core/renderBudget.test.ts`.
+- [x] Escrever testes falhando para eventos com `runId`, `scenario`, `runtime`, `timestampMs`, `scope`, `name` e payload; cobrir duração commit→surface-ready, contadores e eventos fora de ordem.
+- [x] Rodar `pnpm exec vitest run packages/core/perfTelemetry.test.ts` e confirmar falha por módulo ausente.
+- [x] Implementar um recorder em memória opt-in com `mark`, `measure`, `increment`, `sample` e `snapshot`; limitar o contrato a dados serializáveis.
+- [x] Garantir que o recorder desabilitado não leia memória, não faça `console.log` e não altere o caminho de renderização.
+- [x] Rodar o teste focado e confirmar PASS.
+- [x] Rodar `pnpm exec vitest run packages/core/perfTelemetry.test.ts packages/core/renderGeneration.test.ts packages/core/renderBudget.test.ts`.
 
 ### Tarefa 1.2 — Catalogar fixtures
 
 **Arquivos:** modificar `scripts/benchmarks/generate-large-pdf.mjs`; criar `scripts/benchmarks/perf-fixtures.mjs`.
 
-- [ ] Escrever o manifesto esperado para `small-20`, `medium-200`, `large-1000`, `image-heavy`, `varied-sizes` e `text-heavy`, incluindo páginas, perfil e SHA-256.
-- [ ] Rodar o manifesto antes da implementação para confirmar que os perfis adicionais ainda não existem.
-- [ ] Estender o gerador com perfis determinísticos: texto repetido para text layer pesada, `/MediaBox` alternado para alturas/larguras variadas e imagens sintéticas embutidas para image-heavy; manter o fixture gerado em diretório temporário.
-- [ ] Implementar geração/validação do catálogo sem aceitar arquivo cujo hash ou quantidade de páginas não corresponda ao manifesto.
-- [ ] Rodar `node scripts/benchmarks/perf-fixtures.mjs --output /tmp/papyrus-pr13-fixtures` e verificar os hashes e a contagem de páginas.
-- [ ] Documentar que fixtures sintéticos medem o pipeline, não representam distribuição real de PDFs.
+- [x] Escrever o manifesto esperado para `small-20`, `medium-200`, `large-1000`, `image-heavy`, `varied-sizes` e `text-heavy`, incluindo páginas, perfil e SHA-256.
+- [x] Rodar o manifesto antes da implementação para confirmar que os perfis adicionais ainda não existem.
+- [x] Estender o gerador com perfis determinísticos: texto repetido para text layer pesada, `/MediaBox` alternado para alturas/larguras variadas e imagens sintéticas embutidas para image-heavy; manter o fixture gerado em diretório temporário.
+- [x] Implementar geração/validação do catálogo sem aceitar arquivo cujo hash ou quantidade de páginas não corresponda ao manifesto.
+- [x] Rodar `node scripts/benchmarks/perf-fixtures.mjs --output /tmp/papyrus-pr13-fixtures` e verificar os hashes e a contagem de páginas.
+- [x] Documentar que fixtures sintéticos medem o pipeline, não representam distribuição real de PDFs.
 
 ## Fase 2: instrumentação web e validação de virtualização
 

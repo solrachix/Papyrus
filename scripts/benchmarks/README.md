@@ -29,6 +29,22 @@ A medição de rasterização ainda requer um runtime com `canvas` ou browser
 disponível. No ambiente desta execução, o `canvas` não compilou para o Node
 ativo por falta de headers nativos.
 
+## Fixtures reproduzíveis da PR 13
+
+O catálogo abaixo gera os seis cenários da rodada em um diretório temporário e
+imprime um manifesto JSON com contagem de páginas, tamanho e SHA-256:
+
+```bash
+node scripts/benchmarks/perf-fixtures.mjs --output /tmp/papyrus-pr13-fixtures
+```
+
+Os perfis são `small-20`, `medium-200`, `large-1000`, `image-heavy`,
+`varied-sizes` e `text-heavy`. Os PDFs são sintéticos e determinísticos: eles
+exercitam o pipeline de parsing, text layer, rasterização e virtualização, mas
+não representam a distribuição real de documentos dos usuários. O catálogo
+valida a quantidade de páginas e o hash esperado antes de publicar o
+manifesto; os arquivos gerados não entram no repositório.
+
 ## Política de zoom, janela e layout
 
 Para reproduzir a política de renderização da rodada de performance:
