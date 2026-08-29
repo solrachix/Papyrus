@@ -314,3 +314,55 @@ test("pinch interaction preserves focal point and clamps final zoom", () => {
   assert.equal(committed.startScrollX, 160);
   assert.equal(committed.startScrollY, 420);
 });
+
+test("pinch controller keeps side effects out of updates and commits once", () => {
+  const effects = [];
+  const controller = pinchZoom.createPinchController({
+    committedZoom: 1,
+    focalX: 100,
+    focalY: 200,
+    startScrollX: 0,
+    startScrollY: 300,
+    onPreview: (preview) => effects.push(["preview", preview.previewZoom]),
+    onCommit: (committed) => effects.push(["commit", committed.committedZoom]),
+    onCancel: () => effects.push(["cancel"]),
+  });
+
+  controller.update(1.5);
+  controller.update(2);
+  assert.deepEqual(effects, [
+    ["preview", 1.5],
+    ["preview", 2],
+  ]);
+
+  controller.end();
+  controller.finalize();
+  assert.deepEqual(effects, [
+    ["preview", 1.5],
+    ["preview", 2],
+    ["commit", 2],
+  ]);
+});
+
+test("pinch controller cancels without committing the document zoom", () => {
+  const effects = [];
+  const controller = pinchZoom.createPinchController({
+    committedZoom: 2,
+    focalX: 100,
+    focalY: 200,
+    startScrollX: 0,
+    startScrollY: 300,
+    onPreview: (preview) => effects.push(["preview", preview.previewZoom]),
+    onCommit: () => effects.push(["commit"]),
+    onCancel: (cancelled) => effects.push(["cancel", cancelled.previewZoom]),
+  });
+
+  controller.update(3);
+  controller.cancel();
+  controller.finalize();
+
+  assert.deepEqual(effects, [
+    ["preview", 3],
+    ["cancel", 2],
+  ]);
+});

@@ -31,6 +31,19 @@ export type PinchInteractionInput = {
   startScrollY: number;
 };
 
+export type PinchControllerInput = PinchInteractionInput & {
+  onPreview?: (state: PinchInteractionState) => void;
+  onCommit?: (state: PinchInteractionState) => void;
+  onCancel?: (state: PinchInteractionState) => void;
+};
+
+export type PinchController = {
+  update: (previewZoom: number, bounds?: PinchZoomBounds) => void;
+  end: () => void;
+  cancel: () => void;
+  finalize: () => void;
+};
+
 export type AnchoredViewportOffsetInput = {
   viewportOffset: number;
   startScrollOffset: number;
@@ -209,6 +222,40 @@ export const finishPinchInteraction = (
     committedZoom: state.previewZoom,
     commitCount: state.commitCount + 1,
     outcome: "commit",
+  };
+};
+
+export const createPinchController = ({
+  onPreview,
+  onCommit,
+  onCancel,
+  ...input
+}: PinchControllerInput): PinchController => {
+  let state = createPinchInteraction(input);
+
+  const update = (
+    previewZoom: number,
+    bounds: PinchZoomBounds = DEFAULT_PINCH_ZOOM_BOUNDS
+  ) => {
+    const next = updatePinchInteraction(state, previewZoom, bounds);
+    if (next === state) return;
+    state = next;
+    onPreview?.(state);
+  };
+
+  const finish = (action: "end" | "finalize" | "cancel") => {
+    const next = finishPinchInteraction(state, action);
+    if (next === state) return;
+    state = next;
+    if (state.outcome === "cancel") onCancel?.(state);
+    else onCommit?.(state);
+  };
+
+  return {
+    update,
+    end: () => finish("end"),
+    cancel: () => finish("cancel"),
+    finalize: () => finish("finalize"),
   };
 };
 
