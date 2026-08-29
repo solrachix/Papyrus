@@ -1053,6 +1053,13 @@ public class PapyrusPdfViewerView extends View {
     canvas.drawColor(resolveBackgroundColor(pageTheme));
     if (pageFrames.isEmpty()) return;
 
+    if (isPinching) {
+      canvas.save();
+      canvas.translate(pinchFocusX, pinchFocusY);
+      canvas.scale(pinchScale, pinchScale);
+      canvas.translate(-pinchFocusX, -pinchFocusY);
+    }
+
     boolean inGap = isViewportCenterInsidePageGap();
     int visibleCount = 0;
 
@@ -1123,6 +1130,9 @@ public class PapyrusPdfViewerView extends View {
 
     if (DEBUG_RENDER_GAP) {
       Log.d(TAG, "onDraw: visibleCount=" + visibleCount + " inGap=" + inGap + " zoom=" + zoom + " offsetY=" + offsetY + " lastStablePage=" + lastStablePage);
+    }
+    if (isPinching) {
+      canvas.restore();
     }
   }
 
@@ -1335,6 +1345,7 @@ public class PapyrusPdfViewerView extends View {
       @Override
       public boolean onScaleBegin(ScaleGestureDetector detector) {
         isPinching = true;
+        pinchScale = 1.0f;
         pinchStartZoom = zoom;
         pinchStartOffsetX = offsetX;
         pinchStartOffsetY = offsetY;
@@ -1349,21 +1360,11 @@ public class PapyrusPdfViewerView extends View {
         float focusX = detector.getFocusX();
         float focusY = detector.getFocusY();
 
-        float oldZoom = zoom;
-        float newZoom = clamp(oldZoom * scaleFactor, 0.5f, 5.0f);
-
-        if (Math.abs(newZoom - oldZoom) < 0.001f) {
-          pinchFocusX = focusX;
-          pinchFocusY = focusY;
-          return true;
-        }
-
-        ViewportAnchor anchor = captureViewportAnchor(focusX, focusY);
-
-        zoom = newZoom;
-        ensureLayoutLight();
-        restoreViewportAnchor(anchor);
-
+        pinchScale = clamp(
+          pinchScale * scaleFactor,
+          0.5f / Math.max(pinchStartZoom, 0.5f),
+          5.0f / Math.max(pinchStartZoom, 0.5f)
+        );
         pinchFocusX = focusX;
         pinchFocusY = focusY;
         invalidate();
@@ -1373,8 +1374,12 @@ public class PapyrusPdfViewerView extends View {
       @Override
       public void onScaleEnd(ScaleGestureDetector detector) {
         ViewportAnchor anchor = captureViewportAnchor(pinchFocusX, pinchFocusY);
+        float finalZoom = clamp(pinchStartZoom * pinchScale, 0.5f, 5.0f);
 
         isPinching = false;
+        pinchScale = 1.0f;
+        zoom = finalZoom;
+        renderGeneration += 1;
         layoutDirty = true;
         ensureLayout();
         restoreViewportAnchor(anchor);

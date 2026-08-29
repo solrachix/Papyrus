@@ -53,6 +53,7 @@ interface PageRendererProps {
   gestureScrollLockActive?: boolean;
   lastPinchEndedAt?: number | null;
   requestSelectionVerticalAutoscroll?: (absoluteY: number) => number;
+  onRenderReady?: (pageIndex: number, renderedZoom: number) => void;
 }
 
 type NormalizedRect = { x: number; y: number; width: number; height: number };
@@ -162,8 +163,11 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   gestureScrollLockActive = false,
   lastPinchEndedAt = null,
   requestSelectionVerticalAutoscroll,
+  onRenderReady,
 }) => {
   const viewRef = useRef<any>(null);
+  const onRenderReadyRef = useRef(onRenderReady);
+  onRenderReadyRef.current = onRenderReady;
   const [layout, setLayout] = useState({ width: 0, height: 0 });
   const [pageSize, setPageSize] = useState<{
     width: number;
@@ -377,6 +381,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({
       const startedAt = perfEnabled ? perfNow() : 0;
       void Promise.resolve(engine.renderPage(pageIndex, viewTag, renderScale))
         .then(() => {
+          onRenderReadyRef.current?.(pageIndex, zoom);
           if (!perfEnabled) return;
           const renderDurationMs = perfNow() - startedAt;
           if (renderDurationMs >= 40) {

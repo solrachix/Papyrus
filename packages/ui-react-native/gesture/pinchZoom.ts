@@ -13,6 +13,37 @@ export type PinchZoomBounds = {
   maxZoom: number;
 };
 
+export type PinchInteractionState = {
+  committedZoom: number;
+  previewZoom: number;
+  focalPoint: { x: number; y: number };
+  startScrollX: number;
+  startScrollY: number;
+  commitCount: number;
+  outcome: "active" | "commit" | "cancel";
+};
+
+export type PinchInteractionInput = {
+  committedZoom: number;
+  focalX: number;
+  focalY: number;
+  startScrollX: number;
+  startScrollY: number;
+};
+
+export type PinchControllerInput = PinchInteractionInput & {
+  onPreview?: (state: PinchInteractionState) => void;
+  onCommit?: (state: PinchInteractionState) => void;
+  onCancel?: (state: PinchInteractionState) => void;
+};
+
+export type PinchController = {
+  update: (previewZoom: number, bounds?: PinchZoomBounds) => void;
+  end: () => void;
+  cancel: () => void;
+  finalize: () => void;
+};
+
 export type AnchoredViewportOffsetInput = {
   viewportOffset: number;
   startScrollOffset: number;
@@ -127,6 +158,106 @@ export const resolvePinchGestureZoom = (
     bounds.minZoom,
     bounds.maxZoom
   );
+
+export const createPinchInteraction = ({
+  committedZoom,
+  focalX,
+  focalY,
+  startScrollX,
+  startScrollY,
+}: PinchInteractionInput): PinchInteractionState => {
+  const safeZoom = clamp(
+    Number.isFinite(committedZoom) && committedZoom > 0 ? committedZoom : 1,
+    DEFAULT_PINCH_ZOOM_BOUNDS.minZoom,
+    DEFAULT_PINCH_ZOOM_BOUNDS.maxZoom
+  );
+
+  return {
+    committedZoom: safeZoom,
+    previewZoom: safeZoom,
+    focalPoint: {
+      x: Number.isFinite(focalX) ? focalX : 0,
+      y: Number.isFinite(focalY) ? focalY : 0,
+    },
+    startScrollX: Number.isFinite(startScrollX) ? startScrollX : 0,
+    startScrollY: Number.isFinite(startScrollY) ? startScrollY : 0,
+    commitCount: 0,
+    outcome: "active",
+  };
+};
+
+export const updatePinchInteraction = (
+  state: PinchInteractionState,
+  previewZoom: number,
+  bounds: PinchZoomBounds = DEFAULT_PINCH_ZOOM_BOUNDS
+): PinchInteractionState => {
+  if (state.outcome !== "active") return state;
+  return {
+    ...state,
+    previewZoom: clamp(
+      Number.isFinite(previewZoom) && previewZoom > 0
+        ? previewZoom
+        : state.committedZoom,
+      bounds.minZoom,
+      bounds.maxZoom
+    ),
+  };
+};
+
+export const finishPinchInteraction = (
+  state: PinchInteractionState,
+  action: "end" | "finalize" | "cancel"
+): PinchInteractionState => {
+  if (state.outcome !== "active") return state;
+  if (action === "cancel") {
+    return {
+      ...state,
+      previewZoom: state.committedZoom,
+      outcome: "cancel",
+    };
+  }
+
+  return {
+    ...state,
+    committedZoom: state.previewZoom,
+    commitCount: state.commitCount + 1,
+    outcome: "commit",
+  };
+};
+
+export const createPinchController = ({
+  onPreview,
+  onCommit,
+  onCancel,
+  ...input
+}: PinchControllerInput): PinchController => {
+  let state = createPinchInteraction(input);
+
+  const update = (
+    previewZoom: number,
+    bounds: PinchZoomBounds = DEFAULT_PINCH_ZOOM_BOUNDS
+  ) => {
+    const next = updatePinchInteraction(state, previewZoom, bounds);
+    if (next === state) return;
+    state = next;
+    onPreview?.(state);
+  };
+
+  const finish = (action: "end" | "finalize" | "cancel") => {
+    const next = finishPinchInteraction(state, action);
+    if (next === state) return;
+    state = next;
+    if (state.outcome === "cancel") onCancel?.(state);
+    else onCommit?.(state);
+  };
+
+  return {
+    update,
+    end: () => finish("end"),
+    cancel: () => finish("cancel"),
+    finalize: () => finish("finalize"),
+  };
+};
 
 export const resolveAnchoredViewportOffset = ({
   viewportOffset,

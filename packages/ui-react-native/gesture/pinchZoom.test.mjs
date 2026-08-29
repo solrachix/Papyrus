@@ -240,3 +240,129 @@ test("shouldSuppressPressAfterPinch only blocks presses inside the safety window
     false
   );
 });
+
+test("pinch interaction keeps preview separate from the committed document zoom", () => {
+  const session = pinchZoom.createPinchInteraction({
+    committedZoom: 1,
+    focalX: 180,
+    focalY: 320,
+    startScrollX: 40,
+    startScrollY: 260,
+  });
+
+  const preview = pinchZoom.updatePinchInteraction(session, 1.75);
+
+  assert.equal(preview.committedZoom, 1);
+  assert.equal(preview.previewZoom, 1.75);
+  assert.equal(preview.commitCount, 0);
+  assert.deepEqual(preview.focalPoint, { x: 180, y: 320 });
+});
+
+test("pinch interaction commits once and finalizes idempotently", () => {
+  const session = pinchZoom.createPinchInteraction({
+    committedZoom: 1.25,
+    focalX: 120,
+    focalY: 240,
+    startScrollX: 12,
+    startScrollY: 340,
+  });
+  const preview = pinchZoom.updatePinchInteraction(session, 2.5);
+
+  const committed = pinchZoom.finishPinchInteraction(preview, "end");
+  const duplicate = pinchZoom.finishPinchInteraction(committed, "finalize");
+
+  assert.equal(committed.outcome, "commit");
+  assert.equal(committed.committedZoom, 2.5);
+  assert.equal(committed.commitCount, 1);
+  assert.equal(duplicate.commitCount, 1);
+  assert.equal(duplicate.outcome, "commit");
+});
+
+test("cancelled pinch restores the initial zoom without a document commit", () => {
+  const session = pinchZoom.createPinchInteraction({
+    committedZoom: 2,
+    focalX: 200,
+    focalY: 180,
+    startScrollX: 90,
+    startScrollY: 120,
+  });
+  const preview = pinchZoom.updatePinchInteraction(session, 3.5);
+  const cancelled = pinchZoom.finishPinchInteraction(preview, "cancel");
+
+  assert.equal(cancelled.outcome, "cancel");
+  assert.equal(cancelled.previewZoom, 2);
+  assert.equal(cancelled.committedZoom, 2);
+  assert.equal(cancelled.commitCount, 0);
+});
+
+test("pinch interaction preserves focal point and clamps final zoom", () => {
+  const session = pinchZoom.createPinchInteraction({
+    committedZoom: 1,
+    focalX: 220,
+    focalY: 300,
+    startScrollX: 160,
+    startScrollY: 420,
+  });
+  const preview = pinchZoom.updatePinchInteraction(session, 8, {
+    minZoom: 0.5,
+    maxZoom: 4,
+  });
+  const committed = pinchZoom.finishPinchInteraction(preview, "end");
+
+  assert.equal(committed.committedZoom, 4);
+  assert.deepEqual(committed.focalPoint, { x: 220, y: 300 });
+  assert.equal(committed.startScrollX, 160);
+  assert.equal(committed.startScrollY, 420);
+});
+
+test("pinch controller keeps side effects out of updates and commits once", () => {
+  const effects = [];
+  const controller = pinchZoom.createPinchController({
+    committedZoom: 1,
+    focalX: 100,
+    focalY: 200,
+    startScrollX: 0,
+    startScrollY: 300,
+    onPreview: (preview) => effects.push(["preview", preview.previewZoom]),
+    onCommit: (committed) => effects.push(["commit", committed.committedZoom]),
+    onCancel: () => effects.push(["cancel"]),
+  });
+
+  controller.update(1.5);
+  controller.update(2);
+  assert.deepEqual(effects, [
+    ["preview", 1.5],
+    ["preview", 2],
+  ]);
+
+  controller.end();
+  controller.finalize();
+  assert.deepEqual(effects, [
+    ["preview", 1.5],
+    ["preview", 2],
+    ["commit", 2],
+  ]);
+});
+
+test("pinch controller cancels without committing the document zoom", () => {
+  const effects = [];
+  const controller = pinchZoom.createPinchController({
+    committedZoom: 2,
+    focalX: 100,
+    focalY: 200,
+    startScrollX: 0,
+    startScrollY: 300,
+    onPreview: (preview) => effects.push(["preview", preview.previewZoom]),
+    onCommit: () => effects.push(["commit"]),
+    onCancel: (cancelled) => effects.push(["cancel", cancelled.previewZoom]),
+  });
+
+  controller.update(3);
+  controller.cancel();
+  controller.finalize();
+
+  assert.deepEqual(effects, [
+    ["preview", 3],
+    ["cancel", 2],
+  ]);
+});
