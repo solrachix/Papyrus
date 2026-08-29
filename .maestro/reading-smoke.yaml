@@ -1,0 +1,54 @@
+appId: com.papyrusmobile
+
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: papyrus-rn-reading-shell
+    timeout: 30000
+- assertVisible:
+    id: papyrus-floating-top-controls
+- assertVisible:
+    id: papyrus-progress-pill
+
+# Scroll hides the reading chrome; an empty page tap reveals it again.
+- swipe:
+    start: 50%, 78%
+    end: 50%, 22%
+    duration: 700
+- assertNotVisible:
+    id: papyrus-floating-top-controls
+- tapOn:
+    id: papyrus-page-2
+- assertVisible:
+    id: papyrus-floating-top-controls
+- tapOn:
+    id: papyrus-page-2
+- assertNotVisible:
+    id: papyrus-floating-top-controls
+
+# Page jump remains reachable and drives a distant page.
+- tapOn:
+    text: Papyrus
+- tapOn:
+    id: papyrus-page-jump-input
+- eraseText
+- inputText: "9"
+- tapOn:
+    id: papyrus-page-jump-confirm
+- assertVisible:
+    id: papyrus-page-9
+
+# Search opens from the dock and accepts a known PDF term.
+- tapOn:
+    id: papyrus-mobile-destination-search
+- assertVisible:
+    id: papyrus-search-overlay
+- tapOn:
+    id: papyrus-search-input
+- inputText: "the"
+- tapOn:
+    id: papyrus-search-run
+- assertVisible:
+    id: papyrus-search-overlay

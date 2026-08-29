@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { SafeAreaView, View, ActivityIndicator, StyleSheet, Image, Platform, StatusBar, Pressable, Text } from 'react-native';
+import { View, ActivityIndicator, StyleSheet, Image, StatusBar, Pressable, Text } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { MobileDocumentEngine } from '@papyrus-sdk/engine-native';
 import { useViewerStore } from '@papyrus-sdk/core';
 import type { PapyrusConfig } from '@papyrus-sdk/types';
@@ -45,7 +46,7 @@ const App: React.FC = () => {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [activeType, setActiveType] = useState<'pdf' | 'epub' | 'text'>('pdf');
   const { isLoaded, setDocumentState, initializeStore, triggerScrollToPage, uiTheme, accentColor } = useViewerStore();
-  const Root = Platform.OS === 'ios' ? SafeAreaView : View;
+  const Root = View;
 
   useEffect(() => {
     initializeStore(INITIAL_SDK_CONFIG);
@@ -99,7 +100,8 @@ const App: React.FC = () => {
   };
 
   return (
-    <Root style={[styles.container, uiTheme === 'dark' && styles.containerDark]}>
+    <SafeAreaProvider>
+      <Root style={[styles.container, uiTheme === 'dark' && styles.containerDark]}>
       <StatusBar
         barStyle={uiTheme === 'dark' ? 'light-content' : 'dark-content'}
         backgroundColor={uiTheme === 'dark' ? '#0f1115' : '#ffffff'}
@@ -149,7 +151,8 @@ const App: React.FC = () => {
       <RightSheet engine={engine} />
       <SettingsSheet engine={engine} visible={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <AnnotationEditor />
-    </Root>
+      </Root>
+    </SafeAreaProvider>
   );
 };
 

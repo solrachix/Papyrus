@@ -141,6 +141,7 @@
   const runtimeConfig = window.__PAPYRUS_RUNTIME_CONFIG__ || {};
   let comicDispose = null;
   let comicGeneration = 0;
+  let epubInteractionCleanup = null;
 
   const sendMessage = (payload) => {
     if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
@@ -296,6 +297,10 @@
   };
 
   const clearViewer = () => {
+    if (epubInteractionCleanup) {
+      epubInteractionCleanup();
+      epubInteractionCleanup = null;
+    }
     clearComicState();
     while (viewer.firstChild) {
       viewer.removeChild(viewer.firstChild);
@@ -830,6 +835,10 @@
   };
 
   const loadEpub = async (source) => {
+    if (epubInteractionCleanup) {
+      epubInteractionCleanup();
+      epubInteractionCleanup = null;
+    }
     if (rendition && typeof rendition.destroy === 'function') {
       rendition.destroy();
     }
@@ -839,7 +848,7 @@
 
     let data = null;
     if (source.kind === 'uri') {
-      data = source.uri;
+      data = await sourceToArrayBuffer(source);
     } else if (source.kind === 'base64') {
       data = decodeBase64(source.data);
     } else if (source.kind === 'text') {
@@ -856,9 +865,10 @@
 
     clearViewer();
     rendition = book.renderTo(viewer, {
+      manager: 'continuous',
       width: '100%',
       height: '100%',
-      flow: 'paginated',
+      flow: 'scrolled-continuous',
       spread: 'none',
     });
 
@@ -882,9 +892,67 @@
           rendition.annotations.remove(cfiRange, 'highlight');
         }
       });
+      rendition.on('relocated', (location) => {
+        const start = location && location.start;
+        let index = start && Number.isInteger(start.index) ? start.index : -1;
+        if (index < 0 && start && start.href) index = getSpineIndexByHref(start.href);
+        if (index < 0 || index >= spineItems.length) return;
+        const nextPage = index + 1;
+        if (nextPage === currentPage) return;
+        currentPage = nextPage;
+        sendState();
+      });
     }
 
     await displayEpubPage(0);
+    if (
+      rendition &&
+      rendition.manager &&
+      typeof rendition.manager.on === 'function' &&
+      typeof rendition.on === 'function'
+    ) {
+      let touchStart = null;
+      let lastScrollOffset = -1;
+      const manager = rendition.manager;
+      const getTouchPoint = (event) => {
+        const touch =
+          (event && event.changedTouches && event.changedTouches[0]) ||
+          (event && event.touches && event.touches[0]);
+        if (!touch) return null;
+        const x = Number(touch.screenX ?? touch.clientX);
+        const y = Number(touch.screenY ?? touch.clientY);
+        return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null;
+      };
+      const handleScroll = (event) => {
+        const offsetY = Math.max(0, Number(event && event.top) || 0);
+        if (Math.abs(offsetY - lastScrollOffset) < 1) return;
+        lastScrollOffset = offsetY;
+        sendEvent('VIEWER_SCROLL', { offsetY });
+      };
+      const handleTouchStart = (event) => {
+        touchStart = getTouchPoint(event);
+      };
+      const handleTouchEnd = (event) => {
+        const end = getTouchPoint(event);
+        const start = touchStart;
+        touchStart = null;
+        if (!start || !end) return;
+        if (Math.hypot(end.x - start.x, end.y - start.y) <= 12) {
+          sendEvent('VIEWER_TAP', {});
+        }
+      };
+
+      manager.on('scroll', handleScroll);
+      rendition.on('touchstart', handleTouchStart);
+      rendition.on('touchend', handleTouchEnd);
+      epubInteractionCleanup = () => {
+        if (typeof manager.off === 'function') manager.off('scroll', handleScroll);
+        if (typeof rendition.off === 'function') {
+          rendition.off('touchstart', handleTouchStart);
+          rendition.off('touchend', handleTouchEnd);
+        }
+      };
+    }
     applyEpubZoom();
 
     const outline = await buildOutline();

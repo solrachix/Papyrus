@@ -10,6 +10,7 @@ import {
 import { useViewerStore } from "@papyrus-sdk/core";
 import { DocumentType } from "@papyrus-sdk/types";
 import { getStrings } from "../mobileStrings";
+import { usePapyrusSafeAreaInsets } from "./PapyrusSafeArea";
 
 type SearchResultsSheetProps = {
   documentType: DocumentType;
@@ -33,6 +34,7 @@ export function SearchResultsSheet({
     accentColor,
   } = useViewerStore();
   const isDark = uiTheme === "dark";
+  const insets = usePapyrusSafeAreaInsets();
   const t = getStrings(locale);
 
   const getResultLabel = (pageIndex: number) => {
@@ -52,7 +54,7 @@ export function SearchResultsSheet({
     >
       <View style={styles.modalRoot}>
         <Pressable style={styles.backdrop} onPress={onClose} />
-        <View style={[styles.sheet, isDark && styles.sheetDark]}>
+        <View style={[styles.sheet, isDark && styles.sheetDark, { paddingBottom: 18 + insets.bottom }]}>
           <View style={[styles.handle, isDark && styles.handleDark]} />
           <View style={styles.header}>
             <Text style={[styles.title, isDark && styles.titleDark]}>

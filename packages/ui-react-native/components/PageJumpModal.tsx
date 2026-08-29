@@ -59,8 +59,9 @@ export function PageJumpModal({
             placeholder="1"
             placeholderTextColor={isDark ? "#6b7280" : "#9ca3af"}
             style={[styles.input, isDark && styles.inputDark]}
-            onSubmitEditing={confirmJump}
-            accessibilityLabel="Page jump input"
+          onSubmitEditing={confirmJump}
+          accessibilityLabel="Page jump input"
+          testID="papyrus-page-jump-input"
           />
           <View style={styles.actions}>
             <Pressable
@@ -78,6 +79,7 @@ export function PageJumpModal({
             <Pressable
               onPress={confirmJump}
               style={[styles.actionButton, { backgroundColor: accentColor }]}
+              testID="papyrus-page-jump-confirm"
             >
               <Text style={[styles.actionText, styles.actionTextPrimary]}>
                 Ir

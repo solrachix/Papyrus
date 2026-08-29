@@ -1,5 +1,13 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { createPortal } from "react-dom";
 import { useViewerStore, papyrusEvents } from "@papyrus-sdk/core";
+import { resolveContextualUiPosition } from "./contextualUi";
 import {
   DocumentEngine,
   Annotation,
@@ -49,6 +57,11 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     rect: { x: number; y: number; width: number; height: number };
     text: string;
     anchor: { x: number; y: number };
+  } | null>(null);
+  const selectionMenuRef = useRef<HTMLDivElement>(null);
+  const [selectionMenuPosition, setSelectionMenuPosition] = useState<{
+    left: number;
+    top: number;
   } | null>(null);
   const [isInkDrawing, setIsInkDrawing] = useState(false);
   const [inkPoints, setInkPoints] = useState<{ x: number; y: number }[]>([]);
@@ -123,6 +136,34 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     },
     []
   );
+
+  useLayoutEffect(() => {
+    if (!selectionMenu || typeof window === "undefined") {
+      setSelectionMenuPosition(null);
+      return;
+    }
+
+    const updatePosition = () => {
+      const menu = selectionMenuRef.current;
+      if (!menu) return;
+      const rect = menu.getBoundingClientRect();
+      setSelectionMenuPosition(
+        resolveContextualUiPosition(
+          selectionMenu.anchor,
+          { width: rect.width, height: rect.height },
+          { width: window.innerWidth, height: window.innerHeight }
+        )
+      );
+    };
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [selectionMenu]);
 
   useEffect(() => {
     if (!isElementRender) return;
@@ -540,15 +581,16 @@ const PageRenderer: React.FC<PageRendererProps> = ({
             return;
           }
           if (activeTool === "select") {
-            const anchorX = (rect.x + rect.width) * containerRect.width;
-            const anchorY = rect.y * containerRect.height;
+            const anchorX =
+              containerRect.left + (rect.x + rect.width) * containerRect.width;
+            const anchorY = containerRect.top + rect.y * containerRect.height - 32;
             setSelectionMenu({
               rects: mergedRects,
               rect,
               text: selectionText,
               anchor: {
-                x: Math.max(12, Math.min(containerRect.width - 12, anchorX)),
-                y: Math.max(12, anchorY - 32),
+                x: anchorX,
+                y: anchorY,
               },
             });
           }
@@ -772,11 +814,17 @@ const PageRenderer: React.FC<PageRendererProps> = ({
         </svg>
       )}
 
-      {selectionMenu && (
+      {selectionMenu && typeof document !== "undefined"
+        ? createPortal(
         <div
+          ref={selectionMenuRef}
           data-papyrus-selection-menu="true"
-          className="absolute z-[60] flex items-center gap-1 rounded-full border px-2 py-1 shadow-xl bg-white/95 backdrop-blur-md text-gray-700"
-          style={{ left: selectionMenu.anchor.x, top: selectionMenu.anchor.y }}
+          className="fixed z-[60] flex flex-wrap items-center gap-1 rounded-full border px-2 py-1 shadow-xl bg-white/95 backdrop-blur-md text-gray-700"
+          style={{
+            left: selectionMenuPosition?.left ?? selectionMenu.anchor.x,
+            top: selectionMenuPosition?.top ?? selectionMenu.anchor.y,
+            maxWidth: "calc(100vw - 16px)",
+          }}
         >
           {[
             { id: "highlight", label: "Marcar" },
@@ -806,8 +854,10 @@ const PageRenderer: React.FC<PageRendererProps> = ({
               {action.label}
             </button>
           ))}
-        </div>
-      )}
+        </div>,
+        document.body
+      )
+        : null}
 
       <div className="absolute inset-0 pointer-events-none z-20">
         {annotations
@@ -863,6 +913,12 @@ const AnnotationItem: React.FC<{
   const isInk = ann.type === "ink" && ann.path && ann.path.length > 1;
   const [draftContent, setDraftContent] = useState(ann.content ?? "");
   const [draftReply, setDraftReply] = useState("");
+  const annotationItemRef = useRef<HTMLDivElement>(null);
+  const annotationPopoverRef = useRef<HTMLDivElement>(null);
+  const [annotationPopoverPosition, setAnnotationPopoverPosition] = useState<{
+    left: number;
+    top: number;
+  } | null>(null);
 
   useEffect(() => {
     setDraftContent(ann.content ?? "");
@@ -871,6 +927,32 @@ const AnnotationItem: React.FC<{
   useEffect(() => {
     setDraftReply("");
   }, [ann.id]);
+
+  useLayoutEffect(() => {
+    if (!isSelected || !isText || typeof window === "undefined") {
+      setAnnotationPopoverPosition(null);
+      return;
+    }
+    const updatePosition = () => {
+      const anchor = annotationItemRef.current?.getBoundingClientRect();
+      const popover = annotationPopoverRef.current?.getBoundingClientRect();
+      if (!anchor || !popover) return;
+      setAnnotationPopoverPosition(
+        resolveContextualUiPosition(
+          { x: anchor.left, y: anchor.bottom + 8 },
+          { width: popover.width, height: popover.height },
+          { width: window.innerWidth, height: window.innerHeight }
+        )
+      );
+    };
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [ann.id, isSelected, isText]);
 
   const handleSaveContent = () => {
     const nextContent = draftContent.trim();
@@ -998,6 +1080,7 @@ const AnnotationItem: React.FC<{
   return (
     <div
       data-papyrus-annotation-id={ann.id}
+      ref={annotationItemRef}
       className={`absolute pointer-events-auto transition-all ${
         isSelected ? "shadow-xl z-30" : "z-10"
       }`}
@@ -1054,10 +1137,14 @@ const AnnotationItem: React.FC<{
           </svg>
         </button>
       )}
-      {isText && isSelected && (
+      {isText && isSelected && typeof document !== "undefined"
+        ? createPortal(
         <div
-          className="absolute top-full mt-2 w-72 rounded-xl p-3 z-50"
+          ref={annotationPopoverRef}
+          className="fixed w-72 max-w-[calc(100vw-16px)] rounded-xl p-3 z-50"
           style={{
+            left: annotationPopoverPosition?.left ?? 8,
+            top: annotationPopoverPosition?.top ?? 8,
             background:
               "var(--papyrus-popover-resolved, var(--papyrus-popover, #ffffff))",
             border: "1px solid var(--papyrus-border-resolved, #d1d5db)",
@@ -1164,8 +1251,10 @@ const AnnotationItem: React.FC<{
               Responder
             </button>
           </div>
-        </div>
-      )}
+        </div>,
+        document.body
+      )
+        : null}
       {isSelected && (
         <button
           onClick={(e) => {

@@ -19,6 +19,7 @@ import Topbar from "./Topbar";
 import RightSheet from "./RightSheet";
 import Viewer from "./Viewer";
 import { isSidebarBoundDestination } from "./mobileShell";
+import { PapyrusSafeAreaBoundary } from "./PapyrusSafeArea";
 
 type ReadingShellProps = {
   engine: DocumentEngine;
@@ -130,7 +131,8 @@ export function ReadingShell({
   };
 
   return (
-    <View style={styles.container} testID="papyrus-rn-reading-shell">
+    <PapyrusSafeAreaBoundary>
+      <View style={styles.container} testID="papyrus-rn-reading-shell">
       <Topbar
         engine={engine}
         title={title}
@@ -231,7 +233,8 @@ export function ReadingShell({
         onClose={() => setPageJumpOpen(false)}
         onConfirm={navigateToPage}
       />
-    </View>
+      </View>
+    </PapyrusSafeAreaBoundary>
   );
 }
 

@@ -1,9 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
+import Clipboard from "@react-native-clipboard/clipboard";
 import { useViewerStore } from "@papyrus-sdk/core";
 import { DocumentEngine } from "@papyrus-sdk/types";
 import { PapyrusPdfDocumentView } from "@papyrus-sdk/engine-native";
 import { IconCopy, IconHighlight, IconUnderline, IconCommentBubble } from "../icons";
+import { copySelectionText } from "./clipboard";
+import { resolvePageTapChromeVisibility } from "./mobileChromeInteraction";
 
 const TEXT_MARKUP_TOOLS = new Set(["highlight", "underline", "squiggly", "strikeout"]);
 
@@ -47,6 +50,12 @@ export default function DedicatedAndroidPdfViewer({
   const searchResults = useViewerStore((state) => state.searchResults);
   const annotations = useViewerStore((state) => state.annotations);
   const viewMode = useViewerStore((state) => state.viewMode);
+  const mobileChromeVisible = useViewerStore(
+    (state) => state.mobileChromeVisible
+  );
+  const selectedAnnotationId = useViewerStore(
+    (state) => state.selectedAnnotationId
+  );
   const nativeViewMode = viewMode === "single" ? "single" : "continuous";
   const setDocumentState = useViewerStore((state) => state.setDocumentState);
   const addAnnotation = useViewerStore((state) => state.addAnnotation);
@@ -65,6 +74,11 @@ export default function DedicatedAndroidPdfViewer({
   const scrollUpAccumRef = useRef(0);
   const pendingChromeShowTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const chromeVisibleRef = useRef(true);
+  const lastZoomChangedAtRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    chromeVisibleRef.current = mobileChromeVisible;
+  }, [mobileChromeVisible]);
 
   const clearPendingChromeShow = useCallback(() => {
     if (pendingChromeShowTimeoutRef.current) {
@@ -155,10 +169,13 @@ export default function DedicatedAndroidPdfViewer({
     selectionRef.current = null;
   }, [addAnnotation, annotationColor]);
 
-  const copySelection = useCallback(() => {
+  const copySelection = useCallback(async () => {
     const sel = selectionRef.current;
-    if (sel?.text) {
-      // Clipboard.setString(sel.text); // Would need @react-native-clipboard/clipboard
+    if (!sel?.text.trim()) return;
+    const copied = await copySelectionText(sel.text, Clipboard);
+    if (!copied) {
+      console.error("[Papyrus] Failed to copy selected text");
+      return;
     }
     setSelection(null);
     selectionRef.current = null;
@@ -184,6 +201,7 @@ export default function DedicatedAndroidPdfViewer({
           setDocumentState({ currentPage: event.nativeEvent.page });
         }}
         onZoomChange={(event) => {
+          lastZoomChangedAtRef.current = Date.now();
           setDocumentState({ zoom: event.nativeEvent.zoom });
         }}
         onVisiblePagesChange={(event) => {
@@ -221,6 +239,20 @@ export default function DedicatedAndroidPdfViewer({
         onAnnotationTap={(event) => {
           setSelectedAnnotation(event.nativeEvent.id);
         }}
+        onTap={() => {
+          const nextVisible = resolvePageTapChromeVisibility({
+            chromeVisible: chromeVisibleRef.current,
+            selectionActive: selectionRef.current !== null,
+            annotationHit: selectedAnnotationId !== null,
+            pinchActive:
+              lastZoomChangedAtRef.current !== null &&
+              Date.now() - lastZoomChangedAtRef.current < 400,
+            toolActive: activeTool !== "select",
+          });
+          if (nextVisible !== null) {
+            setMobileChromeVisible(nextVisible, "native.page.tap");
+          }
+        }}
         onTextSelected={(event) => {
           const { text, pageIndex, rects } = event.nativeEvent;
           if (!rects || rects.length === 0) {
@@ -252,9 +284,11 @@ export default function DedicatedAndroidPdfViewer({
             <View style={styles.toolbarContent}>
               <Pressable
                 onPress={() => {
-                  copySelection();
+                  void copySelection();
                 }}
                 style={styles.toolbarButton}
+                accessibilityRole="button"
+                accessibilityLabel="Copy selected text"
               >
                 <IconCopy size={20} color="#fff" strokeWidth={2} />
               </Pressable>

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveRightSheetHeight } from "./rightSheetLayout";
+import {
+  resolveRightSheetHeight,
+  supportsPageThumbnails,
+} from "./rightSheetLayout";
 
 describe("resolveRightSheetHeight", () => {
   it("uses a shorter sheet for notes than for navigation content", () => {
@@ -19,5 +22,12 @@ describe("resolveRightSheetHeight", () => {
     expect(
       resolveRightSheetHeight({ windowHeight: 700, showingNotes: false })
     ).toBe(504);
+  });
+
+  it("does not offer page thumbnails for reflowable EPUBs", () => {
+    expect(supportsPageThumbnails("epub")).toBe(false);
+    expect(supportsPageThumbnails("pdf")).toBe(true);
+    expect(supportsPageThumbnails("comic")).toBe(true);
+    expect(supportsPageThumbnails("text")).toBe(false);
   });
 });

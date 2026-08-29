@@ -1,6 +1,7 @@
 import React from "react";
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { useViewerStore } from "@papyrus-sdk/core";
+import { usePapyrusSafeAreaInsets } from "./PapyrusSafeArea";
 
 type OverflowSheetProps = {
   visible: boolean;
@@ -17,6 +18,7 @@ export function OverflowSheet({
 }: OverflowSheetProps) {
   const { uiTheme, accentColor } = useViewerStore();
   const isDark = uiTheme === "dark";
+  const insets = usePapyrusSafeAreaInsets();
 
   const handlers = {
     actions: onOpenActions,
@@ -32,7 +34,7 @@ export function OverflowSheet({
       <Pressable style={styles.backdrop} onPress={onClose}>
         <Pressable
           onPress={(event) => event.stopPropagation()}
-          style={[styles.card, isDark && styles.cardDark]}
+          style={[styles.card, isDark && styles.cardDark, { paddingBottom: 16 + insets.bottom }]}
         >
           <View style={styles.handle} />
           {actionLabels.map((action) => (

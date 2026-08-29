@@ -18,6 +18,12 @@ const replaceMarkedSource = (content, start, end, replacement) => {
 
 const runtimePath = resolve(runtimeDirectory, "runtime.js");
 const runtime = await readFile(runtimePath, "utf8");
+const comicRuntimeEnd = "/* @papyrus-comic-runtime:end */";
+const runtimeBodyStart = runtime.indexOf("\n(function () {", runtime.indexOf(comicRuntimeEnd));
+if (runtimeBodyStart < 0) {
+  throw new Error("Main runtime body not found");
+}
+const runtimeBody = runtime.slice(runtimeBodyStart + 1).trim();
 await writeFile(
   runtimePath,
   replaceMarkedSource(
@@ -30,12 +36,22 @@ await writeFile(
 
 const htmlPath = resolve(runtimeDirectory, "index.html");
 const html = await readFile(htmlPath, "utf8");
+const htmlWithComicRuntime = replaceMarkedSource(
+  html,
+  "<!-- @papyrus-comic-runtime:start -->",
+  "<!-- @papyrus-comic-runtime:end -->",
+  `\n    <script>\n${source}\n    </script>\n`
+);
+const htmlComicRuntimeEnd = "<!-- @papyrus-comic-runtime:end -->";
+const htmlBodyStart = htmlWithComicRuntime.indexOf(
+  "<script>",
+  htmlWithComicRuntime.indexOf(htmlComicRuntimeEnd)
+);
+const htmlBodyEnd = htmlWithComicRuntime.indexOf("</script>", htmlBodyStart);
+if (htmlBodyStart < 0 || htmlBodyEnd < htmlBodyStart) {
+  throw new Error("HTML runtime body not found");
+}
 await writeFile(
   htmlPath,
-  replaceMarkedSource(
-    html,
-    "<!-- @papyrus-comic-runtime:start -->",
-    "<!-- @papyrus-comic-runtime:end -->",
-    `\n    <script>\n${source}\n    </script>\n`
-  )
+  `${htmlWithComicRuntime.slice(0, htmlBodyStart)}<script>\n${runtimeBody}\n    ${htmlWithComicRuntime.slice(htmlBodyEnd)}`
 );
