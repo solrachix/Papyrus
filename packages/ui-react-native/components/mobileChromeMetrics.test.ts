@@ -16,7 +16,7 @@ describe("MOBILE_CHROME_METRICS", () => {
     expect(MOBILE_CHROME_METRICS.screenPadding).toBe(16);
     expect(MOBILE_CHROME_METRICS.maxFloatingWidth).toBe(360);
     expect(MOBILE_CHROME_METRICS.progressGap).toBe(18);
-    expect(MOBILE_CHROME_METRICS.progressHorizontalOffset).toBe(24);
+    expect(MOBILE_CHROME_METRICS.progressHorizontalOffset).toBe(10);
   });
 
   it("keeps the expanded tool dock constrained to the mobile chrome grid", () => {
