@@ -61,22 +61,22 @@
 
 **Arquivos:** criar `packages/ui-react/perf/webPerf.ts` e teste; modificar `packages/ui-react/components/Viewer.tsx` e `packages/ui-react/components/PageRenderer.tsx`.
 
-- [ ] Escrever testes para o coletor sem `performance.memory`, sem `PerformanceObserver` e sem `requestAnimationFrame` disponível.
-- [ ] Implementar o coletor web opt-in por `globalThis.__PAPYRUS_WEB_PERF__` ou query flag explícita, com `performance.mark/measure` quando disponíveis.
-- [ ] Marcar `pinch.commit`, `surface.ready`, `jump.start/end`, `scroll.start/end`, `render.start/end/cancel/stale` e `viewer.window` sem incluir funções instáveis nas dependências de render.
-- [ ] Medir frames durante pinch com contador de frames, maior intervalo entre frames e frames acima de 16,67/33,33 ms; não chamar isso de FPS de hardware quando for apenas amostragem JS.
-- [ ] Coletar `document.querySelectorAll('.page-container').length`, canvases, PageRenderers observáveis e `performance.memory` apenas quando o browser oferecer a API.
-- [ ] Adicionar um export JSON manual (`window.__PAPYRUS_WEB_PERF__.snapshot()`) com ambiente, fixture, viewport, DPR e commit SHA.
-- [ ] Rodar testes web focados e `pnpm lint:phase1`.
+- [x] Escrever testes para o coletor sem `performance.memory`, sem `PerformanceObserver` e sem `requestAnimationFrame` disponível.
+- [x] Implementar o coletor web opt-in por `globalThis.__PAPYRUS_WEB_PERF__` ou query flag explícita, com `performance.mark/measure` quando disponíveis.
+- [x] Marcar `pinch.commit`, `surface.ready`, `jump.start/end`, `scroll.start/end`, `render.start/end/cancel/stale` e `viewer.window` sem incluir funções instáveis nas dependências de render.
+- [x] Medir frames durante pinch com contador de frames, maior intervalo entre frames e frames acima de 16,67/33,33 ms; não chamar isso de FPS de hardware quando for apenas amostragem JS.
+- [x] Coletar `document.querySelectorAll('.page-container').length`, canvases, PageRenderers observáveis e `performance.memory` apenas quando o browser oferecer a API.
+- [x] Adicionar um export JSON manual (`window.__PAPYRUS_WEB_PERF__.snapshot()`) com ambiente, fixture, viewport, DPR e commit SHA.
+- [x] Rodar testes web focados e `pnpm lint:phase1`.
 
 ### Tarefa 2.2 — Criar protocolo browser
 
 **Arquivos:** criar `scripts/benchmarks/web-perf.mjs`; modificar `scripts/benchmarks/README.md`.
 
-- [ ] Definir o protocolo para cada fixture: abrir, zoom 1→5→1 por 20 ciclos, scroll rápido, jumps 1→500→999, orientação simulada quando disponível e captura antes/depois.
+- [x] Definir o protocolo para cada fixture: abrir, zoom 1→5→1 por 20 ciclos, scroll rápido, jumps 1→500→999, orientação simulada quando disponível e captura antes/depois.
 - [ ] Adicionar cenários específicos 5000 páginas: DOM inicial, scroll para meio/fim, retorno ao início, páginas de alturas variadas e ausência de buracos/alteração violenta do `scrollTop`.
 - [ ] Integrar a captura com um navegador real usando o fluxo do skill `browser:control-in-app-browser` ou navegador local equivalente; se não houver sessão automatizável, registrar o comando/manual flow e não fabricar resultado.
-- [ ] Serializar um JSON por execução e um resumo Markdown com `zoom commit → sharp surface`, frame drops, peak memory, jump latency, wrappers e PageRenderers.
+- [x] Serializar um JSON por execução e um resumo Markdown com `zoom commit → sharp surface`, frame drops, peak memory, jump latency, wrappers e PageRenderers.
 - [ ] Rodar uma execução smoke no PDF de 20 páginas e verificar que os campos indisponíveis ficam explícitos.
 
 ### Tarefa 2.3 — Validar o caso overscan zero

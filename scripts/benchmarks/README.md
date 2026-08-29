@@ -59,6 +59,36 @@ página durante o double buffer. As durações e contagens são sintéticas e n�
 substituem uma medição de frames, memória ou cancelamento em browser/dispositivo
 real; essas métricas aparecem explicitamente como indisponíveis no JSON.
 
+## Protocolo de captura web da PR 13
+
+O coletor web é desligado por padrão. Para habilitá-lo, abra o demo com
+`?papyrusPerf=1` ou defina `window.__PAPYRUS_WEB_PERF__ = true` antes de montar
+o `Viewer`. Após executar o cenário, exporte o snapshot no console:
+
+```js
+JSON.stringify(window.__PAPYRUS_WEB_PERF__.snapshot())
+```
+
+O script abaixo resume esse snapshot e deixa campos não suportados como
+`null`. Sem `--input`, ele imprime um relatório `not-run`; isso é intencional e
+não representa uma captura real:
+
+```bash
+node scripts/benchmarks/web-perf.mjs \
+  --fixture large-1000 \
+  --scenario "zoom 1→5→1" \
+  --input /tmp/papyrus-web-snapshot.json \
+  --output /tmp/papyrus-web-report.json \
+  --markdown /tmp/papyrus-web-report.md
+```
+
+O protocolo mínimo por fixture é: abrir o documento, executar zoom `1→5→1`
+por 20 ciclos, fazer scroll rápido, executar os jumps `1→500→999` e capturar
+antes/depois. Para o cenário de 5000 páginas, conferir wrappers, Canvas e
+PageRenderers montados, scroll ao meio/fim/começo e páginas de alturas
+variadas. A contagem de frames é uma observação da thread JavaScript, não FPS
+de hardware; a memória só aparece quando `performance.memory` existe.
+
 ## Medição no browser
 
 Com o demo web em `http://localhost:3005/`, o PDF de 1000 páginas foi carregado
