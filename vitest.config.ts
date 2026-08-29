@@ -38,6 +38,10 @@ export default defineConfig({
         __dirname,
         "packages/engine-rust/index.ts"
       ),
+      "@papyrus-sdk/engine-cbz-rust": path.resolve(
+        __dirname,
+        "packages/engine-cbz-rust/index.ts"
+      ),
       react: path.resolve(__dirname, "node_modules/react"),
       "react/jsx-runtime": path.resolve(
         __dirname,

@@ -72,6 +72,9 @@ importers:
       '@papyrus-sdk/ui-react-native':
         specifier: workspace:*
         version: link:../../packages/ui-react-native
+      '@react-native-clipboard/clipboard':
+        specifier: ^1.16.3
+        version: 1.16.3(react-native@0.81.0(@babel/core@7.29.0)(@react-native-community/cli@20.0.0(typescript@5.9.3))(@react-native/metro-config@0.81.0(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.1.0))(react@19.1.0)
       '@react-native-documents/picker':
         specifier: ^12.0.1
         version: 12.0.1(react-native@0.81.0(@babel/core@7.29.0)(@react-native-community/cli@20.0.0(typescript@5.9.3))(@react-native/metro-config@0.81.0(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.1.0))(react@19.1.0)
@@ -84,6 +87,9 @@ importers:
       react-native-gesture-handler:
         specifier: ~2.28.0
         version: 2.28.0(react-native@0.81.0(@babel/core@7.29.0)(@react-native-community/cli@20.0.0(typescript@5.9.3))(@react-native/metro-config@0.81.0(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.1.0))(react@19.1.0)
+      react-native-safe-area-context:
+        specifier: ^5.6.2
+        version: 5.9.1(react-native@0.81.0(@babel/core@7.29.0)(@react-native-community/cli@20.0.0(typescript@5.9.3))(@react-native/metro-config@0.81.0(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.1.0))(react@19.1.0)
       react-native-svg:
         specifier: ^15.5.0
         version: 15.15.4(react-native@0.81.0(@babel/core@7.29.0)(@react-native-community/cli@20.0.0(typescript@5.9.3))(@react-native/metro-config@0.81.0(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.1.0))(react@19.1.0)
@@ -166,6 +172,9 @@ importers:
       '@papyrus-sdk/ui-react-native':
         specifier: workspace:*
         version: link:../../packages/ui-react-native
+      '@react-native-clipboard/clipboard':
+        specifier: ^1.16.3
+        version: 1.16.3(react-native@0.76.0(@babel/core@7.29.0)(@babel/preset-env@7.29.2(@babel/core@7.29.0))(@react-native-community/cli-server-api@20.0.0)(@types/react@18.3.28)(react@18.2.0))(react@18.2.0)
       expo:
         specifier: ~52.0.0
         version: 52.0.49(@babel/core@7.29.0)(@babel/preset-env@7.29.2(@babel/core@7.29.0))(react-native-webview@13.16.1(react-native@0.76.0(@babel/core@7.29.0)(@babel/preset-env@7.29.2(@babel/core@7.29.0))(@react-native-community/cli-server-api@20.0.0)(@types/react@18.3.28)(react@18.2.0))(react@18.2.0))(react-native@0.76.0(@babel/core@7.29.0)(@babel/preset-env@7.29.2(@babel/core@7.29.0))(@react-native-community/cli-server-api@20.0.0)(@types/react@18.3.28)(react@18.2.0))(react@18.2.0)
@@ -181,6 +190,9 @@ importers:
       react-native-gesture-handler:
         specifier: ~2.20.2
         version: 2.20.2(react-native@0.76.0(@babel/core@7.29.0)(@babel/preset-env@7.29.2(@babel/core@7.29.0))(@react-native-community/cli-server-api@20.0.0)(@types/react@18.3.28)(react@18.2.0))(react@18.2.0)
+      react-native-safe-area-context:
+        specifier: ^5.6.2
+        version: 5.9.1(react-native@0.76.0(@babel/core@7.29.0)(@babel/preset-env@7.29.2(@babel/core@7.29.0))(@react-native-community/cli-server-api@20.0.0)(@types/react@18.3.28)(react@18.2.0))(react@18.2.0)
       react-native-svg:
         specifier: ^15.5.0
         version: 15.15.4(react-native@0.76.0(@babel/core@7.29.0)(@babel/preset-env@7.29.2(@babel/core@7.29.0))(@react-native-community/cli-server-api@20.0.0)(@types/react@18.3.28)(react@18.2.0))(react@18.2.0)
@@ -230,7 +242,7 @@ importers:
     dependencies:
       '@papyrus-sdk/types':
         specifier: 0.2.12
-        version: link:../types
+        version: 0.2.12
       zustand:
         specifier: ^5.0.0
         version: 5.0.12(@types/react@19.2.14)(react@19.1.0)
@@ -258,7 +270,7 @@ importers:
         version: link:../engine-native
       '@papyrus-sdk/ui-react-native':
         specifier: '>=0.2.21'
-        version: link:../ui-react-native
+        version: 0.2.24(@papyrus-sdk/core@packages+core)(@papyrus-sdk/engine-native@packages+engine-native)(@papyrus-sdk/types@packages+types)(react-native-gesture-handler@2.28.0(react-native@0.81.0(@babel/core@7.29.0)(@react-native-community/cli@20.0.0(typescript@5.9.3))(@react-native/metro-config@0.81.0(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.1.0))(react@19.1.0))(react-native-webview@13.16.1(react-native@0.81.0(@babel/core@7.29.0)(@react-native-community/cli@20.0.0(typescript@5.9.3))(@react-native/metro-config@0.81.0(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.1.0))(react@19.1.0))(react-native@0.81.0(@babel/core@7.29.0)(@react-native-community/cli@20.0.0(typescript@5.9.3))(@react-native/metro-config@0.81.0(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.1.0))(react@19.1.0)
 
   packages/engine-cbz:
     dependencies:
@@ -268,6 +280,22 @@ importers:
       '@zip.js/zip.js':
         specifier: ^2.8.34
         version: 2.8.49
+    devDependencies:
+      '@papyrus-sdk/core':
+        specifier: workspace:*
+        version: link:../core
+      '@papyrus-sdk/types':
+        specifier: workspace:*
+        version: link:../types
+
+  packages/engine-cbz-rust:
+    dependencies:
+      '@papyrus-sdk/engine-cbz':
+        specifier: workspace:*
+        version: link:../engine-cbz
+      '@papyrus-sdk/engine-comic-core':
+        specifier: workspace:*
+        version: link:../engine-comic-core
     devDependencies:
       '@papyrus-sdk/core':
         specifier: workspace:*
@@ -305,7 +333,7 @@ importers:
         version: link:../core
       '@papyrus-sdk/types':
         specifier: 0.2.12
-        version: link:../types
+        version: 0.2.12
       react-native:
         specifier: ^0.81.0
         version: 0.81.0(@babel/core@7.29.0)(@react-native-community/cli@20.0.0(typescript@5.9.3))(@react-native/metro-config@0.81.0(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.1.0)
@@ -377,7 +405,10 @@ importers:
         version: link:../engine-native
       '@papyrus-sdk/types':
         specifier: 0.2.12
-        version: link:../types
+        version: 0.2.12
+      '@react-native-clipboard/clipboard':
+        specifier: ^1.16.3
+        version: 1.16.3(react-native@0.81.0(@babel/core@7.29.0)(@react-native-community/cli@20.0.0(typescript@5.9.3))(@react-native/metro-config@0.81.0(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.1.0))(react@19.1.0)
       '@types/react':
         specifier: 19.2.14
         version: 19.2.14
@@ -390,6 +421,9 @@ importers:
       react-native-gesture-handler:
         specifier: ~2.28.0
         version: 2.28.0(react-native@0.81.0(@babel/core@7.29.0)(@react-native-community/cli@20.0.0(typescript@5.9.3))(@react-native/metro-config@0.81.0(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.1.0))(react@19.1.0)
+      react-native-safe-area-context:
+        specifier: ^5.6.2
+        version: 5.9.1(react-native@0.81.0(@babel/core@7.29.0)(@react-native-community/cli@20.0.0(typescript@5.9.3))(@react-native/metro-config@0.81.0(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.1.0))(react@19.1.0)
 
 packages:
 
@@ -1710,9 +1744,39 @@ packages:
     resolution: {integrity: sha512-q9CRWjpHCMIh5sVyefoD1cA7PkvILqCZsnSOEUUivORLjxCO/Irmue2DprETiNgEqktDBZaM1Bi+jrarx1XdCg==}
     engines: {node: ^14.17.0 || ^16.13.0 || >=18.0.0}
 
+  '@papyrus-sdk/types@0.2.12':
+    resolution: {integrity: sha512-rBjDX92YbYoTFW+RcaG7oUkb91Vn7cFjxgYSKDYS/u8Y3ZGzVBUGImHkkPTUrhwEHrXaGCzqDNcC6C6Tl1TNsw==}
+
+  '@papyrus-sdk/ui-react-native@0.2.24':
+    resolution: {integrity: sha512-nGia6rJkFkwuuPiqIAoAGjmjuExkQDdc6CKTVI8kILSkVKJxXuj+9te9+kvri3bZrFSiXq9uHGDT4LRHA+jtFQ==}
+    peerDependencies:
+      '@papyrus-sdk/core': '>=0.2.18'
+      '@papyrus-sdk/engine-native': '>=0.2.17'
+      '@papyrus-sdk/types': '>=0.2.11'
+      react: '>=18.2.0 <20'
+      react-native: '>=0.81.0'
+      react-native-gesture-handler: '>=2.28.0'
+      react-native-webview: '>=13'
+    peerDependenciesMeta:
+      react-native-webview:
+        optional: true
+
   '@pkgjs/parseargs@0.11.0':
     resolution: {integrity: sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==}
     engines: {node: '>=14'}
+
+  '@react-native-clipboard/clipboard@1.16.3':
+    resolution: {integrity: sha512-cMIcvoZKIrShzJHEaHbTAp458R9WOv0fB6UyC7Ek4Qk561Ow/DrzmmJmH/rAZg21Z6ixJ4YSdFDC14crqIBmCQ==}
+    peerDependencies:
+      react: '>= 16.9.0'
+      react-native: '>= 0.61.5'
+      react-native-macos: '>= 0.61.0'
+      react-native-windows: '>= 0.61.0'
+    peerDependenciesMeta:
+      react-native-macos:
+        optional: true
+      react-native-windows:
+        optional: true
 
   '@react-native-community/cli-clean@20.0.0':
     resolution: {integrity: sha512-YmdNRcT+Dp8lC7CfxSDIfPMbVPEXVFzBH62VZNbYGxjyakqAvoQUFTYPgM2AyFusAr4wDFbDOsEv88gCDwR3ig==}
@@ -5655,6 +5719,12 @@ packages:
       react: '*'
       react-native: '*'
 
+  react-native-safe-area-context@5.9.1:
+    resolution: {integrity: sha512-Zpx9Iwg6VhgNarWFpcIM61xK2lUbSfSXemQUmcvOVRpux49lJsUompY1S3E5jKUJbLq233qEpj28DgmXVsgZMQ==}
+    peerDependencies:
+      react: '*'
+      react-native: '*'
+
   react-native-svg@15.15.4:
     resolution: {integrity: sha512-boT/vIRgj6zZKBpfTPJJiYWMbZE9duBMOwPK6kCSTgxsS947IFMOq9OgIFkpWZTB7t229H24pDRkh3W9ZK/J1A==}
     peerDependencies:
@@ -8686,8 +8756,32 @@ snapshots:
     dependencies:
       semver: 7.7.4
 
+  '@papyrus-sdk/types@0.2.12': {}
+
+  '@papyrus-sdk/ui-react-native@0.2.24(@papyrus-sdk/core@packages+core)(@papyrus-sdk/engine-native@packages+engine-native)(@papyrus-sdk/types@packages+types)(react-native-gesture-handler@2.28.0(react-native@0.81.0(@babel/core@7.29.0)(@react-native-community/cli@20.0.0(typescript@5.9.3))(@react-native/metro-config@0.81.0(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.1.0))(react@19.1.0))(react-native-webview@13.16.1(react-native@0.81.0(@babel/core@7.29.0)(@react-native-community/cli@20.0.0(typescript@5.9.3))(@react-native/metro-config@0.81.0(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.1.0))(react@19.1.0))(react-native@0.81.0(@babel/core@7.29.0)(@react-native-community/cli@20.0.0(typescript@5.9.3))(@react-native/metro-config@0.81.0(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.1.0))(react@19.1.0)':
+    dependencies:
+      '@papyrus-sdk/core': link:packages/core
+      '@papyrus-sdk/engine-native': link:packages/engine-native
+      '@papyrus-sdk/types': link:packages/types
+      react: 19.1.0
+      react-native: 0.81.0(@babel/core@7.29.0)(@react-native-community/cli@20.0.0(typescript@5.9.3))(@react-native/metro-config@0.81.0(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.1.0)
+      react-native-gesture-handler: 2.28.0(react-native@0.81.0(@babel/core@7.29.0)(@react-native-community/cli@20.0.0(typescript@5.9.3))(@react-native/metro-config@0.81.0(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.1.0))(react@19.1.0)
+      react-native-svg: 15.15.4(react-native@0.81.0(@babel/core@7.29.0)(@react-native-community/cli@20.0.0(typescript@5.9.3))(@react-native/metro-config@0.81.0(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.1.0))(react@19.1.0)
+    optionalDependencies:
+      react-native-webview: 13.16.1(react-native@0.81.0(@babel/core@7.29.0)(@react-native-community/cli@20.0.0(typescript@5.9.3))(@react-native/metro-config@0.81.0(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.1.0))(react@19.1.0)
+
   '@pkgjs/parseargs@0.11.0':
     optional: true
+
+  '@react-native-clipboard/clipboard@1.16.3(react-native@0.76.0(@babel/core@7.29.0)(@babel/preset-env@7.29.2(@babel/core@7.29.0))(@react-native-community/cli-server-api@20.0.0)(@types/react@18.3.28)(react@18.2.0))(react@18.2.0)':
+    dependencies:
+      react: 18.2.0
+      react-native: 0.76.0(@babel/core@7.29.0)(@babel/preset-env@7.29.2(@babel/core@7.29.0))(@react-native-community/cli-server-api@20.0.0)(@types/react@18.3.28)(react@18.2.0)
+
+  '@react-native-clipboard/clipboard@1.16.3(react-native@0.81.0(@babel/core@7.29.0)(@react-native-community/cli@20.0.0(typescript@5.9.3))(@react-native/metro-config@0.81.0(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.1.0))(react@19.1.0)':
+    dependencies:
+      react: 19.1.0
+      react-native: 0.81.0(@babel/core@7.29.0)(@react-native-community/cli@20.0.0(typescript@5.9.3))(@react-native/metro-config@0.81.0(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.1.0)
 
   '@react-native-community/cli-clean@20.0.0':
     dependencies:
@@ -13744,6 +13838,16 @@ snapshots:
       '@egjs/hammerjs': 2.0.17
       hoist-non-react-statics: 3.3.2
       invariant: 2.2.4
+      react: 19.1.0
+      react-native: 0.81.0(@babel/core@7.29.0)(@react-native-community/cli@20.0.0(typescript@5.9.3))(@react-native/metro-config@0.81.0(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.1.0)
+
+  react-native-safe-area-context@5.9.1(react-native@0.76.0(@babel/core@7.29.0)(@babel/preset-env@7.29.2(@babel/core@7.29.0))(@react-native-community/cli-server-api@20.0.0)(@types/react@18.3.28)(react@18.2.0))(react@18.2.0):
+    dependencies:
+      react: 18.2.0
+      react-native: 0.76.0(@babel/core@7.29.0)(@babel/preset-env@7.29.2(@babel/core@7.29.0))(@react-native-community/cli-server-api@20.0.0)(@types/react@18.3.28)(react@18.2.0)
+
+  react-native-safe-area-context@5.9.1(react-native@0.81.0(@babel/core@7.29.0)(@react-native-community/cli@20.0.0(typescript@5.9.3))(@react-native/metro-config@0.81.0(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.1.0))(react@19.1.0):
+    dependencies:
       react: 19.1.0
       react-native: 0.81.0(@babel/core@7.29.0)(@react-native-community/cli@20.0.0(typescript@5.9.3))(@react-native/metro-config@0.81.0(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.1.0)
 

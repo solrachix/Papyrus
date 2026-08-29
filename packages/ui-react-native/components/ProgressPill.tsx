@@ -4,6 +4,11 @@ import { useViewerStore } from "@papyrus-sdk/core";
 import { DocumentType } from "@papyrus-sdk/types";
 import { IconPageNav } from "../icons";
 import { MOBILE_CHROME_METRICS } from "./mobileChromeMetrics";
+import { getProgressPillInteraction } from "./progressPillInteraction";
+import {
+  resolveMobileChromeOffsets,
+} from "./mobileChromeMetrics";
+import { usePapyrusSafeAreaInsets } from "./PapyrusSafeArea";
 
 type ProgressPillProps = {
   documentType: DocumentType;
@@ -28,6 +33,7 @@ export function ProgressPill({
     mobileProgressPillVisible,
   } = useViewerStore();
   const isDark = uiTheme === "dark";
+  const offsets = resolveMobileChromeOffsets(usePapyrusSafeAreaInsets());
 
   const label = useMemo(() => {
     const total = Math.max(pageCount, 1);
@@ -47,9 +53,9 @@ export function ProgressPill({
   if (!mobileChromeVisible || !mobileProgressPillVisible) return null;
 
   return (
-    <View pointerEvents="box-none" style={styles.frame}>
-      <View
-        accessibilityLabel="Open document navigation"
+    <View pointerEvents="box-none" style={[styles.frame, { top: offsets.progress, left: offsets.left, right: offsets.right }]}>
+      <Pressable
+        {...getProgressPillInteraction(onPress, onOpenPageJump)}
         style={[
           styles.pill,
           isDark && styles.pillDark,
@@ -57,26 +63,17 @@ export function ProgressPill({
         ]}
         testID="papyrus-progress-pill"
       >
-        <Pressable
-          onPress={onPress}
-          style={styles.iconHit}
-          accessibilityLabel="Open document navigation"
-        >
+        <View style={styles.iconHit}>
           <IconPageNav
             size={20}
             color={isDark ? "#f8fafc" : "#111827"}
             strokeWidth={1.8}
           />
-        </Pressable>
-        <Pressable
-          onPress={onPress}
-          onLongPress={onOpenPageJump}
-          style={styles.labelHit}
-          accessibilityLabel="Open page jump"
-        >
+        </View>
+        <View style={styles.labelHit}>
           <Text style={[styles.label, isDark && styles.labelDark]}>{label}</Text>
-        </Pressable>
-      </View>
+        </View>
+      </Pressable>
     </View>
   );
 }

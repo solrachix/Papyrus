@@ -3,6 +3,10 @@ export type WebViewStateUpdate = {
   pageCount?: number;
 };
 
+export type WebViewInteraction =
+  | { kind: "scroll"; offsetY: number }
+  | { kind: "tap" };
+
 export const parseWebViewState = (raw: string): WebViewStateUpdate | null => {
   try {
     const message: unknown = JSON.parse(raw);
@@ -38,6 +42,38 @@ export const parseWebViewState = (raw: string): WebViewStateUpdate | null => {
     }
 
     return Object.keys(update).length > 0 ? update : null;
+  } catch {
+    return null;
+  }
+};
+
+export const parseWebViewInteraction = (
+  raw: string
+): WebViewInteraction | null => {
+  try {
+    const message: unknown = JSON.parse(raw);
+    if (!message || typeof message !== "object") return null;
+
+    const typedMessage = message as {
+      type?: unknown;
+      name?: unknown;
+      payload?: unknown;
+    };
+    if (typedMessage.type !== "event") return null;
+
+    if (typedMessage.name === "VIEWER_TAP") {
+      return { kind: "tap" };
+    }
+
+    if (typedMessage.name !== "VIEWER_SCROLL") return null;
+    if (!typedMessage.payload || typeof typedMessage.payload !== "object") {
+      return null;
+    }
+
+    const offsetY = (typedMessage.payload as { offsetY?: unknown }).offsetY;
+    return typeof offsetY === "number" && Number.isFinite(offsetY)
+      ? { kind: "scroll", offsetY: Math.max(0, offsetY) }
+      : null;
   } catch {
     return null;
   }

@@ -182,8 +182,49 @@ vi.mock("@papyrus-sdk/engine-cbr", () => ({
   },
 }));
 
+vi.mock("@papyrus-sdk/engine-cbz-rust", () => ({
+  RustCBZEngine: class {
+    async load() {}
+    getPageCount() {
+      return 2;
+    }
+    getCurrentPage() {
+      return 1;
+    }
+    goToPage() {}
+    setZoom() {}
+    getZoom() {
+      return 1;
+    }
+    rotate() {}
+    getRotation() {
+      return 0;
+    }
+    async renderPage() {}
+    async renderTextLayer() {}
+    async getTextContent() {
+      return [];
+    }
+    async getPageDimensions() {
+      return { width: 900, height: 1200 };
+    }
+    async getOutline() {
+      return [];
+    }
+    async getPageIndex() {
+      return null;
+    }
+    destroy() {}
+  },
+}));
+
 vi.mock("@papyrus-sdk/ui-react", () => ({
-  Topbar: () => <div data-testid="papyrus-topbar" />,
+  Topbar: ({ engine }: { engine?: { getPageCount?: () => number } }) => (
+    <div
+      data-testid="papyrus-topbar"
+      data-page-count={engine?.getPageCount?.() ?? "unknown"}
+    />
+  ),
   SidebarLeft: () => <div data-testid="papyrus-sidebar-left" />,
   SidebarRight: () => <div data-testid="papyrus-sidebar-right" />,
   Viewer: () => <div data-testid="papyrus-viewer" />,
@@ -220,5 +261,22 @@ describe("web legacy reader wiring", () => {
     expect(
       tree!.root.findByProps({ "data-testid": "papyrus-sidebar-right" })
     ).toBeTruthy();
+  });
+
+  it("wires the rust-cbz route to the Rust comic engine", async () => {
+    window.history.replaceState({}, "", "/render?engine=rust-cbz");
+    let tree: renderer.ReactTestRenderer;
+
+    await act(async () => {
+      tree = renderer.create(<App />);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+
+    const topbar = tree!.root.findByProps({ "data-testid": "papyrus-topbar" });
+    expect(topbar.props["data-page-count"]).toBe(2);
   });
 });

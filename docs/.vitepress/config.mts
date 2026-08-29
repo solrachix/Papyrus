@@ -19,6 +19,7 @@ const OG_IMAGE = process.env.VITEPRESS_OG_IMAGE || (SITE_URL ? `${SITE_URL}/og.p
 const CLOUDFLARE_BEACON_TOKEN = '9b6604661443464da2c87c6fe162e76b';
 
 const head = [
+  ['link', { rel: 'icon', type: 'image/png', href: '/Papyrus/brand/favicon.png' }],
   ['meta', { name: 'keywords', content: KEYWORDS }],
   ['meta', { property: 'og:type', content: 'website' }],
   ['meta', { property: 'og:site_name', content: SITE_NAME }],
@@ -48,7 +49,9 @@ const buildRoute = (relativePath: string) => {
 };
 
 const navEn = [
+  { text: 'Demo', link: '/demo' },
   { text: 'Quickstart', link: '/quickstart' },
+  { text: 'Comparisons', link: '/comparisons' },
   { text: 'FAQ', link: '/faq' },
   { text: 'Architecture', link: '/architecture' },
   { text: 'Configuration', link: '/configuration' },
@@ -60,7 +63,9 @@ const navEn = [
 ];
 
 const navPt = [
+  { text: 'Demo', link: '/pt/demo' },
   { text: 'Inicio', link: '/pt/' },
+  { text: 'Comparativos', link: '/pt/comparisons' },
   { text: 'Quickstart', link: '/pt/quickstart' },
   { text: 'FAQ', link: '/pt/faq' },
   { text: 'Arquitetura', link: '/pt/architecture' },
@@ -76,6 +81,7 @@ const sidebarEn = [
   {
     text: 'Start',
     items: [
+      { text: 'Demo', link: '/demo' },
       { text: 'Overview', link: '/' },
       { text: 'Quickstart', link: '/quickstart' },
       { text: 'Architecture', link: '/architecture' },
@@ -102,6 +108,7 @@ const sidebarEn = [
   {
     text: 'Articles',
     items: [
+      { text: 'Comparisons', link: '/comparisons' },
       { text: 'FAQ', link: '/faq' },
       { text: 'Open Source PDF SDK', link: '/open-source-pdf-sdk' },
       { text: 'Open Source EPUB SDK', link: '/open-source-epub-sdk' },
@@ -115,6 +122,7 @@ const sidebarPt = [
   {
     text: 'Inicio',
     items: [
+      { text: 'Demo', link: '/pt/demo' },
       { text: 'Visao geral', link: '/pt/' },
       { text: 'Quickstart', link: '/pt/quickstart' },
       { text: 'Arquitetura', link: '/pt/architecture' },
@@ -141,6 +149,7 @@ const sidebarPt = [
   {
     text: 'Artigos',
     items: [
+      { text: 'Comparativos', link: '/pt/comparisons' },
       { text: 'FAQ', link: '/pt/faq' },
       { text: 'SDK PDF Open Source', link: '/pt/sdk-pdf-open-source' },
       { text: 'SDK EPUB Open Source', link: '/pt/sdk-epub-open-source' },
@@ -190,6 +199,8 @@ export default defineConfig({
     return tags;
   },
   themeConfig: {
+    logo: '/brand/mark.png',
+    siteTitle: 'Papyrus',
     search: {
       provider: 'local',
     },

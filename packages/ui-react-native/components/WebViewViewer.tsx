@@ -6,7 +6,10 @@ import WebView, {
 } from "react-native-webview";
 import { useViewerStore } from "@papyrus-sdk/core";
 import { DocumentEngine } from "@papyrus-sdk/types";
-import { parseWebViewState } from "./webViewState";
+import {
+  parseWebViewInteraction,
+  parseWebViewState,
+} from "./webViewState";
 
 const runtimeAsset = require("../runtime/index.html");
 type RuntimeSource = { html: string; baseUrl?: string } | { uri: string };
@@ -45,9 +48,15 @@ type WebViewBridgeEngine = DocumentEngine & {
 
 interface WebViewViewerProps {
   engine: DocumentEngine;
+  onScrollOffset?: (offsetY: number) => void;
+  onTap?: () => void;
 }
 
-const WebViewViewer: React.FC<WebViewViewerProps> = ({ engine }) => {
+const WebViewViewer: React.FC<WebViewViewerProps> = ({
+  engine,
+  onScrollOffset,
+  onTap,
+}) => {
   const webViewRef = useRef<WebView>(null);
   const { pageTheme } = useViewerStore();
   const bridgeEngine = engine as WebViewBridgeEngine;
@@ -119,7 +128,12 @@ const WebViewViewer: React.FC<WebViewViewerProps> = ({ engine }) => {
   }, [bridgeEngine]);
 
   const handleMessage = (event: WebViewMessageEvent) => {
-    const state = parseWebViewState(event.nativeEvent.data);
+    const raw = event.nativeEvent.data;
+    const interaction = parseWebViewInteraction(raw);
+    if (interaction?.kind === "scroll") onScrollOffset?.(interaction.offsetY);
+    if (interaction?.kind === "tap") onTap?.();
+
+    const state = parseWebViewState(raw);
     if (state) {
       const viewerState = useViewerStore.getState();
       const nextState: Parameters<typeof viewerState.setDocumentState>[0] = {};

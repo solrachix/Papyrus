@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useViewerStore, SearchService } from "@papyrus-sdk/core";
 import { Annotation, DocumentEngine } from "@papyrus-sdk/types";
 import { isSingleViewportMode as getIsSingleViewportMode } from "./renderMode";
@@ -31,6 +31,8 @@ const SidebarRight: React.FC<SidebarRightProps> = ({ engine, style }) => {
     toggleSidebarRight,
     searchResults,
     activeSearchIndex,
+    isLoaded,
+    pageCount,
     uiTheme,
     setSearch,
     setDocumentState,
@@ -49,14 +51,20 @@ const SidebarRight: React.FC<SidebarRightProps> = ({ engine, style }) => {
     {}
   );
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
-  const searchService = new SearchService(engine);
+  const searchService = useMemo(() => new SearchService(engine), [engine]);
+  const searchRequestIdRef = useRef(0);
   const isDark = uiTheme === "dark";
   const isSingleViewportMode = getIsSingleViewportMode(engine);
   const accentSoft = withAlpha(accentColor, 0.12);
   const resultsCount = searchResults.length;
 
+  useEffect(() => {
+    searchService.clearCache();
+  }, [isLoaded, pageCount, searchService]);
+
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
+    const requestId = ++searchRequestIdRef.current;
     if (!query.trim()) {
       setSearchError(null);
       setSearch("", []);
@@ -66,8 +74,10 @@ const SidebarRight: React.FC<SidebarRightProps> = ({ engine, style }) => {
     setSearchError(null);
     try {
       const results = await searchService.search(query);
+      if (requestId !== searchRequestIdRef.current) return;
       setSearch(query, results);
     } catch (error) {
+      if (requestId !== searchRequestIdRef.current) return;
       console.error("[SidebarRight] Falha ao buscar no documento", error);
       setSearchError("Não foi possível concluir a busca neste documento.");
     } finally {

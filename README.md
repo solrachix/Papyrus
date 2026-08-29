@@ -6,9 +6,9 @@
 
 Read this in: English | [Portuguese (Brazil)](README.pt-BR.md)
 
-Papyrus is a modular open source PDF/EPUB/TXT SDK built to power document-heavy products. It combines a core state layer, pluggable engines (PDF.js on web, native on mobile), and UI kits for React and React Native.
+Papyrus is a modular open source PDF/EPUB/TXT and comic-book (CBZ/CBR) SDK built to power document-heavy products. It combines a core state layer, pluggable engines (PDF.js on web, native on mobile), and UI kits for React and React Native.
 
-Supports PDF, EPUB, and TXT. On mobile, EPUB/TXT render via a WebView runtime while PDF stays native.
+Supports PDF, EPUB, TXT, CBZ, and CBR. On mobile, EPUB/TXT render via a WebView runtime while PDF stays native. The Rust/WASM CBZ engine is currently an experimental web path.
 
 ## Examples
 - Web demo: `examples/web`
@@ -29,6 +29,7 @@ Supports PDF, EPUB, and TXT. On mobile, EPUB/TXT render via a WebView runtime wh
 ## Features
 - Event hooks for page, zoom, selection, and annotations
 - Document types: PDF, EPUB, TXT
+- CBZ and CBR comic-book reading on web
 - Background text search with preview
 - Themeable UI: light, dark, sepia, high-contrast
 - Decoupled architecture: core state, engines, and UI packages
@@ -41,6 +42,9 @@ Supports PDF, EPUB, and TXT. On mobile, EPUB/TXT render via a WebView runtime wh
 | `@papyrus-sdk/engine-pdfjs` | PDF.js engine adapter for web |
 | `@papyrus-sdk/engine-epub` | EPUB engine adapter for web |
 | `@papyrus-sdk/engine-text` | TXT engine adapter for web |
+| `@papyrus-sdk/engine-cbz` | ZIP-based CBZ engine adapter for web |
+| `@papyrus-sdk/engine-cbr` | RAR/libarchive-based CBR engine adapter for web |
+| `@papyrus-sdk/engine-cbz-rust` | Experimental Rust/WASM CBZ adapter with zip.js fallback |
 | `@papyrus-sdk/engine-native` | Native engine bridge (iOS/Android) |
 | `@papyrus-sdk/ui-react` | React UI components |
 | `@papyrus-sdk/ui-react-native` | React Native UI components |

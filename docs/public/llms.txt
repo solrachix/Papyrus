@@ -1,0 +1,50 @@
+# Papyrus
+
+> Papyrus is an open-source document reader SDK for web and mobile, with shared contracts, pluggable engines, and React and React Native UI packages.
+
+Papyrus supports document-reader workflows rather than rendering alone: page navigation, thumbnails, text selection, search, themes, and annotations.
+
+## Start here
+
+- [Demo](https://solrachix.github.io/Papyrus/demo): Try the interactive browser demo.
+- [Quickstart](https://solrachix.github.io/Papyrus/quickstart): Install and render a document.
+- [Architecture](https://solrachix.github.io/Papyrus/architecture): Understand the core, engine, and UI layers.
+- [Configuration](https://solrachix.github.io/Papyrus/configuration): Configure themes, navigation, engines, and viewer options.
+- [Comparisons](https://solrachix.github.io/Papyrus/comparisons): Compare architectural capabilities and evaluation criteria.
+
+## Documentation
+
+- [Interactive examples](https://solrachix.github.io/Papyrus/examples/): Explore themes, locale, events, and engine switching.
+- [Mobile](https://solrachix.github.io/Papyrus/mobile): Integrate the React Native and native engine layers.
+- [Core flows](https://solrachix.github.io/Papyrus/flows): Follow loading, rendering, search, and event flows.
+- [Open Source PDF SDK](https://solrachix.github.io/Papyrus/open-source-pdf-sdk): Evaluate Papyrus as an open-source PDF SDK.
+- [Open Source EPUB SDK](https://solrachix.github.io/Papyrus/open-source-epub-sdk): Understand the EPUB integration.
+- [Papyrus vs PDFTron / Apryse](https://solrachix.github.io/Papyrus/papyrus-pdftron-alternative): Read the existing comparison.
+
+## Packages
+
+- [@papyrus-sdk/types](https://www.npmjs.com/package/@papyrus-sdk/types): Shared engine, annotation, and event contracts.
+- [@papyrus-sdk/core](https://www.npmjs.com/package/@papyrus-sdk/core): Shared viewer state and events.
+- [@papyrus-sdk/ui-react](https://www.npmjs.com/package/@papyrus-sdk/ui-react): React viewer, topbar, sidebars, search, and annotations.
+- [@papyrus-sdk/ui-react-native](https://www.npmjs.com/package/@papyrus-sdk/ui-react-native): React Native reader UI.
+- [@papyrus-sdk/engine-pdfjs](https://www.npmjs.com/package/@papyrus-sdk/engine-pdfjs): Web PDF engine based on PDF.js.
+- [@papyrus-sdk/engine-native](https://www.npmjs.com/package/@papyrus-sdk/engine-native): Native iOS and Android engine bridge.
+
+## Supported document flows
+
+- PDF on web and native platforms.
+- EPUB and TXT through the shared reader contracts.
+- CBZ through ZIP-based browser engines, including an experimental Rust/WASM engine.
+- CBR through the browser archive flow where the required RAR support is available.
+
+## Portuguese documentation
+
+- [Demo](https://solrachix.github.io/Papyrus/pt/demo)
+- [Quickstart](https://solrachix.github.io/Papyrus/pt/quickstart)
+- [Arquitetura](https://solrachix.github.io/Papyrus/pt/architecture)
+- [Comparativos](https://solrachix.github.io/Papyrus/pt/comparisons)
+
+## Project source
+
+- [GitHub repository](https://github.com/solrachix/Papyrus)
+- [Issues](https://github.com/solrachix/Papyrus/issues)

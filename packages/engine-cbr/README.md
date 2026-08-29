@@ -19,3 +19,10 @@ padrão é `12`. As miniaturas usam um cache separado de no máximo quatro pági
 Em aplicações com bundler, `workerUrl` deve apontar para o `worker-bundle.js`
 publicado pela aplicação. Sem essa opção, o libarchive.js usa o worker relativo
 ao próprio pacote quando o bundler mantiver esse caminho disponível.
+
+## Estado da engine Rust
+
+CBR ainda não possui uma implementação Rust integrada. Como CBR usa RAR4/RAR5,
+uma migração precisa de um backend compatível com RAR e de um benchmark próprio
+de abertura, extração, memória, tamanho do WASM e compatibilidade com arquivos
+reais. O caminho atual continua sendo `libarchive.js`.

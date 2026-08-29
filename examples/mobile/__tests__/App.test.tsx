@@ -16,6 +16,20 @@ import renderer from 'react-test-renderer';
 jest.mock('../assets/tracemonkey-pldi-09.pdf', () => 'tracemonkey.pdf');
 jest.mock('../assets/sample.pdf', () => 'sample.pdf');
 
+jest.mock('react-native-safe-area-context', () => {
+  const React = require('react');
+  const SafeAreaInsetsContext = React.createContext({
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
+  });
+  return {
+    SafeAreaInsetsContext,
+    SafeAreaProvider: ({children}: {children: React.ReactNode}) => children,
+  };
+});
+
 jest.mock('@papyrus-sdk/engine-native', () => ({
   MobileDocumentEngine: class {
     async load() {}

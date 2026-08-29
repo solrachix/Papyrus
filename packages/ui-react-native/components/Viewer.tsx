@@ -49,6 +49,12 @@ import {
   resolvePdfSurfaceWidth,
   resolvePdfVerticalAnchorMode,
 } from "../viewport/pdfViewportController";
+import {
+  pageContainsScrollTarget,
+  resolveViewerScrollTarget,
+  type ViewerScrollTarget,
+} from "./viewerNavigation";
+import { resolvePageTapChromeVisibility } from "./mobileChromeInteraction";
 
 export interface ViewerProps {
   engine: DocumentEngine;
@@ -121,6 +127,8 @@ const Viewer: React.FC<ViewerProps> = ({
   const mobileChromeVisible = useViewerStore(
     (state) => state.mobileChromeVisible
   );
+  const selectionActive = useViewerStore((state) => state.selectionActive);
+  const activeTool = useViewerStore((state) => state.activeTool);
   const uiTheme = useViewerStore((state) => state.uiTheme);
   const viewMode = useViewerStore((state) => state.viewMode);
   const zoom = useViewerStore((state) => state.zoom);
@@ -160,7 +168,7 @@ const Viewer: React.FC<ViewerProps> = ({
   const layoutRefreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null
   );
-  const pendingScrollIndexRef = useRef<number | null>(null);
+  const pendingScrollTargetRef = useRef<ViewerScrollTarget | null>(null);
   const pendingScrollAttemptsRef = useRef(0);
   const pendingScrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null
@@ -246,7 +254,7 @@ const Viewer: React.FC<ViewerProps> = ({
   }, []);
 
   const clearPendingScrollTarget = useCallback(() => {
-    pendingScrollIndexRef.current = null;
+    pendingScrollTargetRef.current = null;
     pendingScrollAttemptsRef.current = 0;
     clearPendingScrollRetry();
   }, [clearPendingScrollRetry]);
@@ -260,13 +268,14 @@ const Viewer: React.FC<ViewerProps> = ({
 
   const scheduleScrollRetry = useCallback(
     (reason: string) => {
-      const pendingIndex = pendingScrollIndexRef.current;
-      if (pendingIndex === null) return;
+      const pendingTarget = pendingScrollTargetRef.current;
+      if (pendingTarget === null) return;
       if (pendingScrollAttemptsRef.current >= SCROLL_MAX_RETRIES) {
         if (perfEnabled) {
           logPerfEvent("Viewer", "scroll.retry.giveup", {
             reason,
-            targetIndex: pendingIndex,
+            targetIndex: pendingTarget.listIndex,
+            targetPageIndex: pendingTarget.pageIndex,
             attempts: pendingScrollAttemptsRef.current,
           });
         }
@@ -277,8 +286,8 @@ const Viewer: React.FC<ViewerProps> = ({
       clearPendingScrollRetry();
       pendingScrollTimeoutRef.current = setTimeout(() => {
         pendingScrollTimeoutRef.current = null;
-        const targetIndex = pendingScrollIndexRef.current;
-        if (targetIndex === null) return;
+        const targetIndex = pendingScrollTargetRef.current?.listIndex;
+        if (targetIndex === undefined) return;
         pendingScrollAttemptsRef.current += 1;
         listRef.current?.scrollToIndex({
           index: targetIndex,
@@ -439,7 +448,6 @@ const Viewer: React.FC<ViewerProps> = ({
 
   const trackMobileChromeByOffset = useCallback(
     (offsetY: number, reasonPrefix: string) => {
-      if (isWebView) return;
       if (pageCount <= 0) return;
 
       const safeOffset = Math.max(0, offsetY);
@@ -487,7 +495,7 @@ const Viewer: React.FC<ViewerProps> = ({
         }
       }
     },
-    [clearPendingChromeShow, isWebView, pageCount, setMobileChromeVisible]
+    [clearPendingChromeShow, pageCount, setMobileChromeVisible]
   );
 
   useEffect(() => {
@@ -1296,10 +1304,8 @@ const Viewer: React.FC<ViewerProps> = ({
       ensurePageDimensions(scrollToPageSignal + 1);
     }
 
-    const targetIndex = isDouble
-      ? Math.floor(scrollToPageSignal / 2)
-      : scrollToPageSignal;
-    pendingScrollIndexRef.current = targetIndex;
+    const target = resolveViewerScrollTarget(scrollToPageSignal, isDouble);
+    pendingScrollTargetRef.current = target;
     pendingScrollAttemptsRef.current = 0;
     clearPendingScrollRetry();
     setDocumentStateTracked(
@@ -1311,7 +1317,7 @@ const Viewer: React.FC<ViewerProps> = ({
     );
 
     listRef.current?.scrollToIndex({
-      index: targetIndex,
+      index: target.listIndex,
       animated: true,
       viewPosition: 0,
     });
@@ -1337,34 +1343,41 @@ const Viewer: React.FC<ViewerProps> = ({
         });
       }
 
-      const pendingIndex = pendingScrollIndexRef.current;
-      if (pendingIndex !== null) {
+      const pendingTarget = pendingScrollTargetRef.current;
+      let reachedPendingTarget = false;
+      if (pendingTarget !== null) {
         const reachedTarget = viewableItems.some((token) => {
           if (isDouble) {
             const row = token.item as
               | { left: number; right: number | null }
               | undefined;
             if (!row) return false;
-            if (row.left === pendingIndex) return true;
-            return row.right === pendingIndex;
+            return pageContainsScrollTarget(row, pendingTarget.pageIndex);
           }
 
-          return token.index === pendingIndex;
+          return token.index === pendingTarget.listIndex;
         });
 
         if (reachedTarget) {
+          reachedPendingTarget = true;
           if (perfEnabled) {
             logPerfEvent("Viewer", "scroll.retry.resolved", {
-              targetIndex: pendingIndex,
+              targetPageIndex: pendingTarget.pageIndex,
+              targetListIndex: pendingTarget.listIndex,
               attempts: pendingScrollAttemptsRef.current,
             });
           }
           clearPendingScrollTarget();
+          setDocumentStateTracked(
+            { currentPage: pendingTarget.pageIndex + 1 },
+            "viewable.target"
+          );
         }
       }
 
       const first = viewableItems[0];
       if (!first) return;
+      if (reachedPendingTarget) return;
       if (isDouble) {
         const item = first.item as
           | { left: number; right: number | null }
@@ -1417,6 +1430,36 @@ const Viewer: React.FC<ViewerProps> = ({
     [perfEnabled, trackMobileChromeByOffset]
   );
 
+  const handleWebViewScroll = useCallback(
+    (offsetY: number) => {
+      trackMobileChromeByOffset(offsetY, "scroll.continuous");
+    },
+    [trackMobileChromeByOffset]
+  );
+
+  const handlePageTap = useCallback(() => {
+    const nextVisible = resolvePageTapChromeVisibility({
+      chromeVisible: chromeVisibleRef.current,
+      selectionActive,
+      pinchActive:
+        pinchGestureActiveRef.current ||
+        (lastPinchEndedAt !== null && Date.now() - lastPinchEndedAt < 400),
+      toolActive: activeTool !== "select",
+    });
+    if (nextVisible !== null) {
+      setMobileChromeVisible(nextVisible, "page.tap");
+    }
+  }, [
+    activeTool,
+    lastPinchEndedAt,
+    selectionActive,
+    setMobileChromeVisible,
+  ]);
+
+  const handleWebViewTap = useCallback(() => {
+    handlePageTap();
+  }, [handlePageTap]);
+
   const keyExtractor = useCallback(
     (item: number | { left: number; right: number | null }) => {
       if (typeof item === "number") return `page-${item}`;
@@ -1446,6 +1489,7 @@ const Viewer: React.FC<ViewerProps> = ({
                 pageViewportWidth={columnWidth}
                 spacing={DOUBLE_PAGE_SPACING}
                 onSelectionDragActiveChange={setSelectionDragActive}
+                onPageTap={handlePageTap}
                 gestureScrollLockActive={gestureScrollLockActive}
                 lastPinchEndedAt={lastPinchEndedAt}
                 requestSelectionVerticalAutoscroll={
@@ -1464,6 +1508,7 @@ const Viewer: React.FC<ViewerProps> = ({
                   pageViewportWidth={columnWidth}
                   spacing={DOUBLE_PAGE_SPACING}
                   onSelectionDragActiveChange={setSelectionDragActive}
+                  onPageTap={handlePageTap}
                   gestureScrollLockActive={gestureScrollLockActive}
                   lastPinchEndedAt={lastPinchEndedAt}
                   requestSelectionVerticalAutoscroll={
@@ -1487,6 +1532,7 @@ const Viewer: React.FC<ViewerProps> = ({
           pageViewportWidth={documentSurfaceWidth}
           spacing={CONTINUOUS_PAGE_SPACING}
           onSelectionDragActiveChange={setSelectionDragActive}
+          onPageTap={handlePageTap}
           gestureScrollLockActive={gestureScrollLockActive}
           lastPinchEndedAt={lastPinchEndedAt}
           requestSelectionVerticalAutoscroll={handleSelectionVerticalAutoscroll}
@@ -1498,6 +1544,7 @@ const Viewer: React.FC<ViewerProps> = ({
       documentSurfaceWidth,
       engine,
       getPageAspectRatio,
+      handlePageTap,
       handleSelectionVerticalAutoscroll,
       gestureScrollLockActive,
       horizontalPadding,
@@ -1510,7 +1557,11 @@ const Viewer: React.FC<ViewerProps> = ({
   if (isWebView) {
     return (
       <View style={[styles.container, isDark && styles.containerDark]}>
-        <WebViewViewer engine={engine} />
+        <WebViewViewer
+          engine={engine}
+          onScrollOffset={handleWebViewScroll}
+          onTap={handleWebViewTap}
+        />
       </View>
     );
   }
@@ -1606,6 +1657,7 @@ const Viewer: React.FC<ViewerProps> = ({
                   pageViewportWidth={documentSurfaceWidth}
                   spacing={32}
                   onSelectionDragActiveChange={setSelectionDragActive}
+                  onPageTap={handlePageTap}
                   gestureScrollLockActive={gestureScrollLockActive}
                   lastPinchEndedAt={lastPinchEndedAt}
                   requestSelectionVerticalAutoscroll={
@@ -1665,7 +1717,12 @@ const Viewer: React.FC<ViewerProps> = ({
               onScrollToIndexFailed={({ index, averageItemLength }) => {
                 const dataLength = isDouble ? rows.length : pages.length;
                 if (index < 0 || index >= dataLength) return;
-                pendingScrollIndexRef.current = index;
+                const existingTarget = pendingScrollTargetRef.current;
+                pendingScrollTargetRef.current = isDouble
+                  ? existingTarget?.listIndex === index
+                    ? existingTarget
+                    : resolveViewerScrollTarget(rows[index]?.left ?? index * 2, true)
+                  : resolveViewerScrollTarget(index, false);
                 const offset = Math.max(0, getFallbackOffsetForIndex(index));
                 listRef.current?.scrollToOffset({ offset, animated: false });
 
