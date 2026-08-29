@@ -194,8 +194,6 @@ const Viewer: React.FC<ViewerProps> = ({
   const pinchPreviewNegativeFocalY = useRef(new Animated.Value(0)).current;
   const [lastPinchEndedAt, setLastPinchEndedAt] = useState<number | null>(null);
   const pinchGestureActiveRef = useRef(false);
-  const currentPageRef = useRef(currentPage);
-  currentPageRef.current = currentPage;
   const pinchStartZoomRef = useRef(1);
   const pinchPreviewZoomRef = useRef(1);
   const pinchFocalPointRef = useRef({ x: 0, y: 0 });
@@ -208,6 +206,7 @@ const Viewer: React.FC<ViewerProps> = ({
     null
   );
   const pendingPinchRenderZoomRef = useRef<number | null>(null);
+  const pendingPinchRenderPageRef = useRef<number | null>(null);
   const pinchAnchorRestoreFrameRef = useRef<number | null>(null);
   const viewerFrameRef = useRef({ y: 0, height: 0 });
   const viewerContentHeightRef = useRef(0);
@@ -803,11 +802,12 @@ const Viewer: React.FC<ViewerProps> = ({
       if (
         pendingZoom == null ||
         Math.abs(renderedZoom - pendingZoom) >= 0.001 ||
-        pageIndex !== Math.max(0, currentPageRef.current - 1)
+        pageIndex !== pendingPinchRenderPageRef.current
       ) {
         return;
       }
       pendingPinchRenderZoomRef.current = null;
+      pendingPinchRenderPageRef.current = null;
       resetViewerPinchPreview();
     },
     [resetViewerPinchPreview]
@@ -817,6 +817,7 @@ const Viewer: React.FC<ViewerProps> = ({
     (focalX: number, focalY: number) => {
       pinchGestureActiveRef.current = true;
       pendingPinchRenderZoomRef.current = null;
+      pendingPinchRenderPageRef.current = null;
       pinchStartZoomRef.current = zoom;
       pinchPreviewZoomRef.current = zoom;
       pinchFocalPointRef.current = { x: focalX, y: focalY };
@@ -872,6 +873,7 @@ const Viewer: React.FC<ViewerProps> = ({
     if (!pinchGestureActiveRef.current) return;
     pinchGestureActiveRef.current = false;
     pendingPinchRenderZoomRef.current = null;
+    pendingPinchRenderPageRef.current = null;
     pendingPinchAnchorRestoreRef.current = null;
     pinchPreviewZoomRef.current = pinchStartZoomRef.current;
     handlePinchPreviewScaleChange(1);
@@ -944,9 +946,11 @@ const Viewer: React.FC<ViewerProps> = ({
       setDocumentStateTracked({ zoom: finalZoom }, "pinch.viewerEnd");
       engine.setZoom(finalZoom);
       pendingPinchRenderZoomRef.current = finalZoom;
+      pendingPinchRenderPageRef.current = anchorPageIndex;
     } else {
       pendingPinchAnchorRestoreRef.current = null;
       pendingPinchRenderZoomRef.current = null;
+      pendingPinchRenderPageRef.current = null;
     }
     if (Math.abs(finalZoom - startZoom) < 0.001) {
       resetViewerPinchPreview();

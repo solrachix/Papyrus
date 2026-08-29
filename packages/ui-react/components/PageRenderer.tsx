@@ -40,6 +40,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const htmlLayerRef = useRef<HTMLDivElement>(null);
   const textLayerRef = useRef<HTMLDivElement>(null);
+  const hasSuccessfulRenderRef = useRef(false);
   const onRenderReadyRef = useRef(onRenderReady);
   onRenderReadyRef.current = onRenderReady;
   const skipNextAnnotationSelectRef = useRef(false);
@@ -235,7 +236,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({
         : document.createElement("canvas");
       const nextTextLayer = document.createElement("div");
       if (!renderTarget || !textLayerRef.current) return;
-      setLoading(true);
+      if (!hasSuccessfulRenderRef.current) setLoading(true);
 
       try {
         const RENDER_SCALE = 2.0;
@@ -286,7 +287,18 @@ const PageRenderer: React.FC<PageRendererProps> = ({
           visibleCanvas.getContext("2d")?.drawImage(renderTarget, 0, 0);
         }
         if (!isElementRender) {
-          textLayerRef.current.replaceChildren(...Array.from(nextTextLayer.childNodes));
+          const nextScaleFactor = nextTextLayer.style.getPropertyValue(
+            "--scale-factor"
+          );
+          if (nextScaleFactor) {
+            textLayerRef.current.style.setProperty(
+              "--scale-factor",
+              nextScaleFactor
+            );
+          }
+          textLayerRef.current.replaceChildren(
+            ...Array.from(nextTextLayer.childNodes)
+          );
         }
         if (!isElementRender && displaySize) {
           if (visibleCanvas) {
@@ -296,6 +308,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({
           textLayerRef.current.style.width = `${displaySize.width}px`;
           textLayerRef.current.style.height = `${displaySize.height}px`;
         }
+        hasSuccessfulRenderRef.current = true;
         setTextLayerVersion((v) => v + 1);
         onRenderReadyRef.current?.(pageIndex, zoom);
       } catch (err) {
