@@ -12,6 +12,7 @@ import {
   papyrusEvents,
 } from "@papyrus-sdk/core";
 import { resolveContextualUiPosition } from "./contextualUi";
+import { promoteWebRenderSurface } from "./pageSurfacePromotion";
 import {
   DocumentEngine,
   Annotation,
@@ -308,23 +309,12 @@ const PageRenderer: React.FC<PageRendererProps> = ({
         )
           return;
         if (!isElementRender && visibleCanvas && renderTarget instanceof HTMLCanvasElement) {
-          visibleCanvas.width = renderTarget.width;
-          visibleCanvas.height = renderTarget.height;
-          visibleCanvas.getContext("2d")?.drawImage(renderTarget, 0, 0);
-        }
-        if (!isElementRender) {
-          const nextScaleFactor = nextTextLayer.style.getPropertyValue(
-            "--scale-factor"
-          );
-          if (nextScaleFactor) {
-            textLayerRef.current.style.setProperty(
-              "--scale-factor",
-              nextScaleFactor
-            );
-          }
-          textLayerRef.current.replaceChildren(
-            ...Array.from(nextTextLayer.childNodes)
-          );
+          promoteWebRenderSurface({
+            visibleCanvas,
+            nextCanvas: renderTarget,
+            visibleTextLayer: textLayerRef.current,
+            nextTextLayer,
+          });
         }
         if (!renderGenerationRef.current.isCurrent(generation)) return;
         if (!isElementRender && displaySize) {

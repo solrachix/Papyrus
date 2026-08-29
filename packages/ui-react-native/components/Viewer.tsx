@@ -17,7 +17,13 @@ import {
   type ViewToken,
 } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import { resolveRenderOverscan, useViewerStore } from "@papyrus-sdk/core";
+import {
+  createPageLayoutMetrics,
+  resolveRenderOverscan,
+  scalePageLayoutMetrics,
+  useViewerStore,
+  type BasePageLayoutMetrics,
+} from "@papyrus-sdk/core";
 import { DocumentEngine, PdfViewerMode } from "@papyrus-sdk/types";
 import PageRenderer from "./PageRenderer";
 import WebViewViewer from "./WebViewViewer";
@@ -210,11 +216,7 @@ const Viewer: React.FC<ViewerProps> = ({
   const pinchAnchorRestoreFrameRef = useRef<number | null>(null);
   const viewerFrameRef = useRef({ y: 0, height: 0 });
   const viewerContentHeightRef = useRef(0);
-  const listLayoutMetricsRef = useRef<{
-    offsets: number[];
-    lengths: number[];
-    estimatedLength: number;
-  } | null>(null);
+  const listLayoutMetricsRef = useRef<BasePageLayoutMetrics | null>(null);
   const resolvedWindowSize = useMemo(
     () =>
       resolvePositiveInt(
@@ -609,38 +611,14 @@ const Viewer: React.FC<ViewerProps> = ({
       const cachedMetrics = listLayoutMetricsRef.current;
       if (cachedMetrics && cachedMetrics.lengths.length > 0) {
         const itemIndex = isDouble ? Math.floor(pageIndex / 2) : pageIndex;
-        const safeIndex = Math.max(
-          0,
-          Math.min(itemIndex, cachedMetrics.lengths.length - 1)
-        );
-        const lastIndex = cachedMetrics.lengths.length - 1;
-        const baseZoom = Math.max(zoom, 0.25);
-        const requestedZoom = Math.max(zoomValue, 0.25);
-        const zoomRatio = requestedZoom / baseZoom;
-        const itemSpacing = isDouble
-          ? DOUBLE_PAGE_SPACING
-          : CONTINUOUS_PAGE_SPACING;
-        const scaleOffset = (offset: number, index: number) =>
-          LIST_TOP_PADDING +
-          (offset - LIST_TOP_PADDING - index * itemSpacing) * zoomRatio +
-          index * itemSpacing;
-        const scaleLength = (length: number) =>
-          (length - itemSpacing) * zoomRatio + itemSpacing;
-        const pageOffsetY = scaleOffset(
-          cachedMetrics.offsets[safeIndex] ?? LIST_TOP_PADDING,
-          safeIndex
-        );
-        const lastOffset = scaleOffset(
-          cachedMetrics.offsets[lastIndex] ?? LIST_TOP_PADDING,
-          lastIndex
-        );
-        const lastLength = scaleLength(
-          cachedMetrics.lengths[lastIndex] ?? cachedMetrics.estimatedLength
+        const scaledMetrics = scalePageLayoutMetrics(
+          cachedMetrics,
+          Math.max(zoomValue, 0.25)
         );
         return {
-          pageOffsetY,
+          pageOffsetY: scaledMetrics.getOffset(itemIndex),
           pageHeight: getPageHeightForZoom(pageIndex, zoomValue),
-          totalContentHeight: lastOffset + lastLength + LIST_BOTTOM_PADDING,
+          totalContentHeight: scaledMetrics.getTotalContentHeight(),
         };
       }
       if (isSingle) {
@@ -752,27 +730,15 @@ const Viewer: React.FC<ViewerProps> = ({
       const contentY = Math.max(0, scrollOffsetY + focalY);
       const cachedMetrics = listLayoutMetricsRef.current;
       if (cachedMetrics && cachedMetrics.lengths.length > 0) {
-        const baseZoom = Math.max(zoom, 0.25);
-        const requestedZoom = Math.max(zoomValue, 0.25);
-        const zoomRatio = requestedZoom / baseZoom;
-        const itemSpacing = isDouble
-          ? DOUBLE_PAGE_SPACING
-          : CONTINUOUS_PAGE_SPACING;
-        const scaleOffset = (offset: number, index: number) =>
-          LIST_TOP_PADDING +
-          (offset - LIST_TOP_PADDING - index * itemSpacing) * zoomRatio +
-          index * itemSpacing;
-        const scaleLength = (length: number) =>
-          (length - itemSpacing) * zoomRatio + itemSpacing;
+        const scaledMetrics = scalePageLayoutMetrics(
+          cachedMetrics,
+          Math.max(zoomValue, 0.25)
+        );
         let low = 0;
-        let high = cachedMetrics.lengths.length - 1;
+        let high = scaledMetrics.itemCount - 1;
         while (low < high) {
           const middle = Math.floor((low + high) / 2);
-          const end =
-            scaleOffset(cachedMetrics.offsets[middle] ?? LIST_TOP_PADDING, middle) +
-            scaleLength(
-              cachedMetrics.lengths[middle] ?? cachedMetrics.estimatedLength
-            );
+          const end = scaledMetrics.getOffset(middle) + scaledMetrics.getLength(middle);
           if (contentY <= end) high = middle;
           else low = middle + 1;
         }
@@ -1289,54 +1255,47 @@ const Viewer: React.FC<ViewerProps> = ({
   );
 
   const listLayoutMetrics = useMemo(() => {
-    const offsets: number[] = [];
-    const lengths: number[] = [];
-    let offset = LIST_TOP_PADDING;
-
     if (isDouble) {
-      const safeZoom = Math.max(zoom, 0.25);
       const pageWidth =
         resolvePdfBasePageWidth({
           viewportWidth: columnWidth,
           horizontalPadding: 8,
-        }) * safeZoom;
-      const estimatedLength =
-        pageWidth / DEFAULT_PAGE_ASPECT_RATIO + DOUBLE_PAGE_SPACING;
-
-      for (let i = 0; i < rows.length; i += 1) {
-        const row = rows[i];
-        const leftRatio = getPageAspectRatio(row.left);
-        const rightRatio =
-          row.right === null ? leftRatio : getPageAspectRatio(row.right);
-        const leftLength = pageWidth / leftRatio + DOUBLE_PAGE_SPACING;
-        const rightLength = pageWidth / rightRatio + DOUBLE_PAGE_SPACING;
-        const rowLength = Math.max(leftLength, rightLength);
-        offsets.push(offset);
-        lengths.push(rowLength);
-        offset += rowLength;
-      }
-
-      return { offsets, lengths, estimatedLength };
+        });
+      return createPageLayoutMetrics({
+        itemCount: rows.length,
+        itemSpacing: DOUBLE_PAGE_SPACING,
+        topPadding: LIST_TOP_PADDING,
+        bottomPadding: LIST_BOTTOM_PADDING,
+        estimatedLength:
+          pageWidth / DEFAULT_PAGE_ASPECT_RATIO + DOUBLE_PAGE_SPACING,
+        getBaseItemLength: (index) => {
+          const row = rows[index];
+          if (!row) return pageWidth / DEFAULT_PAGE_ASPECT_RATIO + DOUBLE_PAGE_SPACING;
+          const leftHeight = pageWidth / getPageAspectRatio(row.left);
+          const rightHeight =
+            row.right === null
+              ? leftHeight
+              : pageWidth / getPageAspectRatio(row.right);
+          return Math.max(leftHeight, rightHeight) + DOUBLE_PAGE_SPACING;
+        },
+      });
     }
 
-    const safeZoom = Math.max(zoom, 0.25);
     const pageWidth =
       resolvePdfBasePageWidth({
         viewportWidth: windowWidth,
         horizontalPadding: 16,
-      }) * safeZoom;
-    const estimatedLength =
-      pageWidth / DEFAULT_PAGE_ASPECT_RATIO + CONTINUOUS_PAGE_SPACING;
-
-    for (let i = 0; i < pageCount; i += 1) {
-      const ratio = getPageAspectRatio(i);
-      const length = pageWidth / ratio + CONTINUOUS_PAGE_SPACING;
-      offsets.push(offset);
-      lengths.push(length);
-      offset += length;
-    }
-
-    return { offsets, lengths, estimatedLength };
+      });
+    return createPageLayoutMetrics({
+      itemCount: pageCount,
+      itemSpacing: CONTINUOUS_PAGE_SPACING,
+      topPadding: LIST_TOP_PADDING,
+      bottomPadding: LIST_BOTTOM_PADDING,
+      estimatedLength:
+        pageWidth / DEFAULT_PAGE_ASPECT_RATIO + CONTINUOUS_PAGE_SPACING,
+      getBaseItemLength: (index) =>
+        pageWidth / getPageAspectRatio(index) + CONTINUOUS_PAGE_SPACING,
+    });
   }, [
     columnWidth,
     getPageAspectRatio,
@@ -1345,40 +1304,32 @@ const Viewer: React.FC<ViewerProps> = ({
     pageCount,
     rows,
     windowWidth,
-    zoom,
   ]);
   listLayoutMetricsRef.current = listLayoutMetrics;
+  const scaledListLayoutMetrics = useMemo(
+    () => scalePageLayoutMetrics(listLayoutMetrics, Math.max(zoom, 0.25)),
+    [listLayoutMetrics, zoom]
+  );
 
   const getFallbackOffsetForIndex = useCallback(
     (index: number) => {
-      if (listLayoutMetrics.lengths.length === 0) {
-        return LIST_TOP_PADDING;
-      }
-      const safeIndex = Math.max(
-        0,
-        Math.min(index, listLayoutMetrics.lengths.length - 1)
-      );
-      const cachedOffset = listLayoutMetrics.offsets[safeIndex];
-      if (typeof cachedOffset === "number") return cachedOffset;
-      return LIST_TOP_PADDING + listLayoutMetrics.estimatedLength * safeIndex;
+      if (scaledListLayoutMetrics.itemCount === 0) return LIST_TOP_PADDING;
+      return scaledListLayoutMetrics.getOffset(index);
     },
-    [listLayoutMetrics]
+    [scaledListLayoutMetrics]
   );
 
   const getItemLayout = useCallback(
     (_: unknown, index: number) => {
-      if (listLayoutMetrics.lengths.length === 0) {
+      if (scaledListLayoutMetrics.itemCount === 0) {
         return {
           index,
-          length: listLayoutMetrics.estimatedLength,
+          length: scaledListLayoutMetrics.getLength(0),
           offset: LIST_TOP_PADDING,
         };
       }
 
-      const safeIndex = Math.max(
-        0,
-        Math.min(index, listLayoutMetrics.lengths.length - 1)
-      );
+      const safeIndex = Math.max(0, Math.min(index, scaledListLayoutMetrics.itemCount - 1));
 
       if (isDouble) {
         const row = rows[safeIndex];
@@ -1392,22 +1343,13 @@ const Viewer: React.FC<ViewerProps> = ({
         ensurePageDimensions(safeIndex);
       }
 
-      const cachedLength = listLayoutMetrics.lengths[safeIndex];
-      const cachedOffset = listLayoutMetrics.offsets[safeIndex];
-
       return {
         index,
-        length:
-          typeof cachedLength === "number"
-            ? cachedLength
-            : listLayoutMetrics.estimatedLength,
-        offset:
-          typeof cachedOffset === "number"
-            ? cachedOffset
-            : LIST_TOP_PADDING + listLayoutMetrics.estimatedLength * safeIndex,
+        length: scaledListLayoutMetrics.getLength(safeIndex),
+        offset: scaledListLayoutMetrics.getOffset(safeIndex),
       };
     },
-    [ensurePageDimensions, isDouble, listLayoutMetrics, rows]
+    [ensurePageDimensions, isDouble, rows, scaledListLayoutMetrics]
   );
 
   useEffect(() => {

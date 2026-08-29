@@ -66,7 +66,7 @@
 - Test: `packages/engine-native/runtimeSource.test.ts`
 - Add or extend: synthetic large-document benchmark/fixture under the existing test structure.
 
-- [ ] Escrever casos para geração Android, bitmap antigo preservado, limite de bitmap e falha previsível de allocation.
+- [x] Escrever casos para geração Android, bitmap antigo preservado, limite de bitmap e falha previsível de allocation.
 - [x] Corrigir promoção stale e aplicar limite de bitmap sem esconder OOM em estado inválido.
 - [x] Validar fixtures sintéticos de 100, 500, 1000 e 5000 páginas, reportando-as como sintéticas.
 - [x] Compilar Java/Android e rodar todos os testes/lint/build.

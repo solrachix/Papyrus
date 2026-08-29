@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("react-native", () => ({
@@ -64,5 +66,29 @@ describe("WebViewDocumentEngine local sources", () => {
       "http://10.0.2.2:8081/worker.js",
     );
     vi.unstubAllGlobals();
+  });
+
+  it("guards native bitmap promotion by generation and keeps OOM explicit", () => {
+    const source = readFileSync(
+      resolve(
+        process.cwd(),
+        "packages/engine-native/android/src/main/java/com/papyrus/engine/PapyrusPdfViewerView.java",
+      ),
+      "utf8",
+    );
+    const renderStart = source.indexOf("private void requestRender(PageFrame frame");
+    const staleGuard = source.indexOf(
+      "if (generationAtStart != renderGeneration)",
+      renderStart,
+    );
+    const cachePromotion = source.indexOf(
+      "RENDER_CACHE.put(key, finalRendered)",
+      staleGuard,
+    );
+
+    expect(renderStart).toBeGreaterThanOrEqual(0);
+    expect(staleGuard).toBeGreaterThan(renderStart);
+    expect(cachePromotion).toBeGreaterThan(staleGuard);
+    expect(source).toContain("catch (OutOfMemoryError error)");
   });
 });

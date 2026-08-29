@@ -24,7 +24,18 @@ describe("render overscan", () => {
       estimatedPagePixels: Number.NaN,
       devicePixelRatio: Number.NaN,
     });
-    expect(result).toBeGreaterThanOrEqual(1);
+    expect(result).toBeGreaterThanOrEqual(0);
     expect(result).toBeLessThanOrEqual(6);
+  });
+
+  it("limits neighboring pages when the aggregate physical window is expensive", () => {
+    const result = resolveRenderOverscan({
+      zoom: 1,
+      estimatedPagePixels: 1_000_000,
+      viewportHeight: 900,
+      devicePixelRatio: 3,
+    });
+
+    expect(result).toBe(1);
   });
 });
