@@ -8,6 +8,7 @@ Esta rodada move o preview visual do pinch do caminho JS para `react-native-rean
 
 - Suíte: `50` arquivos, `168` testes passando.
 - Build do pacote `@papyrus-sdk/ui-react-native`: passou.
+- Build nativo debug do exemplo: passou após fixar a versão RN do app.
 - Teste de contrato do Viewer: passou.
 - Teste da geometria de pinch: passou.
 - Lint do Viewer e do teste: passou.
@@ -15,13 +16,13 @@ Esta rodada move o preview visual do pinch do caminho JS para `react-native-rean
 
 ## Validação Android
 
-O APK não pôde ser reconstruído nesta máquina. O Gradle reconhece e configura o Reanimated, mas o build falha antes do app ser empacotado no módulo preexistente `expo-dev-launcher@5.0.35`:
+O APK debug foi reconstruído, mas o bundle JavaScript do exemplo ainda não pôde ser gerado. O Gradle reconhece e configura o Reanimated; o bundling falha no CLI/Metro hoistado do monorepo:
 
 ```text
-DevLauncherDevSupportManagerFactory.kt:46:3 'create' overrides nothing
+Package subpath './src/DeltaBundler/Serializers/sourceMapString' is not defined by "exports" in metro-cache/package.json
 ```
 
-Esse erro ocorre na combinação atual do exemplo Expo/RN 0.76 e não em arquivos alterados pela PR 14. Portanto os números de jank antes/depois devem ser coletados após corrigir essa dependência do ambiente.
+O erro do Dev Launcher foi resolvido com `reactNativeVersion=0.76.0`; a nova falha é de resolução do Metro 0.83.6 hoistado versus Metro 0.81.5 do exemplo. A medição manual before/after e os testes de clipping/foco/pan/chrome continuam pendentes até o bundler ser isolado corretamente. Nenhum número novo de performance é declarado nesta PR.
 
 ## Mudanças observáveis esperadas
 
