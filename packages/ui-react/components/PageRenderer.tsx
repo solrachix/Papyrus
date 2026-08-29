@@ -23,6 +23,7 @@ interface PageRendererProps {
     pageIndex: number,
     size: { width: number; height: number }
   ) => void;
+  onRenderReady?: (pageIndex: number, renderedZoom: number) => void;
 }
 
 const SCALE_PRECISION = 1000;
@@ -33,11 +34,15 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   availableWidth,
   availableHeight,
   onMeasuredSize,
+  onRenderReady,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const htmlLayerRef = useRef<HTMLDivElement>(null);
   const textLayerRef = useRef<HTMLDivElement>(null);
+  const hasSuccessfulRenderRef = useRef(false);
+  const onRenderReadyRef = useRef(onRenderReady);
+  onRenderReadyRef.current = onRenderReady;
   const skipNextAnnotationSelectRef = useRef(false);
   const skipSelectResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null
@@ -225,11 +230,13 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   useEffect(() => {
     let active = true;
     const render = async () => {
+      const visibleCanvas = canvasRef.current;
       const renderTarget = isElementRender
         ? htmlLayerRef.current
-        : canvasRef.current;
+        : document.createElement("canvas");
+      const nextTextLayer = document.createElement("div");
       if (!renderTarget || !textLayerRef.current) return;
-      setLoading(true);
+      if (!hasSuccessfulRenderRef.current) setLoading(true);
 
       try {
         const RENDER_SCALE = 2.0;
@@ -237,12 +244,6 @@ const PageRenderer: React.FC<PageRendererProps> = ({
           ? 1.0
           : RENDER_SCALE * fitScale;
         const textRenderScale = isElementRender ? 1.0 : fitScale;
-        if (!isElementRender && canvasRef.current && displaySize) {
-          // Apply CSS size before rendering to avoid temporary horizontal jumps.
-          canvasRef.current.style.width = `${displaySize.width}px`;
-          canvasRef.current.style.height = `${displaySize.height}px`;
-        }
-
         // A UI solicita renderização passando o "alvo" (Canvas/Div).
         // Ela não sabe se o motor usa PDF.js ou se está gerando um bitmap.
         await engine.renderPage(pageIndex, renderTarget, canvasRenderScale);
@@ -260,36 +261,56 @@ const PageRenderer: React.FC<PageRendererProps> = ({
           });
         }
 
-        if (!isElementRender && !pageSize && canvasRef.current) {
+        if (!isElementRender && !pageSize && renderTarget instanceof HTMLCanvasElement) {
           const denom = canvasRenderScale * Math.max(zoom, 0.01);
           if (denom > 0) {
             setPageSize({
-              width: canvasRef.current.width / denom,
-              height: canvasRef.current.height / denom,
+              width: renderTarget.width / denom,
+              height: renderTarget.height / denom,
             });
           }
         }
 
         if (!active || !textLayerRef.current) return;
         if (!isElementRender) {
-          textLayerRef.current.innerHTML = "";
           await engine.renderTextLayer(
             pageIndex,
-            textLayerRef.current,
+            nextTextLayer,
             textRenderScale
           );
         }
 
         if (!active || !textLayerRef.current) return;
+        if (!isElementRender && visibleCanvas && renderTarget instanceof HTMLCanvasElement) {
+          visibleCanvas.width = renderTarget.width;
+          visibleCanvas.height = renderTarget.height;
+          visibleCanvas.getContext("2d")?.drawImage(renderTarget, 0, 0);
+        }
+        if (!isElementRender) {
+          const nextScaleFactor = nextTextLayer.style.getPropertyValue(
+            "--scale-factor"
+          );
+          if (nextScaleFactor) {
+            textLayerRef.current.style.setProperty(
+              "--scale-factor",
+              nextScaleFactor
+            );
+          }
+          textLayerRef.current.replaceChildren(
+            ...Array.from(nextTextLayer.childNodes)
+          );
+        }
         if (!isElementRender && displaySize) {
-          if (canvasRef.current) {
-            canvasRef.current.style.width = `${displaySize.width}px`;
-            canvasRef.current.style.height = `${displaySize.height}px`;
+          if (visibleCanvas) {
+            visibleCanvas.style.width = `${displaySize.width}px`;
+            visibleCanvas.style.height = `${displaySize.height}px`;
           }
           textLayerRef.current.style.width = `${displaySize.width}px`;
           textLayerRef.current.style.height = `${displaySize.height}px`;
         }
+        hasSuccessfulRenderRef.current = true;
         setTextLayerVersion((v) => v + 1);
+        onRenderReadyRef.current?.(pageIndex, zoom);
       } catch (err) {
         if (!active) return;
         console.error("[Papyrus] Falha na renderização:", err);
