@@ -11,6 +11,7 @@
     "build": "pnpm -r --workspace-concurrency=1 build",
     "build:changed": "node scripts/publish-changed.js --build-only",
     "test:phase1": "vitest run",
+    "bench:zoom": "pnpm --filter @papyrus-sdk/core build && node scripts/benchmarks/zoom-performance.mjs",
     "test:e2e:mobile": "maestro test .maestro",
     "lint:phase1": "eslint packages/ui-react/components packages/ui-react-native/components packages/core examples/web examples/mobile/App.tsx examples/mobile/__tests__ --ext .ts,.tsx",
     "docs:dev": "pnpm --filter @papyrus-sdk/example-web build -- --mode docs && vitepress dev docs",

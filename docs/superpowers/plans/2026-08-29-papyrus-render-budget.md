@@ -54,7 +54,7 @@
 - [x] Escrever testes determinísticos para overscan baixo/médio/alto e páginas caras.
 - [x] Implementar overscan orientado por zoom, viewport, pixels estimados e DPR.
 - [x] Separar dependências de raster de estados de UI irrelevantes.
-- [ ] Instrumentar mounted/render requested/render ready e active tasks sem alterar o contrato visual.
+- [x] Instrumentar mounted/render requested/render ready e active tasks sem alterar o contrato visual.
 - [x] Auditar operações de layout RN para evitar varreduras repetidas de todas as páginas.
 - [x] Rodar testes focados e commitar.
 
@@ -68,9 +68,9 @@
 
 - [ ] Escrever casos para geração Android, bitmap antigo preservado, limite de bitmap e falha previsível de allocation.
 - [x] Corrigir promoção stale e aplicar limite de bitmap sem esconder OOM em estado inválido.
-- [ ] Validar fixtures sintéticos de 100, 500, 1000 e 5000 páginas, reportando-as como sintéticas.
+- [x] Validar fixtures sintéticos de 100, 500, 1000 e 5000 páginas, reportando-as como sintéticas.
 - [x] Compilar Java/Android e rodar todos os testes/lint/build.
-- [ ] Atualizar documentação da PR com métricas reais e limitações.
+- [x] Atualizar documentação da PR com métricas sintéticas e limitações explícitas.
 
 ## Final validation
 

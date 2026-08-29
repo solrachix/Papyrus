@@ -40,4 +40,17 @@ describe("render budget", () => {
     expect(dpr1.width).toBe(500);
     expect(dpr3.width).toBe(1500);
   });
+
+  it("does not exceed the pixel budget after dimension rounding", () => {
+    const result = resolveRenderBudget({
+      logicalWidth: 1500,
+      logicalHeight: 2000,
+      requestedScale: 3,
+      devicePixelRatio: 3,
+      maxCanvasPixels: 16_777_216,
+      maxCanvasDimension: 8192,
+    });
+
+    expect(result.pixelCount).toBeLessThanOrEqual(16_777_216);
+  });
 });

@@ -607,20 +607,40 @@ const Viewer: React.FC<ViewerProps> = ({
   const getPageLayoutForZoom = useCallback(
     (pageIndex: number, zoomValue: number) => {
       const cachedMetrics = listLayoutMetricsRef.current;
-      if (cachedMetrics && Math.abs(zoomValue - zoom) < 0.001) {
+      if (cachedMetrics && cachedMetrics.lengths.length > 0) {
         const itemIndex = isDouble ? Math.floor(pageIndex / 2) : pageIndex;
         const safeIndex = Math.max(
           0,
           Math.min(itemIndex, cachedMetrics.lengths.length - 1)
         );
         const lastIndex = cachedMetrics.lengths.length - 1;
+        const baseZoom = Math.max(zoom, 0.25);
+        const requestedZoom = Math.max(zoomValue, 0.25);
+        const zoomRatio = requestedZoom / baseZoom;
+        const itemSpacing = isDouble
+          ? DOUBLE_PAGE_SPACING
+          : CONTINUOUS_PAGE_SPACING;
+        const scaleOffset = (offset: number, index: number) =>
+          LIST_TOP_PADDING +
+          (offset - LIST_TOP_PADDING - index * itemSpacing) * zoomRatio +
+          index * itemSpacing;
+        const scaleLength = (length: number) =>
+          (length - itemSpacing) * zoomRatio + itemSpacing;
+        const pageOffsetY = scaleOffset(
+          cachedMetrics.offsets[safeIndex] ?? LIST_TOP_PADDING,
+          safeIndex
+        );
+        const lastOffset = scaleOffset(
+          cachedMetrics.offsets[lastIndex] ?? LIST_TOP_PADDING,
+          lastIndex
+        );
+        const lastLength = scaleLength(
+          cachedMetrics.lengths[lastIndex] ?? cachedMetrics.estimatedLength
+        );
         return {
-          pageOffsetY: cachedMetrics.offsets[safeIndex] ?? LIST_TOP_PADDING,
+          pageOffsetY,
           pageHeight: getPageHeightForZoom(pageIndex, zoomValue),
-          totalContentHeight:
-            (cachedMetrics.offsets[lastIndex] ?? LIST_TOP_PADDING) +
-            (cachedMetrics.lengths[lastIndex] ?? cachedMetrics.estimatedLength) +
-            LIST_BOTTOM_PADDING,
+          totalContentHeight: lastOffset + lastLength + LIST_BOTTOM_PADDING,
         };
       }
       if (isSingle) {
@@ -730,6 +750,44 @@ const Viewer: React.FC<ViewerProps> = ({
       }
 
       const contentY = Math.max(0, scrollOffsetY + focalY);
+      const cachedMetrics = listLayoutMetricsRef.current;
+      if (cachedMetrics && cachedMetrics.lengths.length > 0) {
+        const baseZoom = Math.max(zoom, 0.25);
+        const requestedZoom = Math.max(zoomValue, 0.25);
+        const zoomRatio = requestedZoom / baseZoom;
+        const itemSpacing = isDouble
+          ? DOUBLE_PAGE_SPACING
+          : CONTINUOUS_PAGE_SPACING;
+        const scaleOffset = (offset: number, index: number) =>
+          LIST_TOP_PADDING +
+          (offset - LIST_TOP_PADDING - index * itemSpacing) * zoomRatio +
+          index * itemSpacing;
+        const scaleLength = (length: number) =>
+          (length - itemSpacing) * zoomRatio + itemSpacing;
+        let low = 0;
+        let high = cachedMetrics.lengths.length - 1;
+        while (low < high) {
+          const middle = Math.floor((low + high) / 2);
+          const end =
+            scaleOffset(cachedMetrics.offsets[middle] ?? LIST_TOP_PADDING, middle) +
+            scaleLength(
+              cachedMetrics.lengths[middle] ?? cachedMetrics.estimatedLength
+            );
+          if (contentY <= end) high = middle;
+          else low = middle + 1;
+        }
+        if (isDouble) {
+          const row = rows[low];
+          if (row) {
+            const isRight =
+              row.right !== null &&
+              focalX > horizontalPadding + columnWidth + columnGap / 2;
+            return isRight ? row.right! : row.left;
+          }
+        } else {
+          return Math.min(low, pageCount - 1);
+        }
+      }
       if (isDouble) {
         let offsetY = LIST_TOP_PADDING;
         for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {

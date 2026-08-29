@@ -45,8 +45,8 @@ export const resolveRenderBudget = ({
   );
   const factor = Math.min(dimensionFactor, pixelFactor);
   const rasterScale = requestedRasterScale * factor;
-  const width = Math.max(1, Math.min(maxDimension, Math.round(safeWidth * rasterScale)));
-  const height = Math.max(1, Math.min(maxDimension, Math.round(safeHeight * rasterScale)));
+  const width = Math.max(1, Math.min(maxDimension, Math.floor(safeWidth * rasterScale)));
+  const height = Math.max(1, Math.min(maxDimension, Math.floor(safeHeight * rasterScale)));
 
   return {
     requestedScale: safeScale,
