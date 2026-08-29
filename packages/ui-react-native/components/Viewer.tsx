@@ -188,6 +188,10 @@ const Viewer: React.FC<ViewerProps> = ({
   const [gestureScrollLockActive, setGestureScrollLockActive] = useState(false);
   const gestureScrollLockActiveRef = useRef(false);
   const pinchPreviewScale = useRef(new Animated.Value(1)).current;
+  const pinchPreviewFocalX = useRef(new Animated.Value(0)).current;
+  const pinchPreviewFocalY = useRef(new Animated.Value(0)).current;
+  const pinchPreviewNegativeFocalX = useRef(new Animated.Value(0)).current;
+  const pinchPreviewNegativeFocalY = useRef(new Animated.Value(0)).current;
   const [lastPinchEndedAt, setLastPinchEndedAt] = useState<number | null>(null);
   const pinchGestureActiveRef = useRef(false);
   const pinchStartZoomRef = useRef(1);
@@ -773,10 +777,17 @@ const Viewer: React.FC<ViewerProps> = ({
     [syncViewerScrollEnabled]
   );
 
-  const handlePinchPreviewScaleChange = useCallback((scale: number) => {
-    const nextScale = sanitizePinchPreviewScale(scale);
-    pinchPreviewScale.setValue(nextScale);
-  }, []);
+  const handlePinchPreviewScaleChange = useCallback(
+    (scale: number, focalX = 0, focalY = 0) => {
+      const nextScale = sanitizePinchPreviewScale(scale);
+      pinchPreviewScale.setValue(nextScale);
+      pinchPreviewFocalX.setValue(focalX);
+      pinchPreviewFocalY.setValue(focalY);
+      pinchPreviewNegativeFocalX.setValue(-focalX);
+      pinchPreviewNegativeFocalY.setValue(-focalY);
+    },
+    []
+  );
 
   const resetViewerPinchPreview = useCallback(() => {
     pinchPreviewZoomRef.current = pinchStartZoomRef.current;
@@ -794,7 +805,7 @@ const Viewer: React.FC<ViewerProps> = ({
       pinchStartSurfaceWidthRef.current = documentSurfaceWidth;
       pinchUpdateLoggedAtRef.current = 0;
       setLastPinchEndedAt(null);
-      handlePinchPreviewScaleChange(1);
+      handlePinchPreviewScaleChange(1, focalX, focalY);
       handleGestureScrollLockChange(true);
       if (perfEnabled) {
         logPerfEvent("Viewer", "pinch.start", {
@@ -821,7 +832,9 @@ const Viewer: React.FC<ViewerProps> = ({
       );
       pinchPreviewZoomRef.current = nextZoom;
       handlePinchPreviewScaleChange(
-        resolvePinchPreviewScale(pinchStartZoomRef.current, nextZoom)
+        resolvePinchPreviewScale(pinchStartZoomRef.current, nextZoom),
+        focalX,
+        focalY
       );
       if (!perfEnabled) return;
       const now = Date.now();
@@ -1584,10 +1597,18 @@ const Viewer: React.FC<ViewerProps> = ({
     return (
       <View style={[styles.container, isDark && styles.containerDark]}>
         <GestureDetector gesture={viewerPinchGesture}>
-          <View
+          <Animated.View
             style={[
               styles.gestureSurface,
-              { transform: [{ scale: pinchPreviewScale }] },
+              {
+                transform: [
+                  { translateX: pinchPreviewFocalX },
+                  { translateY: pinchPreviewFocalY },
+                  { scale: pinchPreviewScale },
+                  { translateX: pinchPreviewNegativeFocalX },
+                  { translateY: pinchPreviewNegativeFocalY },
+                ],
+              },
             ]}
           >
             <ScrollView
@@ -1672,7 +1693,7 @@ const Viewer: React.FC<ViewerProps> = ({
                 />
               </ScrollView>
             </ScrollView>
-          </View>
+          </Animated.View>
         </GestureDetector>
       </View>
     );
@@ -1684,7 +1705,15 @@ const Viewer: React.FC<ViewerProps> = ({
         <Animated.View
           style={[
             styles.gestureSurface,
-            { transform: [{ scale: pinchPreviewScale }] },
+            {
+              transform: [
+                { translateX: pinchPreviewFocalX },
+                { translateY: pinchPreviewFocalY },
+                { scale: pinchPreviewScale },
+                { translateX: pinchPreviewNegativeFocalX },
+                { translateY: pinchPreviewNegativeFocalY },
+              ],
+            },
           ]}
         >
           <ScrollView
