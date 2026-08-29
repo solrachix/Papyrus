@@ -1,5 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { resolveRenderOverscan, useViewerStore } from "@papyrus-sdk/core";
+import {
+  resolveRenderOverscan,
+  resolveVirtualPageWindow,
+  useViewerStore,
+} from "@papyrus-sdk/core";
 import { DocumentEngine } from "@papyrus-sdk/types";
 import PageRenderer from "./PageRenderer";
 import { isSingleViewportMode as getIsSingleViewportMode } from "./renderMode";
@@ -692,18 +696,21 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
     viewportHeight: viewerRef.current?.clientHeight ?? availableHeight ?? 900,
     devicePixelRatio:
       typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1,
+    buffersPerPage: 2,
   });
-  const virtualStart = isSingleViewportMode
-    ? safeCurrentPageIndex
-    : Math.max(0, virtualAnchor - virtualOverscan);
-  const virtualEnd = isSingleViewportMode
-    ? safeCurrentPageIndex
-    : Math.min(pageCount - 1, virtualAnchor + virtualOverscan);
-  const pages = isSingleViewportMode
-    ? pageCount > 0
-      ? [safeCurrentPageIndex]
-      : []
-    : Array.from({ length: pageCount }).map((_, i) => i);
+  const virtualPageWindow = resolveVirtualPageWindow({
+    pageCount,
+    anchorIndex: virtualAnchor,
+    overscan: isSingleViewportMode ? 0 : virtualOverscan,
+  });
+  const pages = Array.from(
+    { length: virtualPageWindow.count },
+    (_, index) => virtualPageWindow.start + index
+  );
+  const virtualItemHeight = Math.max(
+    fallbackSize.height,
+    averagePageHeight
+  ) + 64;
   const viewerStyle = useMemo<React.CSSProperties>(
     () =>
       isSingleViewportMode
@@ -916,6 +923,12 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
         ref={pinchSurfaceRef}
         className="flex flex-col items-center gap-6 w-full min-w-0"
       >
+        {!isSingleViewportMode && virtualPageWindow.beforeCount > 0 && (
+          <div
+            aria-hidden="true"
+            style={{ height: virtualPageWindow.beforeCount * virtualItemHeight }}
+          />
+        )}
         {pages.map((idx) => (
           <div
             key={isSingleViewportMode ? "single-viewport" : idx}
@@ -927,32 +940,22 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
               isSingleViewportMode ? "relative" : ""
             }`}
           >
-            {idx >= virtualStart && idx <= virtualEnd ? (
-              <PageRenderer
-                engine={engine}
-                pageIndex={idx}
-                availableWidth={availableWidth ?? undefined}
-                availableHeight={availableHeight ?? undefined}
-                onMeasuredSize={handlePageMeasured}
-                onRenderReady={handlePinchRenderReady}
-              />
-            ) : (
-              <div
-                className={`inline-block mb-10 shadow-2xl border ${
-                  isDark
-                    ? "bg-[#0f0f0f] border-[#2b2b2b]"
-                    : "bg-white border-gray-200"
-                }`}
-                style={{
-                  width: pageSizes[idx]?.width ?? fallbackSize.width,
-                  height:
-                    pageSizes[idx]?.height ??
-                    Math.max(fallbackSize.height, averagePageHeight),
-                }}
-              />
-            )}
+            <PageRenderer
+              engine={engine}
+              pageIndex={idx}
+              availableWidth={availableWidth ?? undefined}
+              availableHeight={availableHeight ?? undefined}
+              onMeasuredSize={handlePageMeasured}
+              onRenderReady={handlePinchRenderReady}
+            />
           </div>
         ))}
+        {!isSingleViewportMode && virtualPageWindow.afterCount > 0 && (
+          <div
+            aria-hidden="true"
+            style={{ height: virtualPageWindow.afterCount * virtualItemHeight }}
+          />
+        )}
       </div>
       {isSingleViewportMode && pageCount > 1 && viewerBounds && (
         <div

@@ -6,6 +6,7 @@ import {
   createPageLayoutMetrics,
   resolveRenderBudget,
   resolveRenderOverscan,
+  resolveVirtualPageWindow,
   scalePageLayoutMetrics,
 } from "../../packages/core/dist/index.js";
 
@@ -20,8 +21,9 @@ const PAGE_WIDTH = 1500;
 const PAGE_HEIGHT = 2000;
 const VIEWPORT_HEIGHT = 900;
 const DEVICE_PIXEL_RATIO = 3;
+const BUFFERS_PER_PAGE = 2;
 
-const measureSyntheticLayout = (pageCount, touchedPages) => {
+const measureSyntheticLayout = (pageCount, queryIndexes, zoom) => {
   const buildStartedAt = performance.now();
   const base = createPageLayoutMetrics({
     itemCount: pageCount,
@@ -33,16 +35,16 @@ const measureSyntheticLayout = (pageCount, touchedPages) => {
       PAGE_HEIGHT * (1 + (index % 5) * 0.015) + 28,
   });
   const buildDurationMs = Number((performance.now() - buildStartedAt).toFixed(3));
-  const scaled = scalePageLayoutMetrics(base, 4);
+  const scaled = scalePageLayoutMetrics(base, zoom);
   const queryStartedAt = performance.now();
   let checksum = 0;
-  for (let index = 0; index < touchedPages; index += 1) {
-    checksum += scaled.getOffset((index * 997) % pageCount);
+  for (const index of queryIndexes) {
+    checksum += scaled.getOffset(index);
   }
   return {
     buildDurationMs,
     queryDurationMs: Number((performance.now() - queryStartedAt).toFixed(3)),
-    pagesTouched: touchedPages,
+    pagesTouched: queryIndexes.length,
     prefixPagesBuilt: base.lengths.length,
     scaledContentHeight: Math.round(scaled.getTotalContentHeight()),
     checksum: Math.round(checksum),
@@ -55,8 +57,13 @@ const runScenario = ({ documentPages, zoom, currentPage, label }) => {
     estimatedPagePixels: PAGE_WIDTH * PAGE_HEIGHT * zoom * zoom,
     viewportHeight: VIEWPORT_HEIGHT,
     devicePixelRatio: DEVICE_PIXEL_RATIO,
+    buffersPerPage: BUFFERS_PER_PAGE,
   });
-  const mountedPages = Math.min(documentPages, overscan * 2 + 1);
+  const virtualWindow = resolveVirtualPageWindow({
+    pageCount: documentPages,
+    anchorIndex: currentPage - 1,
+    overscan,
+  });
   const budget = resolveRenderBudget({
     logicalWidth: PAGE_WIDTH,
     logicalHeight: PAGE_HEIGHT,
@@ -65,9 +72,14 @@ const runScenario = ({ documentPages, zoom, currentPage, label }) => {
     maxCanvasPixels: DEFAULT_MAX_CANVAS_PIXELS,
     maxCanvasDimension: DEFAULT_MAX_CANVAS_DIMENSION,
   });
-  const layout = measureSyntheticLayout(documentPages, 3);
+  const jumpIndexes =
+    documentPages === 5000 ? [0, 2499, 4998] : [currentPage - 1];
+  const layout = measureSyntheticLayout(documentPages, jumpIndexes, zoom);
   const requestedPhysicalPagePixels =
     PAGE_WIDTH * PAGE_HEIGHT * zoom * zoom * DEVICE_PIXEL_RATIO * DEVICE_PIXEL_RATIO;
+  const requestedAggregatePagePixels =
+    requestedPhysicalPagePixels * BUFFERS_PER_PAGE;
+  const renderWindowPages = virtualWindow.count;
 
   return {
     label,
@@ -81,7 +93,7 @@ const runScenario = ({ documentPages, zoom, currentPage, label }) => {
       note: "estimativa sintética; não é uma medição histórica do viewer",
       },
       currentPolicy: {
-      renderWindowPages: mountedPages,
+      renderWindowPages: virtualWindow.count,
       maxCanvasPixels: DEFAULT_MAX_CANVAS_PIXELS,
       requestedPixels: Math.round(
         PAGE_WIDTH * PAGE_HEIGHT * zoom * zoom * DEVICE_PIXEL_RATIO * DEVICE_PIXEL_RATIO
@@ -93,11 +105,13 @@ const runScenario = ({ documentPages, zoom, currentPage, label }) => {
       layoutQueryDurationMs: layout.queryDurationMs,
       layoutPagesTouched: layout.pagesTouched,
       layoutPrefixPagesBuilt: layout.prefixPagesBuilt,
-      aggregateWindowPixels: budget.pixelCount * (overscan * 2 + 1),
+      aggregateWindowPixels:
+        budget.pixelCount * renderWindowPages * BUFFERS_PER_PAGE,
       requestedAggregateWindowPixels: Math.round(
-        requestedPhysicalPagePixels * (overscan * 2 + 1)
+        requestedAggregatePagePixels * renderWindowPages
       ),
       maxAggregateWindowPixels: DEFAULT_MAX_RENDER_WINDOW_PIXELS,
+      buffersPerPage: BUFFERS_PER_PAGE,
       },
     measuredMetrics: {
       "canvas.requestedPixels": Math.round(
@@ -110,11 +124,13 @@ const runScenario = ({ documentPages, zoom, currentPage, label }) => {
       "layout.pagesTouched": layout.pagesTouched,
       "layout.prefixPagesBuilt": layout.prefixPagesBuilt,
       "layout.contentHeight": layout.scaledContentHeight,
-      "viewer.renderWindowPages": mountedPages,
-      "viewer.aggregateWindowPixels": budget.pixelCount * (overscan * 2 + 1),
+      "viewer.renderWindowPages": virtualWindow.count,
+      "viewer.aggregateWindowPixels":
+        budget.pixelCount * renderWindowPages * BUFFERS_PER_PAGE,
       "viewer.requestedAggregateWindowPixels": Math.round(
-        requestedPhysicalPagePixels * (overscan * 2 + 1)
+        requestedAggregatePagePixels * renderWindowPages
       ),
+      "viewer.buffersPerPage": BUFFERS_PER_PAGE,
     },
     unavailableRuntimeMetrics: [
       "render.cancel",
@@ -133,6 +149,7 @@ console.log(JSON.stringify({
     synthetic: true,
     pageSizeCssPx: [PAGE_WIDTH, PAGE_HEIGHT],
     devicePixelRatio: DEVICE_PIXEL_RATIO,
+    buffersPerPage: BUFFERS_PER_PAGE,
     viewportHeight: VIEWPORT_HEIGHT,
     note: "não substitui medição em aparelho ou navegador real",
   },

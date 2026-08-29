@@ -7,3 +7,4 @@ export * from './renderGeneration';
 export * from './renderBudget';
 export * from './renderOverscan';
 export * from './pageLayoutMetrics';
+export * from './virtualPageWindow';

@@ -38,4 +38,22 @@ describe("render overscan", () => {
 
     expect(result).toBe(1);
   });
+
+  it("accounts for double-buffered surfaces in the aggregate pixel cap", () => {
+    const singleBuffer = resolveRenderOverscan({
+      ...base,
+      zoom: 1,
+      devicePixelRatio: 3,
+      buffersPerPage: 1,
+    });
+    const doubleBuffer = resolveRenderOverscan({
+      ...base,
+      zoom: 1,
+      devicePixelRatio: 3,
+      buffersPerPage: 2,
+    });
+
+    expect(doubleBuffer).toBeLessThan(singleBuffer);
+    expect(doubleBuffer).toBe(0);
+  });
 });

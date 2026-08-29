@@ -29,6 +29,20 @@ A medição de rasterização ainda requer um runtime com `canvas` ou browser
 disponível. No ambiente desta execução, o `canvas` não compilou para o Node
 ativo por falta de headers nativos.
 
+## Política de zoom, janela e layout
+
+Para reproduzir a política de renderização da rodada de performance:
+
+```bash
+pnpm bench:zoom
+```
+
+Esse comando usa os helpers reais de orçamento de canvas, overscan, janela
+virtual e prefixos de layout. O cenário web considera duas superfícies por
+página durante o double buffer. As durações e contagens são sintéticas e não
+substituem uma medição de frames, memória ou cancelamento em browser/dispositivo
+real; essas métricas aparecem explicitamente como indisponíveis no JSON.
+
 ## Medição no browser
 
 Com o demo web em `http://localhost:3005/`, o PDF de 1000 páginas foi carregado
