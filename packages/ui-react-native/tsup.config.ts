@@ -6,7 +6,7 @@ export default defineConfig({
     "gesture/pinchZoom.ts",
     "gesture/selectionInteraction.ts",
   ],
-  external: ["react-native-gesture-handler"],
+  external: ["react-native-gesture-handler", "react-native-reanimated"],
   format: ["cjs", "esm"],
   dts: true,
   sourcemap: true,
