@@ -1,7 +1,8 @@
 import React from "react";
-import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useViewerStore } from "@papyrus-sdk/core";
-import { usePapyrusSafeAreaInsets } from "./PapyrusSafeArea";
+import { NativeSheet } from "./NativeSheet";
+import { getReaderSheetPalette } from "./readerSheetPresentation";
 
 type OverflowSheetProps = {
   visible: boolean;
@@ -16,83 +17,57 @@ export function OverflowSheet({
   onClose,
   onOpenActions,
 }: OverflowSheetProps) {
-  const { uiTheme, accentColor } = useViewerStore();
-  const isDark = uiTheme === "dark";
-  const insets = usePapyrusSafeAreaInsets();
-
-  const handlers = {
-    actions: onOpenActions,
-  } as const;
+  const isDark = useViewerStore((state) => state.uiTheme === "dark");
+  const palette = getReaderSheetPalette(isDark);
 
   return (
-    <Modal
+    <NativeSheet
       visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
+      onClose={onClose}
+      isDark={isDark}
+      maxHeight="45%"
+      showHeader
+      title="More"
+      closeAccessibilityLabel="Close more actions"
+      sheetStyle={{
+        paddingHorizontal: 16,
+        paddingBottom: 16,
+        backgroundColor: palette.surface,
+        borderTopColor: palette.divider,
+      }}
     >
-      <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable
-          onPress={(event) => event.stopPropagation()}
-          style={[styles.card, isDark && styles.cardDark, { paddingBottom: 16 + insets.bottom }]}
-        >
-          <View style={styles.handle} />
-          {actionLabels.map((action) => (
-            <Pressable
-              key={action.key}
-              onPress={handlers[action.key]}
-              style={[styles.actionButton, { borderColor: accentColor }]}
-              accessibilityLabel={action.label}
-            >
-              <Text
-                style={[styles.actionText, isDark && styles.actionTextDark]}
-              >
-                {action.label}
-              </Text>
-            </Pressable>
-          ))}
-        </Pressable>
-      </Pressable>
-    </Modal>
+      <View style={styles.actionList}>
+        {actionLabels.map((action) => (
+          <Pressable
+            key={action.key}
+            onPress={onOpenActions}
+            style={[
+              styles.actionButton,
+              {
+                borderColor: palette.divider,
+                backgroundColor: palette.elevatedSurface,
+              },
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel={action.label}
+          >
+            <Text style={[styles.actionText, { color: palette.text }]}>
+              {action.label}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+    </NativeSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: "rgba(15, 23, 42, 0.35)",
-    justifyContent: "flex-end",
-    padding: 16,
-  },
-  card: {
-    borderRadius: 24,
-    backgroundColor: "#ffffff",
-    padding: 16,
-    gap: 10,
-  },
-  cardDark: {
-    backgroundColor: "#0f1115",
-  },
-  handle: {
-    alignSelf: "center",
-    width: 42,
-    height: 4,
-    borderRadius: 999,
-    backgroundColor: "#94a3b8",
-    marginBottom: 4,
-  },
+  actionList: { gap: 10 },
   actionButton: {
     borderWidth: 1,
     borderRadius: 16,
     paddingHorizontal: 14,
     paddingVertical: 12,
   },
-  actionText: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#111827",
-  },
-  actionTextDark: {
-    color: "#f8fafc",
-  },
+  actionText: { fontSize: 14, fontWeight: "700" },
 });

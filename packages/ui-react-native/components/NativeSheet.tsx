@@ -98,11 +98,12 @@ export function NativeSheet({
   );
 }
 
-export const NativeSheetScrollView = React.forwardRef<ScrollView, ScrollViewProps>(
-  function NativeSheetScrollView(props, ref) {
-    return <ScrollView ref={ref} {...props} />;
-  }
-);
+export const NativeSheetScrollView = React.forwardRef<
+  ScrollView,
+  ScrollViewProps
+>(function NativeSheetScrollView(props, ref) {
+  return <ScrollView ref={ref} {...props} />;
+});
 
 export function NativeSheetFlatList<ItemT>(props: FlatListProps<ItemT>) {
   return <FlatList {...props} />;
