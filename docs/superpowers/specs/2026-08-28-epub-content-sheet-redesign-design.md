@@ -31,9 +31,11 @@ O resultado deve parecer um índice de livro, não um painel técnico de página
 
 ## Estrutura da interface
 
-1. A sheet mantém o comportamento de fechamento e a altura já corrigida.
-2. O cabeçalho exibe “Conteúdo”, o indicador `atual/total` e o botão de fechar
-   já existente.
+1. A sheet mantém o comportamento de fechamento por backdrop e botão voltar do
+   sistema, além da altura já corrigida. O redesign pode adicionar um botão de
+   fechar explícito, mas ele deve chamar o mesmo `onClose`.
+2. O cabeçalho exibe “Conteúdo”, o indicador `atual/total` e o controle de
+   fechamento.
 3. O seletor “Páginas / Conteúdo” não aparece para EPUB.
 4. O conteúdo é uma lista vertical de capítulos, com:
    - área de toque em toda a linha;
@@ -41,16 +43,36 @@ O resultado deve parecer um índice de livro, não um painel técnico de página
    - marcador numérico/ordinal discreto;
    - estado ativo visível por faixa lateral, peso tipográfico e cor de destaque;
    - divisores leves entre itens.
-5. A lista permanece rolável e conserva o capítulo atual visível quando a sheet
-   é aberta, sempre que isso for possível sem alterar o scroll do documento.
-6. Outline vazio exibe um estado vazio composto, com mensagem curta e sem
-   deixar a sheet visualmente quebrada.
+5. A lista permanece rolável e, ao abrir, começa no item ativo quando ele puder
+   ser identificado. O item ativo é o último outline navegável cujo
+   `pageIndex` seja menor ou igual à posição atual do EPUB; se nenhum item for
+   identificável, a lista começa no topo. Essa regra não altera o scroll do
+   documento.
+6. Os estados da lista são explícitos:
+   - outline com itens: renderiza a hierarquia existente, preservando filhos;
+   - outline vazio após o carregamento: exibe o estado vazio localizado já
+     disponível;
+   - item sem `pageIndex` válido: continua visível, mas sem ação de navegação;
+   - falha de navegação: a UI não cria um erro paralelo; a chamada usa o
+     `jumpToPage` existente e qualquer falha segue o logging/contrato atual da
+     engine;
+   - loading/erro de carregamento: não serão inventados nesta sheet, pois o
+     componente recebe o outline já resolvido pelo store; uma futura camada de
+     carregamento deverá fornecer estado próprio antes de renderizar a sheet.
 
 ## Tema e tokens
 
 Os estilos devem derivar de `uiTheme` e `accentColor` já fornecidos pelo store.
 Não criar uma paleta paralela nem forçar dark mode. Os tokens específicos da
 sheet devem ficar agrupados no próprio componente ou em um helper local testável.
+
+## Semântica do progresso
+
+`currentPage/pageCount` continuam significando a posição de navegação exposta
+pela engine EPUB. Eles não serão apresentados como número físico de página. O
+contador do cabeçalho mantém o contrato visual atual (`atual/total`) e a lista
+usa o outline como fonte dos capítulos; os dois totais podem divergir em EPUBs
+com mais de um capítulo na mesma seção.
 
 ## Comportamento preservado
 
@@ -65,11 +87,15 @@ sheet devem ficar agrupados no próprio componente ou em um helper local testáv
 
 - teste unitário para garantir que EPUB não oferece miniaturas;
 - teste de interação do pill inteiro;
+- teste do estado ativo e de itens sem destino navegável;
+- teste de fechamento por controle explícito e backdrop;
+- teste de que nenhum `getPagePreview` é chamado para EPUB;
 - testes existentes de layout, runtime e estado continuam passando;
 - build Android do exemplo mobile;
 - validação visual no emulador Pixel 7 em tema claro e escuro;
 - verificar que os 14 capítulos do EPUB de teste aparecem, que a lista rola e
-  que tocar em um capítulo navega para ele.
+  que tocar em um capítulo navega para ele; repetir a verificação para PDF e
+  CBZ/CBR para garantir que a grade de miniaturas não mudou.
 
 ## Fora de escopo
 
@@ -77,3 +103,10 @@ sheet devem ficar agrupados no próprio componente ou em um helper local testáv
 - alterar a engine EPUB ou o fluxo de scroll contínuo;
 - redesenhar PDF, CBZ/CBR, topbar ou bottom bar;
 - adicionar dependências visuais novas.
+
+## Limite técnico
+
+A implementação fica restrita a `packages/ui-react-native/components` e seus
+testes. Não haverá alteração no store global, na engine EPUB ou no bridge
+WebView, exceto se um contrato de acessibilidade já existente exigir ajuste
+local.
