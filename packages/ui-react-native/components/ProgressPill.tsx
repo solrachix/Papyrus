@@ -5,9 +5,7 @@ import { DocumentType } from "@papyrus-sdk/types";
 import { IconPageNav } from "../icons";
 import { MOBILE_CHROME_METRICS } from "./mobileChromeMetrics";
 import { getProgressPillInteraction } from "./progressPillInteraction";
-import {
-  resolveMobileChromeOffsets,
-} from "./mobileChromeMetrics";
+import { resolveMobileChromeOffsets } from "./mobileChromeMetrics";
 import { usePapyrusSafeAreaInsets } from "./PapyrusSafeArea";
 
 type ProgressPillProps = {
@@ -53,7 +51,20 @@ export function ProgressPill({
   if (!mobileChromeVisible || !mobileProgressPillVisible) return null;
 
   return (
-    <View pointerEvents="box-none" style={[styles.frame, { top: offsets.progress, left: offsets.left, right: offsets.right }]}>
+    <View
+      pointerEvents="box-none"
+      style={[
+        styles.frame,
+        {
+          top: offsets.progress,
+          left: 0,
+          right: 0,
+          paddingLeft:
+            offsets.left + MOBILE_CHROME_METRICS.progressHorizontalOffset,
+          paddingRight: offsets.right,
+        },
+      ]}
+    >
       <Pressable
         {...getProgressPillInteraction(onPress, onOpenPageJump)}
         style={[
@@ -71,7 +82,9 @@ export function ProgressPill({
           />
         </View>
         <View style={styles.labelHit}>
-          <Text style={[styles.label, isDark && styles.labelDark]}>{label}</Text>
+          <Text style={[styles.label, isDark && styles.labelDark]}>
+            {label}
+          </Text>
         </View>
       </Pressable>
     </View>
@@ -82,8 +95,8 @@ const styles = StyleSheet.create({
   frame: {
     position: "absolute",
     top: 72,
-    left: MOBILE_CHROME_METRICS.screenPadding,
-    right: MOBILE_CHROME_METRICS.screenPadding,
+    left: 0,
+    right: 0,
     bottom: "auto",
     alignItems: "flex-start",
     zIndex: 18,

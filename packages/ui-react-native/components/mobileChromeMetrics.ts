@@ -14,7 +14,8 @@ export const MOBILE_CHROME_METRICS = {
   bottomBarItemPaddingHorizontal: 5,
   bottomBarItemPaddingVertical: 3,
   topbarHeight: 56,
-  progressGap: 10,
+  progressGap: 18,
+  progressHorizontalOffset: 24,
 } as const;
 
 export type MobileSafeAreaInsets = {
@@ -24,9 +25,7 @@ export type MobileSafeAreaInsets = {
   right: number;
 };
 
-export const resolveMobileChromeOffsets = (
-  insets: MobileSafeAreaInsets
-) => ({
+export const resolveMobileChromeOffsets = (insets: MobileSafeAreaInsets) => ({
   topbar: Math.max(0, insets.top),
   progress:
     Math.max(0, insets.top) +
