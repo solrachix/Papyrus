@@ -11,6 +11,8 @@ import { SearchService, useViewerStore } from "@papyrus-sdk/core";
 import { DocumentEngine, DocumentType } from "@papyrus-sdk/types";
 import { IconChevronLeft, IconChevronRight, IconSearch } from "../icons";
 import { getStrings } from "../mobileStrings";
+import { resolveMobileChromeOffsets } from "./mobileChromeMetrics";
+import { usePapyrusSafeAreaInsets } from "./PapyrusSafeArea";
 
 type SearchOverlayProps = {
   engine: DocumentEngine;
@@ -34,15 +36,23 @@ export function SearchOverlay({
     prevSearchResult,
     searchQuery,
     searchResults,
+    isLoaded,
+    pageCount,
     setSearch,
     uiTheme,
     accentColor,
   } = useViewerStore();
   const [draft, setDraft] = useState(searchQuery);
   const [isSearching, setIsSearching] = useState(false);
+  const searchRequestIdRef = React.useRef(0);
   const isDark = uiTheme === "dark";
+  const offsets = resolveMobileChromeOffsets(usePapyrusSafeAreaInsets());
   const t = getStrings(locale);
   const searchService = useMemo(() => new SearchService(engine), [engine]);
+
+  useEffect(() => {
+    searchService.clearCache();
+  }, [isLoaded, pageCount, searchService]);
   const currentCount =
     searchResults.length > 0 && activeSearchIndex >= 0
       ? activeSearchIndex + 1
@@ -60,8 +70,10 @@ export function SearchOverlay({
   }, [searchQuery, visible]);
 
   const handleSubmit = async () => {
+    const requestId = ++searchRequestIdRef.current;
     const query = draft.trim();
     if (!query) {
+      setIsSearching(false);
       setSearch("", []);
       return;
     }
@@ -69,9 +81,10 @@ export function SearchOverlay({
     setIsSearching(true);
     try {
       const results = await searchService.search(query);
+      if (requestId !== searchRequestIdRef.current) return;
       setSearch(query, results);
     } finally {
-      setIsSearching(false);
+      if (requestId === searchRequestIdRef.current) setIsSearching(false);
     }
   };
 
@@ -84,7 +97,7 @@ export function SearchOverlay({
   if (!visible) return null;
 
   return (
-    <View pointerEvents="box-none" style={styles.frame}>
+    <View pointerEvents="box-none" style={[styles.frame, { bottom: offsets.search, paddingLeft: offsets.left, paddingRight: offsets.right }]}>
       <View
         style={[styles.card, isDark && styles.cardDark]}
         testID="papyrus-search-overlay"
@@ -102,6 +115,7 @@ export function SearchOverlay({
               returnKeyType="search"
               onSubmitEditing={handleSubmit}
               accessibilityLabel="Search text"
+              testID="papyrus-search-input"
             />
           </View>
           <Pressable
@@ -152,6 +166,7 @@ export function SearchOverlay({
             onPress={handleSubmit}
             style={[styles.primaryAction, { backgroundColor: accentColor }]}
             accessibilityLabel="Run search"
+            testID="papyrus-search-run"
           >
             <Text style={styles.primaryActionText}>{t.searchGo}</Text>
           </Pressable>

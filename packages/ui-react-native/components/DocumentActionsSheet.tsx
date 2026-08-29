@@ -7,6 +7,7 @@ import {
   View,
 } from "react-native";
 import { useViewerStore } from "@papyrus-sdk/core";
+import { usePapyrusSafeAreaInsets } from "./PapyrusSafeArea";
 
 type DocumentActionsSheetProps = {
   visible: boolean;
@@ -19,13 +20,14 @@ export function DocumentActionsSheet({
 }: DocumentActionsSheetProps) {
   const { uiTheme } = useViewerStore();
   const isDark = uiTheme === "dark";
+  const insets = usePapyrusSafeAreaInsets();
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose}>
         <Pressable
           onPress={(event) => event.stopPropagation()}
-          style={[styles.card, isDark && styles.cardDark]}
+          style={[styles.card, isDark && styles.cardDark, { paddingBottom: 16 + insets.bottom }]}
         >
           <Text style={[styles.eyebrow, isDark && styles.eyebrowDark]}>
             Document actions

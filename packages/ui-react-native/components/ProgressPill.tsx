@@ -5,6 +5,10 @@ import { DocumentType } from "@papyrus-sdk/types";
 import { IconPageNav } from "../icons";
 import { MOBILE_CHROME_METRICS } from "./mobileChromeMetrics";
 import { getProgressPillInteraction } from "./progressPillInteraction";
+import {
+  resolveMobileChromeOffsets,
+} from "./mobileChromeMetrics";
+import { usePapyrusSafeAreaInsets } from "./PapyrusSafeArea";
 
 type ProgressPillProps = {
   documentType: DocumentType;
@@ -29,6 +33,7 @@ export function ProgressPill({
     mobileProgressPillVisible,
   } = useViewerStore();
   const isDark = uiTheme === "dark";
+  const offsets = resolveMobileChromeOffsets(usePapyrusSafeAreaInsets());
 
   const label = useMemo(() => {
     const total = Math.max(pageCount, 1);
@@ -48,7 +53,7 @@ export function ProgressPill({
   if (!mobileChromeVisible || !mobileProgressPillVisible) return null;
 
   return (
-    <View pointerEvents="box-none" style={styles.frame}>
+    <View pointerEvents="box-none" style={[styles.frame, { top: offsets.progress, left: offsets.left, right: offsets.right }]}>
       <Pressable
         {...getProgressPillInteraction(onPress, onOpenPageJump)}
         style={[

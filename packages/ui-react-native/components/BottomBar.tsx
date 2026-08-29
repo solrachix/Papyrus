@@ -14,6 +14,8 @@ import { buildBottomBarLayout, BottomBarSlotKey } from "./bottomBarModel";
 import { getToolDockDismissState } from "../gesture/selectionInteraction";
 import { createOpenDestinationHandler } from "./BottomBar.actions";
 import { MOBILE_CHROME_METRICS } from "./mobileChromeMetrics";
+import { resolveMobileChromeOffsets } from "./mobileChromeMetrics";
+import { usePapyrusSafeAreaInsets } from "./PapyrusSafeArea";
 
 type BottomBarProps = {
   documentType: DocumentType;
@@ -44,6 +46,7 @@ const BottomBar: React.FC<BottomBarProps> = ({
   const t = getStrings(locale);
   const { width, height } = useWindowDimensions();
   const isLandscape = width > height;
+  const offsets = resolveMobileChromeOffsets(usePapyrusSafeAreaInsets());
 
   const iconColor = (active: boolean) => {
     if (active) return accentColor;
@@ -107,7 +110,7 @@ const BottomBar: React.FC<BottomBarProps> = ({
   if (!mobileChromeVisible || !mobileDockVisible) return null;
 
   return (
-    <View pointerEvents="box-none" style={styles.frame}>
+    <View pointerEvents="box-none" style={[styles.frame, { paddingBottom: offsets.bottom, paddingLeft: offsets.left, paddingRight: offsets.right }]}>
       <View style={[styles.row, isLandscape && styles.rowLandscape]}>
         {layout.leftSlots.length > 0 ? (
           <View
@@ -130,6 +133,7 @@ const BottomBar: React.FC<BottomBarProps> = ({
                     slot.active && styles.itemActive,
                   ]}
                   accessibilityLabel={meta.label}
+                  testID={`papyrus-mobile-destination-${slot.key}`}
                 >
                   <View
                     style={[
@@ -166,6 +170,7 @@ const BottomBar: React.FC<BottomBarProps> = ({
                 onPress={meta.onPress}
                 style={[styles.iconOnlyItem, slot.active && styles.itemActive]}
                 accessibilityLabel={meta.label}
+                testID={`papyrus-mobile-destination-${slot.key}`}
               >
                 <View
                   style={[

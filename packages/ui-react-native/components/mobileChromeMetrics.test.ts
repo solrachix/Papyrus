@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { MOBILE_CHROME_METRICS } from "./mobileChromeMetrics";
+import {
+  MOBILE_CHROME_METRICS,
+  resolveMobileChromeOffsets,
+} from "./mobileChromeMetrics";
 
 describe("MOBILE_CHROME_METRICS", () => {
   it("keeps top and bottom chrome icons visually consistent", () => {
@@ -25,5 +28,13 @@ describe("MOBILE_CHROME_METRICS", () => {
     expect(MOBILE_CHROME_METRICS.toolDockDisabledIconColorDark).toBe("#64748b");
     expect(MOBILE_CHROME_METRICS.toolDockDisabledIconColorLight).toBe("#6b7280");
     expect(MOBILE_CHROME_METRICS.toolDockDisabledOpacity).toBe(0.72);
+  });
+
+  it.each([
+    [{ top: 0, bottom: 0, left: 0, right: 0 }, { topbar: 0, progress: 66, bottom: 14, search: 20, left: 16, right: 16 }],
+    [{ top: 47, bottom: 34, left: 0, right: 0 }, { topbar: 47, progress: 113, bottom: 48, search: 54, left: 16, right: 16 }],
+    [{ top: 0, bottom: 24, left: 24, right: 12 }, { topbar: 0, progress: 66, bottom: 38, search: 44, left: 40, right: 28 }],
+  ])("computes chrome offsets from safe-area insets", (insets, expected) => {
+    expect(resolveMobileChromeOffsets(insets)).toEqual(expected);
   });
 });

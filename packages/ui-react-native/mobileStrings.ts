@@ -60,6 +60,7 @@ type Strings = {
   themeContrast: string;
   info: string;
   more: string;
+  close: string;
 };
 
 const STRINGS: Record<Locale, Strings> = {
@@ -123,10 +124,11 @@ const STRINGS: Record<Locale, Strings> = {
     themeContrast: "High contrast",
     info: "Info",
     more: "More",
+    close: "Close",
   },
   "pt-BR": {
     pages: "Paginas",
-    contents: "Conteudo",
+    contents: "Conteúdo",
     progress: "Progresso",
     search: "Buscar",
     notes: "Notas",
@@ -184,6 +186,7 @@ const STRINGS: Record<Locale, Strings> = {
     themeContrast: "Contraste",
     info: "Info",
     more: "Mais",
+    close: "Fechar",
   },
 };
 

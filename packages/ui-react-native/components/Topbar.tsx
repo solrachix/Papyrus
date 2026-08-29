@@ -5,6 +5,7 @@ import { IconSettings, IconChevronLeft, IconChevronRight } from "../icons";
 import { DocumentEngine } from "@papyrus-sdk/types";
 import { MOBILE_CHROME_METRICS } from "./mobileChromeMetrics";
 import { PageJumpModal } from "./PageJumpModal";
+import { usePapyrusSafeAreaInsets } from "./PapyrusSafeArea";
 
 export interface TopbarProps {
   engine: DocumentEngine;
@@ -43,6 +44,7 @@ const Topbar: React.FC<TopbarProps> = ({
   const navIconColor = isDark ? "#e5e7eb" : "#111827";
   const { width, height } = useWindowDimensions();
   const isLandscape = width > height;
+  const insets = usePapyrusSafeAreaInsets();
 
   const navigateToPage = (targetPage: number) => {
     const next = Math.max(1, Math.min(pageCount, targetPage));
@@ -75,7 +77,7 @@ const Topbar: React.FC<TopbarProps> = ({
   return (
     <>
       <View
-        style={[styles.chromeFrame]}
+        style={[styles.chromeFrame, { paddingTop: insets.top, paddingLeft: MOBILE_CHROME_METRICS.screenPadding + insets.left, paddingRight: MOBILE_CHROME_METRICS.screenPadding + insets.right }]}
         pointerEvents="box-none"
         testID="papyrus-floating-top-controls"
       >

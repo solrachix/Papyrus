@@ -12,9 +12,11 @@ import com.facebook.react.shell.MainReactPackage
 import com.facebook.react.soloader.OpenSourceMergedSoMapping
 import com.facebook.soloader.SoLoader
 import com.reactnativedocumentpicker.RNDocumentPickerPackage
+import com.reactnativecommunity.clipboard.ClipboardPackage
 import com.horcrux.svg.SvgPackage
 import com.papyrus.engine.PapyrusPackage
 import com.reactnativecommunity.webview.RNCWebViewPackage
+import com.th3rdwave.safeareacontext.SafeAreaContextPackage
 import com.swmansion.gesturehandler.RNGestureHandlerPackage
 
 class MainApplication : Application(), ReactApplication {
@@ -29,6 +31,8 @@ class MainApplication : Application(), ReactApplication {
                 SvgPackage(),
                 RNCWebViewPackage(),
                 RNDocumentPickerPackage(),
+                ClipboardPackage(),
+                SafeAreaContextPackage(),
             )
 
         override fun getJSMainModuleName(): String = "index"

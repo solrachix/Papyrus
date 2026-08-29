@@ -49,6 +49,7 @@ interface PageRendererProps {
   horizontalPadding?: number;
   spacing?: number;
   onSelectionDragActiveChange?: (active: boolean) => void;
+  onPageTap?: () => void;
   gestureScrollLockActive?: boolean;
   lastPinchEndedAt?: number | null;
   requestSelectionVerticalAutoscroll?: (absoluteY: number) => number;
@@ -157,6 +158,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   horizontalPadding = 16,
   spacing = 24,
   onSelectionDragActiveChange,
+  onPageTap,
   gestureScrollLockActive = false,
   lastPinchEndedAt = null,
   requestSelectionVerticalAutoscroll,
@@ -880,6 +882,10 @@ const PageRenderer: React.FC<PageRendererProps> = ({
       return;
     }
     setSelectedAnnotation(null);
+    if (resolvedActiveTool !== "select" || resolvedInteractionMode !== "pan") {
+      return;
+    }
+    onPageTap?.();
   };
 
   const toNormalizedPoint = (x: number, y: number) => {
@@ -1301,6 +1307,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({
           onTouchEnd={(event) => logRawTouchDebug("end", event)}
           onTouchCancel={(event) => logRawTouchDebug("cancel", event)}
           onPress={handlePress}
+          testID={`papyrus-page-${pageIndex + 1}`}
         >
           <PageViewComponent
             ref={viewRef}

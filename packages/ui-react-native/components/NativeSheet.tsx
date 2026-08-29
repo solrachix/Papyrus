@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { IconClose } from "../icons";
 import { getNativeSheetSizeStyle } from "./nativeSheetLayout";
+import { usePapyrusSafeAreaInsets } from "./PapyrusSafeArea";
 
 export type NativeSheetProps = {
   visible: boolean;
@@ -38,6 +39,7 @@ export function NativeSheet({
   showHeader = false,
   sheetStyle,
 }: NativeSheetProps) {
+  const insets = usePapyrusSafeAreaInsets();
   return (
     <Modal
       animationType="fade"
@@ -57,6 +59,7 @@ export function NativeSheet({
             styles.sheet,
             isDark && styles.sheetDark,
             getNativeSheetSizeStyle(maxHeight),
+            { paddingBottom: insets.bottom },
             sheetStyle,
           ]}
         >
@@ -88,9 +91,11 @@ export function NativeSheet({
   );
 }
 
-export function NativeSheetScrollView(props: ScrollViewProps) {
-  return <ScrollView {...props} />;
-}
+export const NativeSheetScrollView = React.forwardRef<ScrollView, ScrollViewProps>(
+  function NativeSheetScrollView(props, ref) {
+    return <ScrollView ref={ref} {...props} />;
+  }
+);
 
 export function NativeSheetFlatList<ItemT>(props: FlatListProps<ItemT>) {
   return <FlatList {...props} />;
