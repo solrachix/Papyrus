@@ -13,6 +13,7 @@ import {
 } from "@papyrus-sdk/core";
 import { resolveContextualUiPosition } from "./contextualUi";
 import { promoteWebRenderSurface } from "./pageSurfacePromotion";
+import { getWebPerfCollector } from "../perf/webPerf";
 import {
   DocumentEngine,
   Annotation,
@@ -42,6 +43,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   onRenderReady,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const webPerf = getWebPerfCollector();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const htmlLayerRef = useRef<HTMLDivElement>(null);
   const textLayerRef = useRef<HTMLDivElement>(null);
@@ -235,6 +237,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({
 
   useEffect(() => {
     let active = true;
+    let completed = false;
     const generation = renderGenerationRef.current.next();
     const render = async () => {
       const visibleCanvas = canvasRef.current;
@@ -243,7 +246,22 @@ const PageRenderer: React.FC<PageRendererProps> = ({
         : document.createElement("canvas");
       const nextTextLayer = document.createElement("div");
       if (!renderTarget || !textLayerRef.current) return;
+      const recordStale = () => {
+        completed = true;
+        webPerf.event(
+          "render.stale",
+          { pageIndex, zoom, generation },
+          undefined,
+          "page"
+        );
+      };
       if (!hasSuccessfulRenderRef.current) setLoading(true);
+      webPerf.event(
+        "render.start",
+        { pageIndex, zoom, generation },
+        undefined,
+        "page"
+      );
 
       try {
         const RENDER_SCALE = 2.0;
@@ -292,8 +310,12 @@ const PageRenderer: React.FC<PageRendererProps> = ({
           !active ||
           !renderGenerationRef.current.isCurrent(generation) ||
           !textLayerRef.current
-        )
+        ) {
+          if (active && !renderGenerationRef.current.isCurrent(generation)) {
+            recordStale();
+          }
           return;
+        }
         if (!isElementRender) {
           await engine.renderTextLayer(
             pageIndex,
@@ -306,8 +328,12 @@ const PageRenderer: React.FC<PageRendererProps> = ({
           !active ||
           !renderGenerationRef.current.isCurrent(generation) ||
           !textLayerRef.current
-        )
+        ) {
+          if (active && !renderGenerationRef.current.isCurrent(generation)) {
+            recordStale();
+          }
           return;
+        }
         if (!isElementRender && visibleCanvas && renderTarget instanceof HTMLCanvasElement) {
           promoteWebRenderSurface({
             visibleCanvas,
@@ -316,7 +342,10 @@ const PageRenderer: React.FC<PageRendererProps> = ({
             nextTextLayer,
           });
         }
-        if (!renderGenerationRef.current.isCurrent(generation)) return;
+        if (!renderGenerationRef.current.isCurrent(generation)) {
+          recordStale();
+          return;
+        }
         if (!isElementRender && displaySize) {
           if (visibleCanvas) {
             visibleCanvas.style.width = `${displaySize.width}px`;
@@ -327,9 +356,35 @@ const PageRenderer: React.FC<PageRendererProps> = ({
         }
         hasSuccessfulRenderRef.current = true;
         setTextLayerVersion((v) => v + 1);
+        completed = true;
+        webPerf.event(
+          "render.end",
+          { pageIndex, zoom, generation },
+          undefined,
+          "page"
+        );
+        webPerf.event(
+          "render.ready",
+          { pageIndex, zoom, generation },
+          undefined,
+          "page"
+        );
+        webPerf.event(
+          "surface.ready",
+          { pageIndex, renderedZoom: zoom, generation },
+          undefined,
+          "page"
+        );
         onRenderReadyRef.current?.(pageIndex, zoom);
       } catch (err) {
         if (!active) return;
+        completed = true;
+        webPerf.event(
+          "render.error",
+          { pageIndex, zoom, generation },
+          undefined,
+          "page"
+        );
         console.error("[Papyrus] Falha na renderização:", err);
       } finally {
         if (active && renderGenerationRef.current.isCurrent(generation)) {
@@ -341,6 +396,14 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     render();
     return () => {
       active = false;
+      if (!completed) {
+        webPerf.event(
+          "render.abandoned",
+          { pageIndex, zoom, generation },
+          undefined,
+          "page"
+        );
+      }
     };
   }, [
     engine,
@@ -352,6 +415,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     pageSize,
     renderZoomDependency,
     renderRotationDependency,
+    webPerf,
   ]);
 
   useEffect(() => {
@@ -750,6 +814,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   return (
     <div
       ref={containerRef}
+      data-papyrus-page-renderer="true"
       className={`relative inline-block shadow-2xl bg-white ${
         isMobileElementViewport ? "mb-0" : "mb-10"
       } ${canSelectText ? "" : "no-select cursor-crosshair"}`}

@@ -133,7 +133,7 @@ const runScenario = ({ documentPages, zoom, currentPage, label }) => {
       "viewer.buffersPerPage": BUFFERS_PER_PAGE,
     },
     unavailableRuntimeMetrics: [
-      "render.cancel",
+      "render.abandoned",
       "render.staleDiscard",
       "render.promote",
       "viewer.mountedPages",
