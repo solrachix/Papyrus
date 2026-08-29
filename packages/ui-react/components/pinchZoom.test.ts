@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  resolveWebPinchAnchorScrollLeft,
   resolveWebPinchAnchorScrollTop,
   resolveWebPinchPreviewZoom,
 } from "./pinchZoom";
@@ -26,6 +27,18 @@ describe("web pinch zoom", () => {
         maxScrollTop: 2_000,
       })
     ).toBe(780);
+  });
+
+  it("keeps the horizontal focal viewport point anchored after commit", () => {
+    expect(
+      resolveWebPinchAnchorScrollLeft({
+        startScrollLeft: 240,
+        focalViewportX: 160,
+        startZoom: 1,
+        finalZoom: 2,
+        maxScrollLeft: 2_000,
+      })
+    ).toBe(640);
   });
 
   it("clamps preview and anchored scroll to configured bounds", () => {

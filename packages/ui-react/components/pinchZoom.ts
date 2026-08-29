@@ -13,6 +13,14 @@ export type WebPinchAnchorInput = {
   maxScrollTop: number;
 };
 
+export type WebPinchHorizontalAnchorInput = {
+  startScrollLeft: number;
+  focalViewportX: number;
+  startZoom: number;
+  finalZoom: number;
+  maxScrollLeft: number;
+};
+
 export const resolveWebPinchPreviewZoom = ({
   startZoom,
   scaleFactor,
@@ -35,4 +43,16 @@ export const resolveWebPinchAnchorScrollTop = ({
   const ratio = finalZoom / Math.max(startZoom, 0.0001);
   const anchored = (startScrollTop + focalViewportY) * ratio - focalViewportY;
   return Math.min(maxScrollTop, Math.max(0, anchored));
+};
+
+export const resolveWebPinchAnchorScrollLeft = ({
+  startScrollLeft,
+  focalViewportX,
+  startZoom,
+  finalZoom,
+  maxScrollLeft,
+}: WebPinchHorizontalAnchorInput): number => {
+  const ratio = finalZoom / Math.max(startZoom, 0.0001);
+  const anchored = (startScrollLeft + focalViewportX) * ratio - focalViewportX;
+  return Math.min(maxScrollLeft, Math.max(0, anchored));
 };

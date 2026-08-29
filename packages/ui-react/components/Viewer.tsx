@@ -4,6 +4,7 @@ import { DocumentEngine } from "@papyrus-sdk/types";
 import PageRenderer from "./PageRenderer";
 import { isSingleViewportMode as getIsSingleViewportMode } from "./renderMode";
 import {
+  resolveWebPinchAnchorScrollLeft,
   resolveWebPinchAnchorScrollTop,
   resolveWebPinchPreviewZoom,
 } from "./pinchZoom";
@@ -84,16 +85,20 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
     startDistance: number;
     startZoom: number;
     pendingZoom: number | null;
-    rafId: number | null;
+    pendingCommitZoom: number | null;
+    focalViewportX: number;
     focalViewportY: number;
+    startScrollLeft: number;
     startScrollTop: number;
   }>({
     active: false,
     startDistance: 0,
     startZoom: 1,
     pendingZoom: null,
-    rafId: null,
+    pendingCommitZoom: null,
+    focalViewportX: 0,
     focalViewportY: 0,
+    startScrollLeft: 0,
     startScrollTop: 0,
   });
   const [availableWidth, setAvailableWidth] = useState<number | null>(null);
@@ -160,8 +165,8 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
   const canGoNext =
     destinationNavigationState?.hasNext ?? currentPage < pageCount;
   const viewerOverflowClass = isSingleViewportMode
-    ? "overflow-hidden"
-    : "overflow-y-scroll overflow-x-hidden";
+    ? "overflow-auto"
+    : "overflow-y-scroll overflow-x-auto";
 
   const navigateBy = (delta: number) => {
     if (pageCount <= 0) return;
@@ -233,14 +238,21 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
     mobileTopbarVisibleRef.current = mobileTopbarVisible;
   }, [mobileTopbarVisible]);
 
-  useEffect(
-    () => () => {
-      if (pinchRef.current.rafId != null) {
-        cancelAnimationFrame(pinchRef.current.rafId);
-      }
-    },
-    []
-  );
+  useEffect(() => {
+    const pendingCommitZoom = pinchRef.current.pendingCommitZoom;
+    if (
+      pinchRef.current.active ||
+      pendingCommitZoom == null ||
+      Math.abs(zoom - pendingCommitZoom) >= 0.001
+    ) {
+      return;
+    }
+    if (pinchSurfaceRef.current) {
+      pinchSurfaceRef.current.style.transform = "";
+      pinchSurfaceRef.current.style.transformOrigin = "";
+    }
+    pinchRef.current.pendingCommitZoom = null;
+  }, [zoom]);
 
   useEffect(() => {
     const viewerElement = viewerRef.current;
@@ -750,12 +762,16 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
     pinchRef.current.startDistance = getTouchDistance(touchA, touchB);
     pinchRef.current.startZoom = zoom;
     pinchRef.current.pendingZoom = zoom;
+    pinchRef.current.pendingCommitZoom = null;
+    pinchRef.current.startScrollLeft = viewerRef.current?.scrollLeft ?? 0;
     pinchRef.current.startScrollTop = viewerRef.current?.scrollTop ?? 0;
     const viewerRect = viewerRef.current?.getBoundingClientRect();
+    pinchRef.current.focalViewportX =
+      (touchA.clientX + touchB.clientX) / 2 - (viewerRect?.left ?? 0);
     pinchRef.current.focalViewportY =
       (touchA.clientY + touchB.clientY) / 2 - (viewerRect?.top ?? 0);
     if (pinchSurfaceRef.current) {
-      pinchSurfaceRef.current.style.transformOrigin = `50% ${pinchRef.current.focalViewportY}px`;
+      pinchSurfaceRef.current.style.transformOrigin = `${pinchRef.current.focalViewportX}px ${pinchRef.current.focalViewportY}px`;
       pinchSurfaceRef.current.style.transform = "scale(1)";
     }
     event.preventDefault();
@@ -776,10 +792,12 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
     });
     pinchRef.current.pendingZoom = nextZoom;
     const viewerRect = viewerRef.current?.getBoundingClientRect();
+    pinchRef.current.focalViewportX =
+      (touchA.clientX + touchB.clientX) / 2 - (viewerRect?.left ?? 0);
     pinchRef.current.focalViewportY =
       (touchA.clientY + touchB.clientY) / 2 - (viewerRect?.top ?? 0);
     if (pinchSurfaceRef.current) {
-      pinchSurfaceRef.current.style.transformOrigin = `50% ${pinchRef.current.focalViewportY}px`;
+      pinchSurfaceRef.current.style.transformOrigin = `${pinchRef.current.focalViewportX}px ${pinchRef.current.focalViewportY}px`;
       pinchSurfaceRef.current.style.transform = `scale(${nextZoom / Math.max(
         pinchRef.current.startZoom,
         0.0001
@@ -795,18 +813,25 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
     pinchRef.current.startDistance = 0;
     const nextZoom = pinchRef.current.pendingZoom;
     pinchRef.current.pendingZoom = null;
-    if (pinchSurfaceRef.current) {
-      pinchSurfaceRef.current.style.transform = "";
-      pinchSurfaceRef.current.style.transformOrigin = "";
-    }
     if (wasActive && nextZoom != null && Math.abs(nextZoom - zoom) >= 0.001) {
       const startZoom = pinchRef.current.startZoom;
+      const startScrollLeft = pinchRef.current.startScrollLeft;
       const startScrollTop = pinchRef.current.startScrollTop;
+      const focalViewportX = pinchRef.current.focalViewportX;
       const focalViewportY = pinchRef.current.focalViewportY;
+      pinchRef.current.pendingCommitZoom = nextZoom;
       engine.setZoom(nextZoom);
       setDocumentState({ zoom: nextZoom });
       requestAnimationFrame(() => {
         if (!viewerRef.current) return;
+        viewerRef.current.scrollLeft = resolveWebPinchAnchorScrollLeft({
+          startScrollLeft,
+          focalViewportX,
+          startZoom,
+          finalZoom: nextZoom,
+          maxScrollLeft:
+            viewerRef.current.scrollWidth - viewerRef.current.clientWidth,
+        });
         viewerRef.current.scrollTop = resolveWebPinchAnchorScrollTop({
           startScrollTop,
           focalViewportY,
@@ -815,6 +840,12 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
           maxScrollTop: viewerRef.current.scrollHeight - viewerRef.current.clientHeight,
         });
       });
+    } else {
+      pinchRef.current.pendingCommitZoom = null;
+      if (pinchSurfaceRef.current) {
+        pinchSurfaceRef.current.style.transform = "";
+        pinchSurfaceRef.current.style.transformOrigin = "";
+      }
     }
     pinchRef.current.startZoom = zoom;
   };
@@ -826,6 +857,7 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
     }
     pinchRef.current.active = false;
     pinchRef.current.pendingZoom = null;
+    pinchRef.current.pendingCommitZoom = null;
     pinchRef.current.startDistance = 0;
     event.preventDefault();
   };
