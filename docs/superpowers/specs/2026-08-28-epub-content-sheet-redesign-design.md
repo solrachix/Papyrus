@@ -32,8 +32,8 @@ O resultado deve parecer um índice de livro, não um painel técnico de página
 ## Estrutura da interface
 
 1. A sheet mantém o comportamento de fechamento por backdrop e botão voltar do
-   sistema, além da altura já corrigida. O redesign pode adicionar um botão de
-   fechar explícito, mas ele deve chamar o mesmo `onClose`.
+   sistema, além da altura já corrigida. O redesign adiciona um botão de fechar
+   explícito no cabeçalho, usando o mesmo `onClose`.
 2. O cabeçalho exibe “Conteúdo”, o indicador `atual/total` e o controle de
    fechamento.
 3. O seletor “Páginas / Conteúdo” não aparece para EPUB.
@@ -44,15 +44,19 @@ O resultado deve parecer um índice de livro, não um painel técnico de página
    - estado ativo visível por faixa lateral, peso tipográfico e cor de destaque;
    - divisores leves entre itens.
 5. A lista permanece rolável e, ao abrir, começa no item ativo quando ele puder
-   ser identificado. O item ativo é o último outline navegável cujo
-   `pageIndex` seja menor ou igual à posição atual do EPUB; se nenhum item for
-   identificável, a lista começa no topo. Essa regra não altera o scroll do
-   documento.
+   ser identificado. A árvore do outline é percorrida em ordem de documento.
+   Um `pageIndex` válido é um inteiro entre `0` e `pageCount - 1`. O item ativo
+   é o último item navegável, nessa ordem, cujo `pageIndex` seja menor ou igual
+   a `currentPage - 1` (conversão explícita do contador 1-based para o índice
+   0-based). Em empate, vence o item mais profundo e, persistindo o empate, o
+   último na ordem de documento. Se nenhum item for identificável, a lista
+   começa no topo. Essa regra não altera o scroll do documento.
 6. Os estados da lista são explícitos:
    - outline com itens: renderiza a hierarquia existente, preservando filhos;
    - outline vazio após o carregamento: exibe o estado vazio localizado já
      disponível;
-   - item sem `pageIndex` válido: continua visível, mas sem ação de navegação;
+   - item sem `pageIndex` válido: continua visível, recebe estado acessível de
+     desabilitado e não executa ação de navegação;
    - falha de navegação: a UI não cria um erro paralelo; a chamada usa o
      `jumpToPage` existente e qualquer falha segue o logging/contrato atual da
      engine;
@@ -72,7 +76,9 @@ sheet devem ficar agrupados no próprio componente ou em um helper local testáv
 pela engine EPUB. Eles não serão apresentados como número físico de página. O
 contador do cabeçalho mantém o contrato visual atual (`atual/total`) e a lista
 usa o outline como fonte dos capítulos; os dois totais podem divergir em EPUBs
-com mais de um capítulo na mesma seção.
+com mais de um capítulo na mesma seção. A navegação continua usando o
+`pageIndex` já exposto pelo outline e leva ao início da seção correspondente;
+esta mudança não adiciona suporte a `href` ou âncoras específicas.
 
 ## Comportamento preservado
 
@@ -81,21 +87,30 @@ com mais de um capítulo na mesma seção.
 - toque longo no pill continua abrindo o salto de página;
 - PDF, CBZ e CBR não mudam de layout;
 - nenhuma chamada de preview ou renderização extra é feita para EPUB;
-- acessibilidade mantém label de navegação e torna cada capítulo acionável.
+- acessibilidade mantém labels localizados, usa `accessibilityRole="button"`,
+  informa `accessibilityState.selected` para o item ativo,
+  `accessibilityState.disabled` para destinos inválidos e mantém alvos de toque
+  de pelo menos 44 pontos.
 
 ## Testes e validação
 
 - teste unitário para garantir que EPUB não oferece miniaturas;
 - teste de interação do pill inteiro;
+- teste determinístico da regra de item ativo com contador 1-based/índice
+  0-based, hierarquia e empates;
 - teste do estado ativo e de itens sem destino navegável;
 - teste de fechamento por controle explícito e backdrop;
 - teste de que nenhum `getPagePreview` é chamado para EPUB;
 - testes existentes de layout, runtime e estado continuam passando;
 - build Android do exemplo mobile;
 - validação visual no emulador Pixel 7 em tema claro e escuro;
-- verificar que os 14 capítulos do EPUB de teste aparecem, que a lista rola e
-  que tocar em um capítulo navega para ele; repetir a verificação para PDF e
-  CBZ/CBR para garantir que a grade de miniaturas não mudou.
+- no teste manual, abrir o EPUB local fornecido pelo usuário
+  (`fabulas-de-esopo-papel-ptbr.epub`) quando disponível, verificar que os
+  capítulos aparecem, que a lista rola e que tocar em um capítulo navega para
+  o início da seção; a unidade automatizada usará um outline sintético para
+  não depender de um arquivo pessoal;
+- repetir a verificação para PDF e CBZ/CBR para garantir que a grade de
+  miniaturas não mudou.
 
 ## Fora de escopo
 
@@ -110,3 +125,6 @@ A implementação fica restrita a `packages/ui-react-native/components` e seus
 testes. Não haverá alteração no store global, na engine EPUB ou no bridge
 WebView, exceto se um contrato de acessibilidade já existente exigir ajuste
 local.
+
+Esta especificação substitui a expectativa anterior de uma grade de previews
+para EPUB; PDF e CBZ/CBR mantêm a grade existente.
