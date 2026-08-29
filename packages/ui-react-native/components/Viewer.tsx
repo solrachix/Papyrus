@@ -6,6 +6,7 @@ import React, {
   useState,
 } from "react";
 import {
+  Animated,
   FlatList,
   Platform,
   ScrollView,
@@ -185,7 +186,7 @@ const Viewer: React.FC<ViewerProps> = ({
   const selectionDragActiveRef = useRef(false);
   const [gestureScrollLockActive, setGestureScrollLockActive] = useState(false);
   const gestureScrollLockActiveRef = useRef(false);
-  const [pinchPreviewScale, setPinchPreviewScale] = useState(1);
+  const pinchPreviewScale = useRef(new Animated.Value(1)).current;
   const [lastPinchEndedAt, setLastPinchEndedAt] = useState<number | null>(null);
   const pinchGestureActiveRef = useRef(false);
   const pinchStartZoomRef = useRef(1);
@@ -773,12 +774,7 @@ const Viewer: React.FC<ViewerProps> = ({
 
   const handlePinchPreviewScaleChange = useCallback((scale: number) => {
     const nextScale = sanitizePinchPreviewScale(scale);
-    setPinchPreviewScale((current) => {
-      if (Math.abs(current - nextScale) < 0.0005) {
-        return current;
-      }
-      return nextScale;
-    });
+    pinchPreviewScale.setValue(nextScale);
   }, []);
 
   const resetViewerPinchPreview = useCallback(() => {
@@ -1473,7 +1469,7 @@ const Viewer: React.FC<ViewerProps> = ({
       if (isDouble) {
         const row = item as { left: number; right: number | null };
         return (
-          <View
+          <Animated.View
             style={[
               styles.row,
               { paddingHorizontal: horizontalPadding, width: documentSurfaceWidth },
@@ -1519,7 +1515,7 @@ const Viewer: React.FC<ViewerProps> = ({
             ) : (
               <View style={{ width: columnWidth }} />
             )}
-          </View>
+          </Animated.View>
         );
       }
 
@@ -1675,7 +1671,7 @@ const Viewer: React.FC<ViewerProps> = ({
   return (
     <View style={[styles.container, isDark && styles.containerDark]}>
       <GestureDetector gesture={viewerPinchGesture}>
-        <View
+        <Animated.View
           style={[
             styles.gestureSurface,
             { transform: [{ scale: pinchPreviewScale }] },
@@ -1790,7 +1786,7 @@ const Viewer: React.FC<ViewerProps> = ({
               showsVerticalScrollIndicator={false}
             />
           </ScrollView>
-        </View>
+        </Animated.View>
       </GestureDetector>
     </View>
   );
