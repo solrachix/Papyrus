@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useViewerStore } from "@papyrus-sdk/core";
+import { resolveRenderOverscan, useViewerStore } from "@papyrus-sdk/core";
 import { DocumentEngine } from "@papyrus-sdk/types";
 import PageRenderer from "./PageRenderer";
 import { isSingleViewportMode as getIsSingleViewportMode } from "./renderMode";
@@ -28,7 +28,6 @@ const withAlpha = (hex: string, alpha: number) => {
   const b = parseInt(value.slice(4, 6), 16);
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 };
-const BASE_OVERSCAN = 6;
 const MIN_ZOOM = 0.2;
 const MAX_ZOOM = 5;
 const WIDTH_SNAP_PX = 4;
@@ -663,14 +662,7 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
     0,
     Math.min(Math.max(pageCount - 1, 0), currentPage - 1)
   );
-  const virtualOverscan = zoom > 1.35 ? 4 : BASE_OVERSCAN;
   const virtualAnchor = safeCurrentPageIndex;
-  const virtualStart = isSingleViewportMode
-    ? safeCurrentPageIndex
-    : Math.max(0, virtualAnchor - virtualOverscan);
-  const virtualEnd = isSingleViewportMode
-    ? safeCurrentPageIndex
-    : Math.min(pageCount - 1, virtualAnchor + virtualOverscan);
   const fallbackSize = useMemo(() => {
     if (basePageSize && availableWidth) {
       const fitScale = Math.min(
@@ -694,6 +686,19 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
       return availableWidth ? Math.max(680, availableWidth * 1.3) : 1100;
     return Math.round(heights.reduce((sum, h) => sum + h, 0) / heights.length);
   }, [pageSizes, availableWidth]);
+  const virtualOverscan = resolveRenderOverscan({
+    zoom,
+    estimatedPagePixels: fallbackSize.width * fallbackSize.height,
+    viewportHeight: viewerRef.current?.clientHeight ?? availableHeight ?? 900,
+    devicePixelRatio:
+      typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1,
+  });
+  const virtualStart = isSingleViewportMode
+    ? safeCurrentPageIndex
+    : Math.max(0, virtualAnchor - virtualOverscan);
+  const virtualEnd = isSingleViewportMode
+    ? safeCurrentPageIndex
+    : Math.min(pageCount - 1, virtualAnchor + virtualOverscan);
   const pages = isSingleViewportMode
     ? pageCount > 0
       ? [safeCurrentPageIndex]

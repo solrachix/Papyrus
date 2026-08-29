@@ -12,11 +12,12 @@ import {
   ScrollView,
   StyleSheet,
   View,
+  PixelRatio,
   useWindowDimensions,
   type ViewToken,
 } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import { useViewerStore } from "@papyrus-sdk/core";
+import { resolveRenderOverscan, useViewerStore } from "@papyrus-sdk/core";
 import { DocumentEngine, PdfViewerMode } from "@papyrus-sdk/types";
 import PageRenderer from "./PageRenderer";
 import WebViewViewer from "./WebViewViewer";
@@ -72,7 +73,6 @@ const LIST_BOTTOM_PADDING = 120;
 const CONTINUOUS_PAGE_SPACING = 28;
 const DOUBLE_PAGE_SPACING = 20;
 const DEFAULT_PAGE_ASPECT_RATIO = 0.77;
-const FLATLIST_WINDOW_SIZE = 8;
 const FLATLIST_MAX_TO_RENDER_PER_BATCH = 6;
 const FLATLIST_UPDATE_CELLS_BATCHING_PERIOD = 40;
 const FLATLIST_INITIAL_NUM_TO_RENDER = 6;
@@ -211,8 +211,20 @@ const Viewer: React.FC<ViewerProps> = ({
   const viewerFrameRef = useRef({ y: 0, height: 0 });
   const viewerContentHeightRef = useRef(0);
   const resolvedWindowSize = useMemo(
-    () => resolvePositiveInt(virtualWindowSize, FLATLIST_WINDOW_SIZE, 2, 30),
-    [virtualWindowSize]
+    () =>
+      resolvePositiveInt(
+        virtualWindowSize,
+        resolveRenderOverscan({
+          zoom,
+          estimatedPagePixels:
+            Math.max(1, windowWidth * zoom) ** 2 / DEFAULT_PAGE_ASPECT_RATIO,
+          viewportHeight: 900,
+          devicePixelRatio: PixelRatio.get(),
+        }),
+        2,
+        30
+      ),
+    [virtualWindowSize, windowWidth, zoom]
   );
   const resolvedMaxToRenderPerBatch = useMemo(
     () =>
