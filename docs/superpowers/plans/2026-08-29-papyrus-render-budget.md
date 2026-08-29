@@ -20,12 +20,12 @@
 - Modify: `packages/ui-react/components/PageRenderer.tsx`
 - Modify: `packages/ui-react-native/components/PageRenderer.tsx`
 
-- [ ] Escrever testes para latest-render-wins e cancelamento tardio.
-- [ ] Implementar token/generation pequeno e explícito.
-- [ ] Auditar `RenderTask.cancel()` no PDF.js e cancelar a tarefa anterior por canvas.
-- [ ] Aplicar guard de geração antes de promover canvas, text layer, dimensões e callbacks.
-- [ ] Aplicar o mesmo contrato nos efeitos web e RN sem incluir callback instável nas dependências.
-- [ ] Rodar testes focados e commitar.
+- [x] Escrever testes para latest-render-wins e cancelamento tardio.
+- [x] Implementar token/generation pequeno e explícito.
+- [x] Auditar `RenderTask.cancel()` no PDF.js e cancelar a tarefa anterior por página.
+- [x] Aplicar guard de geração antes de promover canvas, text layer, dimensões e callbacks.
+- [x] Aplicar o mesmo contrato nos efeitos web e RN sem incluir callback instável nas dependências.
+- [x] Rodar testes focados e commitar.
 
 ## Chunk 2: Raster pixel budget and DPR
 
@@ -35,11 +35,11 @@
 - Modify: `packages/ui-react/components/PageRenderer.tsx`
 - Modify: `packages/engine-pdfjs/index.ts`
 
-- [ ] Escrever testes para DPR 1/2/3, limite de pixels, limite de dimensão e escala lógica preservada.
-- [ ] Implementar `resolveRasterBudget` centralizado com saída de escala, dimensões físicas, pixels e clamp.
-- [ ] Usar o orçamento no canvas PDF.js mantendo CSS/layout no zoom lógico.
-- [ ] Documentar a perda controlada de nitidez como alternativa a alocações inviáveis.
-- [ ] Rodar build e testes focados; commitar.
+- [x] Escrever testes para DPR 1/2/3, limite de pixels, limite de dimensão e escala lógica preservada.
+- [x] Implementar `resolveRasterBudget` centralizado com saída de escala, dimensões físicas, pixels e clamp.
+- [x] Usar o orçamento no canvas PDF.js mantendo CSS/layout no zoom lógico.
+- [x] Documentar a perda controlada de nitidez como alternativa a alocações inviáveis.
+- [x] Rodar build e testes focados; commitar.
 
 ## Chunk 3: Adaptive overscan and renderer isolation
 
@@ -51,12 +51,12 @@
 - Modify: `packages/ui-react-native/components/Viewer.tsx`
 - Modify: `packages/ui-react-native/components/PageRenderer.tsx`
 
-- [ ] Escrever testes determinísticos para overscan baixo/médio/alto e páginas caras.
-- [ ] Implementar overscan orientado por zoom, viewport, pixels estimados e DPR.
-- [ ] Separar dependências de raster de estados de UI irrelevantes.
+- [x] Escrever testes determinísticos para overscan baixo/médio/alto e páginas caras.
+- [x] Implementar overscan orientado por zoom, viewport, pixels estimados e DPR.
+- [x] Separar dependências de raster de estados de UI irrelevantes.
 - [ ] Instrumentar mounted/render requested/render ready e active tasks sem alterar o contrato visual.
-- [ ] Auditar operações de layout RN para evitar varreduras repetidas de todas as páginas.
-- [ ] Rodar testes focados e commitar.
+- [x] Auditar operações de layout RN para evitar varreduras repetidas de todas as páginas.
+- [x] Rodar testes focados e commitar.
 
 ## Chunk 4: Android native and large-document validation
 
@@ -67,15 +67,15 @@
 - Add or extend: synthetic large-document benchmark/fixture under the existing test structure.
 
 - [ ] Escrever casos para geração Android, bitmap antigo preservado, limite de bitmap e falha previsível de allocation.
-- [ ] Corrigir promoção stale e aplicar limite de bitmap sem esconder OOM em estado inválido.
+- [x] Corrigir promoção stale e aplicar limite de bitmap sem esconder OOM em estado inválido.
 - [ ] Validar fixtures sintéticos de 100, 500, 1000 e 5000 páginas, reportando-as como sintéticas.
-- [ ] Compilar Java/Android e rodar todos os testes/lint/build.
+- [x] Compilar Java/Android e rodar todos os testes/lint/build.
 - [ ] Atualizar documentação da PR com métricas reais e limitações.
 
 ## Final validation
 
-- [ ] `pnpm test:phase1`
-- [ ] `pnpm lint:phase1`
-- [ ] `pnpm build`
-- [ ] `./gradlew :app:compileDebugJavaWithJavac`
-- [ ] `git diff --check` e estado limpo antes da PR.
+- [x] `pnpm test:phase1`
+- [x] `pnpm lint:phase1`
+- [x] `pnpm build`
+- [x] `./gradlew :app:compileDebugJavaWithJavac`
+- [x] `git diff --check` e estado limpo antes da PR.
