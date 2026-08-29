@@ -1586,6 +1586,12 @@ public class PapyrusPdfViewerView extends View {
         Bitmap finalRendered = rendered;
         post(() -> {
           loadingKeys.remove(key);
+          if (generationAtStart != renderGeneration) {
+            if (finalRendered != null && !finalRendered.isRecycled()) {
+              finalRendered.recycle();
+            }
+            return;
+          }
           if (finalRendered != null && !finalRendered.isRecycled()) {
             RENDER_CACHE.put(key, finalRendered);
             lastPageBitmap.put(frame.index, finalRendered);
@@ -1593,11 +1599,16 @@ public class PapyrusPdfViewerView extends View {
               Log.d(TAG, "requestRender: complete page=" + frame.index + " key=" + key + " cacheSize=" + RENDER_CACHE.size());
             }
           }
-          if (generationAtStart == renderGeneration) {
-            invalidate();
-          }
+          invalidate();
         });
-      } catch (Throwable error) {
+      } catch (OutOfMemoryError error) {
+        Bitmap failed = rendered;
+        post(() -> {
+          loadingKeys.remove(key);
+          if (failed != null && !failed.isRecycled()) failed.recycle();
+          Log.e(TAG, "Unable to allocate bitmap for dedicated PDF page; keeping previous surface", error);
+        });
+      } catch (RuntimeException error) {
         Bitmap failed = rendered;
         post(() -> {
           loadingKeys.remove(key);

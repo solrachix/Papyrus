@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useViewerStore } from "@papyrus-sdk/core";
+import { resolveRenderOverscan, useViewerStore } from "@papyrus-sdk/core";
 import { DocumentEngine } from "@papyrus-sdk/types";
 import PageRenderer from "./PageRenderer";
 import { isSingleViewportMode as getIsSingleViewportMode } from "./renderMode";
+import { resolveViewerVirtualWindows } from "./viewerVirtualization";
 import {
   resolveWebPinchAnchorScrollLeft,
   resolveWebPinchAnchorScrollTop,
@@ -28,7 +29,6 @@ const withAlpha = (hex: string, alpha: number) => {
   const b = parseInt(value.slice(4, 6), 16);
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 };
-const BASE_OVERSCAN = 6;
 const MIN_ZOOM = 0.2;
 const MAX_ZOOM = 5;
 const WIDTH_SNAP_PX = 4;
@@ -663,14 +663,7 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
     0,
     Math.min(Math.max(pageCount - 1, 0), currentPage - 1)
   );
-  const virtualOverscan = zoom > 1.35 ? 4 : BASE_OVERSCAN;
   const virtualAnchor = safeCurrentPageIndex;
-  const virtualStart = isSingleViewportMode
-    ? safeCurrentPageIndex
-    : Math.max(0, virtualAnchor - virtualOverscan);
-  const virtualEnd = isSingleViewportMode
-    ? safeCurrentPageIndex
-    : Math.min(pageCount - 1, virtualAnchor + virtualOverscan);
   const fallbackSize = useMemo(() => {
     if (basePageSize && availableWidth) {
       const fitScale = Math.min(
@@ -694,11 +687,29 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
       return availableWidth ? Math.max(680, availableWidth * 1.3) : 1100;
     return Math.round(heights.reduce((sum, h) => sum + h, 0) / heights.length);
   }, [pageSizes, availableWidth]);
-  const pages = isSingleViewportMode
-    ? pageCount > 0
-      ? [safeCurrentPageIndex]
-      : []
-    : Array.from({ length: pageCount }).map((_, i) => i);
+  const virtualOverscan = resolveRenderOverscan({
+    zoom,
+    estimatedPagePixels: fallbackSize.width * fallbackSize.height,
+    viewportHeight: viewerRef.current?.clientHeight ?? availableHeight ?? 900,
+    devicePixelRatio:
+      typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1,
+    buffersPerPage: 2,
+  });
+  const { render: renderPageWindow, wrappers: wrapperPageWindow } =
+    resolveViewerVirtualWindows({
+      pageCount,
+      anchorIndex: virtualAnchor,
+      renderOverscan: virtualOverscan,
+      isSingleViewportMode,
+    });
+  const pages = Array.from(
+    { length: wrapperPageWindow.count },
+    (_, index) => wrapperPageWindow.start + index
+  );
+  const virtualItemHeight = Math.max(
+    fallbackSize.height,
+    averagePageHeight
+  ) + 64;
   const viewerStyle = useMemo<React.CSSProperties>(
     () =>
       isSingleViewportMode
@@ -911,6 +922,14 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
         ref={pinchSurfaceRef}
         className="flex flex-col items-center gap-6 w-full min-w-0"
       >
+        {!isSingleViewportMode && wrapperPageWindow.beforeCount > 0 && (
+          <div
+            aria-hidden="true"
+            style={{
+              height: wrapperPageWindow.beforeCount * virtualItemHeight,
+            }}
+          />
+        )}
         {pages.map((idx) => (
           <div
             key={isSingleViewportMode ? "single-viewport" : idx}
@@ -922,7 +941,7 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
               isSingleViewportMode ? "relative" : ""
             }`}
           >
-            {idx >= virtualStart && idx <= virtualEnd ? (
+            {idx >= renderPageWindow.start && idx <= renderPageWindow.end ? (
               <PageRenderer
                 engine={engine}
                 pageIndex={idx}
@@ -948,6 +967,14 @@ const Viewer: React.FC<ViewerProps> = ({ engine, style }) => {
             )}
           </div>
         ))}
+        {!isSingleViewportMode && wrapperPageWindow.afterCount > 0 && (
+          <div
+            aria-hidden="true"
+            style={{
+              height: wrapperPageWindow.afterCount * virtualItemHeight,
+            }}
+          />
+        )}
       </div>
       {isSingleViewportMode && pageCount > 1 && viewerBounds && (
         <div

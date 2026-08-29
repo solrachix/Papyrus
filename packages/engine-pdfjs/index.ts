@@ -1,5 +1,10 @@
 
-import { BaseDocumentEngine } from '@papyrus-sdk/core';
+import {
+  BaseDocumentEngine,
+  DEFAULT_MAX_CANVAS_DIMENSION,
+  DEFAULT_MAX_CANVAS_PIXELS,
+  resolveRenderBudget,
+} from '@papyrus-sdk/core';
 import { DocumentLoadInput, DocumentLoadRequest, DocumentSource, DocumentType, TextItem, OutlineItem, FileLike, TextSelection, PageDestination } from '@papyrus-sdk/types';
 
 declare const pdfjsLib: any;
@@ -29,7 +34,8 @@ export class PDFJSEngine extends BaseDocumentEngine {
   private currentPage: number = 1;
   private zoom: number = 1.0;
   private rotation: number = 0;
-  private renderTasks = new WeakMap<HTMLCanvasElement, any>();
+  private renderTasks = new Map<number, any>();
+  private renderGenerations = new Map<number, number>();
 
   async load(input: DocumentLoadInput): Promise<void> {
     try {
@@ -80,9 +86,26 @@ export class PDFJSEngine extends BaseDocumentEngine {
   async renderPage(pageIndex: number, target: any, scale: number): Promise<void> {
     const canvas = target as HTMLCanvasElement;
     if (!this.pdfDoc || !canvas) return;
+
+    const generation = (this.renderGenerations.get(pageIndex) ?? 0) + 1;
+    this.renderGenerations.set(pageIndex, generation);
+    const previousTask = this.renderTasks.get(pageIndex);
+    if (previousTask?.cancel) {
+      try { previousTask.cancel(); } catch { /* ignore */ }
+    }
     
     const page = await this.pdfDoc.getPage(pageIndex + 1);
-    const viewport = page.getViewport({ scale: scale * this.zoom, rotation: this.rotation });
+    if (this.renderGenerations.get(pageIndex) !== generation) return;
+    const baseViewport = page.getViewport({ scale: 1, rotation: this.rotation });
+    const budget = resolveRenderBudget({
+      logicalWidth: baseViewport.width,
+      logicalHeight: baseViewport.height,
+      requestedScale: scale * this.zoom,
+      devicePixelRatio: Number((globalThis as any).devicePixelRatio) || 1,
+      maxCanvasPixels: DEFAULT_MAX_CANVAS_PIXELS,
+      maxCanvasDimension: DEFAULT_MAX_CANVAS_DIMENSION,
+    });
+    const viewport = page.getViewport({ scale: budget.rasterScale, rotation: this.rotation });
     
     canvas.height = viewport.height; 
     canvas.width = viewport.width;
@@ -90,18 +113,17 @@ export class PDFJSEngine extends BaseDocumentEngine {
     const context = canvas.getContext('2d');
     if (!context) return;
 
-    const previousTask = this.renderTasks.get(canvas);
-    if (previousTask?.cancel) {
-      try { previousTask.cancel(); } catch { /* ignore */ }
-    }
-
     const renderTask = page.render({ canvasContext: context, viewport });
-    this.renderTasks.set(canvas, renderTask);
+    this.renderTasks.set(pageIndex, renderTask);
     try {
       await renderTask.promise;
     } catch (error: any) {
       if (error?.name === 'RenderingCancelledException') return;
       throw error;
+    } finally {
+      if (this.renderTasks.get(pageIndex) === renderTask) {
+        this.renderTasks.delete(pageIndex);
+      }
     }
   }
 

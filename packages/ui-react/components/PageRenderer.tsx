@@ -6,8 +6,13 @@ import React, {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
-import { useViewerStore, papyrusEvents } from "@papyrus-sdk/core";
+import {
+  createRenderGeneration,
+  useViewerStore,
+  papyrusEvents,
+} from "@papyrus-sdk/core";
 import { resolveContextualUiPosition } from "./contextualUi";
+import { promoteWebRenderSurface } from "./pageSurfacePromotion";
 import {
   DocumentEngine,
   Annotation,
@@ -43,6 +48,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   const hasSuccessfulRenderRef = useRef(false);
   const onRenderReadyRef = useRef(onRenderReady);
   onRenderReadyRef.current = onRenderReady;
+  const renderGenerationRef = useRef(createRenderGeneration());
   const skipNextAnnotationSelectRef = useRef(false);
   const skipSelectResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null
@@ -229,6 +235,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({
 
   useEffect(() => {
     let active = true;
+    const generation = renderGenerationRef.current.next();
     const render = async () => {
       const visibleCanvas = canvasRef.current;
       const renderTarget = isElementRender
@@ -248,7 +255,12 @@ const PageRenderer: React.FC<PageRendererProps> = ({
         // Ela não sabe se o motor usa PDF.js ou se está gerando um bitmap.
         await engine.renderPage(pageIndex, renderTarget, canvasRenderScale);
         const measuredSize = await engine.getPageDimensions(pageIndex);
-        if (measuredSize.width > 0 && measuredSize.height > 0 && active) {
+        if (
+          measuredSize.width > 0 &&
+          measuredSize.height > 0 &&
+          active &&
+          renderGenerationRef.current.isCurrent(generation)
+        ) {
           setPageSize((prev) => {
             if (
               prev &&
@@ -261,7 +273,12 @@ const PageRenderer: React.FC<PageRendererProps> = ({
           });
         }
 
-        if (!isElementRender && !pageSize && renderTarget instanceof HTMLCanvasElement) {
+        if (
+          !isElementRender &&
+          !pageSize &&
+          renderTarget instanceof HTMLCanvasElement &&
+          renderGenerationRef.current.isCurrent(generation)
+        ) {
           const denom = canvasRenderScale * Math.max(zoom, 0.01);
           if (denom > 0) {
             setPageSize({
@@ -271,7 +288,12 @@ const PageRenderer: React.FC<PageRendererProps> = ({
           }
         }
 
-        if (!active || !textLayerRef.current) return;
+        if (
+          !active ||
+          !renderGenerationRef.current.isCurrent(generation) ||
+          !textLayerRef.current
+        )
+          return;
         if (!isElementRender) {
           await engine.renderTextLayer(
             pageIndex,
@@ -280,26 +302,21 @@ const PageRenderer: React.FC<PageRendererProps> = ({
           );
         }
 
-        if (!active || !textLayerRef.current) return;
+        if (
+          !active ||
+          !renderGenerationRef.current.isCurrent(generation) ||
+          !textLayerRef.current
+        )
+          return;
         if (!isElementRender && visibleCanvas && renderTarget instanceof HTMLCanvasElement) {
-          visibleCanvas.width = renderTarget.width;
-          visibleCanvas.height = renderTarget.height;
-          visibleCanvas.getContext("2d")?.drawImage(renderTarget, 0, 0);
+          promoteWebRenderSurface({
+            visibleCanvas,
+            nextCanvas: renderTarget,
+            visibleTextLayer: textLayerRef.current,
+            nextTextLayer,
+          });
         }
-        if (!isElementRender) {
-          const nextScaleFactor = nextTextLayer.style.getPropertyValue(
-            "--scale-factor"
-          );
-          if (nextScaleFactor) {
-            textLayerRef.current.style.setProperty(
-              "--scale-factor",
-              nextScaleFactor
-            );
-          }
-          textLayerRef.current.replaceChildren(
-            ...Array.from(nextTextLayer.childNodes)
-          );
-        }
+        if (!renderGenerationRef.current.isCurrent(generation)) return;
         if (!isElementRender && displaySize) {
           if (visibleCanvas) {
             visibleCanvas.style.width = `${displaySize.width}px`;
@@ -315,7 +332,9 @@ const PageRenderer: React.FC<PageRendererProps> = ({
         if (!active) return;
         console.error("[Papyrus] Falha na renderização:", err);
       } finally {
-        if (active) setLoading(false);
+        if (active && renderGenerationRef.current.isCurrent(generation)) {
+          setLoading(false);
+        }
       }
     };
 

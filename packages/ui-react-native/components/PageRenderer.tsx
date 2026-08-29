@@ -19,7 +19,7 @@ import {
 } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Svg, { Path as SvgPath } from "react-native-svg";
-import { useViewerStore } from "@papyrus-sdk/core";
+import { createRenderGeneration, useViewerStore } from "@papyrus-sdk/core";
 import { Annotation, DocumentEngine, TextSelection } from "@papyrus-sdk/types";
 import {
   PapyrusPageView,
@@ -168,6 +168,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   const viewRef = useRef<any>(null);
   const onRenderReadyRef = useRef(onRenderReady);
   onRenderReadyRef.current = onRenderReady;
+  const renderGenerationRef = useRef(createRenderGeneration());
   const [layout, setLayout] = useState({ width: 0, height: 0 });
   const [pageSize, setPageSize] = useState<{
     width: number;
@@ -375,12 +376,14 @@ const PageRenderer: React.FC<PageRendererProps> = ({
 
   useEffect(() => {
     if (!layout.width || !layout.height) return;
+    const generation = renderGenerationRef.current.next();
     const viewTag = findNodeHandle(viewRef.current);
     if (viewTag) {
       const renderScale = isNative ? scale / Math.max(zoom, 0.5) : scale;
       const startedAt = perfEnabled ? perfNow() : 0;
       void Promise.resolve(engine.renderPage(pageIndex, viewTag, renderScale))
         .then(() => {
+          if (!renderGenerationRef.current.isCurrent(generation)) return;
           onRenderReadyRef.current?.(pageIndex, zoom);
           if (!perfEnabled) return;
           const renderDurationMs = perfNow() - startedAt;

@@ -131,7 +131,10 @@ public class PapyrusPageView extends View {
           bitmap = renderedBitmap;
           invalidate();
         });
-      } catch (Throwable ignored) {
+      } catch (OutOfMemoryError error) {
+        Log.e(TAG, "Unable to allocate bitmap for PDF page; keeping previous surface", error);
+      } catch (RuntimeException error) {
+        Log.w(TAG, "Failed to render PDF page; keeping previous surface", error);
       }
     });
   }
