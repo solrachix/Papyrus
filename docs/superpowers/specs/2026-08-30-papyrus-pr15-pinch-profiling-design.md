@@ -62,16 +62,6 @@ URL local ou remota como fallback de benchmark. O limite será 20 MiB para o
 conjunto descomprimido de fixtures e 30 MiB para o APK release. Acima disso o
 check falhará, sem trocar silenciosamente para rede.
 
-Cada artefato terá um registro versionado em um manifesto contendo `name`,
-`assetPath`, `byteLength`, `pageCount` e `sha256`. `large-100` e `large-1000`
-serão gerados pelo script existente com conteúdo determinístico; `varied-sizes`
-usará uma sequência fixa de dimensões `(612,792), (792,612), (360,540),
-(1000,500)`. O gerador deverá verificar o manifesto após gerar os arquivos.
-Os PDFs serão empacotados no exemplo para permitir execução offline. O limite
-de aceitação será 20 MiB para o conjunto descomprimido de fixtures e 30 MiB
-para o APK release; acima disso a PR falhará o check de fixture e não esconderá
-o problema usando URL remota.
-
 A resolução será uma função pura, separada da inicialização do engine, para ser
 testada sem React Native. Cada entrada apontará para um asset estático dentro de
 `examples/mobile-expo/assets/fixtures/`; o Viewer continuará recebendo somente o
@@ -138,6 +128,14 @@ com cancelamento nativo. Um pinch sem commit terá `pinch.cancelled` com motivo
 `gesture-cancelled`, `orphaned` ou `invalid` e não entrará nos agregados de
 commit-to-ready.
 
+Esta PR mede o caminho `Viewer`/modo `compat`, no qual o pinch nasce no
+callback JS e os renders passam pelo `PageRenderer`. O modo nativo dedicado,
+que usa `ScaleGestureDetector` diretamente em
+`PapyrusPdfViewerView.java`, fica explicitamente fora deste contrato e será
+identificado no relatório como `viewerMode=native` se for detectado. Não haverá
+tentativa de associar um `gestureId` JS a um gesto iniciado em Java nesta PR;
+esse caminho exigirá uma investigação própria.
+
 O evento `pinch.preview.cleared` será emitido somente quando o handshake aceitar
 na página âncora e no zoom comprometido. Sessões órfãs serão fechadas antes de
 uma nova sessão, emitindo `pinch.cancelled` e preservando a regra já usada pelo
@@ -166,14 +164,18 @@ aguardará `fixture.loaded` antes do warm-up. A sessão válida terá três
 repetições de pinch-out e pinch-in no centro da viewport, com dois ponteiros
 ADB (`motionevent` API 35: `DOWN`, `POINTER_DOWN`, movimentos interpolados,
 `POINTER_UP`, `UP`), duração de 1200 ms e distância radial de 120 dp. O script
-validará a presença de `pinch.start` e `pinch.preview.cleared` para o mesmo
-`sampleId`; caso contrário, marcará a amostra incompleta.
+validará, para o mesmo `sampleId`, exatamente um `pinch.start`, um
+`pinch.end`, um par `pinch.commit.start`/`pinch.commit.end`, pelo menos um
+`render.request` com `gestureId`, um `render.ready` terminal correspondente e
+um `pinch.preview.cleared`. Qualquer ausência, duplicação do commit ou
+divergência de IDs marcará a amostra como incompleta.
 
-Antes de cada amostra, emitirá `sample.start`, executará `dumpsys gfxinfo
-<package> reset`; depois do `pinch.preview.cleared`, coletará
-`dumpsys gfxinfo <package>` e o NDJSON dos eventos com os mesmos
-`runId`/`sampleId`, emitirá `sample.end` e só então encerrará a amostra. A janela
-de frames começa no marcador `sample.start` e termina no `sample.end`, e o
+Antes de cada amostra, executará `dumpsys gfxinfo <package> reset`, emitirá
+`sample.start` imediatamente depois do reset e iniciará o gesto. Depois do
+`pinch.preview.cleared`, emitirá `sample.end` imediatamente antes da coleta de
+`dumpsys gfxinfo <package>` e do NDJSON dos eventos com os mesmos
+`runId`/`sampleId`; só então encerrará a amostra. A janela de frames começa no
+marcador `sample.start` e termina no `sample.end`, e o
 relatório não incluirá o warm-up, abertura do documento ou o tempo entre
 amostras. O arquivo JSON manterá as amostras individuais, eventos brutos e
 agregados P50/P90/P95.
