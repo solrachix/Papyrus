@@ -142,6 +142,21 @@ conta como cancelamento. Um pinch sem commit terá `pinch.cancelled` com motivo
 agregados de commit-to-ready. `no-op` cobre
 `|finalZoom - startZoom| < epsilon`.
 
+### Fronteira real de surface-ready no Android compat
+
+Hoje `BaseNativePdfEngine.renderPage()` retorna imediatamente após despachar o
+pedido ao módulo Java, enquanto `PapyrusPageView` produz o bitmap em executor e
+só depois o promove na UI thread. Portanto o retorno atual não pode alimentar
+`render.ready`.
+
+Nesta PR, o adapter Android fará a Promise de `renderPage()` terminar somente
+quando o bitmap correspondente for aceito pela geração atual e instalado na
+surface, incluindo o caminho de cache. Geração obsoleta, unmount, erro ou
+cancelamento encerrarão a operação com seu terminal correto. O `PageRenderer`
+emitirá `render.ready` apenas depois dessa Promise real. A mudança corrige a
+semântica do contrato assíncrono; não altera rasterização, cache, tamanho de
+bitmap ou scheduling.
+
 Esta PR mede o caminho `Viewer`/modo `compat`, no qual o pinch nasce no
 callback JS e os renders passam pelo `PageRenderer`. O modo nativo dedicado,
 que usa `ScaleGestureDetector` diretamente em
@@ -249,6 +264,8 @@ incompleta e excluída dos percentis, nunca convertida em latência zero.
   `sample.end status=incomplete` sem esperar commit;
 - teste de render stale: não conta como `render.ready` nem como cancelamento
   confirmado;
+- teste Android do adapter: `renderPage()` não resolve no despacho e só resolve
+  após bitmap/cache ser promovido; stale/error/unmount recebem terminal correto;
 - teste do benchmark: fixture informada aparece no deep link, a fixture
   resolvida vem de `fixture.loaded` e o manifesto é verificado por hash;
 - teste do injector escolhido: o mecanismo multipointer gera uma sessão
