@@ -37,31 +37,40 @@ Com a resolução isolada, o bundling release e o APK foram gerados com sucesso.
 
 Os resultados da medição e da validação visual estão registrados abaixo.
 
-## Medição Android — ADB multitoque (A/B pareado)
+## Medição Android — ADB multitoque (A/B pareado com duração)
 
 Foi usado o mesmo procedimento no `main` e nesta branch, com APK release, o
 mesmo PDF de exemplo, `Pixel7Clean`/Android API 35, cinco sessões, dez ciclos
 por sessão e dez posições intermediárias por gesto. O multitoque foi injetado
 diretamente pelo ADB no protocolo tipo A do emulador, sem scrcpy.
 
-| Versão | Sessão | Frames | Janky | Janky % | P90 | P95 | Vsync perdido |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| main | 1 | 184 | 99 | 53,80% | 18 ms | 24 ms | 0 |
-| main | 2 | 203 | 128 | 63,05% | 17 ms | 24 ms | 0 |
-| main | 3 | 204 | 150 | 73,53% | 18 ms | 30 ms | 0 |
-| main | 4 | 202 | 145 | 71,78% | 18 ms | 27 ms | 0 |
-| main | 5 | 206 | 119 | 57,77% | 17 ms | 20 ms | 0 |
-| PR14 | 1 | 130 | 76 | 58,46% | 25 ms | 30 ms | 0 |
-| PR14 | 2 | 131 | 67 | 51,15% | 27 ms | 32 ms | 0 |
-| PR14 | 3 | 126 | 69 | 54,76% | 19 ms | 27 ms | 0 |
-| PR14 | 4 | 125 | 61 | 48,80% | 23 ms | 30 ms | 0 |
-| PR14 | 5 | 127 | 71 | 55,91% | 18 ms | 26 ms | 0 |
+O procedimento reproduzível está em `scripts/benchmarks/android-pinch-ab.sh`:
 
-Medianas: `main` teve `63,05%` janky, P90 de `18 ms`, P95 de `24 ms` e `0`
-vsync; PR14 teve `54,76%` janky, P90 de `23 ms`, P95 de `30 ms` e `0` vsync.
-Assim, o janky caiu aproximadamente `8,29` pontos percentuais, mas os
-percentis de latência pioraram. O resultado apoia um benefício parcial do
-Reanimated, não uma melhoria inequívoca em todos os indicadores.
+```bash
+bash scripts/benchmarks/android-pinch-ab.sh
+```
+
+A duração inclui o overhead de injeção dos eventos ADB; portanto, o FPS abaixo
+é uma taxa do protocolo de diagnóstico, não o FPS perceptual do gesto.
+
+| Versão | Sessão | Duração | Frames | FPS | Janky | Janky % | P90 | P95 | Vsync |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| main | 1 | 100,447 s | 203 | 2,02 | 121 | 59,61% | 17 ms | 20 ms | 0 |
+| main | 2 | 98,443 s | 199 | 2,02 | 135 | 67,84% | 17 ms | 22 ms | 0 |
+| main | 3 | 95,373 s | 199 | 2,09 | 115 | 57,79% | 17 ms | 23 ms | 0 |
+| main | 4 | 98,784 s | 202 | 2,05 | 110 | 54,46% | 17 ms | 19 ms | 0 |
+| main | 5 | 99,494 s | 202 | 2,03 | 118 | 58,42% | 17 ms | 18 ms | 0 |
+| PR14 | 1 | 98,149 s | 127 | 1,29 | 84 | 66,14% | 23 ms | 30 ms | 0 |
+| PR14 | 2 | 98,901 s | 129 | 1,30 | 69 | 53,49% | 23 ms | 27 ms | 0 |
+| PR14 | 3 | 100,135 s | 128 | 1,28 | 81 | 63,28% | 26 ms | 32 ms | 0 |
+| PR14 | 4 | 100,590 s | 130 | 1,29 | 78 | 60,00% | 20 ms | 23 ms | 0 |
+| PR14 | 5 | 96,857 s | 129 | 1,33 | 84 | 65,12% | 23 ms | 29 ms | 0 |
+
+Medianas: `main` teve `98,784 s`, `202` frames, `2,03 FPS`, `58,42%` janky,
+P90 de `17 ms`, P95 de `20 ms` e `0` vsync; PR14 teve `98,901 s`, `129` frames,
+`1,29 FPS`, `63,28%` janky, P90 de `23 ms`, P95 de `29 ms` e `0` vsync.
+Com durações equivalentes, a PR14 produziu aproximadamente `36%` menos frames
+e não demonstrou ganho de fluidez neste protocolo.
 
 Essa coleta é pareada, mas continua sendo um protocolo sintético de multitoque
 no emulador; não representa todos os aparelhos nem substitui a validação

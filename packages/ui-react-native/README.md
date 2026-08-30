@@ -32,18 +32,20 @@ Rebuild the native app after installing Reanimated and changing Babel config.
 
 ### React Native/Reanimated compatibility
 
-The peer range accepts Reanimated `>=3.16.0 <4.0.0`, but the versions must be
-selected as a compatible pair because Reanimated minor releases track React
-Native support differently. This repository validates:
+The native viewer currently supports React Native `0.81.x` with Reanimated
+`3.19.x` or newer `3.x`. Reanimated minor releases track React Native support
+differently, so the package peers intentionally reject other combinations until
+they are validated.
 
 | React Native | Reanimated | Validation |
 | --- | --- | --- |
 | `0.76.x` | `3.16.x` | Expo Android example and emulator |
-| `0.81.x` | `3.19.x` or newer `3.x` | Select a release listed as compatible with the app's RN version |
+| `0.81.x` | `3.19.x` or newer `3.x` | Supported peer matrix |
 
-Reanimated `3.16.x` is not the supported choice for React Native `0.81.x`.
-The `0.81.x` row is a compatibility guide; it is not an Android benchmark
-claim from this package's current example.
+The Expo example remains on React Native `0.76.x` and Reanimated `3.16.x` as a
+legacy validation environment. That example is not covered by the published
+native viewer peer range and should not be used to infer compatibility with
+React Native `0.81.x`.
 
 Wrap the app root with `GestureHandlerRootView` before rendering Papyrus components:
 
