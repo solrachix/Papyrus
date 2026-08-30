@@ -203,6 +203,9 @@ importers:
         specifier: ^13.8.0
         version: 13.16.1(react-native@0.76.0(@babel/core@7.29.0)(@babel/preset-env@7.29.2(@babel/core@7.29.0))(@react-native-community/cli-server-api@20.0.0)(@types/react@18.3.28)(react@18.2.0))(react@18.2.0)
     devDependencies:
+      '@expo/cli':
+        specifier: 0.22.28
+        version: 0.22.28
       '@types/react':
         specifier: ^18.2.6
         version: 18.3.28

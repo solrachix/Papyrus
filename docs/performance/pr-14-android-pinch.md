@@ -8,21 +8,34 @@ Esta rodada move o preview visual do pinch do caminho JS para `react-native-rean
 
 - Suíte: `50` arquivos, `168` testes passando.
 - Build do pacote `@papyrus-sdk/ui-react-native`: passou.
-- Build nativo debug do exemplo: passou após fixar a versão RN do app.
+- Build nativo debug e release do exemplo: passaram após fixar a versão RN do app.
 - Teste de contrato do Viewer: passou.
 - Teste da geometria de pinch: passou.
 - Lint do Viewer e do teste: passou.
-- Emulador iniciado: `Pixel7Clean`, Android API 35.
+- APK release instalado e aberto no `Pixel7Clean`, Android API 35; o PDF de exemplo renderizou corretamente.
 
-## Validação Android
+## Resolução do ambiente Android
 
-O APK debug foi reconstruído, mas o bundle JavaScript do exemplo ainda não pôde ser gerado. O Gradle reconhece e configura o Reanimated; o bundling falha no CLI/Metro hoistado do monorepo:
+O monorepo mantém `node-linker=hoisted`, mas o exemplo Expo agora usa resolução isolada em `examples/mobile-expo/.npmrc`:
+
+```ini
+node-linker=isolated
+```
+
+O exemplo também declara o CLI Expo localmente (`@expo/cli@0.22.28`), evitando que o CLI hoistado selecione o Metro de outro workspace. A investigação mostrou:
+
+- `examples/mobile-expo`, com React Native `0.76.0`, resolve Metro `0.81.5`;
+- `examples/mobile`, com React Native `0.81.x`, resolve Metro `0.83.6`.
+
+Antes do isolamento, o bundling falhava no Metro hoistado:
 
 ```text
 Package subpath './src/DeltaBundler/Serializers/sourceMapString' is not defined by "exports" in metro-cache/package.json
 ```
 
-O erro do Dev Launcher foi resolvido com `reactNativeVersion=0.76.0`; a nova falha é de resolução do Metro 0.83.6 hoistado versus Metro 0.81.5 do exemplo. A medição manual before/after e os testes de clipping/foco/pan/chrome continuam pendentes até o bundler ser isolado corretamente. Nenhum número novo de performance é declarado nesta PR.
+Com a resolução isolada, o bundling release e o APK foram gerados com sucesso. O erro anterior do Dev Launcher também permanece corrigido com `reactNativeVersion=0.76.0`.
+
+Ainda não há número novo de performance nem evidência manual de pinch/clipping/foco/pan/chrome nesta rodada; esses testes devem ser executados agora que o APK está reproduzível.
 
 ## Mudanças observáveis esperadas
 

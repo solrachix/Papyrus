@@ -143,7 +143,7 @@ const App: React.FC = () => {
         <ToolDock />
       </View>
       <BottomBar
-        documentType={docType}
+        documentType={activeType}
         onOpenDestination={() => {}}
         onOpenInfo={() => {}}
         onOpenSettings={() => setSettingsOpen(true)}
