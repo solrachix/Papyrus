@@ -8,7 +8,7 @@ const viewerSource = readFileSync(
 );
 
 describe("RN Viewer pinch contract", () => {
-  it("does not route pinch updates through the JS thread", () => {
+  it("uses the incremental Animated preview without Reanimated", () => {
     const pinchSource = viewerSource.slice(
       viewerSource.indexOf("const viewerPinchGesture"),
       viewerSource.indexOf(
@@ -17,9 +17,25 @@ describe("RN Viewer pinch contract", () => {
       )
     );
 
-    expect(pinchSource).not.toContain(".runOnJS(true)");
-    expect(viewerSource).toContain("useAnimatedStyle");
-    expect(pinchSource).not.toContain("updateViewerPinch(event.scale");
+    expect(viewerSource).not.toContain('from "react-native-reanimated"');
+    expect(viewerSource).not.toContain("useSharedValue");
+    expect(pinchSource).toContain(".runOnJS(true)");
+    expect(pinchSource).toContain("updateViewerPinch(event.scale");
+  });
+
+  it("keeps document side effects out of each pinch update", () => {
+    const updateSource = viewerSource.slice(
+      viewerSource.indexOf("const updateViewerPinch"),
+      viewerSource.indexOf(
+        "const cancelViewerPinch",
+        viewerSource.indexOf("const updateViewerPinch")
+      )
+    );
+
+    expect(updateSource).not.toContain("engine.setZoom");
+    expect(updateSource).not.toContain("setDocumentState");
+    expect(updateSource).not.toContain("renderPage");
+    expect(updateSource).not.toContain("renderTextLayer");
   });
 
   it("keeps the transform surface inside the document content boundary", () => {

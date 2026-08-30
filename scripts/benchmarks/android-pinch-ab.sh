@@ -11,6 +11,11 @@ SESSIONS="${PAPYRUS_ANDROID_SESSIONS:-5}"
 adb shell sh -s -- "$APP" "$DEV" "$SESSIONS" <<'REMOTE'
 set -eu
 APP=$1; DEV=$2; SESSIONS=$3
+OPEN_LEFT=11373
+OPEN_RIGHT=22384
+STEP=228
+STEPS=10
+APP_READY_TIMEOUT=10
 send() { sendevent "$DEV" "$1" "$2" "$3"; }
 sync_mt() { send 0 2 0; }
 sync_frame() { send 0 0 0; }
@@ -24,20 +29,34 @@ end_pair() {
   send 3 47 1; send 3 57 -1; sync_mt; sync_frame
 }
 gesture_cycle() {
-  move_pair 11373 22384
+  move_pair "$OPEN_LEFT" "$OPEN_RIGHT"
   i=1
-  while [ "$i" -le 10 ]; do
-    move_pair $((11373 - i * 228)) $((22384 + i * 228)); sleep 0.025; i=$((i + 1))
+  while [ "$i" -le "$STEPS" ]; do
+    move_pair $((OPEN_LEFT - i * STEP)) $((OPEN_RIGHT + i * STEP)); sleep 0.025; i=$((i + 1))
   done
   i=1
-  while [ "$i" -le 10 ]; do
-    move_pair $((13653 - i * 228)) $((24664 - i * 228)); sleep 0.025; i=$((i + 1))
+  while [ "$i" -le "$STEPS" ]; do
+    remaining=$((STEPS - i))
+    move_pair $((OPEN_LEFT - remaining * STEP)) $((OPEN_RIGHT + remaining * STEP)); sleep 0.025; i=$((i + 1))
   done
   end_pair; sleep 0.08
 }
+wait_for_app() {
+  elapsed=0
+  until pidof "$APP" >/dev/null 2>&1; do
+    if [ "$elapsed" -ge "$APP_READY_TIMEOUT" ]; then
+      echo "App process did not start within ${APP_READY_TIMEOUT}s" >&2
+      exit 1
+    fi
+    sleep 1
+    elapsed=$((elapsed + 1))
+  done
+  # The PDF is bundled, but process readiness precedes its first sharp surface.
+  sleep 5
+}
 session=1
 while [ "$session" -le "$SESSIONS" ]; do
-  am force-stop "$APP"; monkey -p "$APP" 1 >/dev/null; sleep 2
+  am force-stop "$APP"; monkey -p "$APP" 1 >/dev/null; wait_for_app
   started_at=$(date +%s%3N)
   dumpsys gfxinfo "$APP" reset >/dev/null
   cycle=1

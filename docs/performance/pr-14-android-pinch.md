@@ -1,14 +1,19 @@
-# PR 14 — Android pinch zoom
+# PR 14 — Android pinch benchmark and environment
 
 ## Escopo
 
-Esta rodada move o preview visual do pinch do caminho JS para `react-native-reanimated`/`SharedValue`. O store, `engine.setZoom` e o render final continuam sendo acionados somente no encerramento do gesto.
+Esta rodada entrega uma forma reproduzível de medir o pinch Android e corrige o
+ambiente Expo/Metro usado na validação. A tentativa de mover o preview para
+Reanimated/SharedValue foi medida, não demonstrou ganho e foi revertida; o
+Viewer voltou ao caminho incremental com React Native Animated existente em
+`main`.
 
 ## Evidência local
 
-- Suíte: `50` arquivos, `168` testes passando.
+- Suíte focal de pinch: `24` testes passando (`3` de contrato + `21` de geometria/comportamento).
+- Suíte ampla: `169` testes passando e `2` falhando em `examples/web/App.phase1-shell.test.tsx`; as mesmas duas falhas de React duplicado foram reproduzidas em `main`.
 - Build do pacote `@papyrus-sdk/ui-react-native`: passou.
-- Build nativo debug e release do exemplo: passaram após fixar a versão RN do app.
+- Build release limpo do exemplo: passou após fixar a versão RN do app e a resolução do Metro.
 - Teste de contrato do Viewer: passou.
 - Teste da geometria de pinch: passou.
 - Lint do Viewer e do teste: passou.
@@ -16,13 +21,20 @@ Esta rodada move o preview visual do pinch do caminho JS para `react-native-rean
 
 ## Resolução do ambiente Android
 
-O monorepo mantém `node-linker=hoisted`, mas o exemplo Expo agora usa resolução isolada em `examples/mobile-expo/.npmrc`:
+O workspace agora fixa a resolução isolada do pnpm na raiz, onde essa
+configuração é efetivamente lida por todos os importers:
 
 ```ini
 node-linker=isolated
 ```
 
-O exemplo também declara o CLI Expo localmente (`@expo/cli@0.22.28`), evitando que o CLI hoistado selecione o Metro de outro workspace. A investigação mostrou:
+O arquivo anterior em `examples/mobile-expo/.npmrc` não isolava uma instalação
+iniciada na raiz do workspace e foi removido. O exemplo também declara o CLI
+Expo localmente (`@expo/cli@0.22.28`). Como `@expo/metro-config@0.19.12` usa
+imports internos do Metro sem declará-los, uma `packageExtension` direcionada
+liga esse pacote ao `metro`, `metro-cache` e `metro-transform-worker` `0.81.5`
+esperados pelo stack Expo 52/RN 0.76, sem substituir globalmente o Metro usado
+pelos outros exemplos. A investigação mostrou:
 
 - `examples/mobile-expo`, com React Native `0.76.0`, resolve Metro `0.81.5`;
 - `examples/mobile`, com React Native `0.81.x`, resolve Metro `0.83.6`.
@@ -37,12 +49,13 @@ Com a resolução isolada, o bundling release e o APK foram gerados com sucesso.
 
 Os resultados da medição e da validação visual estão registrados abaixo.
 
-## Medição Android — ADB multitoque (A/B pareado com duração)
+## Medição Android — baseline ADB corrigida
 
-Foi usado o mesmo procedimento no `main` e nesta branch, com APK release, o
-mesmo PDF de exemplo, `Pixel7Clean`/Android API 35, cinco sessões, dez ciclos
-por sessão e dez posições intermediárias por gesto. O multitoque foi injetado
-diretamente pelo ADB no protocolo tipo A do emulador, sem scrcpy.
+O procedimento usa APK release, o PDF de exemplo, `Pixel7Clean`/Android API 35,
+cinco sessões, dez ciclos por sessão e dez posições intermediárias para abrir e
+fechar cada gesto. O multitoque é injetado diretamente pelo ADB no protocolo
+tipo A do emulador, sem scrcpy. Antes de medir, o script confirma o processo e
+aguarda mais cinco segundos para a primeira superfície.
 
 O procedimento reproduzível está em `scripts/benchmarks/android-pinch-ab.sh`:
 
@@ -55,26 +68,33 @@ A duração inclui o overhead de injeção dos eventos ADB; portanto, o FPS abai
 
 | Versão | Sessão | Duração | Frames | FPS | Janky | Janky % | P90 | P95 | Vsync |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| main | 1 | 100,447 s | 203 | 2,02 | 121 | 59,61% | 17 ms | 20 ms | 0 |
-| main | 2 | 98,443 s | 199 | 2,02 | 135 | 67,84% | 17 ms | 22 ms | 0 |
-| main | 3 | 95,373 s | 199 | 2,09 | 115 | 57,79% | 17 ms | 23 ms | 0 |
-| main | 4 | 98,784 s | 202 | 2,05 | 110 | 54,46% | 17 ms | 19 ms | 0 |
-| main | 5 | 99,494 s | 202 | 2,03 | 118 | 58,42% | 17 ms | 18 ms | 0 |
-| PR14 | 1 | 98,149 s | 127 | 1,29 | 84 | 66,14% | 23 ms | 30 ms | 0 |
-| PR14 | 2 | 98,901 s | 129 | 1,30 | 69 | 53,49% | 23 ms | 27 ms | 0 |
-| PR14 | 3 | 100,135 s | 128 | 1,28 | 81 | 63,28% | 26 ms | 32 ms | 0 |
-| PR14 | 4 | 100,590 s | 130 | 1,29 | 78 | 60,00% | 20 ms | 23 ms | 0 |
-| PR14 | 5 | 96,857 s | 129 | 1,33 | 84 | 65,12% | 23 ms | 29 ms | 0 |
+| pós-reversão | 1 | 86,962 s | 184 | 2,12 | 131 | 71,20% | 17 ms | 17 ms | 0 |
+| pós-reversão | 2 | 88,815 s | 181 | 2,04 | 120 | 66,30% | 16 ms | 20 ms | 0 |
+| pós-reversão | 3 | 87,250 s | 182 | 2,09 | 120 | 65,93% | 17 ms | 18 ms | 0 |
+| pós-reversão | 4 | 87,351 s | 187 | 2,14 | 127 | 67,91% | 17 ms | 21 ms | 0 |
+| pós-reversão | 5 | 88,003 s | 184 | 2,09 | 114 | 61,96% | 16 ms | 18 ms | 0 |
 
-Medianas: `main` teve `98,784 s`, `202` frames, `2,03 FPS`, `58,42%` janky,
-P90 de `17 ms`, P95 de `20 ms` e `0` vsync; PR14 teve `98,901 s`, `129` frames,
-`1,29 FPS`, `63,28%` janky, P90 de `23 ms`, P95 de `29 ms` e `0` vsync.
-Com durações equivalentes, a PR14 produziu aproximadamente `36%` menos frames
-e não demonstrou ganho de fluidez neste protocolo.
+Medianas da baseline corrigida: `87,351 s`, `184` frames, `2,09 FPS`, `66,30%`
+janky, P90 de `16 ms`, P95 de `18 ms` e `0` vsync perdido. O janky percentual
+continua variável e não deve ser interpretado isoladamente.
 
-Essa coleta é pareada, mas continua sendo um protocolo sintético de multitoque
-no emulador; não representa todos os aparelhos nem substitui a validação
-manual de percepção visual.
+### Correção do protocolo anterior
+
+A revisão final encontrou um erro na trajetória usada nas coletas A/B
+anteriores: a abertura afastava os dedos gradualmente, mas o trecho de volta
+reduzia a distância em um salto e depois movia ambos na mesma direção. Portanto,
+os números antigos de `main`, tentativa Reanimated e primeira pós-reversão não
+são um A/B válido de `pinch-in → pinch-out` e não são usados como prova de ganho
+ou regressão. O teste `android-pinch-ab.test.mjs` agora protege a simetria da
+trajetória e o gate de inicialização.
+
+A tentativa Reanimated foi removida porque não produziu evidência confiável de
+benefício que justificasse uma nova dependência obrigatória. Se essa abordagem
+for reconsiderada, deverá ser comparada novamente contra esta baseline usando o
+protocolo corrigido.
+
+Esta coleta continua sendo sintética e inclui overhead de ADB; não representa
+todos os aparelhos nem substitui validação manual de percepção visual.
 
 As capturas visuais confirmaram ampliação efetiva, texto nítido, chrome estável,
 pan horizontal nos dois extremos e ausência de flash branco observável. Os
@@ -83,9 +103,18 @@ medição geométrica pixel a pixel do focal point.
 
 O fixture `large-1000` não foi validado nesta rodada.
 
-## Validação da implementação
+Backlog da próxima investigação: montar o `Viewer` com engine/store falsos e
+Promise de render controlada para validar em runtime os updates, o commit único
+e o handshake. O teste de 50 updates desta PR cobre o controller comportamental;
+o teste do `Viewer` continua sendo um guardrail estático.
 
-- Atualizações de escala e foco durante `onUpdate` ficam na UI thread.
+## Resultado da investigação
+
+- Reanimated, SharedValue, `useAnimatedStyle`, o helper `runOnJS` do Reanimated e o plugin Babel foram removidos desta PR; `.runOnJS(true)` do Gesture Handler permanece no caminho incremental.
+- O SDK e o exemplo Expo não declaram `react-native-reanimated` como dependência.
+- O bundle release não contém módulo, plugin, inicializador de worklet ou native module do Reanimated.
+- O Viewer voltou ao React Native Animated presente em `main`.
 - Não há escrita no store, `engine.setZoom`, `renderPage` ou `renderTextLayer` por frame.
 - O commit final continua único e o preview só é removido quando a página âncora sinaliza `onRenderReady`.
-- O callback de render-ready está conectado aos modos single, contínuo e dupla página.
+- O benchmark ADB, a medição de duração/FPS, o isolamento pnpm/Metro, o CLI Expo local,
+  `reactNativeVersion=0.76.0` e a correção `documentType={activeType}` foram preservados.
