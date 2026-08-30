@@ -240,7 +240,7 @@ release no `Pixel7Clean`/API 35, com o mesmo commit e manifesto registrados:
 
 ```bash
 bash scripts/benchmarks/android-pinch-profile.sh \
-  --fixture small,large-100,large-1000 --runs 5 \
+  --fixture small,large-100,large-1000,varied-sizes --runs 5 \
   --package com.papyrus.sdk.mobileexpo --device Pixel7Clean
 ```
 
