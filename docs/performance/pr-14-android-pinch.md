@@ -35,7 +35,37 @@ Package subpath './src/DeltaBundler/Serializers/sourceMapString' is not defined 
 
 Com a resolução isolada, o bundling release e o APK foram gerados com sucesso. O erro anterior do Dev Launcher também permanece corrigido com `reactNativeVersion=0.76.0`.
 
-Ainda não há número novo de performance nem evidência manual de pinch/clipping/foco/pan/chrome nesta rodada; esses testes devem ser executados agora que o APK está reproduzível.
+Os resultados da medição e da validação visual estão registrados abaixo.
+
+## Medição Android — ADB multitoque
+
+Com o ambiente reproduzível, o mesmo PDF de exemplo foi reiniciado entre cinco
+sessões. Cada sessão executou dez ciclos de ampliação/redução com dez posições
+intermediárias por gesto. O multitoque foi injetado diretamente no dispositivo
+virtual tipo A do emulador, sem scrcpy.
+
+| Sessão | Frames | Janky | Janky % | P90 | P95 | Vsync perdido |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 240 | 135 | 56,25% | 29 ms | 32 ms | 0 |
+| 2 | 237 | 159 | 67,09% | 32 ms | 46 ms | 1 |
+| 3 | 236 | 134 | 56,78% | 29 ms | 32 ms | 2 |
+| 4 | 234 | 132 | 56,41% | 27 ms | 32 ms | 1 |
+| 5 | 234 | 129 | 55,13% | 27 ms | 32 ms | 1 |
+
+Resumo: mediana de `236` frames, `56,41%` janky, P90 de sessão `29 ms`,
+P95 de sessão `32 ms` e mediana de `1` vsync perdido. A baseline da PR13 foi
+`43` frames, `23` janky (`53,49%`), P90 de `85 ms` e `2` vsync perdidos.
+
+O P90 observado caiu de `85 ms` para a faixa de `27–32 ms`, mas a taxa de
+jank não melhorou materialmente (`56,41%` na mediana contra `53,49%`). Como a
+baseline tem outra quantidade de frames e outro procedimento de captura, esta
+é uma evidência direcional, não uma comparação estatística perfeitamente
+pareada.
+
+As capturas visuais confirmaram ampliação efetiva, texto nítido, chrome estável,
+pan horizontal nos dois extremos e ausência de flash branco observável. Os
+focos esquerdo, direito, topo e base foram executados; não foi feita uma
+medição geométrica pixel a pixel do focal point.
 
 ## Mudanças observáveis esperadas
 
