@@ -5,10 +5,45 @@ React Native UI components for Papyrus viewers.
 ## Install
 
 ```bash
-npm install @papyrus-sdk/ui-react-native @papyrus-sdk/engine-native @papyrus-sdk/core @papyrus-sdk/types react-native-gesture-handler
+npm install @papyrus-sdk/ui-react-native @papyrus-sdk/engine-native @papyrus-sdk/core @papyrus-sdk/types react-native-gesture-handler react-native-reanimated
 ```
 
-`@papyrus-sdk/core`, `@papyrus-sdk/types`, and `react-native-gesture-handler` are required peer dependencies.
+`@papyrus-sdk/core`, `@papyrus-sdk/types`, `react-native-gesture-handler`,
+`react-native-reanimated`, and `react-native-safe-area-context` are required
+peer dependencies for the native viewer.
+
+The pinch preview uses Reanimated `3.x` shared values. Add its Babel plugin to
+the app configuration, after any other plugins:
+
+```js
+module.exports = function (api) {
+  api.cache(true);
+  return {
+    presets: ['babel-preset-expo'],
+    plugins: [
+      // Other plugins go before this entry.
+      'react-native-reanimated/plugin',
+    ],
+  };
+};
+```
+
+Rebuild the native app after installing Reanimated and changing Babel config.
+
+### React Native/Reanimated compatibility
+
+The peer range accepts Reanimated `>=3.16.0 <4.0.0`, but the versions must be
+selected as a compatible pair because Reanimated minor releases track React
+Native support differently. This repository validates:
+
+| React Native | Reanimated | Validation |
+| --- | --- | --- |
+| `0.76.x` | `3.16.x` | Expo Android example and emulator |
+| `0.81.x` | `3.19.x` or newer `3.x` | Select a release listed as compatible with the app's RN version |
+
+Reanimated `3.16.x` is not the supported choice for React Native `0.81.x`.
+The `0.81.x` row is a compatibility guide; it is not an Android benchmark
+claim from this package's current example.
 
 Wrap the app root with `GestureHandlerRootView` before rendering Papyrus components:
 

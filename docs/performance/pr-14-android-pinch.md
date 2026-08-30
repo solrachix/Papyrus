@@ -37,37 +37,44 @@ Com a resolução isolada, o bundling release e o APK foram gerados com sucesso.
 
 Os resultados da medição e da validação visual estão registrados abaixo.
 
-## Medição Android — ADB multitoque
+## Medição Android — ADB multitoque (A/B pareado)
 
-Com o ambiente reproduzível, o mesmo PDF de exemplo foi reiniciado entre cinco
-sessões. Cada sessão executou dez ciclos de ampliação/redução com dez posições
-intermediárias por gesto. O multitoque foi injetado diretamente no dispositivo
-virtual tipo A do emulador, sem scrcpy.
+Foi usado o mesmo procedimento no `main` e nesta branch, com APK release, o
+mesmo PDF de exemplo, `Pixel7Clean`/Android API 35, cinco sessões, dez ciclos
+por sessão e dez posições intermediárias por gesto. O multitoque foi injetado
+diretamente pelo ADB no protocolo tipo A do emulador, sem scrcpy.
 
-| Sessão | Frames | Janky | Janky % | P90 | P95 | Vsync perdido |
-| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| 1 | 240 | 135 | 56,25% | 29 ms | 32 ms | 0 |
-| 2 | 237 | 159 | 67,09% | 32 ms | 46 ms | 1 |
-| 3 | 236 | 134 | 56,78% | 29 ms | 32 ms | 2 |
-| 4 | 234 | 132 | 56,41% | 27 ms | 32 ms | 1 |
-| 5 | 234 | 129 | 55,13% | 27 ms | 32 ms | 1 |
+| Versão | Sessão | Frames | Janky | Janky % | P90 | P95 | Vsync perdido |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| main | 1 | 184 | 99 | 53,80% | 18 ms | 24 ms | 0 |
+| main | 2 | 203 | 128 | 63,05% | 17 ms | 24 ms | 0 |
+| main | 3 | 204 | 150 | 73,53% | 18 ms | 30 ms | 0 |
+| main | 4 | 202 | 145 | 71,78% | 18 ms | 27 ms | 0 |
+| main | 5 | 206 | 119 | 57,77% | 17 ms | 20 ms | 0 |
+| PR14 | 1 | 130 | 76 | 58,46% | 25 ms | 30 ms | 0 |
+| PR14 | 2 | 131 | 67 | 51,15% | 27 ms | 32 ms | 0 |
+| PR14 | 3 | 126 | 69 | 54,76% | 19 ms | 27 ms | 0 |
+| PR14 | 4 | 125 | 61 | 48,80% | 23 ms | 30 ms | 0 |
+| PR14 | 5 | 127 | 71 | 55,91% | 18 ms | 26 ms | 0 |
 
-Resumo: mediana de `236` frames, `56,41%` janky, P90 de sessão `29 ms`,
-P95 de sessão `32 ms` e mediana de `1` vsync perdido. A baseline da PR13 foi
-`43` frames, `23` janky (`53,49%`), P90 de `85 ms` e `2` vsync perdidos.
+Medianas: `main` teve `63,05%` janky, P90 de `18 ms`, P95 de `24 ms` e `0`
+vsync; PR14 teve `54,76%` janky, P90 de `23 ms`, P95 de `30 ms` e `0` vsync.
+Assim, o janky caiu aproximadamente `8,29` pontos percentuais, mas os
+percentis de latência pioraram. O resultado apoia um benefício parcial do
+Reanimated, não uma melhoria inequívoca em todos os indicadores.
 
-O P90 observado caiu de `85 ms` para a faixa de `27–32 ms`, mas a taxa de
-jank não melhorou materialmente (`56,41%` na mediana contra `53,49%`). Como a
-baseline tem outra quantidade de frames e outro procedimento de captura, esta
-é uma evidência direcional, não uma comparação estatística perfeitamente
-pareada.
+Essa coleta é pareada, mas continua sendo um protocolo sintético de multitoque
+no emulador; não representa todos os aparelhos nem substitui a validação
+manual de percepção visual.
 
 As capturas visuais confirmaram ampliação efetiva, texto nítido, chrome estável,
 pan horizontal nos dois extremos e ausência de flash branco observável. Os
 focos esquerdo, direito, topo e base foram executados; não foi feita uma
 medição geométrica pixel a pixel do focal point.
 
-## Mudanças observáveis esperadas
+O fixture `large-1000` não foi validado nesta rodada.
+
+## Validação da implementação
 
 - Atualizações de escala e foco durante `onUpdate` ficam na UI thread.
 - Não há escrita no store, `engine.setZoom`, `renderPage` ou `renderTextLayer` por frame.
