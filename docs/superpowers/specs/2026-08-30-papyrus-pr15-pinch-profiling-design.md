@@ -39,7 +39,7 @@ Criar uma infraestrutura opt-in e reproduzível para:
 O App resolverá `fixture` a partir da URL inicial recebida por
 `Linking.getInitialURL()`. O contrato aceita somente o esquema
 `exp+papyrus-sdk`, o caminho `/reader` e os parâmetros opcionais `fixture`,
-`runId`, `sampleId` e `perf=1`. O valor de `fixture` será validado por uma
+`runId`, `sampleId`, `perf=1` e `viewerMode=compat`. O valor de `fixture` será validado por uma
 allowlist. Sem parâmetro, a fixture padrão será usada; valor inválido usará a
 mesma fixture padrão, mas emitirá `fixture.invalid` com o valor solicitado. O
 relatório sempre distinguirá `requestedFixture` de `resolvedFixture`.
@@ -106,11 +106,11 @@ pinch.update         (gestureId; amostrado; não gerar log por frame)
 pinch.end            (gestureId)
 pinch.commit.start   (gestureId)
 pinch.commit.end     (gestureId)
-render.request       (renderRequestId, pageIndex, zoom, generation, gestureId)
-render.ready         (renderRequestId, pageIndex, zoom, generation, gestureId)
-render.stale         (renderRequestId, pageIndex, generation, gestureId, reason)
-render.abandoned     (renderRequestId, pageIndex, generation, gestureId, reason)
-render.error         (renderRequestId, pageIndex, generation, gestureId, reason)
+render.request       (renderRequestId, surfaceId, pageIndex, zoom, generation, gestureId)
+render.ready         (renderRequestId, surfaceId, pageIndex, zoom, generation, gestureId)
+render.stale         (renderRequestId, surfaceId, pageIndex, generation, gestureId, reason)
+render.abandoned     (renderRequestId, surfaceId, pageIndex, generation, gestureId, reason)
+render.error         (renderRequestId, surfaceId, pageIndex, generation, gestureId, reason)
 pinch.preview.cleared (gestureId)
 sample.start         (sampleId)
 sample.end           (sampleId)
@@ -149,6 +149,10 @@ Quando `perf=1` não estiver presente, o recorder não instalará listeners,
 timers ou coleta de eventos e não emitirá logs estruturados. Um teste de
 regressão verificará esse caminho desativado.
 
+O evento `viewer.mode` registrará o modo efetivo. O benchmark só aceitará
+`viewerMode=compat` e falhará se receber `native` ou se o evento não aparecer;
+o caminho nativo com `ScaleGestureDetector` permanece fora desta PR.
+
 ### Coleta Android
 
 O arquivo `scripts/benchmarks/android-pinch-profile.sh` receberá:
@@ -157,18 +161,20 @@ O arquivo `scripts/benchmarks/android-pinch-profile.sh` receberá:
 --fixture <name> --runs <n> --package <id> --device <serial>
 ```
 
-O padrão será `--runs 5`; o script exigirá exatamente um dispositivo conectado,
-gerará `runId`/`sampleId`, fará `force-stop`, abrirá
-`exp+papyrus-sdk://reader?fixture=<name>&runId=<runId>&sampleId=<sampleId>&perf=1` e
-aguardará `fixture.loaded` antes do warm-up. A sessão válida terá três
-repetições de pinch-out e pinch-in no centro da viewport, com dois ponteiros
-ADB (`motionevent` API 35: `DOWN`, `POINTER_DOWN`, movimentos interpolados,
-`POINTER_UP`, `UP`), duração de 1200 ms e distância radial de 120 dp. O script
-validará, para o mesmo `sampleId`, exatamente um `pinch.start`, um
-`pinch.end`, um par `pinch.commit.start`/`pinch.commit.end`, pelo menos um
-`render.request` com `gestureId`, um `render.ready` terminal correspondente e
-um `pinch.preview.cleared`. Qualquer ausência, duplicação do commit ou
-divergência de IDs marcará a amostra como incompleta.
+O padrão será `--runs 5` por direção; o script exigirá exatamente um dispositivo
+conectado, gerará `runId`/`sampleId`, fará `force-stop`, abrirá
+`exp+papyrus-sdk://reader?fixture=<name>&runId=<runId>&sampleId=<sampleId>&perf=1&viewerMode=compat`
+e aguardará `fixture.loaded` antes do warm-up. Cada `sampleId` representa um
+único pinch no centro da viewport. O script executará cinco amostras de
+pinch-out e cinco de pinch-in, reiniciando o app e o zoom inicial antes de cada
+amostra. Cada gesto usará dois ponteiros ADB (`motionevent` API 35: `DOWN`,
+`POINTER_DOWN`, movimentos interpolados, `POINTER_UP`, `UP`), duração de 1200 ms
+e distância radial de 120 dp. O script validará, para o mesmo `sampleId`,
+`viewer.mode=compat`, exatamente um `pinch.start`, um `pinch.end`, um par
+`pinch.commit.start`/`pinch.commit.end`, pelo menos um `render.request` com
+`gestureId`, um `render.ready` terminal correspondente e um
+`pinch.preview.cleared`. Qualquer ausência, duplicação do commit ou divergência
+de IDs marcará a amostra como incompleta.
 
 Antes de cada amostra, executará `dumpsys gfxinfo <package> reset`, emitirá
 `sample.start` imediatamente depois do reset e iniciará o gesto. Depois do
