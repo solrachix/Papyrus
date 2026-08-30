@@ -101,6 +101,7 @@ fixture.requested
 fixture.loaded
 fixture.invalid
 fixture.url_ignored
+viewer.mode          (mode: compat|native)
 pinch.start          (gestureId)
 pinch.update         (gestureId; amostrado; não gerar log por frame)
 pinch.end            (gestureId)
@@ -149,7 +150,9 @@ Quando `perf=1` não estiver presente, o recorder não instalará listeners,
 timers ou coleta de eventos e não emitirá logs estruturados. Um teste de
 regressão verificará esse caminho desativado.
 
-O evento `viewer.mode` registrará o modo efetivo. O benchmark só aceitará
+O evento `viewer.mode` será emitido uma vez após o Viewer resolver o modo e
+conterá os campos comuns (`timestamp`, `runId`, `sampleId`, `documentLoadId` e
+`fixture`) mais `mode: compat|native`. O benchmark só aceitará
 `viewerMode=compat` e falhará se receber `native` ou se o evento não aparecer;
 o caminho nativo com `ScaleGestureDetector` permanece fora desta PR.
 
@@ -243,10 +246,9 @@ bash scripts/benchmarks/android-pinch-profile.sh \
 
 Ele deverá executar sem rede e produzir um JSON/NDJSON versionável ou
 explicitamente anexável, com pelo menos quatro amostras válidas por fixture
-para `small`, `large-100` e `large-1000`. `varied-sizes` terá o mesmo contrato e
-será executada com `--fixture all` quando estiver dentro dos limites do
-manifesto. O check do APK verificará que os quatro assets e o manifesto estão
-presentes no artefato release.
+para as quatro fixtures. O check do APK verificará que os quatro assets e o
+manifesto estão presentes no artefato release e falhará se o limite de tamanho
+for excedido.
 
 O relatório deverá distinguir numericamente:
 
