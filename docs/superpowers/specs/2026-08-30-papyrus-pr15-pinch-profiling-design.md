@@ -1,5 +1,11 @@
 # Papyrus PR 15 — Fixture Harness e Instrumentação do Pinch
 
+## Base obrigatória
+
+A implementação nascerá de `main`. A branch da PR 14 não será usada como base.
+Somente infraestrutura independente que ainda seja necessária ao harness poderá
+ser reaproveitada, sem trazer o experimento Reanimated rejeitado pelo A/B.
+
 ## Contexto
 
 As medições Android da PR 14 mostraram que mover o preview do pinch para
@@ -37,12 +43,13 @@ Criar uma infraestrutura opt-in e reproduzível para:
 ### Seleção de fixture
 
 O App resolverá `fixture` a partir da URL inicial recebida por
-`Linking.getInitialURL()`. O contrato aceita somente o esquema
-`exp+papyrus-sdk`, o caminho `/reader` e os parâmetros opcionais `fixture`,
-`runId`, `sampleId`, `perf=1` e `viewerMode=compat`. O valor de `fixture` será validado por uma
-allowlist. Sem parâmetro, a fixture padrão será usada; valor inválido usará a
-mesma fixture padrão, mas emitirá `fixture.invalid` com o valor solicitado. O
-relatório sempre distinguirá `requestedFixture` de `resolvedFixture`.
+`Linking.getInitialURL()`. O contrato aceita o esquema `exp+papyrus-sdk`, o host
+`reader`, pathname vazio e os parâmetros opcionais `fixture`, `runId`,
+`sampleId`, `perf=1` e `viewerMode=compat`. O valor de `fixture` será validado
+por uma allowlist. Sem parâmetro, a fixture padrão será usada; valor inválido
+usará a mesma fixture padrão, mas emitirá `fixture.invalid` com o valor
+solicitado. O relatório sempre distinguirá `requestedFixture` de
+`resolvedFixture`.
 
 Os nomes públicos serão:
 
@@ -57,7 +64,11 @@ Cada artefato terá um registro versionado em
 serão gerados pelo script existente com conteúdo determinístico; `varied-sizes`
 usará uma sequência fixa de dimensões `(612,792), (792,612), (360,540),
 (1000,500)`. O gerador deverá verificar o manifesto após gerar os arquivos.
-Os PDFs serão empacotados no exemplo para permitir execução offline; não haverá
+O gerador produzirá também
+`examples/mobile-expo/fixtureRegistry.generated.ts`, contendo `require(...)`
+estático para cada PDF; nenhum asset será resolvido com
+`require(manifestEntry.assetPath)`. Os PDFs serão empacotados no exemplo para
+permitir execução offline; não haverá
 URL local ou remota como fallback de benchmark. O limite será 20 MiB para o
 conjunto descomprimido de fixtures e 30 MiB para o APK release. Acima disso o
 check falhará, sem trocar silenciosamente para rede.
@@ -112,9 +123,10 @@ render.ready         (renderRequestId, surfaceId, pageIndex, zoom, generation, g
 render.stale         (renderRequestId, surfaceId, pageIndex, generation, gestureId, reason)
 render.abandoned     (renderRequestId, surfaceId, pageIndex, generation, gestureId, reason)
 render.error         (renderRequestId, surfaceId, pageIndex, generation, gestureId, reason)
+render.cancelled     (renderRequestId, surfaceId, pageIndex, generation, gestureId, reason)
 pinch.preview.cleared (gestureId)
 sample.start         (sampleId)
-sample.end           (sampleId)
+sample.end           (sampleId, status: complete|incomplete|cancelled)
 pinch.cancelled      (gestureId, reason)
 ```
 
@@ -123,11 +135,12 @@ O `PageRenderer` manterá a semântica atual de geração/stale. Cada
 `abandoned`, `error` ou `cancelled`. `stale` significa que a geração perdeu
 validade; `abandoned` significa cleanup/unmount antes de um terminal, com motivo
 `unmount`, `superseded`, `timeout` ou `request-rejected`; `error` representa
-rejeição do render; `cancelled` só será emitido quando o engine confirmar que
-`RenderTask.cancel()` foi chamado. Assim, o relatório não confundirá cleanup
-com cancelamento nativo. Um pinch sem commit terá `pinch.cancelled` com motivo
-`gesture-cancelled`, `orphaned` ou `invalid` e não entrará nos agregados de
-commit-to-ready.
+rejeição do render; `cancelled` só será emitido quando o engine ou adapter
+confirmar explicitamente o cancelamento da operação de render. Cleanup não
+conta como cancelamento. Um pinch sem commit terá `pinch.cancelled` com motivo
+`gesture-cancelled`, `orphaned`, `invalid` ou `no-op` e não entrará nos
+agregados de commit-to-ready. `no-op` cobre
+`|finalZoom - startZoom| < epsilon`.
 
 Esta PR mede o caminho `Viewer`/modo `compat`, no qual o pinch nasce no
 callback JS e os renders passam pelo `PageRenderer`. O modo nativo dedicado,
@@ -164,37 +177,47 @@ O arquivo `scripts/benchmarks/android-pinch-profile.sh` receberá:
 --fixture <name> --runs <n> --package <id> --device <serial>
 ```
 
-O padrão será `--runs 5` por direção; o script exigirá exatamente um dispositivo
-conectado, gerará `runId`/`sampleId`, fará `force-stop`, abrirá
+O padrão será `--runs 5` por direção. Com `--device`, o script validará somente
+o serial informado; sem `--device`, exigirá exatamente um dispositivo
+conectado. O script gerará `runId`/`sampleId`, fará `force-stop`, abrirá
 `exp+papyrus-sdk://reader?fixture=<name>&runId=<runId>&sampleId=<sampleId>&perf=1&viewerMode=compat`
 e aguardará `fixture.loaded` antes do warm-up. Cada `sampleId` representa um
 único pinch no centro da viewport. O script executará cinco amostras de
 pinch-out e cinco de pinch-in, reiniciando o app e o zoom inicial antes de cada
-amostra. Cada gesto usará dois ponteiros ADB (`motionevent` API 35: `DOWN`,
-`POINTER_DOWN`, movimentos interpolados, `POINTER_UP`, `UP`), duração de 1200 ms
-e distância radial de 120 dp. O script validará, para o mesmo `sampleId`,
+amostra. Cada gesto terá duração-alvo de 1200 ms e distância radial de 120 dp.
+O script validará, para o mesmo `sampleId`,
 `viewer.mode=compat`, exatamente um `pinch.start`, um `pinch.end`, um par
 `pinch.commit.start`/`pinch.commit.end`, pelo menos um `render.request` com
 `gestureId`, um `render.ready` terminal correspondente e um
 `pinch.preview.cleared`. Qualquer ausência, duplicação do commit ou divergência
 de IDs marcará a amostra como incompleta.
 
-Antes de cada amostra, executará `dumpsys gfxinfo <package> reset`, emitirá
-`sample.start` imediatamente depois do reset e iniciará o gesto. Depois do
-`pinch.preview.cleared`, emitirá `sample.end` imediatamente antes da coleta de
-`dumpsys gfxinfo <package>` e do NDJSON dos eventos com os mesmos
-`runId`/`sampleId`; só então encerrará a amostra. A janela de frames começa no
-marcador `sample.start` e termina no `sample.end`, e o
-relatório não incluirá o warm-up, abertura do documento ou o tempo entre
-amostras. O arquivo JSON manterá as amostras individuais, eventos brutos e
+Antes de cada amostra, o shell executará `dumpsys gfxinfo <package> reset` e
+injetará o gesto. O app emitirá `sample.start` automaticamente imediatamente
+antes do primeiro `pinch.start` válido daquele `sampleId`, e `sample.end`
+imediatamente após `pinch.preview.cleared`. Em gesto cancelado, inválido ou
+`no-op`, o app ainda emitirá `sample.end` com status `incomplete` ou
+`cancelled`. Depois de `sample.end`, o shell coletará `dumpsys gfxinfo` e o
+NDJSON correspondente.
+
+O intervalo real de `gfxinfo` é `reset → dump`; `sample.start`/`sample.end`
+delimitam os eventos Papyrus e não serão apresentados como um recorte temporal
+matematicamente exato dos frames. O relatório excluirá warm-up e carregamento
+dos percentis Papyrus, preservará amostras individuais, eventos brutos e
 agregados P50/P90/P95.
 
 `--fixture` aceitará um nome, uma lista separada por vírgulas ou `all`; com
-`--fixture all --runs 5`, cada uma das quatro fixtures terá cinco amostras
-independentes. O protocolo de ponteiros será implementado pelo próprio script
-com `adb shell input motionevent` na API 35 e validado pelo evento
-`pinch.start`; uma sequência que não for reconhecida pelo app será inválida,
-nunca um sucesso silencioso.
+`--fixture all --runs 5`, cada uma das quatro fixtures terá cinco amostras por
+direção.
+
+O injector não assumirá que `adb shell input motionevent` produz multitouch.
+Antes da implementação, detectará o mecanismo multipointer realmente disponível
+no `Pixel7Clean`/API 35, nesta ordem: injector multipointer reproduzível do
+Android Emulator; Protocol B via input device/`sendevent`, somente com discovery
+dinâmico do touchscreen e permissão do AVD; helper/instrumentation Android
+dedicado que injete `MotionEvent` multipointer. O mecanismo escolhido será
+documentado e aceito somente se produzir um `pinch.start` real no app. Dois
+swipes independentes nunca serão reportados como pinch.
 
 O relatório deverá preservar amostras individuais e agregados. Cada amostra
 conterá, quando disponível:
@@ -217,15 +240,19 @@ incompleta e excluída dos percentis, nunca convertida em latência zero.
 
 - teste unitário do resolvedor: valores válidos, ausente e inválido;
 - teste do parser de deep link sem depender de `Linking` real;
+- teste do registry gerado: as quatro chaves usam `require(...)` estático e
+  correspondem ao manifesto por hash/page count;
 - teste de correlação: uma sessão gera um único commit e associa somente seus
   próprios eventos;
 - teste de sessão órfã: iniciar novo pinch fecha a sessão anterior;
+- teste de no-op: termina com `pinch.cancelled reason=no-op` e
+  `sample.end status=incomplete` sem esperar commit;
 - teste de render stale: não conta como `render.ready` nem como cancelamento
   confirmado;
 - teste do benchmark: fixture informada aparece no deep link, a fixture
   resolvida vem de `fixture.loaded` e o manifesto é verificado por hash;
-- teste do parser do protocolo de gesto: a sequência de ponteiros gera uma
-  sessão delimitada, e falha se não houver `pinch.start`/`preview.cleared`;
+- teste do injector escolhido: o mecanismo multipointer gera uma sessão
+  delimitada e falha se não houver `pinch.start`/`preview.cleared`;
 - teste do agregador: calcula FPS, jank e percentis por amostra, excluindo
   amostras incompletas;
 - teste do recorder desativado: sem `perf=1`, não instala listeners/timers nem
@@ -245,10 +272,10 @@ bash scripts/benchmarks/android-pinch-profile.sh \
 ```
 
 Ele deverá executar sem rede e produzir um JSON/NDJSON versionável ou
-explicitamente anexável, com pelo menos quatro amostras válidas por fixture
-para as quatro fixtures. O check do APK verificará que os quatro assets e o
-manifesto estão presentes no artefato release e falhará se o limite de tamanho
-for excedido.
+explicitamente anexável, com pelo menos quatro amostras válidas por fixture e
+por direção para as quatro fixtures. O check do APK verificará que os quatro
+assets, o registry estático e o manifesto estão presentes no artefato release e
+falhará se o limite de tamanho for excedido.
 
 O relatório deverá distinguir numericamente:
 
