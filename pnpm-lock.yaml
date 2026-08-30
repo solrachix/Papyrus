@@ -7,6 +7,8 @@ settings:
 overrides:
   esbuild: 0.21.5
 
+packageExtensionsChecksum: fd228f6f8f33411ecaa41785533fc09b
+
 importers:
 
   .:
@@ -200,6 +202,9 @@ importers:
         specifier: ^13.8.0
         version: 13.16.1(react-native@0.76.0(@babel/core@7.29.0)(@babel/preset-env@7.29.2(@babel/core@7.29.0))(@react-native-community/cli-server-api@20.0.0)(@types/react@18.3.28)(react@18.2.0))(react@18.2.0)
     devDependencies:
+      '@expo/cli':
+        specifier: 0.22.28
+        version: 0.22.28
       '@types/react':
         specifier: ^18.2.6
         version: 18.3.28
@@ -8392,11 +8397,16 @@ snapshots:
       glob: 10.5.0
       jsc-safe-url: 0.2.4
       lightningcss: 1.27.0
+      metro: 0.81.5
+      metro-cache: 0.81.5
+      metro-transform-worker: 0.81.5
       minimatch: 3.1.5
       postcss: 8.4.49
       resolve-from: 5.0.0
     transitivePeerDependencies:
+      - bufferutil
       - supports-color
+      - utf-8-validate
 
   '@expo/osascript@2.4.2':
     dependencies:

@@ -25,6 +25,15 @@
   "pnpm": {
     "overrides": {
       "esbuild": "0.21.5"
+    },
+    "packageExtensions": {
+      "@expo/metro-config@0.19.12": {
+        "dependencies": {
+          "metro": "0.81.5",
+          "metro-cache": "0.81.5",
+          "metro-transform-worker": "0.81.5"
+        }
+      }
     }
   },
   "dependencies": {

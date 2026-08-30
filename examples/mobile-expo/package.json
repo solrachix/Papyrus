@@ -26,6 +26,7 @@
     "react-native-webview": "^13.8.0"
   },
   "devDependencies": {
+    "@expo/cli": "0.22.28",
     "@types/react": "^18.2.6",
     "typescript": "^5.0.4"
   }

@@ -344,6 +344,30 @@ test("pinch controller keeps side effects out of updates and commits once", () =
   ]);
 });
 
+test("pinch controller handles 50 preview updates with exactly one document commit", () => {
+  const effects = [];
+  const controller = pinchZoom.createPinchController({
+    committedZoom: 1,
+    focalX: 100,
+    focalY: 200,
+    startScrollX: 0,
+    startScrollY: 300,
+    onPreview: () => effects.push("preview"),
+    onCommit: (committed) => effects.push(["commit", committed.committedZoom]),
+  });
+
+  for (let index = 1; index <= 50; index += 1) {
+    controller.update(1 + index / 50);
+  }
+  controller.end();
+  controller.finalize();
+
+  assert.equal(effects.filter((effect) => effect === "preview").length, 50);
+  assert.deepEqual(effects.filter((effect) => Array.isArray(effect)), [
+    ["commit", 2],
+  ]);
+});
+
 test("pinch controller cancels without committing the document zoom", () => {
   const effects = [];
   const controller = pinchZoom.createPinchController({

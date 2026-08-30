@@ -70,6 +70,7 @@ export default defineConfig({
       "packages/**/*.test.ts",
       "packages/**/*.test.tsx",
       "examples/web/**/*.test.tsx",
+      "scripts/**/*.test.mjs",
     ],
   },
 });
