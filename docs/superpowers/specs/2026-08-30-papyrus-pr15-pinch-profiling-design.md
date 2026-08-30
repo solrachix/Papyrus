@@ -38,11 +38,11 @@ Criar uma infraestrutura opt-in e reproduzível para:
 
 O App resolverá `fixture` a partir da URL inicial recebida por
 `Linking.getInitialURL()`. O contrato aceita somente o esquema
-`exp+papyrus-sdk`, o caminho `/reader` e um único parâmetro `fixture`. O valor
-será validado por uma allowlist. Sem parâmetro, a fixture padrão será usada;
-valor inválido usará a mesma fixture padrão, mas emitirá `fixture.invalid` com
-o valor solicitado. O relatório sempre distinguirá `requestedFixture` de
-`resolvedFixture`.
+`exp+papyrus-sdk`, o caminho `/reader` e os parâmetros opcionais `fixture`,
+`runId`, `sampleId` e `perf=1`. O valor de `fixture` será validado por uma
+allowlist. Sem parâmetro, a fixture padrão será usada; valor inválido usará a
+mesma fixture padrão, mas emitirá `fixture.invalid` com o valor solicitado. O
+relatório sempre distinguirá `requestedFixture` de `resolvedFixture`.
 
 Os nomes públicos serão:
 
@@ -50,6 +50,17 @@ Os nomes públicos serão:
 - `large-100` — PDF determinístico com 100 páginas;
 - `large-1000` — PDF determinístico com 1000 páginas;
 - `varied-sizes` — PDF determinístico com páginas de dimensões diferentes.
+
+Cada artefato terá um registro versionado em
+`examples/mobile-expo/assets/fixtures/fixture-manifest.json`, contendo `name`,
+`assetPath`, `byteLength`, `pageCount` e `sha256`. `large-100` e `large-1000`
+serão gerados pelo script existente com conteúdo determinístico; `varied-sizes`
+usará uma sequência fixa de dimensões `(612,792), (792,612), (360,540),
+(1000,500)`. O gerador deverá verificar o manifesto após gerar os arquivos.
+Os PDFs serão empacotados no exemplo para permitir execução offline; não haverá
+URL local ou remota como fallback de benchmark. O limite será 20 MiB para o
+conjunto descomprimido de fixtures e 30 MiB para o APK release. Acima disso o
+check falhará, sem trocar silenciosamente para rede.
 
 Cada artefato terá um registro versionado em um manifesto contendo `name`,
 `assetPath`, `byteLength`, `pageCount` e `sha256`. `large-100` e `large-1000`
@@ -62,9 +73,9 @@ para o APK release; acima disso a PR falhará o check de fixture e não esconder
 o problema usando URL remota.
 
 A resolução será uma função pura, separada da inicialização do engine, para ser
-testada sem React Native. As fontes serão referências estáticas empacotáveis ou
-URLs locais de fixture definidas pelo exemplo; o Viewer continuará recebendo
-somente o engine.
+testada sem React Native. Cada entrada apontará para um asset estático dentro de
+`examples/mobile-expo/assets/fixtures/`; o Viewer continuará recebendo somente o
+engine.
 
 Exemplo de execução:
 
@@ -111,21 +122,34 @@ render.stale         (renderRequestId, pageIndex, generation, gestureId, reason)
 render.abandoned     (renderRequestId, pageIndex, generation, gestureId, reason)
 render.error         (renderRequestId, pageIndex, generation, gestureId, reason)
 pinch.preview.cleared (gestureId)
+sample.start         (sampleId)
+sample.end           (sampleId)
+pinch.cancelled      (gestureId, reason)
 ```
 
 O `PageRenderer` manterá a semântica atual de geração/stale. Cada
 `render.request` terá exatamente um estado terminal: `ready`, `stale`,
-`abandoned` ou `error`. `stale` significa que a geração perdeu validade;
-`abandoned` significa cleanup/unmount antes de um terminal, com motivo
-`unmount`, `superseded` ou `timeout`; `error` representa rejeição do render.
-Nenhum desses eventos afirmará cancelamento nativo: `render.cancel` só poderá
-ser emitido quando o engine confirmar que `RenderTask.cancel()` foi chamado.
-Pedidos ignorados antes de iniciar serão registrados como `render.abandoned`
-com motivo `request-rejected`.
+`abandoned`, `error` ou `cancelled`. `stale` significa que a geração perdeu
+validade; `abandoned` significa cleanup/unmount antes de um terminal, com motivo
+`unmount`, `superseded`, `timeout` ou `request-rejected`; `error` representa
+rejeição do render; `cancelled` só será emitido quando o engine confirmar que
+`RenderTask.cancel()` foi chamado. Assim, o relatório não confundirá cleanup
+com cancelamento nativo. Um pinch sem commit terá `pinch.cancelled` com motivo
+`gesture-cancelled`, `orphaned` ou `invalid` e não entrará nos agregados de
+commit-to-ready.
 
 O evento `pinch.preview.cleared` será emitido somente quando o handshake aceitar
 na página âncora e no zoom comprometido. Sessões órfãs serão fechadas antes de
-uma nova sessão, preservando a regra já usada pelo benchmark.
+uma nova sessão, emitindo `pinch.cancelled` e preservando a regra já usada pelo
+benchmark. O `gestureId` nasce no callback JS `beginViewerPinch`; ele é mantido
+em refs/contexto do Viewer e copiado para o `render.request` iniciado pelo
+commit. Não haverá um segundo ID criado no Android nativo. Cada evento de
+render incluirá `surfaceId`, derivado da chave estável do PageRenderer, para
+distinguir superfícies concorrentes.
+
+Quando `perf=1` não estiver presente, o recorder não instalará listeners,
+timers ou coleta de eventos e não emitirá logs estruturados. Um teste de
+regressão verificará esse caminho desativado.
 
 ### Coleta Android
 
@@ -137,7 +161,7 @@ O arquivo `scripts/benchmarks/android-pinch-profile.sh` receberá:
 
 O padrão será `--runs 5`; o script exigirá exatamente um dispositivo conectado,
 gerará `runId`/`sampleId`, fará `force-stop`, abrirá
-`exp+papyrus-sdk://reader?fixture=<name>&runId=<runId>&sampleId=<sampleId>` e
+`exp+papyrus-sdk://reader?fixture=<name>&runId=<runId>&sampleId=<sampleId>&perf=1` e
 aguardará `fixture.loaded` antes do warm-up. A sessão válida terá três
 repetições de pinch-out e pinch-in no centro da viewport, com dois ponteiros
 ADB (`motionevent` API 35: `DOWN`, `POINTER_DOWN`, movimentos interpolados,
@@ -145,12 +169,21 @@ ADB (`motionevent` API 35: `DOWN`, `POINTER_DOWN`, movimentos interpolados,
 validará a presença de `pinch.start` e `pinch.preview.cleared` para o mesmo
 `sampleId`; caso contrário, marcará a amostra incompleta.
 
-Antes de cada amostra, executará `dumpsys gfxinfo <package> reset`; depois do
-`pinch.preview.cleared`, coletará `dumpsys gfxinfo <package>` e o NDJSON dos
-eventos com os mesmos `runId`/`sampleId`. A janela de frames começa no marcador
-`sample.start` e termina no `sample.end`, e o relatório não incluirá o warm-up,
-abertura do documento ou o tempo entre amostras. O arquivo JSON manterá as
-amostras individuais, eventos brutos e agregados P50/P90/P95.
+Antes de cada amostra, emitirá `sample.start`, executará `dumpsys gfxinfo
+<package> reset`; depois do `pinch.preview.cleared`, coletará
+`dumpsys gfxinfo <package>` e o NDJSON dos eventos com os mesmos
+`runId`/`sampleId`, emitirá `sample.end` e só então encerrará a amostra. A janela
+de frames começa no marcador `sample.start` e termina no `sample.end`, e o
+relatório não incluirá o warm-up, abertura do documento ou o tempo entre
+amostras. O arquivo JSON manterá as amostras individuais, eventos brutos e
+agregados P50/P90/P95.
+
+`--fixture` aceitará um nome, uma lista separada por vírgulas ou `all`; com
+`--fixture all --runs 5`, cada uma das quatro fixtures terá cinco amostras
+independentes. O protocolo de ponteiros será implementado pelo próprio script
+com `adb shell input motionevent` na API 35 e validado pelo evento
+`pinch.start`; uma sequência que não for reconhecida pelo app será inválida,
+nunca um sucesso silencioso.
 
 O relatório deverá preservar amostras individuais e agregados. Cada amostra
 conterá, quando disponível:
@@ -184,6 +217,8 @@ incompleta e excluída dos percentis, nunca convertida em latência zero.
   sessão delimitada, e falha se não houver `pinch.start`/`preview.cleared`;
 - teste do agregador: calcula FPS, jank e percentis por amostra, excluindo
   amostras incompletas;
+- teste do recorder desativado: sem `perf=1`, não instala listeners/timers nem
+  emite eventos estruturados;
 - suíte existente do pacote e teste de bundle/Android quando o ambiente estiver
   disponível.
 
@@ -194,14 +229,16 @@ release no `Pixel7Clean`/API 35, com o mesmo commit e manifesto registrados:
 
 ```bash
 bash scripts/benchmarks/android-pinch-profile.sh \
-  --fixture large-1000 --runs 5 \
+  --fixture small,large-100,large-1000 --runs 5 \
   --package com.papyrus.sdk.mobileexpo --device Pixel7Clean
 ```
 
 Ele deverá executar sem rede e produzir um JSON/NDJSON versionável ou
-explicitamente anexável, com pelo menos quatro amostras válidas, para `small`,
-`large-100` e `large-1000`. A fixture `varied-sizes` terá o mesmo contrato e
-será executada quando seu tamanho ficar dentro dos limites do manifesto.
+explicitamente anexável, com pelo menos quatro amostras válidas por fixture
+para `small`, `large-100` e `large-1000`. `varied-sizes` terá o mesmo contrato e
+será executada com `--fixture all` quando estiver dentro dos limites do
+manifesto. O check do APK verificará que os quatro assets e o manifesto estão
+presentes no artefato release.
 
 O relatório deverá distinguir numericamente:
 
