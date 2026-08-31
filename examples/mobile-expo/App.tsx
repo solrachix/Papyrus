@@ -4,7 +4,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { MobileDocumentEngine } from '@papyrus-sdk/engine-native';
 import { useViewerStore } from '@papyrus-sdk/core';
 import type { PapyrusConfig } from '@papyrus-sdk/types';
-import { Viewer, Topbar, ToolDock, RightSheet, AnnotationEditor, BottomBar, SettingsSheet } from '@papyrus-sdk/ui-react-native';
+import { Viewer, Topbar, ToolDock, RightSheet, AnnotationEditor, BottomBar, SettingsSheet, MobilePerfProvider, createPerfSession, createRunId } from '@papyrus-sdk/ui-react-native';
 import { mobileFixtureRegistry } from './fixtureRegistry.generated';
 import fixtureManifest from './assets/fixtures/fixture-manifest.json';
 import { bootstrapFixtureLaunch } from './perf/fixtureStartup';
@@ -40,6 +40,7 @@ const App: React.FC = () => {
   const [engine] = useState(() => new MobileDocumentEngine());
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [activeType, setActiveType] = useState<'pdf' | 'epub' | 'text'>('pdf');
+  const [perfSession, setPerfSession] = useState(() => createPerfSession({ enabled: false, context: { fixture: 'unknown' } }));
   const { isLoaded, setDocumentState, initializeStore, triggerScrollToPage, uiTheme, accentColor } = useViewerStore();
   const Root = View;
 
@@ -67,6 +68,18 @@ const App: React.FC = () => {
         emit: emitPerf,
       });
       if (result.ignored || !result.resolved) return;
+      const runId = result.resolved.runId ?? createRunId();
+      (globalThis as Record<string, unknown>).__PAPYRUS_MOBILE_PERF__ = result.resolved.perfEnabled;
+      setPerfSession(createPerfSession({
+        enabled: result.resolved.perfEnabled,
+        context: {
+          runId,
+          sampleId: result.resolved.sampleId,
+          documentLoadId: `${runId}-document-1`,
+          fixture: result.resolved.fixture,
+        },
+        sink: (line) => console.log(`[Papyrus Perf] ${line}`),
+      }));
       setActiveType('pdf');
       setDocumentState({ isLoaded: false, pageCount: 0, outline: [], currentPage: 1, searchResults: [], searchQuery: '', activeSearchIndex: -1 });
       const pageCount = result.pageCount;
@@ -132,6 +145,7 @@ const App: React.FC = () => {
 
   return (
     <SafeAreaProvider>
+      <MobilePerfProvider session={perfSession}>
       <Root style={[styles.container, uiTheme === 'dark' && styles.containerDark]}>
       <StatusBar
         barStyle={uiTheme === 'dark' ? 'light-content' : 'dark-content'}
@@ -183,6 +197,7 @@ const App: React.FC = () => {
       <SettingsSheet engine={engine} visible={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <AnnotationEditor />
       </Root>
+      </MobilePerfProvider>
     </SafeAreaProvider>
   );
 };

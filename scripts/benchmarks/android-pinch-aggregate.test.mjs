@@ -1,0 +1,56 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { aggregateAndroidPinch, aggregateAndroidPinchDirectory, parseGfxInfo } from './android-pinch-aggregate.mjs';
+
+const events = [
+  { name: 'sample.start', timestamp: 100, sampleId: 's1', fixture: 'small', runId: 'r1' },
+  { name: 'viewer.mode', timestamp: 101, sampleId: 's1', fixture: 'small', mode: 'compat' },
+  { name: 'pinch.start', timestamp: 110, sampleId: 's1', fixture: 'small', gestureId: 'g1', startZoom: 1 },
+  { name: 'pinch.end', timestamp: 210, sampleId: 's1', fixture: 'small', gestureId: 'g1', finalZoom: 2 },
+  { name: 'pinch.commit.start', timestamp: 211, sampleId: 's1', fixture: 'small', gestureId: 'g1' },
+  { name: 'pinch.commit.end', timestamp: 212, sampleId: 's1', fixture: 'small', gestureId: 'g1', zoom: 2 },
+  { name: 'render.request', timestamp: 213, sampleId: 's1', fixture: 'small', gestureId: 'g1', renderRequestId: 'rr1', surfaceId: 'page-0', pageIndex: 0, zoom: 2, generation: 2 },
+  { name: 'render.ready', timestamp: 260, sampleId: 's1', fixture: 'small', gestureId: 'g1', renderRequestId: 'rr1', surfaceId: 'page-0', pageIndex: 0, zoom: 2, generation: 2 },
+  { name: 'pinch.preview.cleared', timestamp: 270, sampleId: 's1', fixture: 'small', gestureId: 'g1', zoom: 2 },
+  { name: 'sample.end', timestamp: 271, sampleId: 's1', fixture: 'small', gestureId: 'g1', status: 'complete' },
+];
+
+test('parses gfxinfo frame and vsync counters', () => {
+  const parsed = parseGfxInfo('Total frames rendered: 40\nJanky frames: 5 (12.5%)\nNumber Missed Vsync: 2\n50th percentile: 8ms\n90th percentile: 24ms\n95th percentile: 31ms');
+  assert.deepEqual(parsed, { frames: 40, jankyFrames: 5, missedVsync: 2, framePercentilesMs: { p50: 8, p90: 24, p95: 31 } });
+});
+
+test('correlates one complete sample and aggregates it by direction', () => {
+  const report = aggregateAndroidPinch({ ndjson: `${events.map(JSON.stringify).join('\n')}\n`, gfxinfo: 'Total frames rendered: 40\nJanky frames: 5 (12.5%)\nNumber Missed Vsync: 2\n50th percentile: 8ms\n90th percentile: 24ms\n95th percentile: 31ms', environment: { device: 'Pixel7Clean' } });
+  assert.equal(report.schemaVersion, 1);
+  assert.equal(report.samples.length, 1);
+  assert.equal(report.samples[0].direction, 'out');
+  assert.equal(report.samples[0].fps, 40 / 0.1);
+  assert.equal(report.aggregates['small:out'].validN, 1);
+  assert.equal(report.aggregates['small:out'].metrics.commitToReadyMs.p90, 48);
+});
+
+test('excludes duplicate commits and incomplete samples from percentiles', () => {
+  const invalid = [
+    ...events,
+    { ...events.find((event) => event.name === 'pinch.commit.start'), timestamp: 212.5 },
+  ];
+  const report = aggregateAndroidPinch({ ndjson: invalid.map(JSON.stringify).join('\n'), gfxinfo: '', environment: {} });
+  assert.equal(report.samples[0].status, 'incomplete');
+  assert.equal(report.aggregates['small:out'].validN, 0);
+  assert.equal(report.aggregates['small:out'].totalN, 1);
+});
+
+test('aggregates the per-sample directory without mixing gfxinfo windows', async () => {
+  const { mkdtemp, mkdir, writeFile } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const root = await mkdtemp(join(tmpdir(), 'papyrus-pr15-runs-'));
+  const sample = join(root, 'small', 'out', '1');
+  await mkdir(sample, { recursive: true });
+  await writeFile(join(sample, 'events.ndjson'), events.map(JSON.stringify).join('\n'));
+  await writeFile(join(sample, 'gfxinfo.txt'), 'Total frames rendered: 3\nJanky frames: 1');
+  const report = aggregateAndroidPinchDirectory(root);
+  assert.equal(report.samples.length, 1);
+  assert.equal(report.samples[0].frames, 3);
+});

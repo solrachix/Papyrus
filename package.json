@@ -14,6 +14,8 @@
     "bench:zoom": "pnpm --filter @papyrus-sdk/core build && node scripts/benchmarks/zoom-performance.mjs",
     "fixtures:mobile": "node scripts/benchmarks/generate-mobile-pdf-fixtures.mjs --write",
     "fixtures:mobile:check": "node scripts/benchmarks/generate-mobile-pdf-fixtures.mjs --check",
+    "bench:android:pinch": "bash scripts/benchmarks/android-pinch-profile.sh",
+    "bench:android:pinch:aggregate": "node scripts/benchmarks/android-pinch-aggregate.mjs",
     "test:e2e:mobile": "maestro test .maestro",
     "lint:phase1": "eslint packages/ui-react/components packages/ui-react-native/components packages/core examples/web examples/mobile/App.tsx examples/mobile/__tests__ --ext .ts,.tsx",
     "docs:dev": "pnpm --filter @papyrus-sdk/example-web build -- --mode docs && vitepress dev docs",

@@ -15,6 +15,7 @@
 ### Criar
 
 - `scripts/benchmarks/android-multitouch-probe.sh` — discovery dinâmico e prova multipointer.
+- `scripts/benchmarks/android-multitouch-probe.test.mjs` — contrato do injector real.
 - `scripts/benchmarks/pdfFixtureGenerator.mjs` — geração/verificação determinística.
 - `scripts/benchmarks/pdfFixtureGenerator.test.mjs` — contratos dos PDFs, manifesto e registry.
 - `scripts/benchmarks/generate-mobile-pdf-fixtures.mjs` — CLI de geração/check.
@@ -408,7 +409,7 @@ abandoned pelo lifecycle JS, não pelo bridge.
 - [ ] **Step 2: Rodar RED**
 
 ```bash
-rtk bash examples/mobile-expo/android/gradlew -p examples/mobile-expo/android testDebugUnitTest --tests com.papyrus.engine.PapyrusPageRenderCompletionTest --console=plain
+rtk bash examples/mobile-expo/android/gradlew -p examples/mobile-expo/android :papyrus-sdk_engine-native:testDebugUnitTest --tests com.papyrus.engine.PapyrusPageRenderCompletionTest --console=plain
 ```
 
 - [ ] **Step 3: Implementar completion por request**
@@ -422,7 +423,7 @@ ready/stale/cancelled e rejeita somente erro real. O caminho JS deve
 - [ ] **Step 4: Rodar GREEN e build do engine**
 
 ```bash
-rtk bash examples/mobile-expo/android/gradlew -p examples/mobile-expo/android testDebugUnitTest --tests com.papyrus.engine.PapyrusPageRenderCompletionTest --console=plain
+rtk bash examples/mobile-expo/android/gradlew -p examples/mobile-expo/android :papyrus-sdk_engine-native:testDebugUnitTest --tests com.papyrus.engine.PapyrusPageRenderCompletionTest --console=plain
 pnpm --filter @papyrus-sdk/engine-native build
 ```
 
