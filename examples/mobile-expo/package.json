@@ -7,7 +7,9 @@
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "prebuild": "expo prebuild"
+    "prebuild": "expo prebuild",
+    "fixtures:mobile": "node ../../scripts/benchmarks/generate-mobile-pdf-fixtures.mjs --write",
+    "fixtures:mobile:check": "node ../../scripts/benchmarks/generate-mobile-pdf-fixtures.mjs --check"
   },
   "dependencies": {
     "@papyrus-sdk/core": "workspace:*",

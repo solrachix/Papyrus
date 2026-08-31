@@ -1,0 +1,2206 @@
+%PDF-1.7
+%ÿÿÿÿ
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R /Outlines 4 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Count 100 /Kids [5 0 R 7 0 R 9 0 R 11 0 R 13 0 R 15 0 R 17 0 R 19 0 R 21 0 R 23 0 R 25 0 R 27 0 R 29 0 R 31 0 R 33 0 R 35 0 R 37 0 R 39 0 R 41 0 R 43 0 R 45 0 R 47 0 R 49 0 R 51 0 R 53 0 R 55 0 R 57 0 R 59 0 R 61 0 R 63 0 R 65 0 R 67 0 R 69 0 R 71 0 R 73 0 R 75 0 R 77 0 R 79 0 R 81 0 R 83 0 R 85 0 R 87 0 R 89 0 R 91 0 R 93 0 R 95 0 R 97 0 R 99 0 R 101 0 R 103 0 R 105 0 R 107 0 R 109 0 R 111 0 R 113 0 R 115 0 R 117 0 R 119 0 R 121 0 R 123 0 R 125 0 R 127 0 R 129 0 R 131 0 R 133 0 R 135 0 R 137 0 R 139 0 R 141 0 R 143 0 R 145 0 R 147 0 R 149 0 R 151 0 R 153 0 R 155 0 R 157 0 R 159 0 R 161 0 R 163 0 R 165 0 R 167 0 R 169 0 R 171 0 R 173 0 R 175 0 R 177 0 R 179 0 R 181 0 R 183 0 R 185 0 R 187 0 R 189 0 R 191 0 R 193 0 R 195 0 R 197 0 R 199 0 R 201 0 R 203 0 R] >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Type /Outlines /First 205 0 R /Last 224 0 R /Count 20 >>
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 6 0 R >>
+endobj
+6 0 obj
+<< /Length 283 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 1 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-1) Tj
+ET
+endstream
+endobj
+7 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 8 0 R >>
+endobj
+8 0 obj
+<< /Length 283 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 2 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-2) Tj
+ET
+endstream
+endobj
+9 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 10 0 R >>
+endobj
+10 0 obj
+<< /Length 283 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 3 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-3) Tj
+ET
+endstream
+endobj
+11 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 12 0 R >>
+endobj
+12 0 obj
+<< /Length 283 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 4 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-4) Tj
+ET
+endstream
+endobj
+13 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 14 0 R >>
+endobj
+14 0 obj
+<< /Length 283 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 5 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-5) Tj
+ET
+endstream
+endobj
+15 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 16 0 R >>
+endobj
+16 0 obj
+<< /Length 283 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 6 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-6) Tj
+ET
+endstream
+endobj
+17 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 18 0 R >>
+endobj
+18 0 obj
+<< /Length 283 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 7 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-7) Tj
+ET
+endstream
+endobj
+19 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 20 0 R >>
+endobj
+20 0 obj
+<< /Length 283 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 8 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-8) Tj
+ET
+endstream
+endobj
+21 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 22 0 R >>
+endobj
+22 0 obj
+<< /Length 283 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 9 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-9) Tj
+ET
+endstream
+endobj
+23 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 24 0 R >>
+endobj
+24 0 obj
+<< /Length 285 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 10 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-10) Tj
+ET
+endstream
+endobj
+25 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 26 0 R >>
+endobj
+26 0 obj
+<< /Length 285 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 11 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-11) Tj
+ET
+endstream
+endobj
+27 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 28 0 R >>
+endobj
+28 0 obj
+<< /Length 285 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 12 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-12) Tj
+ET
+endstream
+endobj
+29 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 30 0 R >>
+endobj
+30 0 obj
+<< /Length 285 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 13 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-13) Tj
+ET
+endstream
+endobj
+31 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 32 0 R >>
+endobj
+32 0 obj
+<< /Length 285 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 14 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-14) Tj
+ET
+endstream
+endobj
+33 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 34 0 R >>
+endobj
+34 0 obj
+<< /Length 285 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 15 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-15) Tj
+ET
+endstream
+endobj
+35 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 36 0 R >>
+endobj
+36 0 obj
+<< /Length 285 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 16 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-16) Tj
+ET
+endstream
+endobj
+37 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 38 0 R >>
+endobj
+38 0 obj
+<< /Length 284 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 17 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-0) Tj
+ET
+endstream
+endobj
+39 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 40 0 R >>
+endobj
+40 0 obj
+<< /Length 284 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 18 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-1) Tj
+ET
+endstream
+endobj
+41 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 42 0 R >>
+endobj
+42 0 obj
+<< /Length 284 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 19 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-2) Tj
+ET
+endstream
+endobj
+43 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 44 0 R >>
+endobj
+44 0 obj
+<< /Length 284 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 20 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-3) Tj
+ET
+endstream
+endobj
+45 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 46 0 R >>
+endobj
+46 0 obj
+<< /Length 284 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 21 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-4) Tj
+ET
+endstream
+endobj
+47 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 48 0 R >>
+endobj
+48 0 obj
+<< /Length 284 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 22 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-5) Tj
+ET
+endstream
+endobj
+49 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 50 0 R >>
+endobj
+50 0 obj
+<< /Length 284 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 23 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-6) Tj
+ET
+endstream
+endobj
+51 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 52 0 R >>
+endobj
+52 0 obj
+<< /Length 284 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 24 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-7) Tj
+ET
+endstream
+endobj
+53 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 54 0 R >>
+endobj
+54 0 obj
+<< /Length 284 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 25 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-8) Tj
+ET
+endstream
+endobj
+55 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 56 0 R >>
+endobj
+56 0 obj
+<< /Length 284 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 26 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-9) Tj
+ET
+endstream
+endobj
+57 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 58 0 R >>
+endobj
+58 0 obj
+<< /Length 285 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 27 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-10) Tj
+ET
+endstream
+endobj
+59 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 60 0 R >>
+endobj
+60 0 obj
+<< /Length 285 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 28 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-11) Tj
+ET
+endstream
+endobj
+61 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 62 0 R >>
+endobj
+62 0 obj
+<< /Length 285 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 29 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-12) Tj
+ET
+endstream
+endobj
+63 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 64 0 R >>
+endobj
+64 0 obj
+<< /Length 285 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 30 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-13) Tj
+ET
+endstream
+endobj
+65 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 66 0 R >>
+endobj
+66 0 obj
+<< /Length 285 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 31 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-14) Tj
+ET
+endstream
+endobj
+67 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 68 0 R >>
+endobj
+68 0 obj
+<< /Length 285 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 32 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-15) Tj
+ET
+endstream
+endobj
+69 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 70 0 R >>
+endobj
+70 0 obj
+<< /Length 285 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 33 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-16) Tj
+ET
+endstream
+endobj
+71 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 72 0 R >>
+endobj
+72 0 obj
+<< /Length 284 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 34 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-0) Tj
+ET
+endstream
+endobj
+73 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 74 0 R >>
+endobj
+74 0 obj
+<< /Length 284 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 35 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-1) Tj
+ET
+endstream
+endobj
+75 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 76 0 R >>
+endobj
+76 0 obj
+<< /Length 284 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 36 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-2) Tj
+ET
+endstream
+endobj
+77 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 78 0 R >>
+endobj
+78 0 obj
+<< /Length 284 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 37 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-3) Tj
+ET
+endstream
+endobj
+79 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 80 0 R >>
+endobj
+80 0 obj
+<< /Length 284 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 38 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-4) Tj
+ET
+endstream
+endobj
+81 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 82 0 R >>
+endobj
+82 0 obj
+<< /Length 284 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 39 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-5) Tj
+ET
+endstream
+endobj
+83 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 84 0 R >>
+endobj
+84 0 obj
+<< /Length 284 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 40 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-6) Tj
+ET
+endstream
+endobj
+85 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 86 0 R >>
+endobj
+86 0 obj
+<< /Length 284 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 41 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-7) Tj
+ET
+endstream
+endobj
+87 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 88 0 R >>
+endobj
+88 0 obj
+<< /Length 284 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 42 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-8) Tj
+ET
+endstream
+endobj
+89 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 90 0 R >>
+endobj
+90 0 obj
+<< /Length 284 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 43 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-9) Tj
+ET
+endstream
+endobj
+91 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 92 0 R >>
+endobj
+92 0 obj
+<< /Length 285 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 44 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-10) Tj
+ET
+endstream
+endobj
+93 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 94 0 R >>
+endobj
+94 0 obj
+<< /Length 285 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 45 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-11) Tj
+ET
+endstream
+endobj
+95 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 96 0 R >>
+endobj
+96 0 obj
+<< /Length 285 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 46 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-12) Tj
+ET
+endstream
+endobj
+97 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 98 0 R >>
+endobj
+98 0 obj
+<< /Length 285 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 47 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-13) Tj
+ET
+endstream
+endobj
+99 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 100 0 R >>
+endobj
+100 0 obj
+<< /Length 285 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 48 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-14) Tj
+ET
+endstream
+endobj
+101 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 102 0 R >>
+endobj
+102 0 obj
+<< /Length 285 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 49 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-15) Tj
+ET
+endstream
+endobj
+103 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 104 0 R >>
+endobj
+104 0 obj
+<< /Length 285 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 50 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-16) Tj
+ET
+endstream
+endobj
+105 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 106 0 R >>
+endobj
+106 0 obj
+<< /Length 284 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 51 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-0) Tj
+ET
+endstream
+endobj
+107 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 108 0 R >>
+endobj
+108 0 obj
+<< /Length 284 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 52 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-1) Tj
+ET
+endstream
+endobj
+109 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 110 0 R >>
+endobj
+110 0 obj
+<< /Length 284 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 53 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-2) Tj
+ET
+endstream
+endobj
+111 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 112 0 R >>
+endobj
+112 0 obj
+<< /Length 284 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 54 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-3) Tj
+ET
+endstream
+endobj
+113 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 114 0 R >>
+endobj
+114 0 obj
+<< /Length 284 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 55 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-4) Tj
+ET
+endstream
+endobj
+115 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 116 0 R >>
+endobj
+116 0 obj
+<< /Length 284 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 56 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-5) Tj
+ET
+endstream
+endobj
+117 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 118 0 R >>
+endobj
+118 0 obj
+<< /Length 284 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 57 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-6) Tj
+ET
+endstream
+endobj
+119 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 120 0 R >>
+endobj
+120 0 obj
+<< /Length 284 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 58 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-7) Tj
+ET
+endstream
+endobj
+121 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 122 0 R >>
+endobj
+122 0 obj
+<< /Length 284 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 59 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-8) Tj
+ET
+endstream
+endobj
+123 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 124 0 R >>
+endobj
+124 0 obj
+<< /Length 284 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 60 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-9) Tj
+ET
+endstream
+endobj
+125 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 126 0 R >>
+endobj
+126 0 obj
+<< /Length 285 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 61 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-10) Tj
+ET
+endstream
+endobj
+127 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 128 0 R >>
+endobj
+128 0 obj
+<< /Length 285 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 62 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-11) Tj
+ET
+endstream
+endobj
+129 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 130 0 R >>
+endobj
+130 0 obj
+<< /Length 285 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 63 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-12) Tj
+ET
+endstream
+endobj
+131 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 132 0 R >>
+endobj
+132 0 obj
+<< /Length 285 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 64 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-13) Tj
+ET
+endstream
+endobj
+133 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 134 0 R >>
+endobj
+134 0 obj
+<< /Length 285 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 65 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-14) Tj
+ET
+endstream
+endobj
+135 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 136 0 R >>
+endobj
+136 0 obj
+<< /Length 285 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 66 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-15) Tj
+ET
+endstream
+endobj
+137 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 138 0 R >>
+endobj
+138 0 obj
+<< /Length 285 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 67 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-16) Tj
+ET
+endstream
+endobj
+139 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 140 0 R >>
+endobj
+140 0 obj
+<< /Length 284 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 68 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-0) Tj
+ET
+endstream
+endobj
+141 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 142 0 R >>
+endobj
+142 0 obj
+<< /Length 284 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 69 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-1) Tj
+ET
+endstream
+endobj
+143 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 144 0 R >>
+endobj
+144 0 obj
+<< /Length 284 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 70 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-2) Tj
+ET
+endstream
+endobj
+145 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 146 0 R >>
+endobj
+146 0 obj
+<< /Length 284 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 71 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-3) Tj
+ET
+endstream
+endobj
+147 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 148 0 R >>
+endobj
+148 0 obj
+<< /Length 284 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 72 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-4) Tj
+ET
+endstream
+endobj
+149 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 150 0 R >>
+endobj
+150 0 obj
+<< /Length 284 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 73 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-5) Tj
+ET
+endstream
+endobj
+151 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 152 0 R >>
+endobj
+152 0 obj
+<< /Length 284 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 74 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-6) Tj
+ET
+endstream
+endobj
+153 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 154 0 R >>
+endobj
+154 0 obj
+<< /Length 284 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 75 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-7) Tj
+ET
+endstream
+endobj
+155 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 156 0 R >>
+endobj
+156 0 obj
+<< /Length 284 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 76 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-8) Tj
+ET
+endstream
+endobj
+157 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 158 0 R >>
+endobj
+158 0 obj
+<< /Length 284 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 77 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-9) Tj
+ET
+endstream
+endobj
+159 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 160 0 R >>
+endobj
+160 0 obj
+<< /Length 285 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 78 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-10) Tj
+ET
+endstream
+endobj
+161 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 162 0 R >>
+endobj
+162 0 obj
+<< /Length 285 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 79 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-11) Tj
+ET
+endstream
+endobj
+163 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 164 0 R >>
+endobj
+164 0 obj
+<< /Length 285 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 80 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-12) Tj
+ET
+endstream
+endobj
+165 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 166 0 R >>
+endobj
+166 0 obj
+<< /Length 285 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 81 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-13) Tj
+ET
+endstream
+endobj
+167 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 168 0 R >>
+endobj
+168 0 obj
+<< /Length 285 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 82 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-14) Tj
+ET
+endstream
+endobj
+169 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 170 0 R >>
+endobj
+170 0 obj
+<< /Length 285 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 83 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-15) Tj
+ET
+endstream
+endobj
+171 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 172 0 R >>
+endobj
+172 0 obj
+<< /Length 285 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 84 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-16) Tj
+ET
+endstream
+endobj
+173 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 174 0 R >>
+endobj
+174 0 obj
+<< /Length 284 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 85 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-0) Tj
+ET
+endstream
+endobj
+175 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 176 0 R >>
+endobj
+176 0 obj
+<< /Length 284 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 86 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-1) Tj
+ET
+endstream
+endobj
+177 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 178 0 R >>
+endobj
+178 0 obj
+<< /Length 284 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 87 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-2) Tj
+ET
+endstream
+endobj
+179 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 180 0 R >>
+endobj
+180 0 obj
+<< /Length 284 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 88 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-3) Tj
+ET
+endstream
+endobj
+181 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 182 0 R >>
+endobj
+182 0 obj
+<< /Length 284 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 89 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-4) Tj
+ET
+endstream
+endobj
+183 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 184 0 R >>
+endobj
+184 0 obj
+<< /Length 284 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 90 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-5) Tj
+ET
+endstream
+endobj
+185 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 186 0 R >>
+endobj
+186 0 obj
+<< /Length 284 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 91 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-6) Tj
+ET
+endstream
+endobj
+187 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 188 0 R >>
+endobj
+188 0 obj
+<< /Length 284 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 92 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-7) Tj
+ET
+endstream
+endobj
+189 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 190 0 R >>
+endobj
+190 0 obj
+<< /Length 284 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 93 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-8) Tj
+ET
+endstream
+endobj
+191 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 192 0 R >>
+endobj
+192 0 obj
+<< /Length 284 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 94 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-9) Tj
+ET
+endstream
+endobj
+193 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 194 0 R >>
+endobj
+194 0 obj
+<< /Length 285 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 95 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-10) Tj
+ET
+endstream
+endobj
+195 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 196 0 R >>
+endobj
+196 0 obj
+<< /Length 285 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 96 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-11) Tj
+ET
+endstream
+endobj
+197 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 198 0 R >>
+endobj
+198 0 obj
+<< /Length 285 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 97 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-12) Tj
+ET
+endstream
+endobj
+199 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 200 0 R >>
+endobj
+200 0 obj
+<< /Length 285 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 98 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-13) Tj
+ET
+endstream
+endobj
+201 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 202 0 R >>
+endobj
+202 0 obj
+<< /Length 285 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 99 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-14) Tj
+ET
+endstream
+endobj
+203 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 204 0 R >>
+endobj
+204 0 obj
+<< /Length 286 >>
+stream
+BT
+/F1 16 Tf
+72 740 Td
+(Papyrus benchmark page 100 of 100) Tj
+0 -28 Td
+(Synthetic text-only PDF generated locally for repeatable engine measurements.) Tj
+0 -28 Td
+(Rust core candidate: parsing, text extraction, search and outline.) Tj
+0 -28 Td
+(Search token: papyrus-benchmark-15) Tj
+ET
+endstream
+endobj
+205 0 obj
+<< /Title (Section 1) /Parent 4 0 R /Dest [5 0 R /Fit] /Next 206 0 R >>
+endobj
+206 0 obj
+<< /Title (Section 2) /Parent 4 0 R /Dest [7 0 R /Fit] /Prev 205 0 R /Next 207 0 R >>
+endobj
+207 0 obj
+<< /Title (Section 3) /Parent 4 0 R /Dest [9 0 R /Fit] /Prev 206 0 R /Next 208 0 R >>
+endobj
+208 0 obj
+<< /Title (Section 4) /Parent 4 0 R /Dest [11 0 R /Fit] /Prev 207 0 R /Next 209 0 R >>
+endobj
+209 0 obj
+<< /Title (Section 5) /Parent 4 0 R /Dest [13 0 R /Fit] /Prev 208 0 R /Next 210 0 R >>
+endobj
+210 0 obj
+<< /Title (Section 6) /Parent 4 0 R /Dest [15 0 R /Fit] /Prev 209 0 R /Next 211 0 R >>
+endobj
+211 0 obj
+<< /Title (Section 7) /Parent 4 0 R /Dest [17 0 R /Fit] /Prev 210 0 R /Next 212 0 R >>
+endobj
+212 0 obj
+<< /Title (Section 8) /Parent 4 0 R /Dest [19 0 R /Fit] /Prev 211 0 R /Next 213 0 R >>
+endobj
+213 0 obj
+<< /Title (Section 9) /Parent 4 0 R /Dest [21 0 R /Fit] /Prev 212 0 R /Next 214 0 R >>
+endobj
+214 0 obj
+<< /Title (Section 10) /Parent 4 0 R /Dest [23 0 R /Fit] /Prev 213 0 R /Next 215 0 R >>
+endobj
+215 0 obj
+<< /Title (Section 11) /Parent 4 0 R /Dest [25 0 R /Fit] /Prev 214 0 R /Next 216 0 R >>
+endobj
+216 0 obj
+<< /Title (Section 12) /Parent 4 0 R /Dest [27 0 R /Fit] /Prev 215 0 R /Next 217 0 R >>
+endobj
+217 0 obj
+<< /Title (Section 13) /Parent 4 0 R /Dest [29 0 R /Fit] /Prev 216 0 R /Next 218 0 R >>
+endobj
+218 0 obj
+<< /Title (Section 14) /Parent 4 0 R /Dest [31 0 R /Fit] /Prev 217 0 R /Next 219 0 R >>
+endobj
+219 0 obj
+<< /Title (Section 15) /Parent 4 0 R /Dest [33 0 R /Fit] /Prev 218 0 R /Next 220 0 R >>
+endobj
+220 0 obj
+<< /Title (Section 16) /Parent 4 0 R /Dest [35 0 R /Fit] /Prev 219 0 R /Next 221 0 R >>
+endobj
+221 0 obj
+<< /Title (Section 17) /Parent 4 0 R /Dest [37 0 R /Fit] /Prev 220 0 R /Next 222 0 R >>
+endobj
+222 0 obj
+<< /Title (Section 18) /Parent 4 0 R /Dest [39 0 R /Fit] /Prev 221 0 R /Next 223 0 R >>
+endobj
+223 0 obj
+<< /Title (Section 19) /Parent 4 0 R /Dest [41 0 R /Fit] /Prev 222 0 R /Next 224 0 R >>
+endobj
+224 0 obj
+<< /Title (Section 20) /Parent 4 0 R /Dest [43 0 R /Fit] /Prev 223 0 R >>
+endobj
+xref
+0 225
+0000000000 65535 f 
+0000000015 00000 n 
+0000000080 00000 n 
+0000000882 00000 n 
+0000000952 00000 n 
+0000001028 00000 n 
+0000001154 00000 n 
+0000001488 00000 n 
+0000001614 00000 n 
+0000001948 00000 n 
+0000002075 00000 n 
+0000002410 00000 n 
+0000002538 00000 n 
+0000002873 00000 n 
+0000003001 00000 n 
+0000003336 00000 n 
+0000003464 00000 n 
+0000003799 00000 n 
+0000003927 00000 n 
+0000004262 00000 n 
+0000004390 00000 n 
+0000004725 00000 n 
+0000004853 00000 n 
+0000005188 00000 n 
+0000005316 00000 n 
+0000005653 00000 n 
+0000005781 00000 n 
+0000006118 00000 n 
+0000006246 00000 n 
+0000006583 00000 n 
+0000006711 00000 n 
+0000007048 00000 n 
+0000007176 00000 n 
+0000007513 00000 n 
+0000007641 00000 n 
+0000007978 00000 n 
+0000008106 00000 n 
+0000008443 00000 n 
+0000008571 00000 n 
+0000008907 00000 n 
+0000009035 00000 n 
+0000009371 00000 n 
+0000009499 00000 n 
+0000009835 00000 n 
+0000009963 00000 n 
+0000010299 00000 n 
+0000010427 00000 n 
+0000010763 00000 n 
+0000010891 00000 n 
+0000011227 00000 n 
+0000011355 00000 n 
+0000011691 00000 n 
+0000011819 00000 n 
+0000012155 00000 n 
+0000012283 00000 n 
+0000012619 00000 n 
+0000012747 00000 n 
+0000013083 00000 n 
+0000013211 00000 n 
+0000013548 00000 n 
+0000013676 00000 n 
+0000014013 00000 n 
+0000014141 00000 n 
+0000014478 00000 n 
+0000014606 00000 n 
+0000014943 00000 n 
+0000015071 00000 n 
+0000015408 00000 n 
+0000015536 00000 n 
+0000015873 00000 n 
+0000016001 00000 n 
+0000016338 00000 n 
+0000016466 00000 n 
+0000016802 00000 n 
+0000016930 00000 n 
+0000017266 00000 n 
+0000017394 00000 n 
+0000017730 00000 n 
+0000017858 00000 n 
+0000018194 00000 n 
+0000018322 00000 n 
+0000018658 00000 n 
+0000018786 00000 n 
+0000019122 00000 n 
+0000019250 00000 n 
+0000019586 00000 n 
+0000019714 00000 n 
+0000020050 00000 n 
+0000020178 00000 n 
+0000020514 00000 n 
+0000020642 00000 n 
+0000020978 00000 n 
+0000021106 00000 n 
+0000021443 00000 n 
+0000021571 00000 n 
+0000021908 00000 n 
+0000022036 00000 n 
+0000022373 00000 n 
+0000022501 00000 n 
+0000022838 00000 n 
+0000022967 00000 n 
+0000023305 00000 n 
+0000023435 00000 n 
+0000023773 00000 n 
+0000023903 00000 n 
+0000024241 00000 n 
+0000024371 00000 n 
+0000024708 00000 n 
+0000024838 00000 n 
+0000025175 00000 n 
+0000025305 00000 n 
+0000025642 00000 n 
+0000025772 00000 n 
+0000026109 00000 n 
+0000026239 00000 n 
+0000026576 00000 n 
+0000026706 00000 n 
+0000027043 00000 n 
+0000027173 00000 n 
+0000027510 00000 n 
+0000027640 00000 n 
+0000027977 00000 n 
+0000028107 00000 n 
+0000028444 00000 n 
+0000028574 00000 n 
+0000028911 00000 n 
+0000029041 00000 n 
+0000029379 00000 n 
+0000029509 00000 n 
+0000029847 00000 n 
+0000029977 00000 n 
+0000030315 00000 n 
+0000030445 00000 n 
+0000030783 00000 n 
+0000030913 00000 n 
+0000031251 00000 n 
+0000031381 00000 n 
+0000031719 00000 n 
+0000031849 00000 n 
+0000032187 00000 n 
+0000032317 00000 n 
+0000032654 00000 n 
+0000032784 00000 n 
+0000033121 00000 n 
+0000033251 00000 n 
+0000033588 00000 n 
+0000033718 00000 n 
+0000034055 00000 n 
+0000034185 00000 n 
+0000034522 00000 n 
+0000034652 00000 n 
+0000034989 00000 n 
+0000035119 00000 n 
+0000035456 00000 n 
+0000035586 00000 n 
+0000035923 00000 n 
+0000036053 00000 n 
+0000036390 00000 n 
+0000036520 00000 n 
+0000036857 00000 n 
+0000036987 00000 n 
+0000037325 00000 n 
+0000037455 00000 n 
+0000037793 00000 n 
+0000037923 00000 n 
+0000038261 00000 n 
+0000038391 00000 n 
+0000038729 00000 n 
+0000038859 00000 n 
+0000039197 00000 n 
+0000039327 00000 n 
+0000039665 00000 n 
+0000039795 00000 n 
+0000040133 00000 n 
+0000040263 00000 n 
+0000040600 00000 n 
+0000040730 00000 n 
+0000041067 00000 n 
+0000041197 00000 n 
+0000041534 00000 n 
+0000041664 00000 n 
+0000042001 00000 n 
+0000042131 00000 n 
+0000042468 00000 n 
+0000042598 00000 n 
+0000042935 00000 n 
+0000043065 00000 n 
+0000043402 00000 n 
+0000043532 00000 n 
+0000043869 00000 n 
+0000043999 00000 n 
+0000044336 00000 n 
+0000044466 00000 n 
+0000044803 00000 n 
+0000044933 00000 n 
+0000045271 00000 n 
+0000045401 00000 n 
+0000045739 00000 n 
+0000045869 00000 n 
+0000046207 00000 n 
+0000046337 00000 n 
+0000046675 00000 n 
+0000046805 00000 n 
+0000047143 00000 n 
+0000047273 00000 n 
+0000047612 00000 n 
+0000047701 00000 n 
+0000047804 00000 n 
+0000047907 00000 n 
+0000048011 00000 n 
+0000048115 00000 n 
+0000048219 00000 n 
+0000048323 00000 n 
+0000048427 00000 n 
+0000048531 00000 n 
+0000048636 00000 n 
+0000048741 00000 n 
+0000048846 00000 n 
+0000048951 00000 n 
+0000049056 00000 n 
+0000049161 00000 n 
+0000049266 00000 n 
+0000049371 00000 n 
+0000049476 00000 n 
+0000049581 00000 n 
+trailer
+<< /Size 225 /Root 1 0 R >>
+startxref
+49672
+%%EOF

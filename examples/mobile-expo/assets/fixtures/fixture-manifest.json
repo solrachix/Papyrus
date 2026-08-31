@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "totalBytes": 580276,
+  "fixtures": [
+    {
+      "name": "small",
+      "file": "assets/fixtures/small.pdf",
+      "sha256": "860774857cb6ac158e6072af6abbaa9c3b268c4d1fc3ffff1a7120b41faeb4e5",
+      "byteLength": 1032,
+      "pageCount": 1
+    },
+    {
+      "name": "large-100",
+      "file": "assets/fixtures/large-100.pdf",
+      "sha256": "602413786dc724f8a7d5b938cc0404267a5a2be079cb9023275047f0327f79e4",
+      "byteLength": 54241,
+      "pageCount": 100
+    },
+    {
+      "name": "large-1000",
+      "file": "assets/fixtures/large-1000.pdf",
+      "sha256": "e942c88f48df4a60d5b1862ff46f2db25d5f566f5d2ab4afad02ad5a8c959272",
+      "byteLength": 522086,
+      "pageCount": 1000
+    },
+    {
+      "name": "varied-sizes",
+      "file": "assets/fixtures/varied-sizes.pdf",
+      "sha256": "3db3517abbe771ef89a90b48d33af20d5caf06b0227bbf1368fe234fc6789a1d",
+      "byteLength": 2917,
+      "pageCount": 4
+    }
+  ]
+}

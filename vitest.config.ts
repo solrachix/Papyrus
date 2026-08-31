@@ -70,6 +70,7 @@ export default defineConfig({
       "packages/**/*.test.ts",
       "packages/**/*.test.tsx",
       "examples/web/**/*.test.tsx",
+      "examples/mobile-expo/perf/**/*.test.ts",
     ],
   },
 });

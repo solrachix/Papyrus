@@ -49,7 +49,7 @@
 
 ## Chunk 1: Gate multipointer e fixtures reproduzíveis
 
-### Task 0: Restabelecer o ambiente Android independente da PR 14
+### Task 0: Verificar o ambiente Android independente da PR 14
 
 **Files:**
 - Modify: `.npmrc`
@@ -64,11 +64,13 @@ rtk bash examples/mobile-expo/android/gradlew -p examples/mobile-expo/android pr
 
 Expected no checkout atual: falha de metadata Kotlin causada por resolução hoisted incompatível.
 
-- [ ] **Step 2: Portar somente os dois ajustes independentes comprovados na PR 14**
+- [ ] **Step 2: Aplicar os ajustes somente se o RED for reproduzido**
 
-Alterar `.npmrc` de `node-linker=hoisted` para `node-linker=isolated` e adicionar
-`reactNativeVersion=0.76.0` em `examples/mobile-expo/android/gradle.properties`.
-Não portar Reanimated, Babel plugin ou código do Viewer.
+Se o RED for reproduzido, alterar `.npmrc` de `node-linker=hoisted` para
+`node-linker=isolated` e adicionar `reactNativeVersion=0.76.0` em
+`examples/mobile-expo/android/gradle.properties`. Se o gate já estiver verde,
+não criar uma mudança ambiental sem necessidade. Em ambos os casos, não portar
+Reanimated, Babel plugin ou código do Viewer.
 
 - [ ] **Step 3: Reinstalar e verificar Gradle GREEN**
 
