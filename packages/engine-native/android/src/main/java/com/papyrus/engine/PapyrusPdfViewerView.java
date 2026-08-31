@@ -82,6 +82,7 @@ public class PapyrusPdfViewerView extends View {
   private float lastTouchY = 0f;
   private boolean layoutDirty = true;
   private int renderGeneration = 0;
+  private int pendingCurrentPage = 1;
   private boolean isDrawingInk = false;
   private boolean isPinching = false;
   private float pinchScale = 1.0f;
@@ -303,6 +304,7 @@ public class PapyrusPdfViewerView extends View {
 
   public void setCurrentPage(int page) {
     if (page <= 0 || engineId == null) return;
+    pendingCurrentPage = page;
     ensureLayout();
     if (page > pageFrames.size()) return;
     if (page <= pageFrames.size()) {
@@ -325,6 +327,10 @@ public class PapyrusPdfViewerView extends View {
     renderGeneration += 1;
     layoutDirty = true;
     clampOffsets();
+    ensureLayout();
+    if (!pageFrames.isEmpty()) {
+      setCurrentPage(pendingCurrentPage);
+    }
   }
 
   @Override
@@ -1048,7 +1054,11 @@ public class PapyrusPdfViewerView extends View {
   protected void onDraw(Canvas canvas) {
     super.onDraw(canvas);
     if (!isPinching) {
+      boolean wasLayoutDirty = layoutDirty;
       ensureLayout();
+      if (wasLayoutDirty && !pageFrames.isEmpty()) {
+        setCurrentPage(pendingCurrentPage);
+      }
     }
     canvas.drawColor(resolveBackgroundColor(pageTheme));
     if (pageFrames.isEmpty()) return;
