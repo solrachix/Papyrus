@@ -29,6 +29,55 @@ A medição de rasterização ainda requer um runtime com `canvas` ou browser
 disponível. No ambiente desta execução, o `canvas` não compilou para o Node
 ativo por falta de headers nativos.
 
+## PR15: perfil Android do pinch
+
+As fixtures móveis são locais, determinísticas e verificáveis por SHA-256:
+
+```bash
+pnpm fixtures:mobile:check
+```
+
+O exemplo aceita apenas o deep link `exp+papyrus-sdk://reader` e resolve
+`small`, `large-100`, `large-1000` ou `varied-sizes` pelo registry estático.
+URLs recebidas com o app já aberto são registradas como ignoradas; nenhum PDF
+remoto é usado como fallback.
+
+Depois de gerar um APK release, a matriz reproduzível é:
+
+```bash
+pnpm fixtures:mobile
+rtk bash examples/mobile-expo/android/gradlew \
+  -p examples/mobile-expo/android \
+  -PreactNativeArchitectures=x86_64 \
+  -Pexpo.gif.enabled=false \
+  -Pexpo.webp.enabled=false \
+  :app:assembleRelease
+bash scripts/benchmarks/android-pinch-profile.sh \
+  --fixture all --runs 5 --package com.papyrus.sdk.mobileexpo \
+  --device emulator-5554 --output-dir /tmp/papyrus-pr15-android
+node scripts/benchmarks/android-pinch-aggregate.mjs /tmp/papyrus-pr15-android \
+  > /tmp/papyrus-pr15-android/report.json
+```
+
+O runner força um cold start por amostra, aquece a fixture, reseta o
+`gfxinfo`, injeta um único pinch multipointer usando, nesta ordem, eventos do
+console do Emulator, Protocol B descoberto dinamicamente ou o helper definido
+em `PAPYRUS_MULTITOUCH_HELPER`. Se nenhum mecanismo real estiver disponível,
+ele falha em vez de simular pinch com dois swipes. O agregador publica cada
+amostra e os agregados P50/P90/P95 por fixture e direção; amostras sem a cadeia
+causal completa ficam fora dos percentis. O runner chama o agregador ao final e
+falha se algum grupo tiver menos de `runs - 1` amostras válidas (`1` quando há
+apenas um run). A conversão de `--radius` parte de dp e usa a densidade do
+dispositivo antes de enviar os eventos de toque.
+
+O FPS é calculado com a janela real de `dumpsys gfxinfo reset → dump`, registrada
+como `gfxWindowDurationMs`; a duração do gesto e a duração total da amostra são
+mantidas como métricas separadas.
+
+Para o emulador `Pixel_7_API_35`, o APK do benchmark deve ser construído com
+`x86_64`. GIF/WebP são opcionais e ficam desativados nesse artefato para manter
+o limite de 30 MiB; isso não altera a configuração padrão multi-ABI do app.
+
 ## Fixtures reproduzíveis da PR 13
 
 O catálogo abaixo gera os seis cenários da rodada em um diretório temporário e

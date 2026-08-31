@@ -7,7 +7,9 @@
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "prebuild": "expo prebuild"
+    "prebuild": "expo prebuild",
+    "fixtures:mobile": "node ../../scripts/benchmarks/generate-mobile-pdf-fixtures.mjs --write",
+    "fixtures:mobile:check": "node ../../scripts/benchmarks/generate-mobile-pdf-fixtures.mjs --check"
   },
   "dependencies": {
     "@papyrus-sdk/core": "workspace:*",
@@ -28,6 +30,12 @@
   "devDependencies": {
     "@expo/cli": "0.22.28",
     "@types/react": "^18.2.6",
+    "metro": "0.81.5",
+    "metro-cache": "0.81.5",
+    "metro-config": "0.81.5",
+    "metro-core": "0.81.5",
+    "metro-file-map": "0.81.5",
+    "metro-runtime": "0.81.5",
     "typescript": "^5.0.4"
   }
 }

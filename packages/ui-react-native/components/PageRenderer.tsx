@@ -20,12 +20,15 @@ import {
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Svg, { Path as SvgPath } from "react-native-svg";
 import { createRenderGeneration, useViewerStore } from "@papyrus-sdk/core";
-import { Annotation, DocumentEngine, TextSelection } from "@papyrus-sdk/types";
+import { Annotation, DocumentEngine, RenderPageResult, TextSelection } from "@papyrus-sdk/types";
 import {
   PapyrusPageView,
   type PapyrusPageViewProps,
 } from "@papyrus-sdk/engine-native";
 import { isMobilePerfEnabled, logPerfEvent, perfNow } from "../perf/mobilePerf";
+import { useMobilePerf } from "../perf/MobilePerfContext";
+import { createRenderLifecycle } from "../perf/renderLifecycle";
+import { invokeRenderPage } from "../perf/renderInvocation";
 import {
   shouldSuppressPressAfterPinch,
 } from "../gesture/pinchZoom";
@@ -54,6 +57,8 @@ interface PageRendererProps {
   lastPinchEndedAt?: number | null;
   requestSelectionVerticalAutoscroll?: (absoluteY: number) => number;
   onRenderReady?: (pageIndex: number, renderedZoom: number) => void;
+  surfaceId?: string;
+  gestureId?: string;
 }
 
 type NormalizedRect = { x: number; y: number; width: number; height: number };
@@ -147,6 +152,7 @@ const buildSquigglyPath = (segments = 16) => {
 
 const SQUIGGLY_PATH = buildSquigglyPath();
 const SELECTION_AUTOSCROLL_INTERVAL_MS = 16;
+const PERF_RENDER_TIMEOUT_MS = 5000;
 
 const PageRenderer: React.FC<PageRendererProps> = ({
   engine,
@@ -164,10 +170,15 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   lastPinchEndedAt = null,
   requestSelectionVerticalAutoscroll,
   onRenderReady,
+  surfaceId = `page-${pageIndex}`,
+  gestureId,
 }) => {
   const viewRef = useRef<any>(null);
   const onRenderReadyRef = useRef(onRenderReady);
   onRenderReadyRef.current = onRenderReady;
+  const gestureIdRef = useRef(gestureId);
+  gestureIdRef.current = gestureId;
+  const mobilePerf = useMobilePerf();
   const renderGenerationRef = useRef(createRenderGeneration());
   const [layout, setLayout] = useState({ width: 0, height: 0 });
   const [pageSize, setPageSize] = useState<{
@@ -381,9 +392,49 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     if (viewTag) {
       const renderScale = isNative ? scale / Math.max(zoom, 0.5) : scale;
       const startedAt = perfEnabled ? perfNow() : 0;
-      void Promise.resolve(engine.renderPage(pageIndex, viewTag, renderScale))
-        .then(() => {
-          if (!renderGenerationRef.current.isCurrent(generation)) return;
+      const renderRequestId = perfEnabled ? mobilePerf.createId("render") : "noop";
+      const lifecycle = createRenderLifecycle();
+      const renderGestureId = gestureIdRef.current;
+      const renderTimeout = perfEnabled
+        ? setTimeout(() => {
+            if (!lifecycle.abandon("timeout")) return;
+            mobilePerf.emit("render.abandoned", {
+              renderRequestId,
+              surfaceId,
+              pageIndex,
+              generation,
+              gestureId: renderGestureId,
+              reason: "timeout",
+            });
+          }, PERF_RENDER_TIMEOUT_MS)
+        : null;
+      if (perfEnabled) {
+        mobilePerf.emit("render.request", {
+          renderRequestId,
+          surfaceId,
+          pageIndex,
+          zoom,
+          generation,
+          gestureId: renderGestureId,
+        });
+      }
+      const renderPromise = invokeRenderPage(engine, pageIndex, viewTag, renderScale);
+      void renderPromise
+        .then((result: void | RenderPageResult) => {
+          if (renderTimeout) clearTimeout(renderTimeout);
+          const status = result && typeof result === "object" ? result.status : "ready";
+          if (!lifecycle.complete(status)) return;
+          if (perfEnabled) {
+            mobilePerf.emit(`render.${status}`, {
+              renderRequestId,
+              surfaceId,
+              pageIndex,
+              zoom,
+              generation,
+              gestureId: renderGestureId,
+            });
+          }
+          if (status !== "ready" || !renderGenerationRef.current.isCurrent(generation)) return;
           onRenderReadyRef.current?.(pageIndex, zoom);
           if (!perfEnabled) return;
           const renderDurationMs = perfNow() - startedAt;
@@ -398,12 +449,40 @@ const PageRenderer: React.FC<PageRendererProps> = ({
           }
         })
         .catch((error: unknown) => {
+          if (renderTimeout) clearTimeout(renderTimeout);
+          if (!lifecycle.complete("error")) return;
+          if (perfEnabled) {
+            mobilePerf.emit("render.error", {
+              renderRequestId,
+              surfaceId,
+              pageIndex,
+              generation,
+              gestureId: renderGestureId,
+              reason: error instanceof Error ? error.message : String(error),
+            });
+          }
           logPerfEvent("PageRenderer", "renderPage.error", {
             page: pageIndex + 1,
             message: error instanceof Error ? error.message : String(error),
           });
         });
+      return () => {
+        if (renderTimeout) clearTimeout(renderTimeout);
+        if (lifecycle.abandon("unmount")) {
+          if (perfEnabled) {
+            mobilePerf.emit("render.abandoned", {
+              renderRequestId,
+              surfaceId,
+              pageIndex,
+              generation,
+              gestureId: renderGestureId,
+              reason: "unmount",
+            });
+          }
+        }
+      };
     }
+    return undefined;
   }, [
     engine,
     pageIndex,
@@ -414,6 +493,8 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     layout.height,
     isNative,
     perfEnabled,
+    mobilePerf,
+    surfaceId,
   ]);
 
   useEffect(() => {

@@ -35,6 +35,7 @@ import java.util.concurrent.Executors;
 public class PapyrusNativeEngineModule extends ReactContextBaseJavaModule {
   private final ReactApplicationContext reactContext;
   private final ExecutorService executor = Executors.newSingleThreadExecutor();
+  private long renderRequestCounter = 0;
 
   public PapyrusNativeEngineModule(ReactApplicationContext reactContext) {
     super(reactContext);
@@ -145,21 +146,47 @@ public class PapyrusNativeEngineModule extends ReactContextBaseJavaModule {
   }
 
   @ReactMethod
-  public void renderPage(final String engineId, final int pageIndex, final int target, final float scale, final float zoom, final int rotation) {
+  public void renderPage(final String engineId, final int pageIndex, final int target, final float scale, final float zoom, final int rotation, final String requestId, final Promise promise) {
     final PapyrusEngineStore.EngineState state = PapyrusEngineStore.getEngine(engineId);
-    if (state == null) return;
+    if (state == null) {
+      promise.reject("papyrus_no_engine", "Engine not found");
+      return;
+    }
     UIManagerModule uiManager = reactContext.getNativeModule(UIManagerModule.class);
-    if (uiManager == null) return;
+    if (uiManager == null) {
+      promise.reject("papyrus_render_error", "UI manager unavailable");
+      return;
+    }
+
+    final String resolvedRequestId = requestId == null || requestId.isEmpty()
+      ? "native-render-" + (++renderRequestCounter)
+      : requestId;
+    final PapyrusRenderCompletion completion = new PapyrusRenderCompletion(
+      status -> resolveRenderPromise(promise, resolvedRequestId, status),
+      error -> promise.reject("papyrus_render_error", error)
+    );
 
     uiManager.addUIBlock(new UIBlock() {
       @Override
       public void execute(com.facebook.react.uimanager.NativeViewHierarchyManager nativeViewHierarchyManager) {
         View view = nativeViewHierarchyManager.resolveView(target);
         if (view instanceof PapyrusPageView) {
-          ((PapyrusPageView) view).render(state, pageIndex, scale, zoom, rotation);
+          ((PapyrusPageView) view).render(state, pageIndex, scale, zoom, rotation, completion);
+        } else {
+          completion.complete(PapyrusRenderCompletion.Status.STALE);
         }
       }
     });
+  }
+
+  private void resolveRenderPromise(Promise promise, String requestId, PapyrusRenderCompletion.Status status) {
+    WritableMap result = Arguments.createMap();
+    String value = status == PapyrusRenderCompletion.Status.READY
+      ? "ready"
+      : status == PapyrusRenderCompletion.Status.STALE ? "stale" : "cancelled";
+    result.putString("status", value);
+    result.putString("requestId", requestId);
+    promise.resolve(result);
   }
 
   @ReactMethod

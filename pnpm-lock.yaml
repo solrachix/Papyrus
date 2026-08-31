@@ -208,6 +208,24 @@ importers:
       '@types/react':
         specifier: ^18.2.6
         version: 18.3.28
+      metro:
+        specifier: 0.81.5
+        version: 0.81.5
+      metro-cache:
+        specifier: 0.81.5
+        version: 0.81.5
+      metro-config:
+        specifier: 0.81.5
+        version: 0.81.5
+      metro-core:
+        specifier: 0.81.5
+        version: 0.81.5
+      metro-file-map:
+        specifier: 0.81.5
+        version: 0.81.5
+      metro-runtime:
+        specifier: 0.81.5
+        version: 0.81.5
       typescript:
         specifier: ^5.0.4
         version: 5.9.3

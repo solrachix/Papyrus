@@ -241,7 +241,7 @@ export interface DocumentEngine {
    * Renderiza o conteúdo visual da página.
    * target: HTMLCanvasElement no Web ou NativeHandle no RN.
    */
-  renderPage(pageIndex: number, target: any, scale: number): Promise<void>;
+  renderPage(pageIndex: number, target: any, scale: number): Promise<void | RenderPageResult>;
 
   /**
    * Renderiza a camada de texto para seleção.
@@ -270,3 +270,8 @@ export interface DocumentEngine {
   getPageLayoutMode?(): "single" | "continuous";
   destroy(): void;
 }
+
+export type RenderPageResult = {
+  status: "ready" | "stale" | "cancelled";
+  requestId?: string;
+};

@@ -6,6 +6,7 @@
     "version": "0.0.1",
     "orientation": "portrait",
     "entryPoint": "./App.tsx",
+    "scheme": "exp+papyrus-sdk",
     "assetBundlePatterns": [
       "**/*"
     ],
