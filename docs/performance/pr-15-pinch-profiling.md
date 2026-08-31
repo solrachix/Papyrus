@@ -82,7 +82,7 @@ janela continuou limitada (39 views anexadas no dump final).
 
 O APK universal inicial tinha 85.590.373 bytes. Depois de ligar o filtro de
 ABI ao `build.gradle` e gerar o artefato de benchmark com `x86_64` e codecs
-opcionais desativados, o APK ficou em 31.086.065 bytes e passou o limite de
+opcionais desativados, o APK ficou em 31.086.109 bytes e passou o limite de
 30 MiB do inspector. O artefato universal continua fora desse limite e não é
 usado para esta validação do emulador.
 
