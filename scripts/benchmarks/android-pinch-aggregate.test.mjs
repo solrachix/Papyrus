@@ -41,6 +41,20 @@ test('excludes duplicate commits and incomplete samples from percentiles', () =>
   assert.equal(report.aggregates['small:out'].totalN, 1);
 });
 
+test('accepts abandoned intermediate renders and correlates the ready request', () => {
+  const withIntermediateRender = [
+    ...events.slice(0, 6),
+    { name: 'render.request', timestamp: 212.5, sampleId: 's1', fixture: 'small', gestureId: 'g1', renderRequestId: 'rr0', surfaceId: 'page-0', pageIndex: 0, zoom: 2, generation: 2 },
+    { name: 'render.abandoned', timestamp: 214, sampleId: 's1', fixture: 'small', gestureId: 'g1', renderRequestId: 'rr0', surfaceId: 'page-0', pageIndex: 0, generation: 2 },
+    ...events.slice(6),
+    { name: 'render.ready', timestamp: 280, sampleId: 's1', fixture: 'small', gestureId: 'g1', renderRequestId: 'rr-after', surfaceId: 'page-1', pageIndex: 1, zoom: 2, generation: 2 },
+  ];
+  const report = aggregateAndroidPinch({ ndjson: withIntermediateRender.map(JSON.stringify).join('\n'), gfxinfo: '' });
+  assert.equal(report.samples[0].status, 'complete');
+  assert.equal(report.samples[0].requestToReadyMs, 47);
+  assert.equal(report.samples[0].renderTerminals.abandoned, 1);
+});
+
 test('aggregates the per-sample directory without mixing gfxinfo windows', async () => {
   const { mkdtemp, mkdir, writeFile } = await import('node:fs/promises');
   const { tmpdir } = await import('node:os');

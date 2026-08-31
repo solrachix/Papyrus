@@ -46,7 +46,7 @@ start_fixture() {
   adb -s "$device" shell am force-stop "$package_id"
   adb -s "$device" logcat -c
   adb -s "$device" shell am start -W -a android.intent.action.VIEW \
-    -d "exp+papyrus-sdk://reader?fixture=${fixture}&runId=${run_id}&sampleId=${sample_id}&perf=1&viewerMode=compat" "$package_id" >/dev/null
+    -d "exp+papyrus-sdk://reader?fixture=${fixture}\&runId=${run_id}\&sampleId=${sample_id}\&perf=1\&viewerMode=compat" "$package_id" >/dev/null
   wait_for_log 'fixture.loaded' 90
 }
 

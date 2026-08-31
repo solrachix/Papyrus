@@ -55,9 +55,13 @@ function summarizeSample(sampleId, list, gfxinfo, environment) {
   const end = event(list, 'pinch.end');
   const commitStart = event(list, 'pinch.commit.start');
   const commitEnd = event(list, 'pinch.commit.end');
-  const request = event(list, 'render.request');
-  const ready = event(list, 'render.ready');
   const cleared = event(list, 'pinch.preview.cleared');
+  const gestureId = start?.gestureId;
+  const renderEvents = list.filter((item) => item.name.startsWith('render.') && item.gestureId === gestureId);
+  const readyEvents = renderEvents.filter((item) => item.name === 'render.ready');
+  const ready = [...readyEvents].reverse().find((item) => cleared && item.timestamp <= cleared.timestamp) ?? readyEvents[readyEvents.length - 1];
+  const renderRequests = renderEvents.filter((item) => item.name === 'render.request');
+  const request = renderRequests.find((item) => item.renderRequestId === ready?.renderRequestId) ?? renderRequests[0];
   const sampleStart = event(list, 'sample.start');
   const sampleEnd = event(list, 'sample.end');
   const mode = event(list, 'viewer.mode');
@@ -68,8 +72,8 @@ function summarizeSample(sampleId, list, gfxinfo, environment) {
   const pinchEnds = events(list, 'pinch.end');
   const commitStarts = events(list, 'pinch.commit.start');
   const commitEnds = events(list, 'pinch.commit.end');
-  const requests = events(list, 'render.request');
-  const readies = events(list, 'render.ready');
+  const requests = renderRequests;
+  const readies = renderEvents.filter((item) => item.name === 'render.ready');
   const clears = events(list, 'pinch.preview.cleared');
   const finalZoom = numberFrom(end?.finalZoom);
   const startZoom = numberFrom(start?.startZoom);
@@ -77,7 +81,7 @@ function summarizeSample(sampleId, list, gfxinfo, environment) {
   const complete = Boolean(
     sampleStarts.length === 1 && sampleEnds.length === 1 && pinchStarts.length === 1 &&
     pinchEnds.length === 1 && commitStarts.length === 1 && commitEnds.length === 1 &&
-    requests.length === 1 && readies.length === 1 && clears.length === 1 &&
+    requests.length >= 1 && readies.length >= 1 && clears.length === 1 &&
     sampleStart && sampleEnd?.status === 'complete' && mode?.mode === 'compat' &&
     start?.gestureId && end?.gestureId === start.gestureId && commitStart?.gestureId === start.gestureId &&
     commitEnd?.gestureId === start.gestureId && request?.gestureId === start.gestureId &&
@@ -112,7 +116,7 @@ function summarizeSample(sampleId, list, gfxinfo, environment) {
     requestToReadyMs: request && ready ? ready.timestamp - request.timestamp : null,
     commitToReadyMs: commitEnd && ready ? ready.timestamp - commitEnd.timestamp : null,
     readyToPreviewClearedMs: ready && cleared ? cleared.timestamp - ready.timestamp : null,
-    renderTerminals: Object.fromEntries(['ready', 'stale', 'abandoned', 'error', 'cancelled'].map((status) => [`${status}`, events(list, `render.${status}`).length])),
+    renderTerminals: Object.fromEntries(['ready', 'stale', 'abandoned', 'error', 'cancelled'].map((status) => [`${status}`, renderEvents.filter((item) => item.name === `render.${status}`).length])),
     environment,
     rawEventCount: list.length,
   };

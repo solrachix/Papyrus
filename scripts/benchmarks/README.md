@@ -46,6 +46,12 @@ Depois de gerar um APK release, a matriz reproduzível é:
 
 ```bash
 pnpm fixtures:mobile
+rtk bash examples/mobile-expo/android/gradlew \
+  -p examples/mobile-expo/android \
+  -PreactNativeArchitectures=x86_64 \
+  -Pexpo.gif.enabled=false \
+  -Pexpo.webp.enabled=false \
+  :app:assembleRelease
 bash scripts/benchmarks/android-pinch-profile.sh \
   --fixture all --runs 5 --package com.papyrus.sdk.mobileexpo \
   --device emulator-5554 --output-dir /tmp/papyrus-pr15-android
@@ -60,6 +66,10 @@ em `PAPYRUS_MULTITOUCH_HELPER`. Se nenhum mecanismo real estiver disponível,
 ele falha em vez de simular pinch com dois swipes. O agregador publica cada
 amostra e os agregados P50/P90/P95 por fixture e direção; amostras sem a cadeia
 causal completa ficam fora dos percentis.
+
+Para o emulador `Pixel_7_API_35`, o APK do benchmark deve ser construído com
+`x86_64`. GIF/WebP são opcionais e ficam desativados nesse artefato para manter
+o limite de 30 MiB; isso não altera a configuração padrão multi-ABI do app.
 
 ## Política de zoom, janela e layout
 

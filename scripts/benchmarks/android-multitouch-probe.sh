@@ -43,6 +43,13 @@ y1=$center_y; y2=$center_y
 
 events=$(${adb[@]} shell getevent -lp)
 event_device=$(printf '%s\n' "$events" | awk '/add device/ { current=$NF } /ABS_MT_SLOT/ && current != "" { print current; exit }')
+touch_x_max=$(printf '%s\n' "$events" | sed -n 's/.*ABS_MT_POSITION_X.*max \([0-9][0-9]*\).*/\1/p' | head -1)
+touch_y_max=$(printf '%s\n' "$events" | sed -n 's/.*ABS_MT_POSITION_Y.*max \([0-9][0-9]*\).*/\1/p' | head -1)
+touch_x_max=${touch_x_max:-$((width - 1))}
+touch_y_max=${touch_y_max:-$((height - 1))}
+
+map_touch_x() { echo $(( $1 * touch_x_max / (width - 1) )); }
+map_touch_y() { echo $(( $1 * touch_y_max / (height - 1) )); }
 
 run_helper() {
   local helper=${PAPYRUS_MULTITOUCH_HELPER:-}
@@ -62,19 +69,23 @@ run_emulator_console() {
   cleanup() {
     event_send "EV_ABS:ABS_MT_SLOT:0" || true; event_send "EV_ABS:ABS_MT_TRACKING_ID:-1" || true
     event_send "EV_ABS:ABS_MT_SLOT:1" || true; event_send "EV_ABS:ABS_MT_TRACKING_ID:-1" || true
+    event_send "EV_KEY:BTN_TOUCH:0" || true
     event_send "EV_SYN:0:0" || true
   }
   trap cleanup EXIT INT TERM
+  event_send "EV_KEY:BTN_TOUCH:1"
   event_send "EV_ABS:ABS_MT_SLOT:0"; event_send "EV_ABS:ABS_MT_TRACKING_ID:1001"
-  event_send "EV_ABS:ABS_MT_POSITION_X:$x1"; event_send "EV_ABS:ABS_MT_POSITION_Y:$y1"
+  event_send "EV_ABS:ABS_MT_TOUCH_MAJOR:10"; event_send "EV_ABS:ABS_MT_PRESSURE:100"
+  event_send "EV_ABS:ABS_MT_POSITION_X:$(map_touch_x "$x1")"; event_send "EV_ABS:ABS_MT_POSITION_Y:$(map_touch_y "$y1")"
   event_send "EV_ABS:ABS_MT_SLOT:1"; event_send "EV_ABS:ABS_MT_TRACKING_ID:1002"
-  event_send "EV_ABS:ABS_MT_POSITION_X:$x2"; event_send "EV_ABS:ABS_MT_POSITION_Y:$y2"
+  event_send "EV_ABS:ABS_MT_TOUCH_MAJOR:10"; event_send "EV_ABS:ABS_MT_PRESSURE:100"
+  event_send "EV_ABS:ABS_MT_POSITION_X:$(map_touch_x "$x2")"; event_send "EV_ABS:ABS_MT_POSITION_Y:$(map_touch_y "$y2")"
   event_send "EV_SYN:0:0"
   steps=$((duration_ms / 40)); ((steps < 1)) && steps=1
   for ((step = 1; step <= steps; step += 1)); do
     offset=$((start_radius + ((end_radius - start_radius) * step / steps)))
-    event_send "EV_ABS:ABS_MT_SLOT:0"; event_send "EV_ABS:ABS_MT_POSITION_X:$((center_x - offset))"; event_send "EV_ABS:ABS_MT_POSITION_Y:$y1"
-    event_send "EV_ABS:ABS_MT_SLOT:1"; event_send "EV_ABS:ABS_MT_POSITION_X:$((center_x + offset))"; event_send "EV_ABS:ABS_MT_POSITION_Y:$y2"
+    event_send "EV_ABS:ABS_MT_SLOT:0"; event_send "EV_ABS:ABS_MT_POSITION_X:$(map_touch_x "$((center_x - offset))")"; event_send "EV_ABS:ABS_MT_POSITION_Y:$(map_touch_y "$y1")"
+    event_send "EV_ABS:ABS_MT_SLOT:1"; event_send "EV_ABS:ABS_MT_POSITION_X:$(map_touch_x "$((center_x + offset))")"; event_send "EV_ABS:ABS_MT_POSITION_Y:$(map_touch_y "$y2")"
     event_send "EV_SYN:0:0"
     ${adb[@]} shell sleep 0.04
   done
@@ -98,11 +109,13 @@ run_protocol_b() {
   cleanup() {
     send 3 47 0 || true; send 3 57 -1 || true
     send 3 47 1 || true; send 3 57 -1 || true
+    send 1 330 0 || true
     send 0 0 0 || true
   }
   trap cleanup EXIT INT TERM
-  send 3 47 0; send 3 57 1001; send 3 53 "$x1"; send 3 54 "$y1"
-  send 3 47 1; send 3 57 1002; send 3 53 "$x2"; send 3 54 "$y2"
+  send 1 330 1
+  send 3 47 0; send 3 57 1001; send 3 48 10; send 3 58 100; send 3 53 "$x1"; send 3 54 "$y1"
+  send 3 47 1; send 3 57 1002; send 3 48 10; send 3 58 100; send 3 53 "$x2"; send 3 54 "$y2"
   send 0 0 0
   steps=$((duration_ms / 40)); ((steps < 1)) && steps=1
   for ((step = 1; step <= steps; step += 1)); do

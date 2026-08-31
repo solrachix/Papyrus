@@ -80,6 +80,11 @@ def enableProguardInReleaseBuilds = (findProperty('android.enableProguardInRelea
  */
 def jscFlavor = 'org.webkit:android-jsc:+'
 
+def reactNativeArchitectures() {
+    def value = project.getProperties().get('reactNativeArchitectures')
+    return value ? value.split(',') : ['armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64']
+}
+
 android {
     ndkVersion rootProject.ext.ndkVersion
 
@@ -93,6 +98,9 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "0.0.1"
+        ndk {
+            abiFilters(*reactNativeArchitectures())
+        }
     }
     signingConfigs {
         debug {

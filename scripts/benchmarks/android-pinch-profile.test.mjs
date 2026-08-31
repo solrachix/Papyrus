@@ -6,6 +6,7 @@ test('profile runner requires real fixture/deep-link/multipointer contracts', as
   const source = await fs.readFile(new URL('./android-pinch-profile.sh', import.meta.url), 'utf8');
   assert.match(source, /large-1000/);
   assert.match(source, /viewerMode=compat/);
+  assert.match(source, /fixture=\$\{fixture\}\\&runId=\$\{run_id\}\\&sampleId=\$\{sample_id\}/);
   assert.match(source, /dumpsys gfxinfo.*reset/);
   assert.match(source, /android-multitouch-probe\.sh/);
   assert.match(source, /preview\.cleared/);
