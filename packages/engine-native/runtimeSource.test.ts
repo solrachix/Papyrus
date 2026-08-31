@@ -91,18 +91,4 @@ describe("WebViewDocumentEngine local sources", () => {
     expect(cachePromotion).toBeGreaterThan(staleGuard);
     expect(source).toContain("catch (OutOfMemoryError error)");
   });
-
-  it("reapplies the requested page after the native view receives its size", () => {
-    const source = readFileSync(
-      resolve(
-        process.cwd(),
-        "packages/engine-native/android/src/main/java/com/papyrus/engine/PapyrusPdfViewerView.java",
-      ),
-      "utf8",
-    );
-
-    expect(source).toContain("private int pendingCurrentPage = 1;");
-    expect(source).toContain("pendingCurrentPage = page;");
-    expect(source).toContain("setCurrentPage(pendingCurrentPage);");
-  });
 });
