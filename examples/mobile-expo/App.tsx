@@ -8,6 +8,7 @@ import { Viewer, Topbar, ToolDock, RightSheet, AnnotationEditor, BottomBar, Sett
 import { mobileFixtureRegistry } from './fixtureRegistry.generated';
 import fixtureManifest from './assets/fixtures/fixture-manifest.json';
 import { bootstrapFixtureLaunch } from './perf/fixtureStartup';
+import { parsePapyrusReaderUrl, resolveFixtureLaunch } from './perf/fixtureSelection';
 
 const SAMPLE_EPUB_BASE64 =
   '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';
@@ -47,10 +48,24 @@ const App: React.FC = () => {
   useEffect(() => {
     initializeStore(INITIAL_SDK_CONFIG);
 
-    const emitPerf = (name: string, payload: Record<string, unknown>) => {
-      if (payload.perfEnabled) console.log(`[Papyrus Perf] ${JSON.stringify({ name, ...payload })}`);
-    };
     const loadFixture = async (url: string | null, warm = false) => {
+      const parsed = parsePapyrusReaderUrl(url);
+      const resolvedLaunch = parsed.valid ? resolveFixtureLaunch(parsed) : null;
+      const runId = resolvedLaunch?.runId ?? createRunId();
+      const loadSession = createPerfSession({
+        enabled: resolvedLaunch?.perfEnabled === true,
+        context: {
+          runId,
+          sampleId: resolvedLaunch?.sampleId,
+          documentLoadId: `${runId}-document-1`,
+          fixture: resolvedLaunch?.fixture ?? 'unknown',
+        },
+        sink: (line) => console.log(`[Papyrus Perf] ${line}`),
+      });
+      if (!warm) {
+        (globalThis as Record<string, unknown>).__PAPYRUS_MOBILE_PERF__ = loadSession.enabled;
+        setPerfSession(loadSession);
+      }
       const result = await bootstrapFixtureLaunch({
         url,
         warm,
@@ -65,21 +80,9 @@ const App: React.FC = () => {
           if (!resolved?.uri) throw new Error('bundled fixture has no URI');
           return { uri: resolved.uri };
         },
-        emit: emitPerf,
+        emit: (name, payload) => loadSession.emit(name, payload),
       });
       if (result.ignored || !result.resolved) return;
-      const runId = result.resolved.runId ?? createRunId();
-      (globalThis as Record<string, unknown>).__PAPYRUS_MOBILE_PERF__ = result.resolved.perfEnabled;
-      setPerfSession(createPerfSession({
-        enabled: result.resolved.perfEnabled,
-        context: {
-          runId,
-          sampleId: result.resolved.sampleId,
-          documentLoadId: `${runId}-document-1`,
-          fixture: result.resolved.fixture,
-        },
-        sink: (line) => console.log(`[Papyrus Perf] ${line}`),
-      }));
       setActiveType('pdf');
       setDocumentState({ isLoaded: false, pageCount: 0, outline: [], currentPage: 1, searchResults: [], searchQuery: '', activeSearchIndex: -1 });
       const pageCount = result.pageCount;

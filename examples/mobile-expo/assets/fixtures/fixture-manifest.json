@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "totalBytes": 580276,
+  "totalBytes": 580277,
   "fixtures": [
     {
       "name": "small",
@@ -26,8 +26,8 @@
     {
       "name": "varied-sizes",
       "file": "assets/fixtures/varied-sizes.pdf",
-      "sha256": "3db3517abbe771ef89a90b48d33af20d5caf06b0227bbf1368fe234fc6789a1d",
-      "byteLength": 2917,
+      "sha256": "c95ee68c761df74a2c2f42e4af7331d59dae2278eb76fe1d925ce855396396b0",
+      "byteLength": 2918,
       "pageCount": 4
     }
   ]

@@ -32,6 +32,7 @@ describe('pinch performance lifecycle', () => {
     expect(events.map(({ name }) => name).slice(-2)).toEqual(['pinch.preview.cleared', 'sample.end']);
     expect(events.at(-1)?.payload.status).toBe('complete');
     expect(events.find(({ name }) => name === 'pinch.start')?.payload.gestureId).toBe(gestureId);
+    expect(machine.completeAfterRenderReady({ zoom: 2 })).toBe(false);
   });
 
   it('closes a no-op without a commit', () => {

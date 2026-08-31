@@ -4,7 +4,7 @@ set -euo pipefail
 device=""
 package_id=""
 duration_ms=1200
-radius=120
+radius_dp=120
 center_x=""
 center_y=""
 direction="out"
@@ -15,7 +15,7 @@ while (($#)); do
     --device) device=${2:?missing --device value}; shift 2 ;;
     --package) package_id=${2:?missing --package value}; shift 2 ;;
     --duration-ms) duration_ms=${2:?missing --duration-ms value}; shift 2 ;;
-    --radius) radius=${2:?missing --radius value}; shift 2 ;;
+    --radius) radius_dp=${2:?missing --radius value}; shift 2 ;;
     --center-x) center_x=${2:?missing --center-x value}; shift 2 ;;
     --center-y) center_y=${2:?missing --center-y value}; shift 2 ;;
     --direction) direction=${2:?missing --direction value}; shift 2 ;;
@@ -33,6 +33,9 @@ adb=(adb -s "$device")
 screen=$(${adb[@]} shell wm size | sed -n 's/.*Physical size: //p' | tail -1)
 width=${screen%x*}; height=${screen#*x}
 if [[ -z "$width" || -z "$height" || "$width" == "$screen" ]]; then echo "unable to discover device size" >&2; exit 1; fi
+density_dpi=$(${adb[@]} shell wm density | sed -n 's/.*density: \([0-9][0-9]*\).*/\1/p' | tail -1)
+density_dpi=${density_dpi:-160}
+radius=$((radius_dp * density_dpi / 160))
 center_x=${center_x:-$((width / 2))}
 center_y=${center_y:-$((height / 2))}
 if [[ "$direction" == out ]]; then start_radius=$((radius / 2)); end_radius=$radius
@@ -55,7 +58,7 @@ run_helper() {
   local helper=${PAPYRUS_MULTITOUCH_HELPER:-}
   if [[ -z "$helper" || ! -x "$helper" ]]; then return 1; fi
   echo "multitouch mechanism=helper helper=$helper${package_id:+ package=$package_id}" >&2
-  "$helper" --device "$device" --duration-ms "$duration_ms" --radius "$radius" \
+  "$helper" --device "$device" --duration-ms "$duration_ms" --radius "$radius_dp" \
     --center-x "$center_x" --center-y "$center_y" --direction "$direction"
 }
 

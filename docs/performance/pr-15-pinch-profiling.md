@@ -29,6 +29,9 @@ node scripts/benchmarks/android-pinch-aggregate.mjs /tmp/papyrus-pr15-android \
   > /tmp/papyrus-pr15-android/report.json
 ```
 
+O runner também valida automaticamente o contrato causal e exige pelo menos
+`runs - 1` amostras válidas por fixture/direção quando `runs > 1`.
+
 Cada amostra tem um único gesto multipointer, um `sampleId`, um `gestureId`,
 um `documentLoadId` e uma janela `gfxinfo` própria. Amostras sem
 `preview.cleared` ou com IDs divergentes são incompletas e não entram nos
@@ -41,30 +44,33 @@ percentis.
 | `small` | 1 | 1.032 bytes |
 | `large-100` | 100 | 54.241 bytes |
 | `large-1000` | 1.000 | 522.086 bytes |
-| `varied-sizes` | 4 | 2.917 bytes |
+| `varied-sizes` | 4 | 2.918 bytes |
 
-Total: 580.276 bytes. Os hashes oficiais estão em
+Total: 580.277 bytes. Os hashes oficiais estão em
 `examples/mobile-expo/assets/fixtures/fixture-manifest.json`.
 
 ## Evidência obtida
 
 Execução real em `emulator-5554` (`Pixel_7_API_35`, API 35), com APK release
-`x86_64`, deep link offline e um gesto multiponto por direção. O stream causal
-foi validado com `touches=2`; cada amostra abaixo terminou em
+`x86_64`, deep link offline e 5 gestos multiponto por direção. O stream causal
+foi validado com `touches=2`; as 40/40 amostras terminaram em
 `pinch.preview.cleared` e `sample.end=complete`.
 
-| Fixture | Direção | Frames | Jank | FPS | Commit → ready |
-| --- | --- | ---: | ---: | ---: | ---: |
-| `small` | in | 20 | 45,0% | 22,64 | 27,1 ms |
-| `small` | out | 20 | 55,0% | 22,15 | 33,7 ms |
-| `large-100` | in | 24 | 50,0% | 26,68 | 78,6 ms |
-| `large-100` | out | 23 | 43,5% | 26,13 | 67,7 ms |
-| `large-1000` | in | 23 | 65,2% | 25,63 | 64,8 ms |
-| `large-1000` | out | 24 | 62,5% | 26,77 | 74,1 ms |
+| Fixture | Direção | Válidas | FPS P50 | FPS P90 | Jank P50 | Commit → ready P50/P90 |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| `small` | in | 5/5 | 18,96 | 19,16 | 54,84% | 29,7 / 31,7 ms |
+| `small` | out | 5/5 | 18,82 | 20,27 | 63,64% | 65,1 / 71,7 ms |
+| `large-100` | in | 5/5 | 20,33 | 20,37 | 50,00% | 64,1 / 83,3 ms |
+| `large-100` | out | 5/5 | 20,01 | 23,01 | 52,94% | 99,8 / 107,5 ms |
+| `large-1000` | in | 5/5 | 19,99 | 20,88 | 60,00% | 63,4 / 94,9 ms |
+| `large-1000` | out | 5/5 | 19,75 | 20,05 | 58,82% | 97,6 / 114,7 ms |
+| `varied-sizes` | in | 5/5 | 19,91 | 20,53 | 50,00% | 43,6 / 61,7 ms |
+| `varied-sizes` | out | 5/5 | 20,04 | 20,78 | 50,00% | 94,4 / 100,8 ms |
 
-Essas são amostras únicas por fixture/direção, não uma distribuição P50/P90/P95
-de repetição. O documento de 1.000 páginas não apresentou crash/OOM nessa
-rodada; a janela continuou limitada (39 views anexadas no dump final).
+FPS usa a duração observada entre reset e dump do `gfxinfo`; a duração do gesto
+é reportada separadamente. Os percentis acima são agregados das 5 amostras por
+grupo. O documento de 1.000 páginas não apresentou crash/OOM nessa rodada; a
+janela continuou limitada (39 views anexadas no dump final).
 
 O APK universal inicial tinha 85.590.373 bytes. Depois de ligar o filtro de
 ABI ao `build.gradle` e gerar o artefato de benchmark com `x86_64` e codecs

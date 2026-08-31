@@ -59,14 +59,21 @@ for fixture in "${fixture_list[@]}"; do
       start_fixture "$fixture" "$run_id" "$warm_id"
       "$probe_dir/android-multitouch-probe.sh" --device "$device" --duration-ms 350 --radius 60 --direction "$direction"
       start_fixture "$fixture" "$run_id" "$sample_id"
-      adb -s "$device" shell dumpsys gfxinfo "$package_id" reset
-      "$probe_dir/android-multitouch-probe.sh" --device "$device" --duration-ms 1200 --radius 120 --direction "$direction"
-      wait_for_log 'preview.cleared' 90
       sample_dir="$output_dir/$fixture/$direction/$run"
       mkdir -p "$sample_dir"
+      gfx_window_start_ms="$(date +%s%3N)"
+      adb -s "$device" shell dumpsys gfxinfo "$package_id" reset >/dev/null
+      "$probe_dir/android-multitouch-probe.sh" --device "$device" --duration-ms 1200 --radius 120 --direction "$direction" >/dev/null
+      wait_for_log 'preview.cleared' 90
       adb -s "$device" logcat -d -v brief | sed -n 's/.*\[Papyrus Perf\] //p' > "$sample_dir/events.ndjson"
       adb -s "$device" shell dumpsys gfxinfo "$package_id" > "$sample_dir/gfxinfo.txt"
-      printf '%s\n' "fixture=$fixture direction=$direction run=$run device=$device" > "$sample_dir/metadata.txt"
+      gfx_window_end_ms="$(date +%s%3N)"
+      gfx_window_duration_ms=$((gfx_window_end_ms - gfx_window_start_ms))
+      printf '%s\n' "fixture=$fixture direction=$direction run=$run device=$device gfxWindowDurationMs=$gfx_window_duration_ms" > "$sample_dir/metadata.txt"
     done
   done
 done
+
+minimum_valid=$((runs > 1 ? runs - 1 : 1))
+node "$probe_dir/android-pinch-aggregate.mjs" "$output_dir" \
+  --fixtures "$fixtures" --min-valid "$minimum_valid" > "$output_dir/report.json"

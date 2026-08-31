@@ -10,7 +10,7 @@ const FIXTURE_DEFINITIONS = [
   {
     name: 'varied-sizes',
     pageCount: 4,
-    pageSizeForPage: (page) => [[612, 792], [792, 612], [595, 842], [842, 595]][page - 1],
+    pageSizeForPage: (page) => [[612, 792], [792, 612], [360, 540], [1000, 500]][page - 1],
   },
 ];
 

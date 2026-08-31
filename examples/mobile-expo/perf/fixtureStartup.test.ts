@@ -44,4 +44,33 @@ describe('fixture bootstrap', () => {
     expect(engine.load).not.toHaveBeenCalled();
     expect(emit).toHaveBeenCalledWith('fixture.url_ignored', expect.any(Object));
   });
+
+  it('keeps the requested fixture metadata on both sides of the load boundary', async () => {
+    const engine = {
+      load: vi.fn().mockResolvedValue(undefined),
+      getPageCount: vi.fn().mockReturnValue(1),
+    };
+    const emit = vi.fn();
+
+    await bootstrapFixtureLaunch({
+      url: 'exp+papyrus-sdk://reader?fixture=small&runId=run-1&sampleId=sample-1&perf=1&viewerMode=compat',
+      engine,
+      registry: { small: { uri: 'asset://small' } },
+      manifest: { small: { sha256: 'hash-small', byteLength: 10, pageCount: 1 } },
+      resolveAsset: (asset) => asset,
+      emit,
+    });
+
+    expect(emit.mock.calls[0][1]).toMatchObject({
+      requestedFixture: 'small',
+      resolvedFixture: 'small',
+      runId: 'run-1',
+      sampleId: 'sample-1',
+    });
+    expect(emit.mock.calls[1][1]).toMatchObject({
+      requestedFixture: 'small',
+      resolvedFixture: 'small',
+      sha256: 'hash-small',
+    });
+  });
 });

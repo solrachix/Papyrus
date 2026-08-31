@@ -174,6 +174,8 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   const viewRef = useRef<any>(null);
   const onRenderReadyRef = useRef(onRenderReady);
   onRenderReadyRef.current = onRenderReady;
+  const gestureIdRef = useRef(gestureId);
+  gestureIdRef.current = gestureId;
   const mobilePerf = useMobilePerf();
   const renderGenerationRef = useRef(createRenderGeneration());
   const [layout, setLayout] = useState({ width: 0, height: 0 });
@@ -388,29 +390,34 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     if (viewTag) {
       const renderScale = isNative ? scale / Math.max(zoom, 0.5) : scale;
       const startedAt = perfEnabled ? perfNow() : 0;
-      const renderRequestId = mobilePerf.createId("render");
+      const renderRequestId = perfEnabled ? mobilePerf.createId("render") : "noop";
       const lifecycle = createRenderLifecycle();
-      mobilePerf.emit("render.request", {
-        renderRequestId,
-        surfaceId,
-        pageIndex,
-        zoom,
-        generation,
-        gestureId,
-      });
+      const renderGestureId = gestureIdRef.current;
+      if (perfEnabled) {
+        mobilePerf.emit("render.request", {
+          renderRequestId,
+          surfaceId,
+          pageIndex,
+          zoom,
+          generation,
+          gestureId: renderGestureId,
+        });
+      }
       const renderPromise = Promise.resolve(engine.renderPage(pageIndex, viewTag, renderScale));
       void renderPromise
         .then((result: void | RenderPageResult) => {
           const status = result && typeof result === "object" ? result.status : "ready";
           if (!lifecycle.complete(status)) return;
-          mobilePerf.emit(`render.${status}`, {
-            renderRequestId,
-            surfaceId,
-            pageIndex,
-            zoom,
-            generation,
-            gestureId,
-          });
+          if (perfEnabled) {
+            mobilePerf.emit(`render.${status}`, {
+              renderRequestId,
+              surfaceId,
+              pageIndex,
+              zoom,
+              generation,
+              gestureId: renderGestureId,
+            });
+          }
           if (status !== "ready" || !renderGenerationRef.current.isCurrent(generation)) return;
           onRenderReadyRef.current?.(pageIndex, zoom);
           if (!perfEnabled) return;
@@ -427,14 +434,16 @@ const PageRenderer: React.FC<PageRendererProps> = ({
         })
         .catch((error: unknown) => {
           if (!lifecycle.complete("error")) return;
-          mobilePerf.emit("render.error", {
-            renderRequestId,
-            surfaceId,
-            pageIndex,
-            generation,
-            gestureId,
-            reason: error instanceof Error ? error.message : String(error),
-          });
+          if (perfEnabled) {
+            mobilePerf.emit("render.error", {
+              renderRequestId,
+              surfaceId,
+              pageIndex,
+              generation,
+              gestureId: renderGestureId,
+              reason: error instanceof Error ? error.message : String(error),
+            });
+          }
           logPerfEvent("PageRenderer", "renderPage.error", {
             page: pageIndex + 1,
             message: error instanceof Error ? error.message : String(error),
@@ -442,14 +451,16 @@ const PageRenderer: React.FC<PageRendererProps> = ({
         });
       return () => {
         if (lifecycle.abandon("unmount")) {
-          mobilePerf.emit("render.abandoned", {
-            renderRequestId,
-            surfaceId,
-            pageIndex,
-            generation,
-            gestureId,
-            reason: "unmount",
-          });
+          if (perfEnabled) {
+            mobilePerf.emit("render.abandoned", {
+              renderRequestId,
+              surfaceId,
+              pageIndex,
+              generation,
+              gestureId: renderGestureId,
+              reason: "unmount",
+            });
+          }
         }
       };
     }
@@ -466,7 +477,6 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     perfEnabled,
     mobilePerf,
     surfaceId,
-    gestureId,
   ]);
 
   useEffect(() => {

@@ -225,6 +225,7 @@ const Viewer: React.FC<ViewerProps> = ({
   const pendingPinchRenderZoomRef = useRef<number | null>(null);
   const pendingPinchRenderPageRef = useRef<number | null>(null);
   const pendingPinchGestureIdRef = useRef<string | null>(null);
+  const committedPinchGestureIdRef = useRef<string | null>(null);
   const pinchAnchorRestoreFrameRef = useRef<number | null>(null);
   const viewerFrameRef = useRef({ y: 0, height: 0 });
   const viewerContentHeightRef = useRef(0);
@@ -876,15 +877,14 @@ const Viewer: React.FC<ViewerProps> = ({
       ) {
         return;
       }
-      const gestureId = pendingPinchGestureIdRef.current;
+      if (!pinchPerfMachine.completeAfterRenderReady({ zoom: renderedZoom })) return;
       pendingPinchRenderZoomRef.current = null;
       pendingPinchRenderPageRef.current = null;
       pendingPinchGestureIdRef.current = null;
-      mobilePerf.emit("pinch.preview.cleared", { gestureId, zoom: renderedZoom });
-      mobilePerf.emit("sample.end", { status: "complete", gestureId });
+      committedPinchGestureIdRef.current = null;
       resetViewerPinchPreview();
     },
-    [mobilePerf, resetViewerPinchPreview]
+    [pinchPerfMachine, resetViewerPinchPreview]
   );
 
   const beginViewerPinch = useCallback(
@@ -892,6 +892,7 @@ const Viewer: React.FC<ViewerProps> = ({
       const gestureId = pinchPerfMachine.begin({ startZoom: zoom });
       pinchGestureActiveRef.current = true;
       pendingPinchGestureIdRef.current = gestureId;
+      committedPinchGestureIdRef.current = null;
       pendingPinchRenderZoomRef.current = null;
       pendingPinchRenderPageRef.current = null;
       pinchStartZoomRef.current = zoom;
@@ -954,6 +955,7 @@ const Viewer: React.FC<ViewerProps> = ({
     pendingPinchRenderZoomRef.current = null;
     pendingPinchRenderPageRef.current = null;
     pendingPinchGestureIdRef.current = null;
+    committedPinchGestureIdRef.current = null;
     pendingPinchAnchorRestoreRef.current = null;
     pinchPreviewZoomRef.current = pinchStartZoomRef.current;
     handlePinchPreviewScaleChange(1);
@@ -1025,6 +1027,7 @@ const Viewer: React.FC<ViewerProps> = ({
         ),
       };
       pinchPerfMachine.commitStart();
+      committedPinchGestureIdRef.current = pendingPinchGestureIdRef.current;
       setDocumentStateTracked({ zoom: finalZoom }, "pinch.viewerEnd");
       engine.setZoom(finalZoom);
       pinchPerfMachine.commitEnd({ zoom: finalZoom });
@@ -1035,6 +1038,7 @@ const Viewer: React.FC<ViewerProps> = ({
       pendingPinchRenderZoomRef.current = null;
       pendingPinchRenderPageRef.current = null;
       pendingPinchGestureIdRef.current = null;
+      committedPinchGestureIdRef.current = null;
     }
     if (Math.abs(finalZoom - startZoom) < 0.001) {
       resetViewerPinchPreview();
@@ -1605,7 +1609,7 @@ const Viewer: React.FC<ViewerProps> = ({
                 }
                 onRenderReady={handlePinchRenderReady}
                 surfaceId={`page-${row.left}`}
-                gestureId={pendingPinchGestureIdRef.current ?? undefined}
+                gestureId={committedPinchGestureIdRef.current ?? undefined}
               />
             </View>
             {row.right !== null ? (
@@ -1627,7 +1631,7 @@ const Viewer: React.FC<ViewerProps> = ({
                 }
                 onRenderReady={handlePinchRenderReady}
                 surfaceId={`page-${row.right}`}
-                gestureId={pendingPinchGestureIdRef.current ?? undefined}
+                gestureId={committedPinchGestureIdRef.current ?? undefined}
                 />
               </View>
             ) : (
@@ -1652,7 +1656,7 @@ const Viewer: React.FC<ViewerProps> = ({
           requestSelectionVerticalAutoscroll={handleSelectionVerticalAutoscroll}
           onRenderReady={handlePinchRenderReady}
           surfaceId={`page-${item as number}`}
-          gestureId={pendingPinchGestureIdRef.current ?? undefined}
+          gestureId={committedPinchGestureIdRef.current ?? undefined}
         />
       );
     },
@@ -1791,7 +1795,7 @@ const Viewer: React.FC<ViewerProps> = ({
                   }
                   onRenderReady={handlePinchRenderReady}
                   surfaceId={`page-${Math.max(0, currentPage - 1)}`}
-                  gestureId={pendingPinchGestureIdRef.current ?? undefined}
+                  gestureId={committedPinchGestureIdRef.current ?? undefined}
                 />
               </ScrollView>
             </ScrollView>

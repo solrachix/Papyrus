@@ -10,5 +10,8 @@ test('profile runner requires real fixture/deep-link/multipointer contracts', as
   assert.match(source, /dumpsys gfxinfo.*reset/);
   assert.match(source, /android-multitouch-probe\.sh/);
   assert.match(source, /preview\.cleared/);
+  assert.match(source, /android-pinch-aggregate\.mjs/);
+  assert.match(source, /--min-valid/);
+  assert.match(source, /gfxWindowDurationMs/);
   assert.match(source, /without --device exactly one adb device/);
 });

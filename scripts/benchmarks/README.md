@@ -65,7 +65,14 @@ console do Emulator, Protocol B descoberto dinamicamente ou o helper definido
 em `PAPYRUS_MULTITOUCH_HELPER`. Se nenhum mecanismo real estiver disponível,
 ele falha em vez de simular pinch com dois swipes. O agregador publica cada
 amostra e os agregados P50/P90/P95 por fixture e direção; amostras sem a cadeia
-causal completa ficam fora dos percentis.
+causal completa ficam fora dos percentis. O runner chama o agregador ao final e
+falha se algum grupo tiver menos de `runs - 1` amostras válidas (`1` quando há
+apenas um run). A conversão de `--radius` parte de dp e usa a densidade do
+dispositivo antes de enviar os eventos de toque.
+
+O FPS é calculado com a janela real de `dumpsys gfxinfo reset → dump`, registrada
+como `gfxWindowDurationMs`; a duração do gesto e a duração total da amostra são
+mantidas como métricas separadas.
 
 Para o emulador `Pixel_7_API_35`, o APK do benchmark deve ser construído com
 `x86_64`. GIF/WebP são opcionais e ficam desativados nesse artefato para manter

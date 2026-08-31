@@ -25,6 +25,6 @@ test('mobile fixtures are deterministic and ship a static registry', async () =>
 
   const varied = await fs.readFile(path.join(first, 'assets/fixtures/varied-sizes.pdf'));
   const mediaBoxes = [...varied.toString('latin1').matchAll(/\/MediaBox \[0 0 (\d+) (\d+)\]/g)].map((match) => match.slice(1).join('x'));
-  assert.deepEqual(mediaBoxes.slice(0, 4), ['612x792', '792x612', '595x842', '842x595']);
+  assert.deepEqual(mediaBoxes.slice(0, 4), ['612x792', '792x612', '360x540', '1000x500']);
   assert.equal(crypto.createHash('sha256').update(varied).digest('hex'), firstManifest.fixtures[3].sha256);
 });

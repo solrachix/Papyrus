@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { aggregateAndroidPinch, aggregateAndroidPinchDirectory, parseGfxInfo } from './android-pinch-aggregate.mjs';
+import { aggregateAndroidPinch, aggregateAndroidPinchDirectory, parseGfxInfo, validateAndroidPinchReport } from './android-pinch-aggregate.mjs';
 
 const events = [
   { name: 'sample.start', timestamp: 100, sampleId: 's1', fixture: 'small', runId: 'r1' },
-  { name: 'viewer.mode', timestamp: 101, sampleId: 's1', fixture: 'small', mode: 'compat' },
+  { name: 'fixture.requested', timestamp: 101, sampleId: 's1', fixture: 'small', requestedFixture: 'small', resolvedFixture: 'small', runId: 'r1' },
+  { name: 'fixture.loaded', timestamp: 102, sampleId: 's1', fixture: 'small', requestedFixture: 'small', resolvedFixture: 'small', sha256: 'fixture-hash', byteLength: 10, pageCount: 1, runId: 'r1' },
+  { name: 'viewer.mode', timestamp: 103, sampleId: 's1', fixture: 'small', mode: 'compat' },
   { name: 'pinch.start', timestamp: 110, sampleId: 's1', fixture: 'small', gestureId: 'g1', startZoom: 1 },
   { name: 'pinch.end', timestamp: 210, sampleId: 's1', fixture: 'small', gestureId: 'g1', finalZoom: 2 },
   { name: 'pinch.commit.start', timestamp: 211, sampleId: 's1', fixture: 'small', gestureId: 'g1' },
@@ -21,11 +23,14 @@ test('parses gfxinfo frame and vsync counters', () => {
 });
 
 test('correlates one complete sample and aggregates it by direction', () => {
-  const report = aggregateAndroidPinch({ ndjson: `${events.map(JSON.stringify).join('\n')}\n`, gfxinfo: 'Total frames rendered: 40\nJanky frames: 5 (12.5%)\nNumber Missed Vsync: 2\n50th percentile: 8ms\n90th percentile: 24ms\n95th percentile: 31ms', environment: { device: 'Pixel7Clean' } });
+  const report = aggregateAndroidPinch({ ndjson: `${events.map(JSON.stringify).join('\n')}\n`, gfxinfo: 'Total frames rendered: 40\nJanky frames: 5 (12.5%)\nNumber Missed Vsync: 2\n50th percentile: 8ms\n90th percentile: 24ms\n95th percentile: 31ms', environment: { device: 'Pixel7Clean', gfxWindowDurationMs: 250 } });
   assert.equal(report.schemaVersion, 1);
   assert.equal(report.samples.length, 1);
   assert.equal(report.samples[0].direction, 'out');
-  assert.equal(report.samples[0].fps, 40 / 0.1);
+  assert.equal(report.samples[0].fps, 40 / 0.25);
+  assert.equal(report.samples[0].sampleDurationMs, 171);
+  assert.equal(report.samples[0].gfxWindowDurationMs, 250);
+  assert.equal(report.aggregates['small:out'].totalN, 1);
   assert.equal(report.aggregates['small:out'].validN, 1);
   assert.equal(report.aggregates['small:out'].metrics.commitToReadyMs.p90, 48);
 });
@@ -64,7 +69,17 @@ test('aggregates the per-sample directory without mixing gfxinfo windows', async
   await mkdir(sample, { recursive: true });
   await writeFile(join(sample, 'events.ndjson'), events.map(JSON.stringify).join('\n'));
   await writeFile(join(sample, 'gfxinfo.txt'), 'Total frames rendered: 3\nJanky frames: 1');
+  await writeFile(join(sample, 'metadata.txt'), 'fixture=small\ndirection=out\ngfxWindowDurationMs=125\n');
   const report = aggregateAndroidPinchDirectory(root);
   assert.equal(report.samples.length, 1);
   assert.equal(report.samples[0].frames, 3);
+  assert.equal(report.samples[0].gfxWindowDurationMs, 125);
+});
+
+test('rejects a report until every selected fixture and direction has enough valid samples', () => {
+  const report = aggregateAndroidPinch({ ndjson: events.map(JSON.stringify).join('\n'), gfxinfo: '' });
+  assert.throws(
+    () => validateAndroidPinchReport(report, { fixtures: ['small'], minimumValid: 2 }),
+    /small:out requires 2 valid samples, got 1/
+  );
 });

@@ -13,6 +13,9 @@ test('multitouch probe prefers emulator events, then real Protocol B/helper fall
   assert.match(source, /ABS_MT_PRESSURE/);
   assert.match(source, /map_touch_x/);
   assert.match(source, /map_touch_y/);
+  assert.match(source, /density_dpi/);
+  assert.match(source, /radius_dp/);
+  assert.match(source, /160/);
   assert.match(source, /PAPYRUS_MULTITOUCH_HELPER/);
   assert.match(source, /run_emulator_console \|\| run_protocol_b \|\| run_helper/);
   assert.match(source, /57/);
