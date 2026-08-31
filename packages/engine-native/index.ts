@@ -25,6 +25,7 @@ import {
   FileLike,
   SearchResult,
   TextSelection,
+  RenderPageResult,
   PageTheme,
   Annotation,
   PdfVisiblePage,
@@ -185,8 +186,9 @@ type NativeEngineModule = {
     target: number,
     scale: number,
     zoom: number,
-    rotation: number
-  ) => void;
+    rotation: number,
+    requestId: string
+  ) => Promise<RenderPageResult>;
   renderTextLayer?: (
     engineId: string,
     pageIndex: number,
@@ -318,6 +320,7 @@ export class NativeDocumentEngine extends BaseDocumentEngine {
   private currentPage: number = 1;
   private zoom: number = 1.0;
   private rotation: number = 0;
+  private renderRequestCounter: number = 0;
 
   constructor() {
     super();
@@ -395,18 +398,20 @@ export class NativeDocumentEngine extends BaseDocumentEngine {
     pageIndex: number,
     target: any,
     scale: number
-  ): Promise<void> {
+  ): Promise<void | RenderPageResult> {
     const native = this.assertNativeModule();
     if (!native.renderPage) return;
     const viewTag = this.toNativeViewTag(target);
     if (viewTag === null) return;
-    native.renderPage(
+    const requestId = `native-render-${++this.renderRequestCounter}`;
+    return native.renderPage(
       this.engineId,
       pageIndex,
       viewTag,
       scale,
       this.zoom,
-      this.rotation
+      this.rotation,
+      requestId
     );
   }
 

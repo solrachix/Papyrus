@@ -65,11 +65,18 @@ public class PapyrusPageView extends View {
               final int pageIndex,
               final float scale,
               final float zoom,
-              final int rotation) {
-    if (state == null || state.document == null) return;
-    if (state.isSearching) return;
+              final int rotation,
+              final PapyrusRenderCompletion completion) {
+    if (state == null || state.document == null) {
+      completion.complete(PapyrusRenderCompletion.Status.STALE);
+      return;
+    }
+    if (state.isSearching) {
+      completion.complete(PapyrusRenderCompletion.Status.STALE);
+      return;
+    }
     if (getWidth() == 0 || getHeight() == 0) {
-      post(() -> render(state, pageIndex, scale, zoom, rotation));
+      post(() -> render(state, pageIndex, scale, zoom, rotation, completion));
       return;
     }
 
@@ -88,6 +95,7 @@ public class PapyrusPageView extends View {
 
     if (renderKey.equals(currentRenderKey) && bitmap != null && !bitmap.isRecycled()) {
       invalidate();
+      completion.complete(PapyrusRenderCompletion.Status.READY);
       return;
     }
 
@@ -96,27 +104,46 @@ public class PapyrusPageView extends View {
       currentRenderKey = renderKey;
       bitmap = cached;
       invalidate();
+      completion.complete(PapyrusRenderCompletion.Status.READY);
       return;
     }
 
     RENDER_EXECUTOR.execute(() -> {
       PdfDocument doc = state.document;
-      if (doc == null) return;
-      if (renderToken != renderGeneration) return;
+      if (doc == null) {
+        completion.complete(PapyrusRenderCompletion.Status.STALE);
+        return;
+      }
+      if (renderToken != renderGeneration) {
+        completion.complete(PapyrusRenderCompletion.Status.STALE);
+        return;
+      }
 
       try {
         Bitmap rendered = null;
         synchronized (state.pdfiumLock) {
-          if (renderToken != renderGeneration) return;
-          if (doc != state.document) return;
+          if (renderToken != renderGeneration) {
+            completion.complete(PapyrusRenderCompletion.Status.STALE);
+            return;
+          }
+          if (doc != state.document) {
+            completion.complete(PapyrusRenderCompletion.Status.STALE);
+            return;
+          }
           int pageCount = state.pdfium.getPageCount(doc);
-          if (pageIndex < 0 || pageIndex >= pageCount) return;
+          if (pageIndex < 0 || pageIndex >= pageCount) {
+            completion.complete(PapyrusRenderCompletion.Status.STALE);
+            return;
+          }
           state.pdfium.openPage(doc, pageIndex);
           rendered = Bitmap.createBitmap(renderWidth, renderHeight, Bitmap.Config.ARGB_8888);
           state.pdfium.renderPageBitmap(doc, rendered, pageIndex, 0, 0, renderWidth, renderHeight, true);
         }
 
-        if (rendered == null) return;
+        if (rendered == null) {
+          completion.complete(PapyrusRenderCompletion.Status.STALE);
+          return;
+        }
         final Bitmap renderedBitmap = rendered;
 
         post(() -> {
@@ -124,19 +151,31 @@ public class PapyrusPageView extends View {
             if (!renderedBitmap.isRecycled()) {
               renderedBitmap.recycle();
             }
+            completion.complete(PapyrusRenderCompletion.Status.STALE);
             return;
           }
           RENDER_CACHE.put(renderKey, renderedBitmap);
           currentRenderKey = renderKey;
           bitmap = renderedBitmap;
           invalidate();
+          completion.complete(PapyrusRenderCompletion.Status.READY);
         });
       } catch (OutOfMemoryError error) {
         Log.e(TAG, "Unable to allocate bitmap for PDF page; keeping previous surface", error);
+        completion.error(error);
       } catch (RuntimeException error) {
         Log.w(TAG, "Failed to render PDF page; keeping previous surface", error);
+        completion.error(error);
       }
     });
+  }
+
+  void render(final PapyrusEngineStore.EngineState state,
+              final int pageIndex,
+              final float scale,
+              final float zoom,
+              final int rotation) {
+    render(state, pageIndex, scale, zoom, rotation, new PapyrusRenderCompletion(status -> { }));
   }
 
   @Override

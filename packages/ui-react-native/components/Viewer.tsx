@@ -42,6 +42,7 @@ import {
   sampleMemory,
 } from "../perf/mobilePerf";
 import { useMobilePerf } from "../perf/MobilePerfContext";
+import { createPinchPerfMachine } from "../perf/pinchPerfSession";
 import {
   getSelectionEdgeAutoscroll,
   shouldEnableViewerScroll,
@@ -153,6 +154,10 @@ const Viewer: React.FC<ViewerProps> = ({
   const resolvedViewerMode =
     viewerMode ?? (useDedicatedAndroidPdfViewer ? "native" : storeViewerMode);
   const mobilePerf = useMobilePerf();
+  const pinchPerfMachine = useMemo(
+    () => createPinchPerfMachine(mobilePerf),
+    [mobilePerf]
+  );
 
   useEffect(() => {
     mobilePerf.emit("viewer.mode", { mode: resolvedViewerMode });
@@ -219,6 +224,7 @@ const Viewer: React.FC<ViewerProps> = ({
   );
   const pendingPinchRenderZoomRef = useRef<number | null>(null);
   const pendingPinchRenderPageRef = useRef<number | null>(null);
+  const pendingPinchGestureIdRef = useRef<string | null>(null);
   const pinchAnchorRestoreFrameRef = useRef<number | null>(null);
   const viewerFrameRef = useRef({ y: 0, height: 0 });
   const viewerContentHeightRef = useRef(0);
@@ -870,16 +876,22 @@ const Viewer: React.FC<ViewerProps> = ({
       ) {
         return;
       }
+      const gestureId = pendingPinchGestureIdRef.current;
       pendingPinchRenderZoomRef.current = null;
       pendingPinchRenderPageRef.current = null;
+      pendingPinchGestureIdRef.current = null;
+      mobilePerf.emit("pinch.preview.cleared", { gestureId, zoom: renderedZoom });
+      mobilePerf.emit("sample.end", { status: "complete", gestureId });
       resetViewerPinchPreview();
     },
-    [resetViewerPinchPreview]
+    [mobilePerf, resetViewerPinchPreview]
   );
 
   const beginViewerPinch = useCallback(
     (focalX: number, focalY: number) => {
+      const gestureId = pinchPerfMachine.begin({ startZoom: zoom });
       pinchGestureActiveRef.current = true;
+      pendingPinchGestureIdRef.current = gestureId;
       pendingPinchRenderZoomRef.current = null;
       pendingPinchRenderPageRef.current = null;
       pinchStartZoomRef.current = zoom;
@@ -903,6 +915,7 @@ const Viewer: React.FC<ViewerProps> = ({
       handleGestureScrollLockChange,
       handlePinchPreviewScaleChange,
       perfEnabled,
+      pinchPerfMachine,
       zoom,
     ]
   );
@@ -925,24 +938,27 @@ const Viewer: React.FC<ViewerProps> = ({
       const now = Date.now();
       if (now - pinchUpdateLoggedAtRef.current < 120) return;
       pinchUpdateLoggedAtRef.current = now;
+      pinchPerfMachine.update({ zoom: nextZoom });
       logPerfEvent("Viewer", "pinch.update", {
         scale: Math.round(scaleFactor * 1000) / 1000,
         nextZoom: Math.round(nextZoom * 100) / 100,
       });
     },
-    [handlePinchPreviewScaleChange, perfEnabled]
+    [handlePinchPreviewScaleChange, perfEnabled, pinchPerfMachine]
   );
 
   const cancelViewerPinch = useCallback(() => {
     if (!pinchGestureActiveRef.current) return;
     pinchGestureActiveRef.current = false;
+    pinchPerfMachine.cancel("gesture-cancelled");
     pendingPinchRenderZoomRef.current = null;
     pendingPinchRenderPageRef.current = null;
+    pendingPinchGestureIdRef.current = null;
     pendingPinchAnchorRestoreRef.current = null;
     pinchPreviewZoomRef.current = pinchStartZoomRef.current;
     handlePinchPreviewScaleChange(1);
     handleGestureScrollLockChange(false);
-  }, [handleGestureScrollLockChange, handlePinchPreviewScaleChange]);
+  }, [handleGestureScrollLockChange, handlePinchPreviewScaleChange, pinchPerfMachine]);
 
   const finishViewerPinch = useCallback(() => {
     if (!pinchGestureActiveRef.current) return;
@@ -956,6 +972,7 @@ const Viewer: React.FC<ViewerProps> = ({
       1,
       DEFAULT_PINCH_ZOOM_BOUNDS
     );
+    pinchPerfMachine.end({ finalZoom });
     setLastPinchEndedAt(Date.now());
     if (Math.abs(finalZoom - startZoom) >= 0.001) {
       const anchorPageIndex = resolvePinchAnchorPageIndex(
@@ -1007,14 +1024,17 @@ const Viewer: React.FC<ViewerProps> = ({
           )
         ),
       };
+      pinchPerfMachine.commitStart();
       setDocumentStateTracked({ zoom: finalZoom }, "pinch.viewerEnd");
       engine.setZoom(finalZoom);
+      pinchPerfMachine.commitEnd({ zoom: finalZoom });
       pendingPinchRenderZoomRef.current = finalZoom;
       pendingPinchRenderPageRef.current = anchorPageIndex;
     } else {
       pendingPinchAnchorRestoreRef.current = null;
       pendingPinchRenderZoomRef.current = null;
       pendingPinchRenderPageRef.current = null;
+      pendingPinchGestureIdRef.current = null;
     }
     if (Math.abs(finalZoom - startZoom) < 0.001) {
       resetViewerPinchPreview();
@@ -1033,6 +1053,7 @@ const Viewer: React.FC<ViewerProps> = ({
     getPageViewportMetrics,
     handleGestureScrollLockChange,
     perfEnabled,
+    pinchPerfMachine,
     resetViewerPinchPreview,
     resolvePinchAnchorPageIndex,
     setDocumentStateTracked,
@@ -1583,6 +1604,8 @@ const Viewer: React.FC<ViewerProps> = ({
                   handleSelectionVerticalAutoscroll
                 }
                 onRenderReady={handlePinchRenderReady}
+                surfaceId={`page-${row.left}`}
+                gestureId={pendingPinchGestureIdRef.current ?? undefined}
               />
             </View>
             {row.right !== null ? (
@@ -1603,6 +1626,8 @@ const Viewer: React.FC<ViewerProps> = ({
                   handleSelectionVerticalAutoscroll
                 }
                 onRenderReady={handlePinchRenderReady}
+                surfaceId={`page-${row.right}`}
+                gestureId={pendingPinchGestureIdRef.current ?? undefined}
                 />
               </View>
             ) : (
@@ -1625,6 +1650,9 @@ const Viewer: React.FC<ViewerProps> = ({
           gestureScrollLockActive={gestureScrollLockActive}
           lastPinchEndedAt={lastPinchEndedAt}
           requestSelectionVerticalAutoscroll={handleSelectionVerticalAutoscroll}
+          onRenderReady={handlePinchRenderReady}
+          surfaceId={`page-${item as number}`}
+          gestureId={pendingPinchGestureIdRef.current ?? undefined}
         />
       );
     },
@@ -1634,6 +1662,7 @@ const Viewer: React.FC<ViewerProps> = ({
       engine,
       getPageAspectRatio,
       handlePageTap,
+      handlePinchRenderReady,
       handleSelectionVerticalAutoscroll,
       gestureScrollLockActive,
       horizontalPadding,
@@ -1760,6 +1789,9 @@ const Viewer: React.FC<ViewerProps> = ({
                   requestSelectionVerticalAutoscroll={
                     handleSelectionVerticalAutoscroll
                   }
+                  onRenderReady={handlePinchRenderReady}
+                  surfaceId={`page-${Math.max(0, currentPage - 1)}`}
+                  gestureId={pendingPinchGestureIdRef.current ?? undefined}
                 />
               </ScrollView>
             </ScrollView>
