@@ -168,6 +168,26 @@ describe("mobile comic runtime helpers", () => {
     );
   });
 
+  it("rejects a stale EPUB load after outline resolution", () => {
+    const runtime = readFileSync(
+      resolve(process.cwd(), "packages/ui-react-native/runtime/runtime.js"),
+      "utf8"
+    );
+    const outlineStart = runtime.indexOf("const outline = await withEpubStageTimeout(");
+    const outlineGuard = runtime.indexOf(
+      "if (!isCurrentLoad()) throw new Error('EPUB load superseded by a newer load');",
+      outlineStart
+    );
+    const readyEvent = runtime.indexOf(
+      "sendEpubDiagnostic('epub.load.ready'",
+      outlineStart
+    );
+
+    expect(outlineStart).toBeGreaterThan(-1);
+    expect(outlineGuard).toBeGreaterThan(outlineStart);
+    expect(outlineGuard).toBeLessThan(readyEvent);
+  });
+
   it("uses continuous scrolling for EPUB rendition", () => {
     const runtime = readFileSync(
       resolve(process.cwd(), "packages/ui-react-native/runtime/runtime.js"),

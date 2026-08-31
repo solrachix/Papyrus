@@ -1273,6 +1273,7 @@
       'outline',
       diagnosticPayload,
     );
+    if (!isCurrentLoad()) throw new Error('EPUB load superseded by a newer load');
     sendEpubDiagnostic('epub.load.ready', {
       ...diagnosticPayload,
       pageCount,
