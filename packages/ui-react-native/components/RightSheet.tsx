@@ -25,6 +25,7 @@ import { IconClose } from "../icons";
 import { getStrings } from "../mobileStrings";
 import {
   resolveRightSheetHeight,
+  supportsNativePageThumbnails,
   supportsPageThumbnails,
 } from "./rightSheetLayout";
 import {
@@ -288,10 +289,19 @@ const RightSheet: React.FC<RightSheetProps> = ({
   const cardWidth = (windowWidth - gridPadding * 2 - gridGutter) / 2;
   const frameWidth = cardWidth - 16;
   const renderTarget = engine.getRenderTargetType?.();
+  const nativeEngineId = (
+    engine as DocumentEngine & {
+      getNativeEngineId?: () => string | null;
+    }
+  ).getNativeEngineId?.();
   const hasNativePageView = Boolean(
     UIManager.getViewManagerConfig?.("PapyrusPageView")
   );
-  const useNativePreview = renderTarget !== "webview" && hasNativePageView;
+  const useNativePreview = supportsNativePageThumbnails({
+    renderTarget,
+    nativeEngineId,
+    hasViewManager: hasNativePageView,
+  });
   const useImagePreview =
     documentType === "comic" &&
     renderTarget === "webview" &&

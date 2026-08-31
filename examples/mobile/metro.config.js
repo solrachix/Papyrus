@@ -9,6 +9,9 @@ const {getDefaultConfig, mergeConfig} = require('@react-native/metro-config');
  */
 const projectRoot = __dirname;
 const workspaceRoot = path.resolve(projectRoot, '../..');
+const reactNativeRoot = path.dirname(
+  require.resolve('react-native/package.json', {paths: [projectRoot]}),
+);
 
 const defaultConfig = getDefaultConfig(__dirname);
 const {assetExts} = defaultConfig.resolver;
@@ -37,6 +40,7 @@ const config = {
     assetExts: [...assetExts, 'pdf', 'epub', 'html', 'wasm', 'txt'],
     nodeModulesPaths: [
       path.resolve(projectRoot, 'node_modules'),
+      path.resolve(reactNativeRoot, '..'),
       path.resolve(workspaceRoot, 'node_modules'),
     ],
     disableHierarchicalLookup: true,

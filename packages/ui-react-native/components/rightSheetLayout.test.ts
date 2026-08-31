@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   resolveRightSheetHeight,
+  supportsNativePageThumbnails,
   supportsPageThumbnails,
 } from "./rightSheetLayout";
 
@@ -29,5 +30,22 @@ describe("resolveRightSheetHeight", () => {
     expect(supportsPageThumbnails("pdf")).toBe(true);
     expect(supportsPageThumbnails("comic")).toBe(true);
     expect(supportsPageThumbnails("text")).toBe(false);
+  });
+
+  it("uses the native thumbnail renderer when the active engine has a native id", () => {
+    expect(
+      supportsNativePageThumbnails({
+        renderTarget: "canvas",
+        nativeEngineId: "native-engine-1",
+        hasViewManager: false,
+      })
+    ).toBe(true);
+    expect(
+      supportsNativePageThumbnails({
+        renderTarget: "webview",
+        nativeEngineId: "native-engine-1",
+        hasViewManager: true,
+      })
+    ).toBe(false);
   });
 });

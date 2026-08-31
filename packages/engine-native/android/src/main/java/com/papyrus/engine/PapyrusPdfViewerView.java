@@ -1667,6 +1667,10 @@ public class PapyrusPdfViewerView extends View {
         eventThrottleHandler.removeCallbacks(pendingScrollEvent);
       }
       pendingScrollEvent = () -> {
+        int visiblePage = computeVisiblePage();
+        if (visiblePage > 0) {
+          emitPageChanged(visiblePage);
+        }
         WritableMap event = Arguments.createMap();
         event.putDouble("offsetY", offsetYValue);
         reactContext.getJSModule(RCTEventEmitter.class)
