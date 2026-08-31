@@ -41,6 +41,7 @@ import {
   perfNow,
   sampleMemory,
 } from "../perf/mobilePerf";
+import { useMobilePerf } from "../perf/MobilePerfContext";
 import {
   getSelectionEdgeAutoscroll,
   shouldEnableViewerScroll,
@@ -151,6 +152,11 @@ const Viewer: React.FC<ViewerProps> = ({
   const isWebView = renderTargetType === "webview";
   const resolvedViewerMode =
     viewerMode ?? (useDedicatedAndroidPdfViewer ? "native" : storeViewerMode);
+  const mobilePerf = useMobilePerf();
+
+  useEffect(() => {
+    mobilePerf.emit("viewer.mode", { mode: resolvedViewerMode });
+  }, [mobilePerf, resolvedViewerMode]);
   const nativeEngineId = getNativePdfEngineId(engine);
   const isNativePdfViewer = shouldUseNativePdfViewer({
     viewerMode: resolvedViewerMode,
