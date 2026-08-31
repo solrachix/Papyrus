@@ -31,3 +31,25 @@ test('APK inspector validates clean tree, fixture hashes and bundle names', asyn
   assert.equal(result.commit, 'abc');
   assert.equal(result.apkBytes, 3);
 });
+
+test('APK inspector validates PDF contents when Android renames resources', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'papyrus-apk-resources-'));
+  const fixtureDir = path.join(root, 'assets', 'fixtures');
+  await fs.mkdir(fixtureDir, { recursive: true });
+  const bytes = Buffer.from('small');
+  const fixture = { name: 'small', file: 'assets/fixtures/small.pdf', sha256: crypto.createHash('sha256').update(bytes).digest('hex') };
+  await fs.writeFile(path.join(fixtureDir, 'small.pdf'), bytes);
+  const manifestPath = path.join(fixtureDir, 'fixture-manifest.json');
+  await fs.writeFile(manifestPath, JSON.stringify({ schemaVersion: 1, totalBytes: bytes.length, fixtures: [fixture] }));
+  const apkPath = path.join(root, 'app-release.apk');
+  await fs.writeFile(apkPath, 'apk');
+  const result = await inspectAndroidApk({
+    apkPath,
+    manifestPath,
+    commit: 'abc',
+    cwd: root,
+    run: (command, args) => command === 'git' ? '' : args?.[0] === '-l' ? '  5  1981-01-01 00:00 res/L2.pdf\n  100  1981-01-01 00:00 assets/index.android.bundle' : '',
+    readBinary: () => bytes,
+  });
+  assert.equal(result.commit, 'abc');
+});

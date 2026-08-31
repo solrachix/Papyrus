@@ -5,6 +5,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 
 const defaultRun = (command, args, cwd) => execFileSync(command, args, { cwd, encoding: 'utf8' });
+const defaultReadBinary = (command, args, cwd) => execFileSync(command, args, { cwd });
 
 const sha256 = async (file) => {
   const hash = crypto.createHash('sha256');
@@ -12,7 +13,7 @@ const sha256 = async (file) => {
   return hash.digest('hex');
 };
 
-export async function inspectAndroidApk({ apkPath, manifestPath, commit, cwd = process.cwd(), run = defaultRun, maxBytes = 30 * 1024 * 1024 }) {
+export async function inspectAndroidApk({ apkPath, manifestPath, commit, cwd = process.cwd(), run = defaultRun, readBinary = defaultReadBinary, maxBytes = 30 * 1024 * 1024 }) {
   const status = run('git', ['status', '--porcelain'], cwd);
   if (String(status).trim()) throw new Error('worktree must be clean before APK inspection');
   const manifest = JSON.parse(await fsPromises.readFile(manifestPath, 'utf8'));
@@ -26,8 +27,20 @@ export async function inspectAndroidApk({ apkPath, manifestPath, commit, cwd = p
     fixtureHashes[fixture.name] = actual;
   }
   const listing = String(run('unzip', ['-l', apkPath], cwd));
-  for (const name of ['small', 'large-100', 'large-1000', 'varied-sizes']) {
-    if (!listing.includes(name)) throw new Error(`fixture missing from APK listing: ${name}`);
+  const pdfEntries = listing.split(/\r?\n/).map((line) => line.match(/\s+(\S+\.pdf)\s*$/i)?.[1]).filter(Boolean);
+  if (pdfEntries.length > 0) {
+    const packagedHashes = new Set(await Promise.all(pdfEntries.map(async (entry) => {
+      const hash = crypto.createHash('sha256');
+      hash.update(readBinary('unzip', ['-p', apkPath, entry], cwd));
+      return hash.digest('hex');
+    })));
+    for (const fixture of manifest.fixtures) {
+      if (!packagedHashes.has(fixture.sha256)) throw new Error(`fixture missing from APK contents: ${fixture.name}`);
+    }
+  } else {
+    for (const name of manifest.fixtures.map((fixture) => fixture.name)) {
+      if (!listing.includes(name)) throw new Error(`fixture missing from APK listing: ${name}`);
+    }
   }
   if (!listing.includes('fixture-manifest') && !listing.includes('index.android.bundle')) throw new Error('fixture manifest is absent from APK bundle');
   if (listing.includes('http') && listing.includes('raw.githubusercontent.com')) throw new Error('remote fixture fallback found in APK listing');
