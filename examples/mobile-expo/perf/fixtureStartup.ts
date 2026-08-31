@@ -16,23 +16,23 @@ type StartupArgs = {
 export async function bootstrapFixtureLaunch({ url, warm = false, engine, registry, manifest, resolveAsset, emit }: StartupArgs) {
   const parsed = parsePapyrusReaderUrl(url);
   if (warm) {
-    emit('fixture.url_ignored', { reason: 'warm-start', url });
+    emit('fixture.url_ignored', { reason: 'warm-start', url, perfEnabled: parsed.perfEnabled });
     return { ignored: true, parsed };
   }
 
   if (!parsed.valid) {
-    emit('fixture.invalid', { reason: parsed.reason ?? 'unsupported-url', url });
+    emit('fixture.invalid', { reason: parsed.reason ?? 'unsupported-url', url, perfEnabled: parsed.perfEnabled });
     return { ignored: false, parsed, invalid: true };
   }
 
   const resolved = resolveFixtureLaunch(parsed);
   if (resolved.invalidFixture) {
-    emit('fixture.invalid', { requestedFixture: resolved.invalidFixture, fallbackFixture: resolved.fixture });
+    emit('fixture.invalid', { requestedFixture: resolved.invalidFixture, fallbackFixture: resolved.fixture, perfEnabled: resolved.perfEnabled });
   }
   const expected = manifest[resolved.fixture];
   const asset = registry[resolved.fixture];
   if (!expected || asset === undefined) {
-    emit('fixture.invalid', { requestedFixture: resolved.fixture, reason: 'manifest-or-registry-missing' });
+    emit('fixture.invalid', { requestedFixture: resolved.fixture, reason: 'manifest-or-registry-missing', perfEnabled: resolved.perfEnabled });
     throw new Error(`fixture is not bundled: ${resolved.fixture}`);
   }
 

@@ -1,19 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { View, ActivityIndicator, StyleSheet, Image, StatusBar, Pressable, Text } from 'react-native';
+import { View, ActivityIndicator, StyleSheet, Image, StatusBar, Pressable, Text, Linking } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { MobileDocumentEngine } from '@papyrus-sdk/engine-native';
 import { useViewerStore } from '@papyrus-sdk/core';
 import type { PapyrusConfig } from '@papyrus-sdk/types';
 import { Viewer, Topbar, ToolDock, RightSheet, AnnotationEditor, BottomBar, SettingsSheet } from '@papyrus-sdk/ui-react-native';
+import { mobileFixtureRegistry } from './fixtureRegistry.generated';
+import fixtureManifest from './assets/fixtures/fixture-manifest.json';
+import { bootstrapFixtureLaunch } from './perf/fixtureStartup';
 
-const LOCAL_WEB_PDF = Image.resolveAssetSource(require('./assets/tracemonkey-pldi-09.pdf'));
-const SAMPLE_PDF = Image.resolveAssetSource(require('./assets/sample.pdf'));
-const DEFAULT_PDF_URL = 'https://raw.githubusercontent.com/mozilla/pdf.js/ba2edeae/web/compressed.tracemonkey-pldi-09.pdf';
-const DEFAULT_PDF = LOCAL_WEB_PDF?.uri
-  ? { uri: LOCAL_WEB_PDF.uri }
-  : SAMPLE_PDF?.uri
-    ? { uri: SAMPLE_PDF.uri }
-    : { uri: DEFAULT_PDF_URL };
 const SAMPLE_EPUB_BASE64 =
   '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';
 const SAMPLE_EPUB_DATA_URI = `data:application/epub+zip;base64,${SAMPLE_EPUB_BASE64}`;
@@ -51,12 +46,46 @@ const App: React.FC = () => {
   useEffect(() => {
     initializeStore(INITIAL_SDK_CONFIG);
 
-    const init = async () => {
-      await loadDocument('pdf');
+    const emitPerf = (name: string, payload: Record<string, unknown>) => {
+      if (payload.perfEnabled) console.log(`[Papyrus Perf] ${JSON.stringify({ name, ...payload })}`);
+    };
+    const loadFixture = async (url: string | null, warm = false) => {
+      const result = await bootstrapFixtureLaunch({
+        url,
+        warm,
+        engine,
+        registry: mobileFixtureRegistry,
+        manifest: fixtureManifest.fixtures.reduce((entries, fixture) => ({
+          ...entries,
+          [fixture.name]: fixture,
+        }), {}),
+        resolveAsset: (asset) => {
+          const resolved = Image.resolveAssetSource(asset as number);
+          if (!resolved?.uri) throw new Error('bundled fixture has no URI');
+          return { uri: resolved.uri };
+        },
+        emit: emitPerf,
+      });
+      if (result.ignored || !result.resolved) return;
+      setActiveType('pdf');
+      setDocumentState({ isLoaded: false, pageCount: 0, outline: [], currentPage: 1, searchResults: [], searchQuery: '', activeSearchIndex: -1 });
+      const pageCount = result.pageCount;
+      if (INITIAL_SDK_CONFIG.initialZoom) engine.setZoom(INITIAL_SDK_CONFIG.initialZoom);
+      const outline = await engine.getOutline();
+      setDocumentState({ isLoaded: true, pageCount, outline });
+      if (INITIAL_SDK_CONFIG.initialPage) {
+        const page = Math.max(1, Math.min(pageCount || 1, INITIAL_SDK_CONFIG.initialPage));
+        engine.goToPage(page);
+        triggerScrollToPage(page - 1);
+      }
     };
 
-    init();
-    return () => engine.destroy();
+    void Linking.getInitialURL().then((url) => loadFixture(url));
+    const subscription = Linking.addEventListener('url', ({ url }) => void loadFixture(url, true));
+    return () => {
+      subscription.remove();
+      engine.destroy();
+    };
   }, [engine, initializeStore, setDocumentState, triggerScrollToPage]);
 
   const loadDocument = async (type: 'pdf' | 'epub' | 'text') => {
@@ -73,7 +102,9 @@ const App: React.FC = () => {
 
     try {
       if (type === 'pdf') {
-        await engine.load(DEFAULT_PDF);
+        const resolved = Image.resolveAssetSource(mobileFixtureRegistry.small);
+        if (!resolved?.uri) throw new Error('small fixture has no URI');
+        await engine.load({ uri: resolved.uri });
       } else if (type === 'epub') {
         await engine.load({ type: 'epub', source: SAMPLE_EPUB_DATA_URI });
       } else {
@@ -139,16 +170,16 @@ const App: React.FC = () => {
         })}
       </View>
       <View style={styles.viewer}>
-        <Viewer engine={engine} />
+        <Viewer engine={engine} viewerMode="compat" />
         <ToolDock />
       </View>
       <BottomBar
-        documentType={docType}
+        documentType={activeType}
         onOpenDestination={() => {}}
         onOpenInfo={() => {}}
         onOpenSettings={() => setSettingsOpen(true)}
       />
-      <RightSheet engine={engine} />
+      <RightSheet engine={engine} documentType={activeType} />
       <SettingsSheet engine={engine} visible={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <AnnotationEditor />
       </Root>
