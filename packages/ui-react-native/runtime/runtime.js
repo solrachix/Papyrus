@@ -142,6 +142,7 @@
   let comicDispose = null;
   let comicGeneration = 0;
   let epubInteractionCleanup = null;
+  let epubScrollDiagnostics = null;
 
   const sendMessage = (payload) => {
     if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
@@ -245,6 +246,173 @@
 
   const sendEvent = (name, payload) => {
     sendMessage({ type: 'event', name, payload });
+  };
+
+  const isEpubDiagnosticsEnabled = () => {
+    const configured = runtimeConfig.epubScrollDiagnostics;
+    return configured === true || configured === '1' || configured === 'true' ||
+      Boolean(window.__PAPYRUS_EPUB_SCROLL_DIAGNOSTICS__);
+  };
+
+  const createEpubScrollDiagnostics = (manager) => {
+    if (!isEpubDiagnosticsEnabled()) return null;
+
+    const state = {
+      lastScrollTop: null,
+      lastTouchY: null,
+      lastTouchX: null,
+      lastInputDeltaY: 0,
+      touchActive: false,
+      selectionActive: false,
+      gestureLock: false,
+      consecutiveStallSamples: 0,
+      firstStallTimestamp: null,
+      stallReported: false,
+    };
+    const container = manager && manager.container;
+
+    const getSnapshot = () => {
+      const scrollTop = Number(container && container.scrollTop) || 0;
+      const scrollHeight = Number(container && container.scrollHeight) || 0;
+      const clientHeight = Number(container && container.clientHeight) || 0;
+      let scrollEnabled = true;
+      try {
+        const overflowY = window.getComputedStyle(container).overflowY;
+        scrollEnabled = overflowY !== 'hidden' && overflowY !== 'clip';
+      } catch (_) {}
+      return { scrollTop, scrollHeight, clientHeight, scrollEnabled };
+    };
+
+    const emit = (name, payload) => {
+      sendEvent(name, {
+        timestamp: Date.now(),
+        documentType: currentType,
+        currentPage,
+        spineIndex: Math.max(0, currentPage - 1),
+        progress: pageCount > 0 ? currentPage / pageCount : null,
+        ...(payload || {}),
+      });
+    };
+
+    const resetStall = () => {
+      state.consecutiveStallSamples = 0;
+      state.firstStallTimestamp = null;
+      state.stallReported = false;
+    };
+
+    const recordScroll = (event) => {
+      const snapshot = getSnapshot();
+      const previousScrollTop = state.lastScrollTop === null
+        ? snapshot.scrollTop
+        : state.lastScrollTop;
+      const deltaY = state.lastInputDeltaY;
+      const inputDirection = deltaY > 4 ? 'up' : deltaY < -4 ? 'down' : 'none';
+      const offsetUnchanged = Math.abs(snapshot.scrollTop - previousScrollTop) <= 1;
+      const validStallSample = inputDirection === 'up' &&
+        snapshot.scrollTop > 2 &&
+        snapshot.scrollEnabled &&
+        !state.selectionActive &&
+        !state.gestureLock &&
+        offsetUnchanged;
+
+      if (validStallSample) {
+        state.consecutiveStallSamples += 1;
+        if (state.firstStallTimestamp === null) {
+          state.firstStallTimestamp = Date.now();
+        }
+        const durationMs = Date.now() - state.firstStallTimestamp;
+        if (!state.stallReported && state.consecutiveStallSamples >= 3 && durationMs >= 150) {
+          state.stallReported = true;
+          emit('epub.scroll.stall', {
+            ...snapshot,
+            previousScrollTop,
+            deltaY,
+            direction: 'up',
+            consecutiveSamples: state.consecutiveStallSamples,
+            durationMs,
+            selectionActive: state.selectionActive,
+            gestureLock: state.gestureLock,
+          });
+        }
+      } else if (!offsetUnchanged || inputDirection !== 'up') {
+        resetStall();
+      }
+
+      state.lastScrollTop = snapshot.scrollTop;
+      emit('epub.scroll', {
+        ...snapshot,
+        previousScrollTop,
+        deltaY,
+        direction: snapshot.scrollTop < previousScrollTop ? 'up' :
+          snapshot.scrollTop > previousScrollTop ? 'down' : 'none',
+        touchActive: state.touchActive,
+        selectionActive: state.selectionActive,
+        gestureLock: state.gestureLock,
+      });
+    };
+
+    return {
+      setSelectionActive(active) {
+        state.selectionActive = Boolean(active);
+        emit('epub.selection', { selectionActive: state.selectionActive });
+      },
+      setGestureLock(active) {
+        state.gestureLock = Boolean(active);
+        emit('epub.gesture-lock', { gestureLock: state.gestureLock });
+      },
+      touchStart(event) {
+        const touch = event && event.touches && event.touches[0];
+        state.touchActive = true;
+        state.lastTouchY = touch ? Number(touch.clientY) : null;
+        state.lastTouchX = touch ? Number(touch.clientX) : null;
+        state.lastInputDeltaY = 0;
+        resetStall();
+        emit('epub.touch.start', { x: state.lastTouchX, y: state.lastTouchY });
+      },
+      touchMove(event) {
+        const touch = event && event.touches && event.touches[0];
+        if (!touch) return;
+        const previousY = state.lastTouchY;
+        const previousX = state.lastTouchX;
+        state.lastTouchY = Number(touch.clientY);
+        state.lastTouchX = Number(touch.clientX);
+        state.lastInputDeltaY = previousY === null ? 0 : previousY - state.lastTouchY;
+        emit('epub.touch.move', {
+          x: state.lastTouchX,
+          y: state.lastTouchY,
+          deltaY: previousY === null ? 0 : previousY - state.lastTouchY,
+          deltaX: previousX === null ? 0 : previousX - state.lastTouchX,
+        });
+        recordScroll();
+      },
+      touchEnd(event) {
+        const touch = event && event.changedTouches && event.changedTouches[0];
+        state.touchActive = false;
+        emit('epub.touch.end', {
+          x: touch ? Number(touch.clientX) : state.lastTouchX,
+          y: touch ? Number(touch.clientY) : state.lastTouchY,
+        });
+        state.lastTouchY = null;
+        state.lastTouchX = null;
+        state.lastInputDeltaY = 0;
+        resetStall();
+      },
+      scroll: recordScroll,
+      relocated(location) {
+        emit('epub.relocated', {
+          href: location && location.start ? location.start.href || null : null,
+          cfi: location && location.start ? location.start.cfi || null : null,
+        });
+      },
+      settled(event) {
+        emit('epub.momentum.settled', {
+          scrollTop: Number(event && event.top) || 0,
+        });
+      },
+      command(name, payload) {
+        emit('epub.programmatic-scroll', { command: name, ...(payload || {}) });
+      },
+    };
   };
 
   const reportError = (error, context) => {
@@ -850,7 +1018,9 @@
     if (source.kind === 'uri') {
       data = await sourceToArrayBuffer(source);
     } else if (source.kind === 'base64') {
-      data = decodeBase64(source.data);
+      // epub.js expects an ArrayBuffer for binary books. Passing the decoded
+      // Uint8Array directly can leave `book.ready` pending in Android WebView.
+      data = decodeBase64(source.data).buffer;
     } else if (source.kind === 'text') {
       const encoder = new TextEncoder();
       data = encoder.encode(source.text || '').buffer;
@@ -886,6 +1056,7 @@
         const selection = contents && contents.window ? contents.window.getSelection() : null;
         const text = selection ? selection.toString().trim() : '';
         if (text) {
+          epubScrollDiagnostics && epubScrollDiagnostics.setSelectionActive(true);
           sendEvent('TEXT_SELECTED', { text, pageIndex: Math.max(0, currentPage - 1) });
         }
         if (rendition && rendition.annotations && typeof rendition.annotations.remove === 'function') {
@@ -897,6 +1068,7 @@
         let index = start && Number.isInteger(start.index) ? start.index : -1;
         if (index < 0 && start && start.href) index = getSpineIndexByHref(start.href);
         if (index < 0 || index >= spineItems.length) return;
+        epubScrollDiagnostics && epubScrollDiagnostics.relocated(location);
         const nextPage = index + 1;
         if (nextPage === currentPage) return;
         currentPage = nextPage;
@@ -914,6 +1086,32 @@
       let touchStart = null;
       let lastScrollOffset = -1;
       const manager = rendition.manager;
+      epubScrollDiagnostics = createEpubScrollDiagnostics(manager);
+
+      // ContinuousManager schedules a check for every debounced scroll event.
+      // During a fast direction change, obsolete checks can queue behind view
+      // append/prepend work and delay the next user scroll. Keep one check in
+      // flight and let a later real scroll request another check.
+      if (manager.q && typeof manager.q.enqueue === 'function') {
+        const originalEnqueue = manager.q.enqueue.bind(manager.q);
+        let pendingCheck = null;
+        manager.q.enqueue = (task, ...args) => {
+          const isCheckTask = typeof task === 'function' &&
+            /\bthis\.check\(\)/.test(String(task));
+          if (!isCheckTask) return originalEnqueue(task, ...args);
+          if (pendingCheck) return Promise.resolve(false);
+          const result = originalEnqueue(task, ...args);
+          pendingCheck = Promise.resolve(result).finally(() => {
+            pendingCheck = null;
+          });
+          if (epubScrollDiagnostics) {
+            epubScrollDiagnostics.command('manager.check', {
+              queueLength: typeof manager.q.length === 'function' ? manager.q.length() : null,
+            });
+          }
+          return pendingCheck;
+        };
+      }
       const getTouchPoint = (event) => {
         const touch =
           (event && event.changedTouches && event.changedTouches[0]) ||
@@ -925,32 +1123,45 @@
       };
       const handleScroll = (event) => {
         const offsetY = Math.max(0, Number(event && event.top) || 0);
+        epubScrollDiagnostics && epubScrollDiagnostics.scroll(event);
         if (Math.abs(offsetY - lastScrollOffset) < 1) return;
         lastScrollOffset = offsetY;
         sendEvent('VIEWER_SCROLL', { offsetY });
       };
       const handleTouchStart = (event) => {
         touchStart = getTouchPoint(event);
+        epubScrollDiagnostics && epubScrollDiagnostics.touchStart(event);
+      };
+      const handleTouchMove = (event) => {
+        epubScrollDiagnostics && epubScrollDiagnostics.touchMove(event);
       };
       const handleTouchEnd = (event) => {
         const end = getTouchPoint(event);
         const start = touchStart;
         touchStart = null;
-        if (!start || !end) return;
-        if (Math.hypot(end.x - start.x, end.y - start.y) <= 12) {
+        if (start && end && Math.hypot(end.x - start.x, end.y - start.y) <= 12) {
           sendEvent('VIEWER_TAP', {});
         }
+        epubScrollDiagnostics && epubScrollDiagnostics.touchEnd(event);
       };
 
       manager.on('scroll', handleScroll);
+      const handleScrolled = (event) => {
+        epubScrollDiagnostics && epubScrollDiagnostics.settled(event);
+      };
+      manager.on('scrolled', handleScrolled);
       rendition.on('touchstart', handleTouchStart);
+      rendition.on('touchmove', handleTouchMove);
       rendition.on('touchend', handleTouchEnd);
       epubInteractionCleanup = () => {
         if (typeof manager.off === 'function') manager.off('scroll', handleScroll);
+        if (typeof manager.off === 'function') manager.off('scrolled', handleScrolled);
         if (typeof rendition.off === 'function') {
           rendition.off('touchstart', handleTouchStart);
+          rendition.off('touchmove', handleTouchMove);
           rendition.off('touchend', handleTouchEnd);
         }
+        epubScrollDiagnostics = null;
       };
     }
     applyEpubZoom();
@@ -964,6 +1175,10 @@
     const item = spineItems[pageIndex];
     if (!item) return;
     const target = item.href || item.idref || item.cfiBase || pageIndex;
+    epubScrollDiagnostics && epubScrollDiagnostics.command('display', {
+      target,
+      pageIndex,
+    });
     await rendition.display(target);
     currentPage = pageIndex + 1;
     sendState();

@@ -104,6 +104,20 @@ describe("mobile comic runtime helpers", () => {
     expect(html).not.toContain("data = source.uri;");
   });
 
+  it("passes base64 EPUB bytes to epub.js as an ArrayBuffer", () => {
+    const runtime = readFileSync(
+      resolve(process.cwd(), "packages/ui-react-native/runtime/runtime.js"),
+      "utf8"
+    );
+    const html = readFileSync(
+      resolve(process.cwd(), "packages/ui-react-native/runtime/index.html"),
+      "utf8"
+    );
+
+    expect(runtime).toContain("data = decodeBase64(source.data).buffer;");
+    expect(html).toContain("data = decodeBase64(source.data).buffer;");
+  });
+
   it("uses continuous scrolling for EPUB rendition", () => {
     const runtime = readFileSync(
       resolve(process.cwd(), "packages/ui-react-native/runtime/runtime.js"),
