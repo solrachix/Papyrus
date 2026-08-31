@@ -30,12 +30,17 @@ node scripts/benchmarks/android-pinch-aggregate.mjs /tmp/papyrus-pr15-android \
 ```
 
 O runner também valida automaticamente o contrato causal e exige pelo menos
-`runs - 1` amostras válidas por fixture/direção quando `runs > 1`.
+`runs - 1` amostras válidas por fixture/direção quando `runs > 1`. Depois de
+`sample.end`, ele drena por 10 segundos para capturar terminais tardios; um
+render que excede 5 segundos de telemetria é explicitamente marcado como
+`render.abandoned` por timeout.
 
 Cada amostra tem um único gesto multipointer, um `sampleId`, um `gestureId`,
-um `documentLoadId` e uma janela `gfxinfo` própria. Amostras sem
-`preview.cleared` ou com IDs divergentes são incompletas e não entram nos
-percentis.
+um `documentLoadId` e uma janela `gfxinfo` própria. O agregador exige que cada
+`render.request` correlacionado tenha exatamente um terminal (`ready`, `stale`,
+`abandoned`, `error` ou `cancelled`). Amostras sem `preview.cleared`, com IDs
+divergentes, sem janela de `gfxinfo` ou com request sem terminal são
+incompletas e não entram nos percentis.
 
 ## Fixtures versionadas
 
@@ -53,23 +58,24 @@ Total: 580.277 bytes. Os hashes oficiais estão em
 
 Execução real em `emulator-5554` (`Pixel_7_API_35`, API 35), com APK release
 `x86_64`, deep link offline e 5 gestos multiponto por direção. O stream causal
-foi validado com `touches=2`; as 40/40 amostras terminaram em
-`pinch.preview.cleared` e `sample.end=complete`.
+foi validado com `touches=2`; 39/40 amostras foram completas e todos os oito
+grupos atenderam ao mínimo de 4/5. A amostra incompleta foi excluída dos
+percentis.
 
 | Fixture | Direção | Válidas | FPS P50 | FPS P90 | Jank P50 | Commit → ready P50/P90 |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
-| `small` | in | 5/5 | 18,96 | 19,16 | 54,84% | 29,7 / 31,7 ms |
-| `small` | out | 5/5 | 18,82 | 20,27 | 63,64% | 65,1 / 71,7 ms |
-| `large-100` | in | 5/5 | 20,33 | 20,37 | 50,00% | 64,1 / 83,3 ms |
-| `large-100` | out | 5/5 | 20,01 | 23,01 | 52,94% | 99,8 / 107,5 ms |
-| `large-1000` | in | 5/5 | 19,99 | 20,88 | 60,00% | 63,4 / 94,9 ms |
-| `large-1000` | out | 5/5 | 19,75 | 20,05 | 58,82% | 97,6 / 114,7 ms |
-| `varied-sizes` | in | 5/5 | 19,91 | 20,53 | 50,00% | 43,6 / 61,7 ms |
-| `varied-sizes` | out | 5/5 | 20,04 | 20,78 | 50,00% | 94,4 / 100,8 ms |
+| `small` | in | 5/5 | 2,32 | 2,61 | 51,61% | 32,6 / 34,7 ms |
+| `small` | out | 5/5 | 2,32 | 2,40 | 48,39% | 57,6 / 69,7 ms |
+| `large-100` | in | 4/5 | 2,51 | 2,66 | 54,29% | 62,1 / 73,9 ms |
+| `large-100` | out | 5/5 | 2,54 | 2,85 | 56,41% | 100,3 / 102,5 ms |
+| `large-1000` | in | 5/5 | 2,54 | 2,55 | 52,94% | 66,2 / 80,5 ms |
+| `large-1000` | out | 5/5 | 2,60 | 2,66 | 57,14% | 103,4 / 117,2 ms |
+| `varied-sizes` | in | 5/5 | 2,44 | 2,48 | 48,48% | 42,2 / 61,6 ms |
+| `varied-sizes` | out | 5/5 | 2,54 | 2,63 | 44,12% | 90,0 / 110,6 ms |
 
 FPS usa a duração observada entre reset e dump do `gfxinfo`; a duração do gesto
-é reportada separadamente. Os percentis acima são agregados das 5 amostras por
-grupo. O documento de 1.000 páginas não apresentou crash/OOM nessa rodada; a
+é reportada separadamente. Os percentis acima são agregados apenas das amostras
+completas. O documento de 1.000 páginas não apresentou crash/OOM nessa rodada; a
 janela continuou limitada (39 views anexadas no dump final).
 
 O APK universal inicial tinha 85.590.373 bytes. Depois de ligar o filtro de

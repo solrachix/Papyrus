@@ -60,6 +60,21 @@ test('accepts abandoned intermediate renders and correlates the ready request', 
   assert.equal(report.samples[0].renderTerminals.abandoned, 1);
 });
 
+test('requires exactly one terminal for every render request', () => {
+  const missingTerminal = [
+    ...events,
+    { name: 'render.request', timestamp: 214, sampleId: 's1', fixture: 'small', gestureId: 'g1', renderRequestId: 'rr-missing', surfaceId: 'page-0', pageIndex: 0, zoom: 2, generation: 2 },
+  ];
+  const report = aggregateAndroidPinch({ ndjson: missingTerminal.map(JSON.stringify).join('\n'), gfxinfo: '', environment: { gfxWindowDurationMs: 250 } });
+  assert.equal(report.samples[0].status, 'incomplete');
+});
+
+test('requires the gfx window for a valid frame-rate sample', () => {
+  const report = aggregateAndroidPinch({ ndjson: events.map(JSON.stringify).join('\n'), gfxinfo: 'Total frames rendered: 40\nJanky frames: 5', environment: {} });
+  assert.equal(report.samples[0].status, 'incomplete');
+  assert.equal(report.samples[0].fps, null);
+});
+
 test('aggregates the per-sample directory without mixing gfxinfo windows', async () => {
   const { mkdtemp, mkdir, writeFile } = await import('node:fs/promises');
   const { tmpdir } = await import('node:os');

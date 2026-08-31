@@ -28,6 +28,7 @@ import {
 import { isMobilePerfEnabled, logPerfEvent, perfNow } from "../perf/mobilePerf";
 import { useMobilePerf } from "../perf/MobilePerfContext";
 import { createRenderLifecycle } from "../perf/renderLifecycle";
+import { invokeRenderPage } from "../perf/renderInvocation";
 import {
   shouldSuppressPressAfterPinch,
 } from "../gesture/pinchZoom";
@@ -151,6 +152,7 @@ const buildSquigglyPath = (segments = 16) => {
 
 const SQUIGGLY_PATH = buildSquigglyPath();
 const SELECTION_AUTOSCROLL_INTERVAL_MS = 16;
+const PERF_RENDER_TIMEOUT_MS = 5000;
 
 const PageRenderer: React.FC<PageRendererProps> = ({
   engine,
@@ -393,6 +395,19 @@ const PageRenderer: React.FC<PageRendererProps> = ({
       const renderRequestId = perfEnabled ? mobilePerf.createId("render") : "noop";
       const lifecycle = createRenderLifecycle();
       const renderGestureId = gestureIdRef.current;
+      const renderTimeout = perfEnabled
+        ? setTimeout(() => {
+            if (!lifecycle.abandon("timeout")) return;
+            mobilePerf.emit("render.abandoned", {
+              renderRequestId,
+              surfaceId,
+              pageIndex,
+              generation,
+              gestureId: renderGestureId,
+              reason: "timeout",
+            });
+          }, PERF_RENDER_TIMEOUT_MS)
+        : null;
       if (perfEnabled) {
         mobilePerf.emit("render.request", {
           renderRequestId,
@@ -403,9 +418,10 @@ const PageRenderer: React.FC<PageRendererProps> = ({
           gestureId: renderGestureId,
         });
       }
-      const renderPromise = Promise.resolve(engine.renderPage(pageIndex, viewTag, renderScale));
+      const renderPromise = invokeRenderPage(engine, pageIndex, viewTag, renderScale);
       void renderPromise
         .then((result: void | RenderPageResult) => {
+          if (renderTimeout) clearTimeout(renderTimeout);
           const status = result && typeof result === "object" ? result.status : "ready";
           if (!lifecycle.complete(status)) return;
           if (perfEnabled) {
@@ -433,6 +449,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({
           }
         })
         .catch((error: unknown) => {
+          if (renderTimeout) clearTimeout(renderTimeout);
           if (!lifecycle.complete("error")) return;
           if (perfEnabled) {
             mobilePerf.emit("render.error", {
@@ -450,6 +467,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({
           });
         });
       return () => {
+        if (renderTimeout) clearTimeout(renderTimeout);
         if (lifecycle.abandon("unmount")) {
           if (perfEnabled) {
             mobilePerf.emit("render.abandoned", {

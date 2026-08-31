@@ -10,8 +10,16 @@ test('profile runner requires real fixture/deep-link/multipointer contracts', as
   assert.match(source, /dumpsys gfxinfo.*reset/);
   assert.match(source, /android-multitouch-probe\.sh/);
   assert.match(source, /preview\.cleared/);
+  assert.match(source, /wait_for_log 'sample\.end' 90/);
+  assert.match(source, /adb -s "\$device" shell sleep 10/);
   assert.match(source, /android-pinch-aggregate\.mjs/);
   assert.match(source, /--min-valid/);
   assert.match(source, /gfxWindowDurationMs/);
   assert.match(source, /without --device exactly one adb device/);
+});
+
+test('profile metadata writes one key per line so gfx window is parseable', async () => {
+  const source = await fs.readFile(new URL('./android-pinch-profile.sh', import.meta.url), 'utf8');
+  assert.ok(source.includes('"fixture=$fixture" \\\n        "direction=$direction" \\\n        "run=$run" \\\n        "device=$device" \\\n        "gfxWindowDurationMs=$gfx_window_duration_ms"'));
+  assert.doesNotMatch(source, /fixture=\$\{fixture\} direction=\$\{direction\}/);
 });

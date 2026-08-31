@@ -53,7 +53,7 @@ function groupBySample(events) {
 function event(list, name) { return list.find((item) => item.name === name); }
 function events(list, name) { return list.filter((item) => item.name === name); }
 
-function summarizeSample(sampleId, list, gfxinfo, environment) {
+function summarizeSample(sampleId, list, gfxinfo, environment, hasGfxInfo) {
   const start = event(list, 'pinch.start');
   const end = event(list, 'pinch.end');
   const commitStart = event(list, 'pinch.commit.start');
@@ -80,6 +80,13 @@ function summarizeSample(sampleId, list, gfxinfo, environment) {
   const requests = renderRequests;
   const readies = renderEvents.filter((item) => item.name === 'render.ready');
   const clears = events(list, 'pinch.preview.cleared');
+  const terminalNames = new Set(['render.ready', 'render.stale', 'render.abandoned', 'render.error', 'render.cancelled']);
+  const renderLifecycleValid = requests.length >= 1 && requests.every((requestItem) => {
+    const terminals = renderEvents.filter((item) =>
+      terminalNames.has(item.name) && item.renderRequestId === requestItem.renderRequestId
+    );
+    return terminals.length === 1;
+  });
   const finalZoom = numberFrom(end?.finalZoom);
   const startZoom = numberFrom(start?.startZoom);
   const direction = startZoom !== null && finalZoom !== null && finalZoom > startZoom ? 'out' : 'in';
@@ -98,6 +105,8 @@ function summarizeSample(sampleId, list, gfxinfo, environment) {
     start?.gestureId && end?.gestureId === start.gestureId && commitStart?.gestureId === start.gestureId &&
     commitEnd?.gestureId === start.gestureId && request?.gestureId === start.gestureId &&
     ready?.renderRequestId === request.renderRequestId && cleared?.gestureId === start.gestureId &&
+    renderLifecycleValid &&
+    (!hasGfxInfo || (numberFrom(environment.gfxWindowDurationMs) ?? 0) > 0) &&
     renderEvents.every((item) => !item.documentLoadId || !start.documentLoadId || item.documentLoadId === start.documentLoadId)
   );
   const sampleDurationMs = numberFrom(sampleEnd?.timestamp) !== null && numberFrom(sampleStart?.timestamp) !== null
@@ -106,7 +115,7 @@ function summarizeSample(sampleId, list, gfxinfo, environment) {
   const commitDurationMs = commitStart && commitEnd ? commitEnd.timestamp - commitStart.timestamp : null;
   const frameData = gfxinfo ?? {};
   const gfxWindowDurationMs = numberFrom(environment.gfxWindowDurationMs);
-  const frameDurationMs = gfxWindowDurationMs ?? numberFrom(sampleDurationMs);
+  const frameDurationMs = gfxWindowDurationMs ?? (!hasGfxInfo ? numberFrom(sampleDurationMs) : null);
   const frames = numberFrom(frameData.frames);
   return {
     sampleId,
@@ -133,6 +142,7 @@ function summarizeSample(sampleId, list, gfxinfo, environment) {
     requestToReadyMs: request && ready ? ready.timestamp - request.timestamp : null,
     commitToReadyMs: commitEnd && ready ? ready.timestamp - commitEnd.timestamp : null,
     readyToPreviewClearedMs: ready && cleared ? cleared.timestamp - ready.timestamp : null,
+    renderLifecycleValid,
     renderTerminals: Object.fromEntries(['ready', 'stale', 'abandoned', 'error', 'cancelled'].map((status) => [`${status}`, renderEvents.filter((item) => item.name === `render.${status}`).length])),
     environment,
     rawEventCount: list.length,
@@ -197,7 +207,7 @@ export function validateAndroidPinchReport(report, { fixtures, minimumValid = 1 
 export function aggregateAndroidPinch({ ndjson, gfxinfo = '', environment = {} }) {
   const rawEvents = parseNdjson(ndjson);
   const parsedGfx = parseGfxInfo(gfxinfo);
-  const samples = [...groupBySample(rawEvents)].map(([sampleId, list]) => summarizeSample(sampleId, list, parsedGfx, environment));
+  const samples = [...groupBySample(rawEvents)].map(([sampleId, list]) => summarizeSample(sampleId, list, parsedGfx, environment, Boolean(String(gfxinfo ?? '').trim())));
   return { schemaVersion: 1, environment, rawEvents, samples, aggregates: aggregateSamples(samples) };
 }
 
