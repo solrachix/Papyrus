@@ -6,5 +6,9 @@ export function invokeRenderPage(
   viewTag: number,
   renderScale: number,
 ) {
-  return Promise.resolve().then(() => engine.renderPage(pageIndex, viewTag, renderScale));
+  try {
+    return Promise.resolve(engine.renderPage(pageIndex, viewTag, renderScale));
+  } catch (error) {
+    return Promise.reject(error);
+  }
 }

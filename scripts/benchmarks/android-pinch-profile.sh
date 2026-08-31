@@ -66,11 +66,11 @@ for fixture in "${fixture_list[@]}"; do
       "$probe_dir/android-multitouch-probe.sh" --device "$device" --duration-ms 1200 --radius 120 --direction "$direction" >/dev/null
       wait_for_log 'preview.cleared' 90
       wait_for_log 'sample.end' 90
-      adb -s "$device" shell sleep 10
-      adb -s "$device" logcat -d -v brief | sed -n 's/.*\[Papyrus Perf\] //p' > "$sample_dir/events.ndjson"
       adb -s "$device" shell dumpsys gfxinfo "$package_id" > "$sample_dir/gfxinfo.txt"
       gfx_window_end_ms="$(date +%s%3N)"
       gfx_window_duration_ms=$((gfx_window_end_ms - gfx_window_start_ms))
+      adb -s "$device" shell sleep 10
+      adb -s "$device" logcat -d -v brief | sed -n 's/.*\[Papyrus Perf\] //p' > "$sample_dir/events.ndjson"
       printf '%s\n' \
         "fixture=$fixture" \
         "direction=$direction" \

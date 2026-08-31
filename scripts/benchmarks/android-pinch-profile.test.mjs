@@ -23,3 +23,13 @@ test('profile metadata writes one key per line so gfx window is parseable', asyn
   assert.ok(source.includes('"fixture=$fixture" \\\n        "direction=$direction" \\\n        "run=$run" \\\n        "device=$device" \\\n        "gfxWindowDurationMs=$gfx_window_duration_ms"'));
   assert.doesNotMatch(source, /fixture=\$\{fixture\} direction=\$\{direction\}/);
 });
+
+test('closes the gfx window before draining late render events', async () => {
+  const source = await fs.readFile(new URL('./android-pinch-profile.sh', import.meta.url), 'utf8');
+  const gfxDump = source.indexOf('dumpsys gfxinfo "$package_id" > "$sample_dir/gfxinfo.txt"');
+  const drain = source.indexOf('adb -s "$device" shell sleep 10');
+  const eventCapture = source.indexOf('events.ndjson');
+  assert.ok(gfxDump !== -1 && drain !== -1 && eventCapture !== -1);
+  assert.ok(gfxDump < drain);
+  assert.ok(drain < eventCapture);
+});
