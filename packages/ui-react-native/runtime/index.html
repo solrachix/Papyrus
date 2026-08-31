@@ -21439,8 +21439,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     return { pageCount };
   };
 
-  const loadEpub = async (source, loadId) => {
-    const generation = ++epubLoadGeneration;
+  const loadEpub = async (source, loadId, generation) => {
     const diagnosticPayload = {
       loadId,
       sourceKind: source.kind,
@@ -21772,6 +21771,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 
     try {
       if (kind === 'load') {
+        const generation = (epubLoadGeneration += 1);
         currentType = payload.type;
         zoom = 1.0;
 
@@ -21783,7 +21783,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         }
 
         if (currentType === 'epub') {
-          const result = await loadEpub(payload.source, id);
+          const result = await loadEpub(payload.source, id, generation);
           sendEvent('document.ready', {
             loadId: id,
             pageCount: result.pageCount,

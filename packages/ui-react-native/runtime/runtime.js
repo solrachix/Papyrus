@@ -1065,8 +1065,7 @@
     return { pageCount };
   };
 
-  const loadEpub = async (source, loadId) => {
-    const generation = ++epubLoadGeneration;
+  const loadEpub = async (source, loadId, generation) => {
     const diagnosticPayload = {
       loadId,
       sourceKind: source.kind,
@@ -1398,6 +1397,7 @@
 
     try {
       if (kind === 'load') {
+        const generation = (epubLoadGeneration += 1);
         currentType = payload.type;
         zoom = 1.0;
 
@@ -1409,7 +1409,7 @@
         }
 
         if (currentType === 'epub') {
-          const result = await loadEpub(payload.source, id);
+          const result = await loadEpub(payload.source, id, generation);
           sendEvent('document.ready', {
             loadId: id,
             pageCount: result.pageCount,

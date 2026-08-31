@@ -143,6 +143,31 @@ describe("mobile comic runtime helpers", () => {
     }
   });
 
+  it("invalidates a pending EPUB load when another document starts", () => {
+    const runtime = readFileSync(
+      resolve(process.cwd(), "packages/ui-react-native/runtime/runtime.js"),
+      "utf8"
+    );
+    const loadStart = runtime.indexOf("if (kind === 'load')");
+    const generationInvalidation = runtime.indexOf(
+      "epubLoadGeneration += 1",
+      loadStart
+    );
+    const currentTypeAssignment = runtime.indexOf(
+      "currentType = payload.type",
+      loadStart
+    );
+
+    expect(generationInvalidation).toBeGreaterThan(loadStart);
+    expect(generationInvalidation).toBeLessThan(currentTypeAssignment);
+    expect(runtime).toContain(
+      "const loadEpub = async (source, loadId, generation) =>"
+    );
+    expect(runtime).toContain(
+      "const result = await loadEpub(payload.source, id, generation);"
+    );
+  });
+
   it("uses continuous scrolling for EPUB rendition", () => {
     const runtime = readFileSync(
       resolve(process.cwd(), "packages/ui-react-native/runtime/runtime.js"),
