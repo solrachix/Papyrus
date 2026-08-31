@@ -98,13 +98,13 @@ describe("mobile comic runtime helpers", () => {
       "utf8"
     );
 
-    expect(runtime).toContain("data = await sourceToArrayBuffer(source);");
-    expect(html).toContain("data = await sourceToArrayBuffer(source);");
+    expect(runtime).toContain("sourceToArrayBuffer(source),");
+    expect(html).toContain("sourceToArrayBuffer(source),");
     expect(runtime).not.toContain("data = source.uri;");
     expect(html).not.toContain("data = source.uri;");
   });
 
-  it("passes base64 EPUB bytes to epub.js as an ArrayBuffer", () => {
+  it("passes an exact ArrayBuffer to epub.js for base64 sources", () => {
     const runtime = readFileSync(
       resolve(process.cwd(), "packages/ui-react-native/runtime/runtime.js"),
       "utf8"
@@ -114,8 +114,78 @@ describe("mobile comic runtime helpers", () => {
       "utf8"
     );
 
-    expect(runtime).toContain("data = decodeBase64(source.data).buffer;");
-    expect(html).toContain("data = decodeBase64(source.data).buffer;");
+    expect(runtime).toContain("const toExactArrayBuffer = (bytes) =>");
+    expect(html).toContain("const toExactArrayBuffer = (bytes) =>");
+    expect(runtime).toContain("data = toExactArrayBuffer(decodeBase64(source.data));");
+    expect(html).toContain("data = toExactArrayBuffer(decodeBase64(source.data));");
+  });
+
+  it("correlates EPUB diagnostics and load terminals by request id", () => {
+    const runtime = readFileSync(
+      resolve(process.cwd(), "packages/ui-react-native/runtime/runtime.js"),
+      "utf8"
+    );
+    const html = readFileSync(
+      resolve(process.cwd(), "packages/ui-react-native/runtime/index.html"),
+      "utf8"
+    );
+    for (const artifact of [runtime, html]) {
+      expect(artifact).toContain("epub.load.start");
+      expect(artifact).toContain("epub.book.ready");
+      expect(artifact).toContain("epub.display.start");
+      expect(artifact).toContain("epub.load.ready");
+      expect(artifact).toContain("epub.load.error");
+      expect(artifact).toContain("epub.load.timeout");
+      expect(artifact).toContain("loadId");
+      expect(artifact).toContain("document.ready");
+      expect(artifact).toContain("document.error");
+      expect(artifact).toContain("withEpubStageTimeout");
+    }
+  });
+
+  it("invalidates a pending EPUB load when another document starts", () => {
+    const runtime = readFileSync(
+      resolve(process.cwd(), "packages/ui-react-native/runtime/runtime.js"),
+      "utf8"
+    );
+    const loadStart = runtime.indexOf("if (kind === 'load')");
+    const generationInvalidation = runtime.indexOf(
+      "epubLoadGeneration += 1",
+      loadStart
+    );
+    const currentTypeAssignment = runtime.indexOf(
+      "currentType = payload.type",
+      loadStart
+    );
+
+    expect(generationInvalidation).toBeGreaterThan(loadStart);
+    expect(generationInvalidation).toBeLessThan(currentTypeAssignment);
+    expect(runtime).toContain(
+      "const loadEpub = async (source, loadId, generation) =>"
+    );
+    expect(runtime).toContain(
+      "const result = await loadEpub(payload.source, id, generation);"
+    );
+  });
+
+  it("rejects a stale EPUB load after outline resolution", () => {
+    const runtime = readFileSync(
+      resolve(process.cwd(), "packages/ui-react-native/runtime/runtime.js"),
+      "utf8"
+    );
+    const outlineStart = runtime.indexOf("const outline = await withEpubStageTimeout(");
+    const outlineGuard = runtime.indexOf(
+      "if (!isCurrentLoad()) throw new Error('EPUB load superseded by a newer load');",
+      outlineStart
+    );
+    const readyEvent = runtime.indexOf(
+      "sendEpubDiagnostic('epub.load.ready'",
+      outlineStart
+    );
+
+    expect(outlineStart).toBeGreaterThan(-1);
+    expect(outlineGuard).toBeGreaterThan(outlineStart);
+    expect(outlineGuard).toBeLessThan(readyEvent);
   });
 
   it("uses continuous scrolling for EPUB rendition", () => {
