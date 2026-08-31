@@ -1,6 +1,9 @@
 // @vitest-environment node
 
+import { File } from "node:buffer";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.stubGlobal("File", File);
 
 const archiveApi = vi.hoisted(() => ({
   init: vi.fn(),

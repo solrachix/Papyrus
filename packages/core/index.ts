@@ -8,3 +8,4 @@ export * from './renderBudget';
 export * from './renderOverscan';
 export * from './pageLayoutMetrics';
 export * from './virtualPageWindow';
+export * from './perfTelemetry';

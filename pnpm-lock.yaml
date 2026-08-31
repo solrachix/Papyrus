@@ -7,6 +7,8 @@ settings:
 overrides:
   esbuild: 0.21.5
 
+packageExtensionsChecksum: fd228f6f8f33411ecaa41785533fc09b
+
 importers:
 
   .:
@@ -8413,11 +8415,16 @@ snapshots:
       glob: 10.5.0
       jsc-safe-url: 0.2.4
       lightningcss: 1.27.0
+      metro: 0.81.5
+      metro-cache: 0.81.5
+      metro-transform-worker: 0.81.5
       minimatch: 3.1.5
       postcss: 8.4.49
       resolve-from: 5.0.0
     transitivePeerDependencies:
+      - bufferutil
       - supports-color
+      - utf-8-validate
 
   '@expo/osascript@2.4.2':
     dependencies:

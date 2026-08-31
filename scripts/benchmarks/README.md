@@ -78,6 +78,22 @@ Para o emulador `Pixel_7_API_35`, o APK do benchmark deve ser construído com
 `x86_64`. GIF/WebP são opcionais e ficam desativados nesse artefato para manter
 o limite de 30 MiB; isso não altera a configuração padrão multi-ABI do app.
 
+## Fixtures reproduzíveis da PR 13
+
+O catálogo abaixo gera os seis cenários da rodada em um diretório temporário e
+imprime um manifesto JSON com contagem de páginas, tamanho e SHA-256:
+
+```bash
+node scripts/benchmarks/perf-fixtures.mjs --output /tmp/papyrus-pr13-fixtures
+```
+
+Os perfis são `small-20`, `medium-200`, `large-1000`, `image-heavy`,
+`varied-sizes` e `text-heavy`. Os PDFs são sintéticos e determinísticos: eles
+exercitam o pipeline de parsing, text layer, rasterização e virtualização, mas
+não representam a distribuição real de documentos dos usuários. O catálogo
+valida a quantidade de páginas e o hash esperado antes de publicar o
+manifesto; os arquivos gerados não entram no repositório.
+
 ## Política de zoom, janela e layout
 
 Para reproduzir a política de renderização da rodada de performance:
@@ -92,7 +108,40 @@ página durante o double buffer. As durações e contagens são sintéticas e n�
 substituem uma medição de frames, memória ou cancelamento em browser/dispositivo
 real; essas métricas aparecem explicitamente como indisponíveis no JSON.
 
+## Protocolo de captura web da PR 13
+
+O coletor web é desligado por padrão. Para habilitá-lo, abra o demo com
+`?papyrusPerf=1` ou defina `window.__PAPYRUS_WEB_PERF__ = true` antes de montar
+o `Viewer`. Após executar o cenário, exporte o snapshot no console:
+
+```js
+JSON.stringify(window.__PAPYRUS_WEB_PERF__.snapshot())
+```
+
+O script abaixo resume esse snapshot e deixa campos não suportados como
+`null`. Sem `--input`, ele imprime um relatório `not-run`; isso é intencional e
+não representa uma captura real:
+
+```bash
+node scripts/benchmarks/web-perf.mjs \
+  --fixture large-1000 \
+  --scenario "zoom 1→5→1" \
+  --input /tmp/papyrus-web-snapshot.json \
+  --output /tmp/papyrus-web-report.json \
+  --markdown /tmp/papyrus-web-report.md
+```
+
+O protocolo mínimo por fixture é: abrir o documento, executar zoom `1→5→1`
+por 20 ciclos, fazer scroll rápido, executar os jumps `1→500→999` e capturar
+antes/depois. Para o cenário de 5000 páginas, conferir wrappers, Canvas e
+PageRenderers montados, scroll ao meio/fim/começo e páginas de alturas
+variadas. A contagem de frames é uma observação da thread JavaScript, não FPS
+de hardware; a memória só aparece quando `performance.memory` existe.
+
 ## Medição no browser
+
+O relatório versionado da validação Android da PR 13 está em
+[`docs/performance/pr-13-real-world-validation.md`](../../docs/performance/pr-13-real-world-validation.md).
 
 Com o demo web em `http://localhost:3005/`, o PDF de 1000 páginas foi carregado
 pelo controle de upload local. Três execuções chegaram a 1007 canvases em
