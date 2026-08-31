@@ -1018,7 +1018,9 @@
     if (source.kind === 'uri') {
       data = await sourceToArrayBuffer(source);
     } else if (source.kind === 'base64') {
-      data = decodeBase64(source.data);
+      // epub.js expects an ArrayBuffer for binary books. Passing the decoded
+      // Uint8Array directly can leave `book.ready` pending in Android WebView.
+      data = decodeBase64(source.data).buffer;
     } else if (source.kind === 'text') {
       const encoder = new TextEncoder();
       data = encoder.encode(source.text || '').buffer;
