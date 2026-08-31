@@ -139,10 +139,15 @@
   const COMIC_PREVIEW_CACHE_LIMIT = 8;
   const comicHelpers = window.PapyrusComicRuntime || {};
   const runtimeConfig = window.__PAPYRUS_RUNTIME_CONFIG__ || {};
+  const epubDiagnosticsEnabled =
+    runtimeConfig.epubDiagnostics === true ||
+    runtimeConfig.epubDiagnostics === 'true';
+  const EPUB_STAGE_TIMEOUT_MS = 10000;
   let comicDispose = null;
   let comicGeneration = 0;
   let epubInteractionCleanup = null;
   let epubScrollDiagnostics = null;
+  let epubLoadGeneration = 0;
 
   const sendMessage = (payload) => {
     if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
@@ -247,6 +252,51 @@
   const sendEvent = (name, payload) => {
     sendMessage({ type: 'event', name, payload });
   };
+
+  const sendEpubDiagnostic = (name, payload) => {
+    if (!epubDiagnosticsEnabled) return;
+    sendEvent(name, {
+      loadId: payload.loadId,
+      timestamp: Date.now(),
+      sourceKind: payload.sourceKind,
+      byteLength: payload.byteLength,
+      currentType: currentType,
+      durationMs: payload.durationMs,
+      error: payload.error,
+    });
+  };
+
+  const withEpubStageTimeout = (promise, stage, payload) =>
+    new Promise((resolve, reject) => {
+      let settled = false;
+      const startedAt = performance.now();
+      const timeout = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        const error = new Error(`EPUB ${stage} excedeu ${EPUB_STAGE_TIMEOUT_MS}ms`);
+        sendEpubDiagnostic('epub.load.timeout', {
+          ...payload,
+          error: { message: error.message, stage },
+          durationMs: performance.now() - startedAt,
+        });
+        reject(error);
+      }, EPUB_STAGE_TIMEOUT_MS);
+
+      Promise.resolve(promise).then(
+        (value) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timeout);
+          resolve(value);
+        },
+        (error) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timeout);
+          reject(error);
+        },
+      );
+    });
 
   const isEpubDiagnosticsEnabled = () => {
     const configured = runtimeConfig.epubScrollDiagnostics;
@@ -475,16 +525,29 @@
     }
   };
 
-  const decodeBase64 = (value) => {
-    const clean = value.replace(/\s/g, '');
-    const binary = atob(clean);
-    const len = binary.length;
-    const bytes = new Uint8Array(len);
+   const decodeBase64 = (value) => {
+     const clean = value.replace(/\s/g, '');
+     const binary = atob(clean);
+     const len = binary.length;
+     const bytes = new Uint8Array(len);
     for (let i = 0; i < len; i += 1) {
       bytes[i] = binary.charCodeAt(i);
     }
-    return bytes;
-  };
+     return bytes;
+   };
+
+   const toExactArrayBuffer = (bytes) => {
+     if (
+       bytes.byteOffset === 0 &&
+       bytes.byteLength === bytes.buffer.byteLength
+     ) {
+       return bytes.buffer;
+     }
+     return bytes.buffer.slice(
+       bytes.byteOffset,
+       bytes.byteOffset + bytes.byteLength
+     );
+   };
 
   const decodeBase64ToText = (value) => {
     const bytes = decodeBase64(value);
@@ -501,10 +564,10 @@
         throw new Error(`Falha ao carregar quadrinho (${response.status})`);
       }
       return response.arrayBuffer();
-    }
-    if (source.kind === 'base64') {
-      return decodeBase64(source.data).buffer;
-    }
+     }
+     if (source.kind === 'base64') {
+       return toExactArrayBuffer(decodeBase64(source.data));
+     }
     throw new Error('Fonte de quadrinho inválida.');
   };
 
@@ -1002,7 +1065,15 @@
     return { pageCount };
   };
 
-  const loadEpub = async (source) => {
+  const loadEpub = async (source, loadId) => {
+    const generation = ++epubLoadGeneration;
+    const diagnosticPayload = {
+      loadId,
+      sourceKind: source.kind,
+    };
+    const isCurrentLoad = () => generation === epubLoadGeneration;
+    sendEpubDiagnostic('epub.load.start', diagnosticPayload);
+
     if (epubInteractionCleanup) {
       epubInteractionCleanup();
       epubInteractionCleanup = null;
@@ -1016,22 +1087,46 @@
 
     let data = null;
     if (source.kind === 'uri') {
-      data = await sourceToArrayBuffer(source);
+      data = await withEpubStageTimeout(
+        sourceToArrayBuffer(source),
+        'source',
+        diagnosticPayload,
+      );
     } else if (source.kind === 'base64') {
       // epub.js expects an ArrayBuffer for binary books. Passing the decoded
       // Uint8Array directly can leave `book.ready` pending in Android WebView.
-      data = decodeBase64(source.data).buffer;
+      data = toExactArrayBuffer(decodeBase64(source.data));
     } else if (source.kind === 'text') {
       const encoder = new TextEncoder();
       data = encoder.encode(source.text || '').buffer;
     }
 
+    if (!isCurrentLoad()) throw new Error('EPUB load superseded by a newer load');
+    sendEpubDiagnostic('epub.source.received', {
+      ...diagnosticPayload,
+      byteLength: data?.byteLength,
+    });
+    sendEpubDiagnostic('epub.source.decoded', {
+      ...diagnosticPayload,
+      byteLength: data?.byteLength,
+    });
     book = ePub(data);
-    await book.ready;
+    sendEpubDiagnostic('epub.book.created', {
+      ...diagnosticPayload,
+      byteLength: data?.byteLength,
+    });
+    sendEpubDiagnostic('epub.book.ready.start', diagnosticPayload);
+    await withEpubStageTimeout(book.ready, 'book.ready', diagnosticPayload);
+    if (!isCurrentLoad()) throw new Error('EPUB load superseded by a newer load');
+    sendEpubDiagnostic('epub.book.ready.end', diagnosticPayload);
 
     spineItems = book.spine && book.spine.items ? book.spine.items : [];
     pageCount = spineItems.length;
     currentPage = 1;
+    sendEpubDiagnostic('epub.spine.ready', {
+      ...diagnosticPayload,
+      pageCount,
+    });
 
     clearViewer();
     rendition = book.renderTo(viewer, {
@@ -1041,6 +1136,7 @@
       flow: 'scrolled-continuous',
       spread: 'none',
     });
+    sendEpubDiagnostic('epub.rendition.created', diagnosticPayload);
 
     if (rendition && rendition.hooks && rendition.hooks.content) {
       rendition.hooks.content.register((contents) => {
@@ -1076,7 +1172,14 @@
       });
     }
 
-    await displayEpubPage(0);
+    sendEpubDiagnostic('epub.display.start', diagnosticPayload);
+    await withEpubStageTimeout(
+      displayEpubPage(0),
+      'rendition.display',
+      diagnosticPayload,
+    );
+    if (!isCurrentLoad()) throw new Error('EPUB load superseded by a newer load');
+    sendEpubDiagnostic('epub.display.end', diagnosticPayload);
     if (
       rendition &&
       rendition.manager &&
@@ -1166,7 +1269,15 @@
     }
     applyEpubZoom();
 
-    const outline = await buildOutline();
+    const outline = await withEpubStageTimeout(
+      buildOutline(),
+      'outline',
+      diagnosticPayload,
+    );
+    sendEpubDiagnostic('epub.load.ready', {
+      ...diagnosticPayload,
+      pageCount,
+    });
     return { pageCount, outline };
   };
 
@@ -1298,7 +1409,11 @@
         }
 
         if (currentType === 'epub') {
-          const result = await loadEpub(payload.source);
+          const result = await loadEpub(payload.source, id);
+          sendEvent('document.ready', {
+            loadId: id,
+            pageCount: result.pageCount,
+          });
           sendState({ outline: result.outline || [] });
           sendResponse(id, true, result);
           return;
@@ -1415,7 +1530,19 @@
 
       sendResponse(id, false, null, 'Unknown command');
     } catch (err) {
-      sendResponse(id, false, null, err && err.message ? err.message : String(err));
+      const errorMessage = err && err.message ? err.message : String(err);
+      if (kind === 'load' && payload?.type === 'epub') {
+        sendEpubDiagnostic('epub.load.error', {
+          loadId: id,
+          sourceKind: payload.source?.kind,
+          error: { message: errorMessage, stack: err?.stack || null },
+        });
+        sendEvent('document.error', {
+          loadId: id,
+          error: { message: errorMessage, stack: err?.stack || null },
+        });
+      }
+      sendResponse(id, false, null, errorMessage);
     }
   };
 

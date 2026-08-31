@@ -98,13 +98,13 @@ describe("mobile comic runtime helpers", () => {
       "utf8"
     );
 
-    expect(runtime).toContain("data = await sourceToArrayBuffer(source);");
-    expect(html).toContain("data = await sourceToArrayBuffer(source);");
+    expect(runtime).toContain("sourceToArrayBuffer(source),");
+    expect(html).toContain("sourceToArrayBuffer(source),");
     expect(runtime).not.toContain("data = source.uri;");
     expect(html).not.toContain("data = source.uri;");
   });
 
-  it("passes base64 EPUB bytes to epub.js as an ArrayBuffer", () => {
+  it("passes an exact ArrayBuffer to epub.js for base64 sources", () => {
     const runtime = readFileSync(
       resolve(process.cwd(), "packages/ui-react-native/runtime/runtime.js"),
       "utf8"
@@ -114,8 +114,33 @@ describe("mobile comic runtime helpers", () => {
       "utf8"
     );
 
-    expect(runtime).toContain("data = decodeBase64(source.data).buffer;");
-    expect(html).toContain("data = decodeBase64(source.data).buffer;");
+    expect(runtime).toContain("const toExactArrayBuffer = (bytes) =>");
+    expect(html).toContain("const toExactArrayBuffer = (bytes) =>");
+    expect(runtime).toContain("data = toExactArrayBuffer(decodeBase64(source.data));");
+    expect(html).toContain("data = toExactArrayBuffer(decodeBase64(source.data));");
+  });
+
+  it("correlates EPUB diagnostics and load terminals by request id", () => {
+    const runtime = readFileSync(
+      resolve(process.cwd(), "packages/ui-react-native/runtime/runtime.js"),
+      "utf8"
+    );
+    const html = readFileSync(
+      resolve(process.cwd(), "packages/ui-react-native/runtime/index.html"),
+      "utf8"
+    );
+    for (const artifact of [runtime, html]) {
+      expect(artifact).toContain("epub.load.start");
+      expect(artifact).toContain("epub.book.ready");
+      expect(artifact).toContain("epub.display.start");
+      expect(artifact).toContain("epub.load.ready");
+      expect(artifact).toContain("epub.load.error");
+      expect(artifact).toContain("epub.load.timeout");
+      expect(artifact).toContain("loadId");
+      expect(artifact).toContain("document.ready");
+      expect(artifact).toContain("document.error");
+      expect(artifact).toContain("withEpubStageTimeout");
+    }
   });
 
   it("uses continuous scrolling for EPUB rendition", () => {
