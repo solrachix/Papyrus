@@ -7,6 +7,8 @@ import {
   View,
   type ViewProps,
 } from "react-native";
+import { requireNativeViewManager } from "expo-modules-core/src/NativeViewManagerAdapter";
+import { requireOptionalNativeModule } from "expo-modules-core/src/requireNativeModule";
 import { BaseDocumentEngine, papyrusEvents } from "@papyrus-sdk/core";
 import {
   DocumentLoadInput,
@@ -28,7 +30,6 @@ import {
   PdfVisiblePage,
 } from "@papyrus-sdk/types";
 import { inferDocumentType, resolveComicFormat } from "./documentType";
-import { resolvePapyrusNativeModule } from "./nativeModuleResolution";
 
 const MODULE_NAME = "PapyrusNativeEngine";
 
@@ -259,10 +260,17 @@ type PapyrusPdfViewerViewComponent = ComponentType<
 >;
 
 const resolveNativeModule = (): NativeEngineModule | null => {
-  return resolvePapyrusNativeModule<NativeEngineModule>({
-    nativeModules: NativeModules as Record<string, unknown>,
-    turboModuleRegistry: TurboModuleRegistry,
-  });
+  const expoModule =
+    requireOptionalNativeModule<NativeEngineModule>(MODULE_NAME);
+  if (expoModule) return expoModule;
+  const turboModule = TurboModuleRegistry.get(
+    MODULE_NAME
+  ) as NativeEngineModule | null;
+  if (turboModule) return turboModule;
+  const rnModule = (
+    NativeModules as Record<string, NativeEngineModule | undefined>
+  )[MODULE_NAME];
+  return rnModule ?? null;
 };
 
 const resolvePapyrusPageView = (): PapyrusPageViewComponent => {
@@ -271,7 +279,13 @@ const resolvePapyrusPageView = (): PapyrusPageViewComponent => {
       "PapyrusPageView"
     ) as unknown as PapyrusPageViewComponent;
   } catch {
-    return View as unknown as PapyrusPageViewComponent;
+    try {
+      return requireNativeViewManager<PapyrusPageViewProps>(
+        "PapyrusPageView"
+      ) as unknown as PapyrusPageViewComponent;
+    } catch {
+      return View as unknown as PapyrusPageViewComponent;
+    }
   }
 };
 
@@ -283,7 +297,13 @@ const resolvePapyrusPdfViewerView = (): PapyrusPdfViewerViewComponent => {
       componentName
     ) as unknown as PapyrusPdfViewerViewComponent;
   } catch {
-    return View as unknown as PapyrusPdfViewerViewComponent;
+    try {
+      return requireNativeViewManager<PapyrusPdfViewerViewProps>(
+        componentName
+      ) as unknown as PapyrusPdfViewerViewComponent;
+    } catch {
+      return View as unknown as PapyrusPdfViewerViewComponent;
+    }
   }
 };
 
