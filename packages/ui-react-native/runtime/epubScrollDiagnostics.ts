@@ -152,6 +152,7 @@ export const createEpubScrollCheckCoordinator = (
 
   return {
     request,
+    requestInternal: () => Promise.resolve().then(check),
     isPending: () => pending !== null,
   };
 };

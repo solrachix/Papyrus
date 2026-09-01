@@ -229,6 +229,10 @@ describe("mobile comic runtime helpers", () => {
       expect(artifact).toContain("manager.check.start");
       expect(artifact).toContain("manager.check.end");
       expect(artifact).toContain("trailingCheck");
+      expect(artifact).toContain("latestTrailingArgs");
+      expect(artifact).toContain("latestTrailingContext");
+      expect(artifact).toContain("inOriginalCheck");
+      expect(artifact).toContain("epubSelectionCleanups");
       expect(artifact).toContain("setSelectionActive(false)");
       expect(artifact).not.toContain("String(task)");
     }

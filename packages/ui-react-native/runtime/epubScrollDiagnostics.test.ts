@@ -165,4 +165,18 @@ describe("EPUB scroll diagnostics", () => {
     await expect(coordinator.request()).resolves.toBeUndefined();
     expect(check).toHaveBeenCalledTimes(2);
   });
+
+  it("does not deadlock when a check recursively requests another check", async () => {
+    let coordinator!: ReturnType<typeof createEpubScrollCheckCoordinator>;
+    const check = vi.fn(async () => {
+      if (check.mock.calls.length === 1) {
+        await coordinator.requestInternal();
+      }
+    });
+    coordinator = createEpubScrollCheckCoordinator(check);
+
+    await expect(coordinator.request()).resolves.toBeUndefined();
+    expect(check).toHaveBeenCalledTimes(2);
+    expect(coordinator.isPending()).toBe(false);
+  });
 });

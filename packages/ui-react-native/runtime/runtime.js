@@ -146,7 +146,7 @@
   let comicDispose = null;
   let comicGeneration = 0;
   let epubInteractionCleanup = null;
-  let epubSelectionCleanup = null;
+  const epubSelectionCleanups = new Set();
   let epubScrollDiagnostics = null;
   let epubLoadGeneration = 0;
 
@@ -520,10 +520,8 @@
       epubInteractionCleanup();
       epubInteractionCleanup = null;
     }
-    if (epubSelectionCleanup) {
-      epubSelectionCleanup();
-      epubSelectionCleanup = null;
-    }
+    epubSelectionCleanups.forEach((cleanup) => cleanup());
+    epubSelectionCleanups.clear();
     clearComicState();
     while (viewer.firstChild) {
       viewer.removeChild(viewer.firstChild);
@@ -1162,14 +1160,11 @@
             epubScrollDiagnostics && epubScrollDiagnostics.setSelectionActive(Boolean(text));
           };
           selectionDocument.addEventListener('selectionchange', handleSelectionChange);
-          if (epubSelectionCleanup) epubSelectionCleanup();
           const selectionCleanup = () => {
             selectionDocument.removeEventListener('selectionchange', handleSelectionChange);
-            if (epubSelectionCleanup === selectionCleanup) {
-              epubSelectionCleanup = null;
-            }
+            epubSelectionCleanups.delete(selectionCleanup);
           };
-          epubSelectionCleanup = selectionCleanup;
+          epubSelectionCleanups.add(selectionCleanup);
         }
       });
     }
@@ -1224,10 +1219,14 @@
       const originalCheck = typeof manager.check === 'function' ? manager.check : null;
       let pendingCheck = null;
       let trailingCheck = false;
+      let latestTrailingArgs = null;
+      let latestTrailingContext = null;
+      let inOriginalCheck = false;
       let checkRequestId = 0;
       if (originalCheck) {
         manager.check = function (...args) {
           const requestId = ++checkRequestId;
+          const checkContext = this;
           if (epubScrollDiagnostics) {
             epubScrollDiagnostics.command('manager.check.request', {
               requestId,
@@ -1236,14 +1235,19 @@
                 : null,
             });
           }
+          if (inOriginalCheck) {
+            return originalCheck.apply(checkContext, args);
+          }
           if (pendingCheck) {
             trailingCheck = true;
+            latestTrailingArgs = args;
+            latestTrailingContext = checkContext;
             return pendingCheck;
           }
 
-          const checkContext = this;
           pendingCheck = Promise.resolve()
             .then(() => {
+              inOriginalCheck = true;
               epubScrollDiagnostics && epubScrollDiagnostics.command('manager.check.start', {
                 requestId,
               });
@@ -1267,11 +1271,18 @@
               },
             )
             .finally(() => {
+              inOriginalCheck = false;
               const shouldRunTrailingCheck = trailingCheck;
+              const trailingArgs = latestTrailingArgs;
+              const trailingContext = latestTrailingContext;
               trailingCheck = false;
+              latestTrailingArgs = null;
+              latestTrailingContext = null;
               pendingCheck = null;
               if (shouldRunTrailingCheck) {
-                void manager.check.apply(checkContext, args).catch(() => undefined);
+                void manager.check
+                  .apply(trailingContext || checkContext, trailingArgs || args)
+                  .catch(() => undefined);
               }
             });
           return pendingCheck;
@@ -1319,10 +1330,8 @@
       rendition.on('touchmove', handleTouchMove);
       rendition.on('touchend', handleTouchEnd);
       epubInteractionCleanup = () => {
-        if (epubSelectionCleanup) {
-          epubSelectionCleanup();
-          epubSelectionCleanup = null;
-        }
+        epubSelectionCleanups.forEach((cleanup) => cleanup());
+        epubSelectionCleanups.clear();
         epubScrollDiagnostics && epubScrollDiagnostics.setSelectionActive(false);
         if (originalCheck) manager.check = originalCheck;
         if (typeof manager.off === 'function') manager.off('scroll', handleScroll);
