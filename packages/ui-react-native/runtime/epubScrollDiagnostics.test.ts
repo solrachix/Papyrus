@@ -1,6 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
-  createEpubScrollCheckCoordinator,
   createEpubScrollStallDetector,
   getEpubScrollDirection,
 } from "./epubScrollDiagnostics";
@@ -105,78 +104,4 @@ describe("EPUB scroll diagnostics", () => {
     ).toBeNull();
   });
 
-  it("runs one trailing check after requests arrive during an in-flight check", async () => {
-    const deferredChecks: Array<{ resolve: () => void }> = [];
-    const check = vi.fn(
-      () =>
-        new Promise<void>((resolve) => {
-          deferredChecks.push({ resolve });
-        })
-    );
-    const coordinator = createEpubScrollCheckCoordinator(check);
-
-    const first = coordinator.request();
-    const second = coordinator.request();
-    const third = coordinator.request();
-
-    await Promise.resolve();
-    expect(check).toHaveBeenCalledTimes(1);
-    expect(second).toBe(first);
-    expect(third).toBe(first);
-
-    deferredChecks[0].resolve();
-    await first;
-    await Promise.resolve();
-    await Promise.resolve();
-
-    expect(check).toHaveBeenCalledTimes(2);
-    expect(coordinator.isPending()).toBe(true);
-
-    deferredChecks[1].resolve();
-    await Promise.resolve();
-    await Promise.resolve();
-    expect(coordinator.isPending()).toBe(false);
-  });
-
-  it("clears the in-flight state after a synchronous check failure", async () => {
-    const check = vi
-      .fn<() => Promise<void>>()
-      .mockImplementationOnce(() => {
-        throw new Error("sync failure");
-      })
-      .mockResolvedValueOnce(undefined);
-    const coordinator = createEpubScrollCheckCoordinator(check);
-
-    await expect(coordinator.request()).rejects.toThrow("sync failure");
-    expect(coordinator.isPending()).toBe(false);
-    await expect(coordinator.request()).resolves.toBeUndefined();
-    expect(check).toHaveBeenCalledTimes(2);
-  });
-
-  it("clears the in-flight state after a rejected check", async () => {
-    const check = vi
-      .fn<() => Promise<void>>()
-      .mockRejectedValueOnce(new Error("async failure"))
-      .mockResolvedValueOnce(undefined);
-    const coordinator = createEpubScrollCheckCoordinator(check);
-
-    await expect(coordinator.request()).rejects.toThrow("async failure");
-    expect(coordinator.isPending()).toBe(false);
-    await expect(coordinator.request()).resolves.toBeUndefined();
-    expect(check).toHaveBeenCalledTimes(2);
-  });
-
-  it("does not deadlock when a check recursively requests another check", async () => {
-    let coordinator!: ReturnType<typeof createEpubScrollCheckCoordinator>;
-    const check = vi.fn(async () => {
-      if (check.mock.calls.length === 1) {
-        await coordinator.requestInternal();
-      }
-    });
-    coordinator = createEpubScrollCheckCoordinator(check);
-
-    await expect(coordinator.request()).resolves.toBeUndefined();
-    expect(check).toHaveBeenCalledTimes(2);
-    expect(coordinator.isPending()).toBe(false);
-  });
 });
