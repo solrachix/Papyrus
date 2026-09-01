@@ -256,7 +256,13 @@ const Viewer: React.FC<ViewerProps> = ({
       ),
     [maxToRenderPerBatch]
   );
-  const resolvedRemoveClippedSubviews = removeClippedSubviews ?? true;
+  // Native page views can be detached by Android's clipped-subview pass and
+  // reattached with a ready render but no visible bitmap after a distant jump.
+  // Keep FlatList virtualization; only avoid that detach/reattach path in the
+  // compat viewer where the custom PapyrusPageView is used.
+  const resolvedRemoveClippedSubviews =
+    removeClippedSubviews ??
+    !(Platform.OS === "android" && resolvedViewerMode === "compat");
 
   renderCounterRef.current({
     pageCount,
