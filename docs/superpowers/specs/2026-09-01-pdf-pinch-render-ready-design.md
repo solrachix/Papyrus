@@ -6,7 +6,7 @@ Medir e explicar o tempo entre o commit final de zoom e a surface PDF pronta no 
 
 ## Scope
 
-Esta rodada cobre somente o caminho pós-gesture no `emulator-5554`: commit de zoom, agendamento, render nativo, preparação/troca da surface e ready. O gesto visual, focal point, Reanimated, matemática de pinch e engine de EPUB ficam fora do escopo.
+Esta rodada cobre somente o caminho pós-gesture no `emulator-5554`: commit de zoom, agendamento, render nativo e ready. O contrato atual resolve `renderPage()` depois da instalação da bitmap; a troca nativa da surface não é observável nesta camada. O gesto visual, focal point, Reanimated, matemática de pinch e engine de EPUB ficam fora do escopo.
 
 ## Approach
 
@@ -14,7 +14,7 @@ Reutilizar `scripts/benchmarks/android-pinch-profile.sh` e as fixtures existente
 
 ## Data contract
 
-Cada sessão deve permitir correlacionar `pinch.commit`, `zoom.set`, `render.request`, `render.start`, `render.ready` e terminais `cancelled`/`stale`/`error`. Quando disponível, registrar zoom, DPR, dimensões lógicas e alvo do bitmap, pixel count, página e geração. O relatório deve agregar P50/P90, contagem de renders e cancelamentos, sem confundir duração da sessão com duração de render.
+Cada sessão deve permitir correlacionar `pinch.commit`, `zoom.set`, `render.request`, `render.start`, `render.end`, `render.ready` e terminais `cancelled`/`stale`/`error`. Quando disponível, registrar zoom, DPR, dimensões lógicas e alvo estimado do bitmap, pixel count, página e geração. O relatório deve agregar P50/P90, contagem de renders e cancelamentos, sem confundir duração da sessão com duração de render.
 
 ## Validation
 

@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 const EVENT_NAMES = new Set([
   'fixture.requested', 'fixture.loaded', 'fixture.invalid', 'fixture.url_ignored', 'viewer.mode',
   'pinch.start', 'pinch.update', 'pinch.end', 'pinch.commit.start', 'pinch.commit.end',
-  'render.request', 'render.start', 'render.end', 'render.ready', 'render.stale', 'render.abandoned', 'render.error', 'render.cancelled', 'surface.swap',
+  'render.request', 'render.start', 'render.end', 'render.ready', 'render.stale', 'render.abandoned', 'render.error', 'render.cancelled',
   'pinch.preview.cleared', 'sample.start', 'sample.end', 'pinch.cancelled',
 ]);
 
@@ -67,7 +67,6 @@ function summarizeSample(sampleId, list, gfxinfo, environment, hasGfxInfo) {
   const request = renderRequests.find((item) => item.renderRequestId === ready?.renderRequestId) ?? renderRequests[0];
   const renderStart = request ? renderEvents.find((item) => item.name === 'render.start' && item.renderRequestId === request.renderRequestId) : null;
   const renderEnd = request ? renderEvents.find((item) => item.name === 'render.end' && item.renderRequestId === request.renderRequestId) : null;
-  const surfaceSwap = request ? list.find((item) => item.name === 'surface.swap' && item.renderRequestId === request.renderRequestId) : null;
   const sampleStart = event(list, 'sample.start');
   const sampleEnd = event(list, 'sample.end');
   const mode = event(list, 'viewer.mode');
@@ -145,7 +144,6 @@ function summarizeSample(sampleId, list, gfxinfo, environment, hasGfxInfo) {
     requestToReadyMs: request && ready ? ready.timestamp - request.timestamp : null,
     commitToReadyMs: commitEnd && ready ? ready.timestamp - commitEnd.timestamp : null,
     renderStartToEndMs: renderStart && renderEnd ? renderEnd.timestamp - renderStart.timestamp : null,
-    renderEndToSurfaceSwapMs: renderEnd && surfaceSwap ? surfaceSwap.timestamp - renderEnd.timestamp : null,
     renderTarget: request ? {
       layoutWidth: numberFrom(request.layoutWidth),
       layoutHeight: numberFrom(request.layoutHeight),
@@ -187,7 +185,6 @@ function aggregateSamples(samples) {
         commitToReadyMs: metric(list, (sample) => sample.commitToReadyMs),
         requestToReadyMs: metric(list, (sample) => sample.requestToReadyMs),
         renderStartToEndMs: metric(list, (sample) => sample.renderStartToEndMs),
-        renderEndToSurfaceSwapMs: metric(list, (sample) => sample.renderEndToSurfaceSwapMs),
       },
     };
   }

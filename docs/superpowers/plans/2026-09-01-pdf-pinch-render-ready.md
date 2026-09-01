@@ -31,7 +31,7 @@
 - Test: `packages/engine-native/nativeModuleResolution.test.ts` if native event contracts require coverage
 
 - [ ] Add failing tests for one render request producing one start and one terminal event with its request ID.
-- [ ] Add failing tests for timestamps covering request, schedule/start, native render, surface swap, and ready.
+- [x] Add tests for timestamps covering request, render start/end, and ready correlation.
 - [ ] Add failing tests proving instrumentation is observational and does not add a second render invocation.
 - [ ] Run the focused tests and verify the new tests fail for the missing event contract.
 
@@ -43,7 +43,7 @@
 - Modify: `packages/ui-react-native/perf/renderInvocation.ts`
 - Modify: `packages/engine-native/index.ts` only if native request boundaries are not already exposed
 
-- [ ] Emit or extend causal events for zoom set, render request/schedule/start, native page render start/end, bitmap preparation, surface swap, and render ready.
+- [x] Emit causal events for render request/start/end and ready correlation. Native bitmap/surface sub-phases remain outside the current JS contract.
 - [ ] Attach `gestureId`, `renderRequestId`, page index, generation, zoom, DPR, logical dimensions, target bitmap dimensions, and pixel count where available.
 - [ ] Preserve existing cancellation/stale/error semantics and keep callbacks out of render effect dependencies where they are notifications only.
 - [ ] Run the focused tests and the package build.

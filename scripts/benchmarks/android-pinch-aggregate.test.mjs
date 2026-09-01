@@ -15,7 +15,6 @@ const events = [
   { name: 'render.start', timestamp: 214, sampleId: 's1', fixture: 'small', gestureId: 'g1', renderRequestId: 'rr1', surfaceId: 'page-0', pageIndex: 0, zoom: 2, generation: 2, renderScale: 2 },
   { name: 'render.end', timestamp: 259, sampleId: 's1', fixture: 'small', gestureId: 'g1', renderRequestId: 'rr1', surfaceId: 'page-0', pageIndex: 0, zoom: 2, generation: 2, status: 'ready' },
   { name: 'render.ready', timestamp: 260, sampleId: 's1', fixture: 'small', gestureId: 'g1', renderRequestId: 'rr1', surfaceId: 'page-0', pageIndex: 0, zoom: 2, generation: 2 },
-  { name: 'surface.swap', timestamp: 261, sampleId: 's1', fixture: 'small', gestureId: 'g1', renderRequestId: 'rr1', surfaceId: 'page-0', pageIndex: 0, zoom: 2, generation: 2 },
   { name: 'pinch.preview.cleared', timestamp: 270, sampleId: 's1', fixture: 'small', gestureId: 'g1', zoom: 2 },
   { name: 'sample.end', timestamp: 271, sampleId: 's1', fixture: 'small', gestureId: 'g1', status: 'complete' },
 ];
@@ -37,13 +36,11 @@ test('correlates one complete sample and aggregates it by direction', () => {
   assert.equal(report.aggregates['small:out'].validN, 1);
   assert.equal(report.aggregates['small:out'].metrics.commitToReadyMs.p90, 48);
   assert.equal(report.aggregates['small:out'].metrics.renderStartToEndMs.p90, 45);
-  assert.equal(report.aggregates['small:out'].metrics.renderEndToSurfaceSwapMs.p90, 2);
 });
 
 test('keeps render phases correlated to the committed request', () => {
   const report = aggregateAndroidPinch({ ndjson: `${events.map(JSON.stringify).join('\n')}\n`, gfxinfo: '', environment: {} });
   assert.equal(report.samples[0].renderStartToEndMs, 45);
-  assert.equal(report.samples[0].renderEndToSurfaceSwapMs, 2);
   assert.equal(report.samples[0].renderTarget.renderScale, 2);
 });
 

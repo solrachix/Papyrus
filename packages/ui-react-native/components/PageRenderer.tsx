@@ -460,17 +460,6 @@ const PageRenderer: React.FC<PageRendererProps> = ({
             });
           }
           if (status !== "ready" || !renderGenerationRef.current.isCurrent(generation)) return;
-          if (perfEnabled) {
-            mobilePerf.emit("surface.swap", {
-              renderRequestId,
-              surfaceId,
-              pageIndex,
-              zoom,
-              generation,
-              gestureId: renderGestureId,
-              durationMs: Math.round((perfNow() - startedAt) * 100) / 100,
-            });
-          }
           onRenderReadyRef.current?.(pageIndex, zoom);
           if (!perfEnabled) return;
           const renderDurationMs = perfNow() - startedAt;
