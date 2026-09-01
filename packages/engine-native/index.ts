@@ -340,9 +340,27 @@ export class NativeDocumentEngine extends BaseDocumentEngine {
 
     const native = this.assertNativeModule();
     const normalized = await this.normalizeSource(source);
-    const result = native.load
-      ? await native.load(this.engineId, normalized)
-      : undefined;
+    let result;
+    try {
+      result = native.load
+        ? await native.load(this.engineId, normalized)
+        : undefined;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (
+        !/engine not found|papyrus_no_engine/i.test(message) ||
+        !native.createEngine
+      ) {
+        throw error;
+      }
+
+      // Fast Refresh can preserve this JS instance after the native store was
+      // recreated. Recover the stale id once instead of surfacing a redbox.
+      this.engineId = native.createEngine();
+      result = native.load
+        ? await native.load(this.engineId, normalized)
+        : undefined;
+    }
 
     if (result && typeof result.pageCount === "number") {
       this.pageCount = result.pageCount;
