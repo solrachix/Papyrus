@@ -7,6 +7,11 @@ Esta rodada finaliza a instrumentação e a correção de coalescência de check
 máximo um check trailing quando novas solicitações chegam durante esse check.
 Solicitações duplicadas não são descartadas silenciosamente.
 
+Durante a validação do exemplo foi encontrado e corrigido um problema separado
+de entrada: o EPUB bundled era enviado como `{ uri: "data:..." }`, mas o
+normalizador tratava esse valor como URI externa. Agora data URIs dentro de
+objetos `{ uri }` são convertidas para a mesma carga base64 usada por strings.
+
 Também foram corrigidos os estados de seleção: `selectionchange`, seleção
 vazia e cleanup do documento retornam `selectionActive` para `false`.
 
@@ -46,9 +51,12 @@ permaneceu carregando e não houve evento final `document.ready` nos logs
 disponíveis.
 
 Isso não comprova a correção do stall nem permite afirmar uma redução de
-stalls. A matriz A/B (baseline versus candidato), ciclos down/up, fronteira de
-capítulo, seleção de texto e fixture EPUB longa ainda precisam ser executados
-com o runtime de diagnóstico habilitado e o bundle correto.
+stalls. O payload passou a `kind: "base64"`, mas o fixture ainda permaneceu
+pendente nas primeiras execuções; portanto existe uma segunda pendência no
+runtime EPUB além do bug de normalização já reproduzido e coberto por teste. A
+matriz A/B (baseline versus candidato), ciclos down/up, fronteira de capítulo,
+seleção de texto e fixture EPUB longa ainda precisam ser executados com o
+runtime de diagnóstico habilitado e o bundle correto.
 
 ## Decisão
 

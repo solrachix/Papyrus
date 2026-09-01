@@ -1057,6 +1057,17 @@ export class WebViewDocumentEngine extends BaseDocumentEngine {
 
     if (this.isUriSource(source)) {
       const uri = source.uri;
+      const dataUri = parseDataUri(uri);
+      if (dataUri) {
+        if (dataUri.isBase64) {
+          return {
+            kind: "base64",
+            data: dataUri.data,
+            mime: dataUri.mime || undefined,
+          };
+        }
+        return { kind: "text", text: decodeURIComponent(dataUri.data) };
+      }
       if (isHttpUri(uri)) {
         const fetched = await this.fetchRemoteSource(type, uri);
         if (fetched) return fetched;

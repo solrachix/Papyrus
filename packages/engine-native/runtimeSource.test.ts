@@ -32,6 +32,20 @@ describe("WebViewDocumentEngine local sources", () => {
     });
   });
 
+  it("normalizes data URI objects as in-memory WebView sources", async () => {
+    const engine = new WebViewDocumentEngine();
+
+    await expect(
+      (engine as any).normalizeRuntimeSource("epub", {
+        uri: "data:application/epub+zip;base64,AAE=",
+      }),
+    ).resolves.toEqual({
+      kind: "base64",
+      data: "AAE=",
+      mime: "application/epub+zip",
+    });
+  });
+
   it("serves WebView runtime assets through the native bridge", async () => {
     const engine = new WebViewDocumentEngine();
     const postMessage = vi.fn();
