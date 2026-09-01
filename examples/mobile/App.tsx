@@ -34,6 +34,7 @@ import {
 const BUNDLED_ASSETS = {
   './assets/tracemonkey-pldi-09.pdf': require('./assets/tracemonkey-pldi-09.pdf'),
   './assets/sample.epub': require('./assets/sample.epub'),
+  './assets/long-test.epub': require('./assets/long-test.epub'),
 } as const;
 
 const resolveBundledAsset = (assetPath: keyof typeof BUNDLED_ASSETS) => {
@@ -42,7 +43,7 @@ const resolveBundledAsset = (assetPath: keyof typeof BUNDLED_ASSETS) => {
 };
 
 const LOCAL_WEB_PDF = resolveBundledAsset('./assets/tracemonkey-pldi-09.pdf');
-const SAMPLE_EPUB = resolveBundledAsset('./assets/sample.epub');
+const SAMPLE_EPUB = resolveBundledAsset('./assets/long-test.epub');
 const isMetroAssetUri = (uri?: string) => {
   if (!uri) return false;
   try {
