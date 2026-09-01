@@ -57,15 +57,31 @@ describe("WebViewDocumentEngine local sources", () => {
 
   it("keeps Metro asset URIs intact for WebView EPUB loading", async () => {
     const engine = new WebViewDocumentEngine();
-    const uri =
-      "http://10.0.2.2:8093/assets/assets/long-test.epub?platform=android&hash=abc";
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(
-      (engine as any).normalizeRuntimeSource("epub", {uri}),
-    ).resolves.toEqual({kind: "uri", uri});
-    expect(fetchMock).not.toHaveBeenCalled();
+    for (const host of [
+      "localhost",
+      "127.0.0.1",
+      "10.0.2.2",
+      "192.168.1.50",
+    ]) {
+      const uri =
+        `http://${host}:8093/assets/assets/long-test.epub?platform=android&hash=abc`;
+      await expect(
+        (engine as any).normalizeRuntimeSource("epub", {uri}),
+      ).resolves.toEqual({kind: "uri", uri});
+    }
+
+    for (const uri of [
+      "https://site.com/book.epub?platform=android&hash=abc",
+      "https://site.com/assets/book.epub",
+    ]) {
+      await expect(
+        (engine as any).normalizeRuntimeSource("epub", {uri}),
+      ).resolves.toEqual({kind: "uri", uri});
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(2);
     vi.unstubAllGlobals();
   });
 

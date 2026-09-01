@@ -79,10 +79,19 @@ const isHttpUri = (value: string): boolean =>
 // Metro serves bundled React Native assets over the development server. Keep
 // those URIs intact so the WebView can stream them directly instead of
 // downloading the whole EPUB/CBR through the RN bridge first.
-const isMetroAssetUri = (value: string): boolean =>
-  /^https?:\/\/(?:localhost|127\.0\.0\.1|10\.0\.2\.2)(?::\d+)?\/assets\//i.test(
-    value,
-  );
+const isMetroAssetUri = (value: string): boolean => {
+  try {
+    const url = new URL(value);
+    return (
+      (url.protocol === "http:" || url.protocol === "https:") &&
+      url.pathname.startsWith("/assets/") &&
+      url.searchParams.has("platform") &&
+      url.searchParams.has("hash")
+    );
+  } catch {
+    return false;
+  }
+};
 
 const isLocalUri = (value: string): boolean =>
   value.startsWith("content://") ||

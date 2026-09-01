@@ -43,13 +43,20 @@ const resolveBundledAsset = (assetPath: keyof typeof BUNDLED_ASSETS) => {
 
 const LOCAL_WEB_PDF = resolveBundledAsset('./assets/tracemonkey-pldi-09.pdf');
 const SAMPLE_EPUB = resolveBundledAsset('./assets/sample.epub');
-const isMetroAssetUri = (uri?: string) =>
-  Boolean(
-    uri &&
-      /^https?:\/\/(?:localhost|127\.0\.0\.1|10\.0\.2\.2)(?::\d+)?\/assets\//i.test(
-        uri,
-      ),
-  );
+const isMetroAssetUri = (uri?: string) => {
+  if (!uri) return false;
+  try {
+    const url = new URL(uri);
+    return (
+      (url.protocol === 'http:' || url.protocol === 'https:') &&
+      url.pathname.startsWith('/assets/') &&
+      url.searchParams.has('platform') &&
+      url.searchParams.has('hash')
+    );
+  } catch {
+    return false;
+  }
+};
 const SAMPLE_EPUB_URI =
   Platform.OS === 'android'
     ? __DEV__ && isMetroAssetUri(SAMPLE_EPUB?.uri)
