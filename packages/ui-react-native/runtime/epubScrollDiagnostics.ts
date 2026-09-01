@@ -125,29 +125,3 @@ export const createEpubScrollStallDetector = (
 
   return { push, reset };
 };
-
-export const createEpubScrollCheckCoordinator = (
-  check: () => Promise<unknown>
-) => {
-  let pending: Promise<unknown> | null = null;
-
-  const request = (): Promise<unknown> => {
-    if (pending) return pending;
-
-    let result: Promise<unknown>;
-    try {
-      result = Promise.resolve(check());
-    } catch (error) {
-      result = Promise.reject(error);
-    }
-    pending = result.finally(() => {
-      pending = null;
-    });
-    return pending;
-  };
-
-  return {
-    request,
-    isPending: () => pending !== null,
-  };
-};

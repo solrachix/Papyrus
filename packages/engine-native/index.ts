@@ -63,7 +63,8 @@ const looksLikeUri = (value: string): boolean =>
   value.startsWith("./") ||
   value.startsWith("../") ||
   value.startsWith("file://") ||
-  value.startsWith("content://");
+  value.startsWith("content://") ||
+  value.startsWith("android.resource://");
 
 const isLikelyBase64 = (value: string): boolean => {
   if (looksLikeUri(value)) return false;
@@ -75,8 +76,27 @@ const isLikelyBase64 = (value: string): boolean => {
 const isHttpUri = (value: string): boolean =>
   value.startsWith("http://") || value.startsWith("https://");
 
+// Metro serves bundled React Native assets over the development server. Keep
+// those URIs intact so the WebView can stream them directly instead of
+// downloading the whole EPUB/CBR through the RN bridge first.
+const isMetroAssetUri = (value: string): boolean => {
+  try {
+    const url = new URL(value);
+    return (
+      (url.protocol === "http:" || url.protocol === "https:") &&
+      url.pathname.startsWith("/assets/") &&
+      url.searchParams.has("platform") &&
+      url.searchParams.has("hash")
+    );
+  } catch {
+    return false;
+  }
+};
+
 const isLocalUri = (value: string): boolean =>
-  value.startsWith("content://") || value.startsWith("file://");
+  value.startsWith("content://") ||
+  value.startsWith("file://") ||
+  value.startsWith("android.resource://");
 
 const decodeBase64 = (value: string): Uint8Array => {
   const clean = value.replace(/[^A-Za-z0-9+/=]/g, "");
@@ -320,9 +340,27 @@ export class NativeDocumentEngine extends BaseDocumentEngine {
 
     const native = this.assertNativeModule();
     const normalized = await this.normalizeSource(source);
-    const result = native.load
-      ? await native.load(this.engineId, normalized)
-      : undefined;
+    let result;
+    try {
+      result = native.load
+        ? await native.load(this.engineId, normalized)
+        : undefined;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (
+        !/engine not found|papyrus_no_engine/i.test(message) ||
+        !native.createEngine
+      ) {
+        throw error;
+      }
+
+      // Fast Refresh can preserve this JS instance after the native store was
+      // recreated. Recover the stale id once instead of surfacing a redbox.
+      this.engineId = native.createEngine();
+      result = native.load
+        ? await native.load(this.engineId, normalized)
+        : undefined;
+    }
 
     if (result && typeof result.pageCount === "number") {
       this.pageCount = result.pageCount;
@@ -1034,6 +1072,9 @@ export class WebViewDocumentEngine extends BaseDocumentEngine {
       }
 
       if (looksLikeUri(source)) {
+        if (isMetroAssetUri(source)) {
+          return { kind: "uri", uri: source };
+        }
         if (isHttpUri(source)) {
           const fetched = await this.fetchRemoteSource(type, source);
           if (fetched) return fetched;
@@ -1057,6 +1098,20 @@ export class WebViewDocumentEngine extends BaseDocumentEngine {
 
     if (this.isUriSource(source)) {
       const uri = source.uri;
+      const dataUri = parseDataUri(uri);
+      if (dataUri) {
+        if (dataUri.isBase64) {
+          return {
+            kind: "base64",
+            data: dataUri.data,
+            mime: dataUri.mime || undefined,
+          };
+        }
+        return { kind: "text", text: decodeURIComponent(dataUri.data) };
+      }
+      if (isMetroAssetUri(uri)) {
+        return { kind: "uri", uri };
+      }
       if (isHttpUri(uri)) {
         const fetched = await this.fetchRemoteSource(type, uri);
         if (fetched) return fetched;

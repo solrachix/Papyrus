@@ -32,6 +32,12 @@ const blockList = [
 
 const config = {
   watchFolders: [workspaceRoot],
+  server: {
+    enhanceMiddleware: middleware => (req, res, next) => {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      return middleware(req, res, next);
+    },
+  },
   resolver: {
     blockList,
     assetExts: [...assetExts, 'pdf', 'epub', 'html', 'wasm', 'txt'],

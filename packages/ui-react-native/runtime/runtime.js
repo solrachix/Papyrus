@@ -146,6 +146,7 @@
   let comicDispose = null;
   let comicGeneration = 0;
   let epubInteractionCleanup = null;
+  const epubSelectionCleanups = new Set();
   let epubScrollDiagnostics = null;
   let epubLoadGeneration = 0;
 
@@ -262,6 +263,11 @@
       byteLength: payload.byteLength,
       currentType: currentType,
       durationMs: payload.durationMs,
+      uri: payload.uri,
+      status: payload.status,
+      contentLength: payload.contentLength,
+      contentType: payload.contentType,
+      transferEncoding: payload.transferEncoding,
       error: payload.error,
     });
   };
@@ -519,6 +525,8 @@
       epubInteractionCleanup();
       epubInteractionCleanup = null;
     }
+    epubSelectionCleanups.forEach((cleanup) => cleanup());
+    epubSelectionCleanups.clear();
     clearComicState();
     while (viewer.firstChild) {
       viewer.removeChild(viewer.firstChild);
@@ -554,16 +562,53 @@
     return new TextDecoder('utf-8').decode(bytes);
   };
 
+  const isMetroAssetUri = (value) => {
+    try {
+      const url = new URL(value);
+      return (
+        (url.protocol === 'http:' || url.protocol === 'https:') &&
+        url.pathname.startsWith('/assets/') &&
+        url.searchParams.has('platform') &&
+        url.searchParams.has('hash')
+      );
+    } catch {
+      return false;
+    }
+  };
+
   const sourceToArrayBuffer = async (source) => {
     if (source.kind === 'uri') {
-      if (/^(?:file|content):\/\//i.test(source.uri)) {
+      if (/^(?:file|content|android\.resource):\/\//i.test(source.uri)) {
         return readLocalFile(source.uri);
       }
+      const isEpubHttpSource = isMetroAssetUri(source.uri);
+      if (isEpubHttpSource) {
+        sendEpubDiagnostic('epub.source.fetch.start', {uri: source.uri});
+      }
       const response = await fetch(source.uri);
+      if (isEpubHttpSource) {
+        sendEpubDiagnostic('epub.source.fetch.response', {
+          uri: source.uri,
+          status: response.status,
+          contentLength: response.headers.get('content-length'),
+          contentType: response.headers.get('content-type'),
+          transferEncoding: response.headers.get('transfer-encoding'),
+        });
+      }
       if (!response.ok && response.status !== 0) {
         throw new Error(`Falha ao carregar quadrinho (${response.status})`);
       }
-      return response.arrayBuffer();
+      if (isEpubHttpSource) {
+        sendEpubDiagnostic('epub.source.body.start', {uri: source.uri});
+      }
+      const body = await response.arrayBuffer();
+      if (isEpubHttpSource) {
+        sendEpubDiagnostic('epub.source.body.end', {
+          uri: source.uri,
+          byteLength: body.byteLength,
+        });
+      }
+      return body;
      }
      if (source.kind === 'base64') {
        return toExactArrayBuffer(decodeBase64(source.data));
@@ -1143,6 +1188,41 @@
         if (frame) {
           frame.setAttribute('sandbox', 'allow-scripts allow-same-origin');
         }
+        const selectionDocument = contents && contents.document;
+        const selectionWindow = contents && contents.window;
+        if (
+          selectionDocument &&
+          typeof selectionDocument.addEventListener === 'function' &&
+          selectionWindow &&
+          typeof selectionWindow.getSelection === 'function'
+        ) {
+          const handleSelectionChange = () => {
+            const selection = selectionWindow.getSelection();
+            const text = selection ? selection.toString().trim() : '';
+            epubScrollDiagnostics && epubScrollDiagnostics.setSelectionActive(Boolean(text));
+          };
+          selectionDocument.addEventListener('selectionchange', handleSelectionChange);
+          const selectionCleanup = () => {
+            selectionDocument.removeEventListener('selectionchange', handleSelectionChange);
+            epubSelectionCleanups.delete(selectionCleanup);
+          };
+          epubSelectionCleanups.add(selectionCleanup);
+          if (contents && typeof contents === 'object') {
+            contents.__papyrusSelectionCleanup = selectionCleanup;
+          }
+        }
+      });
+    }
+
+    if (
+      rendition &&
+      rendition.hooks &&
+      rendition.hooks.unloaded &&
+      typeof rendition.hooks.unloaded.register === 'function'
+    ) {
+      rendition.hooks.unloaded.register((view) => {
+        const cleanup = view && view.contents && view.contents.__papyrusSelectionCleanup;
+        if (typeof cleanup === 'function') cleanup();
       });
     }
 
@@ -1150,8 +1230,8 @@
       rendition.on('selected', (cfiRange, contents) => {
         const selection = contents && contents.window ? contents.window.getSelection() : null;
         const text = selection ? selection.toString().trim() : '';
+        epubScrollDiagnostics && epubScrollDiagnostics.setSelectionActive(Boolean(text));
         if (text) {
-          epubScrollDiagnostics && epubScrollDiagnostics.setSelectionActive(true);
           sendEvent('TEXT_SELECTED', { text, pageIndex: Math.max(0, currentPage - 1) });
         }
         if (rendition && rendition.annotations && typeof rendition.annotations.remove === 'function') {
@@ -1190,28 +1270,74 @@
       const manager = rendition.manager;
       epubScrollDiagnostics = createEpubScrollDiagnostics(manager);
 
-      // ContinuousManager schedules a check for every debounced scroll event.
-      // During a fast direction change, obsolete checks can queue behind view
-      // append/prepend work and delay the next user scroll. Keep one check in
-      // flight and let a later real scroll request another check.
-      if (manager.q && typeof manager.q.enqueue === 'function') {
-        const originalEnqueue = manager.q.enqueue.bind(manager.q);
-        let pendingCheck = null;
-        manager.q.enqueue = (task, ...args) => {
-          const isCheckTask = typeof task === 'function' &&
-            /\bthis\.check\(\)/.test(String(task));
-          if (!isCheckTask) return originalEnqueue(task, ...args);
-          if (pendingCheck) return Promise.resolve(false);
-          const result = originalEnqueue(task, ...args);
-          pendingCheck = Promise.resolve(result).finally(() => {
-            pendingCheck = null;
-          });
+      // ContinuousManager schedules checks through its serial queue. Observe
+      // the queue itself so diagnostics can distinguish queued work from the
+      // check currently being executed without changing epub.js semantics.
+      const originalCheck = typeof manager.check === 'function' ? manager.check : null;
+      const queue = manager.q;
+      const originalEnqueue = queue && typeof queue.enqueue === 'function'
+        ? queue.enqueue
+        : null;
+      let checkRequestId = 0;
+      if (originalCheck) {
+        manager.check = function (...args) {
+          const requestId = ++checkRequestId;
+          const checkContext = this;
           if (epubScrollDiagnostics) {
-            epubScrollDiagnostics.command('manager.check', {
-              queueLength: typeof manager.q.length === 'function' ? manager.q.length() : null,
+            epubScrollDiagnostics.command('manager.check.request', {
+              requestId,
+              queueLength: manager.q && typeof manager.q.length === 'function'
+                ? manager.q.length()
+                : null,
             });
           }
-          return pendingCheck;
+          epubScrollDiagnostics && epubScrollDiagnostics.command('manager.check.start', {
+            requestId,
+            queueLength: queue && typeof queue.length === 'function'
+              ? queue.length()
+              : null,
+          });
+          let result;
+          try {
+            result = originalCheck.apply(checkContext, args);
+          } catch (error) {
+            epubScrollDiagnostics && epubScrollDiagnostics.command('manager.check.end', {
+              requestId,
+              status: 'error',
+              message: error && error.message ? error.message : String(error),
+            });
+            throw error;
+          }
+          return Promise.resolve(result)
+            .then(
+              (result) => {
+                epubScrollDiagnostics && epubScrollDiagnostics.command('manager.check.end', {
+                  requestId,
+                  status: 'ready',
+                });
+                return result;
+              },
+              (error) => {
+                epubScrollDiagnostics && epubScrollDiagnostics.command('manager.check.end', {
+                  requestId,
+                  status: 'error',
+                  message: error && error.message ? error.message : String(error),
+                });
+                throw error;
+              },
+            );
+        };
+      }
+      if (originalEnqueue) {
+        queue.enqueue = function (...args) {
+          const queueLengthBefore = typeof queue.length === 'function' ? queue.length() : null;
+          const result = originalEnqueue.apply(this, args);
+          epubScrollDiagnostics && epubScrollDiagnostics.command('manager.queue.enqueue', {
+            queueLengthBefore,
+            queueLengthAfter: typeof queue.length === 'function' ? queue.length() : null,
+            running: Boolean(queue.running),
+          });
+          return result;
         };
       }
       const getTouchPoint = (event) => {
@@ -1256,6 +1382,11 @@
       rendition.on('touchmove', handleTouchMove);
       rendition.on('touchend', handleTouchEnd);
       epubInteractionCleanup = () => {
+        epubSelectionCleanups.forEach((cleanup) => cleanup());
+        epubSelectionCleanups.clear();
+        epubScrollDiagnostics && epubScrollDiagnostics.setSelectionActive(false);
+        if (originalCheck) manager.check = originalCheck;
+        if (originalEnqueue) queue.enqueue = originalEnqueue;
         if (typeof manager.off === 'function') manager.off('scroll', handleScroll);
         if (typeof manager.off === 'function') manager.off('scrolled', handleScrolled);
         if (typeof rendition.off === 'function') {

@@ -32,6 +32,59 @@ describe("WebViewDocumentEngine local sources", () => {
     });
   });
 
+  it("keeps Android resource EPUBs as URI payloads", async () => {
+    const engine = new WebViewDocumentEngine();
+    const uri = "android.resource://com.papyrusmobile/raw/assets_sample";
+
+    await expect(
+      (engine as any).normalizeRuntimeSource("epub", {uri}),
+    ).resolves.toEqual({kind: "uri", uri});
+  });
+
+  it("normalizes data URI objects as in-memory WebView sources", async () => {
+    const engine = new WebViewDocumentEngine();
+
+    await expect(
+      (engine as any).normalizeRuntimeSource("epub", {
+        uri: "data:application/epub+zip;base64,AAE=",
+      }),
+    ).resolves.toEqual({
+      kind: "base64",
+      data: "AAE=",
+      mime: "application/epub+zip",
+    });
+  });
+
+  it("keeps Metro asset URIs intact for WebView EPUB loading", async () => {
+    const engine = new WebViewDocumentEngine();
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    for (const host of [
+      "localhost",
+      "127.0.0.1",
+      "10.0.2.2",
+      "192.168.1.50",
+    ]) {
+      const uri =
+        `http://${host}:8093/assets/assets/long-test.epub?platform=android&hash=abc`;
+      await expect(
+        (engine as any).normalizeRuntimeSource("epub", {uri}),
+      ).resolves.toEqual({kind: "uri", uri});
+    }
+
+    for (const uri of [
+      "https://site.com/book.epub?platform=android&hash=abc",
+      "https://site.com/assets/book.epub",
+    ]) {
+      await expect(
+        (engine as any).normalizeRuntimeSource("epub", {uri}),
+      ).resolves.toEqual({kind: "uri", uri});
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    vi.unstubAllGlobals();
+  });
+
   it("serves WebView runtime assets through the native bridge", async () => {
     const engine = new WebViewDocumentEngine();
     const postMessage = vi.fn();

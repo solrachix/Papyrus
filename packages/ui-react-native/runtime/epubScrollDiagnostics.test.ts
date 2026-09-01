@@ -1,6 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
-  createEpubScrollCheckCoordinator,
   createEpubScrollStallDetector,
   getEpubScrollDirection,
 } from "./epubScrollDiagnostics";
@@ -105,21 +104,4 @@ describe("EPUB scroll diagnostics", () => {
     ).toBeNull();
   });
 
-  it("coalesces continuous-manager checks while one check is in flight", async () => {
-    let resolveCheck!: () => void;
-    const check = vi.fn(
-      () => new Promise<void>((resolve) => (resolveCheck = resolve))
-    );
-    const coordinator = createEpubScrollCheckCoordinator(check);
-
-    const first = coordinator.request();
-    const second = coordinator.request();
-
-    expect(check).toHaveBeenCalledTimes(1);
-    expect(second).toBe(first);
-
-    resolveCheck();
-    await first;
-    expect(coordinator.isPending()).toBe(false);
-  });
 });

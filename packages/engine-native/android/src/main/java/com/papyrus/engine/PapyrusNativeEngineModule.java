@@ -73,6 +73,10 @@ public class PapyrusNativeEngineModule extends ReactContextBaseJavaModule {
           ContentResolver resolver = reactContext.getContentResolver();
           inputStream = resolver.openInputStream(uri);
           if (inputStream == null) throw new IOException("Unable to read content URI");
+        } else if ("android.resource".equalsIgnoreCase(uri.getScheme())) {
+          ContentResolver resolver = reactContext.getContentResolver();
+          inputStream = resolver.openInputStream(uri);
+          if (inputStream == null) throw new IOException("Unable to read Android resource URI");
         } else {
           throw new IOException("Unsupported local file URI");
         }
