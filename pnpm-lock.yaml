@@ -159,6 +159,9 @@ importers:
 
   examples/mobile-expo:
     dependencies:
+      '@babel/runtime':
+        specifier: 7.29.2
+        version: 7.29.2
       '@papyrus-sdk/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -180,12 +183,30 @@ importers:
       expo:
         specifier: ~52.0.0
         version: 52.0.49(@babel/core@7.29.0)(@babel/preset-env@7.29.2(@babel/core@7.29.0))(react-native-webview@13.16.1(react-native@0.76.0(@babel/core@7.29.0)(@babel/preset-env@7.29.2(@babel/core@7.29.0))(@react-native-community/cli-server-api@20.0.0)(@types/react@18.3.28)(react@18.2.0))(react@18.2.0))(react-native@0.76.0(@babel/core@7.29.0)(@babel/preset-env@7.29.2(@babel/core@7.29.0))(@react-native-community/cli-server-api@20.0.0)(@types/react@18.3.28)(react@18.2.0))(react@18.2.0)
+      expo-asset:
+        specifier: 11.0.5
+        version: 11.0.5(expo@52.0.49(@babel/core@7.29.0)(@babel/preset-env@7.29.2(@babel/core@7.29.0))(react-native-webview@13.16.1(react-native@0.76.0(@babel/core@7.29.0)(@babel/preset-env@7.29.2(@babel/core@7.29.0))(@react-native-community/cli-server-api@20.0.0)(@types/react@18.3.28)(react@18.2.0))(react@18.2.0))(react-native@0.76.0(@babel/core@7.29.0)(@babel/preset-env@7.29.2(@babel/core@7.29.0))(@react-native-community/cli-server-api@20.0.0)(@types/react@18.3.28)(react@18.2.0))(react@18.2.0))(react-native@0.76.0(@babel/core@7.29.0)(@babel/preset-env@7.29.2(@babel/core@7.29.0))(@react-native-community/cli-server-api@20.0.0)(@types/react@18.3.28)(react@18.2.0))(react@18.2.0)
+      expo-constants:
+        specifier: 17.0.8
+        version: 17.0.8(expo@52.0.49(@babel/core@7.29.0)(@babel/preset-env@7.29.2(@babel/core@7.29.0))(react-native-webview@13.16.1(react-native@0.76.0(@babel/core@7.29.0)(@babel/preset-env@7.29.2(@babel/core@7.29.0))(@react-native-community/cli-server-api@20.0.0)(@types/react@18.3.28)(react@18.2.0))(react@18.2.0))(react-native@0.76.0(@babel/core@7.29.0)(@babel/preset-env@7.29.2(@babel/core@7.29.0))(@react-native-community/cli-server-api@20.0.0)(@types/react@18.3.28)(react@18.2.0))(react@18.2.0))(react-native@0.76.0(@babel/core@7.29.0)(@babel/preset-env@7.29.2(@babel/core@7.29.0))(@react-native-community/cli-server-api@20.0.0)(@types/react@18.3.28)(react@18.2.0))
       expo-dev-client:
         specifier: ~5.0.0
         version: 5.0.20(expo@52.0.49(@babel/core@7.29.0)(@babel/preset-env@7.29.2(@babel/core@7.29.0))(react-native-webview@13.16.1(react-native@0.76.0(@babel/core@7.29.0)(@babel/preset-env@7.29.2(@babel/core@7.29.0))(@react-native-community/cli-server-api@20.0.0)(@types/react@18.3.28)(react@18.2.0))(react@18.2.0))(react-native@0.76.0(@babel/core@7.29.0)(@babel/preset-env@7.29.2(@babel/core@7.29.0))(@react-native-community/cli-server-api@20.0.0)(@types/react@18.3.28)(react@18.2.0))(react@18.2.0))
+      expo-modules-core:
+        specifier: 2.2.3
+        version: 2.2.3
+      hoist-non-react-statics:
+        specifier: 3.3.2
+        version: 3.3.2
+      invariant:
+        specifier: 2.2.4
+        version: 2.2.4
       react:
         specifier: 18.2.0
         version: 18.2.0
+      react-is:
+        specifier: 18.3.1
+        version: 18.3.1
       react-native:
         specifier: 0.76.0
         version: 0.76.0(@babel/core@7.29.0)(@babel/preset-env@7.29.2(@babel/core@7.29.0))(@react-native-community/cli-server-api@20.0.0)(@types/react@18.3.28)(react@18.2.0)
@@ -201,6 +222,9 @@ importers:
       react-native-webview:
         specifier: ^13.8.0
         version: 13.16.1(react-native@0.76.0(@babel/core@7.29.0)(@babel/preset-env@7.29.2(@babel/core@7.29.0))(@react-native-community/cli-server-api@20.0.0)(@types/react@18.3.28)(react@18.2.0))(react@18.2.0)
+      zustand:
+        specifier: 5.0.12
+        version: 5.0.12(@types/react@18.3.28)(react@18.2.0)
     devDependencies:
       '@expo/cli':
         specifier: 0.22.28
@@ -15268,6 +15292,11 @@ snapshots:
       yargs-parser: 21.1.1
 
   yocto-queue@0.1.0: {}
+
+  zustand@5.0.12(@types/react@18.3.28)(react@18.2.0):
+    optionalDependencies:
+      '@types/react': 18.3.28
+      react: 18.2.0
 
   zustand@5.0.12(@types/react@19.2.14)(react@19.1.0):
     optionalDependencies:
