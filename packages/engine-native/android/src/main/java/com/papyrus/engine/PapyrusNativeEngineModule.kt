@@ -51,6 +51,11 @@ class PapyrusNativeEngineModule : Module() {
           context.contentResolver.openInputStream(uri)
             ?: throw IOException("Unable to read content URI")
         }
+        "android.resource" -> {
+          val context = appContext.reactContext ?: throw IOException("React context missing")
+          context.contentResolver.openInputStream(uri)
+            ?: throw IOException("Unable to read Android resource URI")
+        }
         else -> throw IOException("Unsupported local file URI")
       }
 

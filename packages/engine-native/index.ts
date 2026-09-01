@@ -63,7 +63,8 @@ const looksLikeUri = (value: string): boolean =>
   value.startsWith("./") ||
   value.startsWith("../") ||
   value.startsWith("file://") ||
-  value.startsWith("content://");
+  value.startsWith("content://") ||
+  value.startsWith("android.resource://");
 
 const isLikelyBase64 = (value: string): boolean => {
   if (looksLikeUri(value)) return false;
@@ -84,7 +85,9 @@ const isMetroAssetUri = (value: string): boolean =>
   );
 
 const isLocalUri = (value: string): boolean =>
-  value.startsWith("content://") || value.startsWith("file://");
+  value.startsWith("content://") ||
+  value.startsWith("file://") ||
+  value.startsWith("android.resource://");
 
 const decodeBase64 = (value: string): Uint8Array => {
   const clean = value.replace(/[^A-Za-z0-9+/=]/g, "");

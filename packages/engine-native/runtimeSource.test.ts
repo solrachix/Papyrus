@@ -32,6 +32,15 @@ describe("WebViewDocumentEngine local sources", () => {
     });
   });
 
+  it("keeps Android resource EPUBs as URI payloads", async () => {
+    const engine = new WebViewDocumentEngine();
+    const uri = "android.resource://com.papyrusmobile/raw/assets_sample";
+
+    await expect(
+      (engine as any).normalizeRuntimeSource("epub", {uri}),
+    ).resolves.toEqual({kind: "uri", uri});
+  });
+
   it("normalizes data URI objects as in-memory WebView sources", async () => {
     const engine = new WebViewDocumentEngine();
 

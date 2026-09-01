@@ -559,7 +559,7 @@
 
   const sourceToArrayBuffer = async (source) => {
     if (source.kind === 'uri') {
-      if (/^(?:file|content):\/\//i.test(source.uri)) {
+      if (/^(?:file|content|android\.resource):\/\//i.test(source.uri)) {
         return readLocalFile(source.uri);
       }
       const response = await fetch(source.uri);
