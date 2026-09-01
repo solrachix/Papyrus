@@ -43,9 +43,18 @@ const resolveBundledAsset = (assetPath: keyof typeof BUNDLED_ASSETS) => {
 
 const LOCAL_WEB_PDF = resolveBundledAsset('./assets/tracemonkey-pldi-09.pdf');
 const SAMPLE_EPUB = resolveBundledAsset('./assets/sample.epub');
+const isMetroAssetUri = (uri?: string) =>
+  Boolean(
+    uri &&
+      /^https?:\/\/(?:localhost|127\.0\.0\.1|10\.0\.2\.2)(?::\d+)?\/assets\//i.test(
+        uri,
+      ),
+  );
 const SAMPLE_EPUB_URI =
   Platform.OS === 'android'
-    ? 'android.resource://com.papyrusmobile/raw/assets_sample'
+    ? __DEV__ && isMetroAssetUri(SAMPLE_EPUB?.uri)
+      ? SAMPLE_EPUB?.uri
+      : 'android.resource://com.papyrusmobile/raw/assets_sample'
     : SAMPLE_EPUB?.uri;
 const DEFAULT_PDF_URL =
   'https://raw.githubusercontent.com/mozilla/pdf.js/ba2edeae/web/compressed.tracemonkey-pldi-09.pdf';
