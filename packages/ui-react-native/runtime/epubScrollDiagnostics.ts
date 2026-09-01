@@ -130,18 +130,22 @@ export const createEpubScrollCheckCoordinator = (
   check: () => Promise<unknown>
 ) => {
   let pending: Promise<unknown> | null = null;
+  let trailingRequest = false;
 
   const request = (): Promise<unknown> => {
-    if (pending) return pending;
-
-    let result: Promise<unknown>;
-    try {
-      result = Promise.resolve(check());
-    } catch (error) {
-      result = Promise.reject(error);
+    if (pending) {
+      trailingRequest = true;
+      return pending;
     }
+
+    const result = Promise.resolve().then(check);
     pending = result.finally(() => {
+      const shouldRunTrailingRequest = trailingRequest;
+      trailingRequest = false;
       pending = null;
+      if (shouldRunTrailingRequest) {
+        void request().catch(() => undefined);
+      }
     });
     return pending;
   };

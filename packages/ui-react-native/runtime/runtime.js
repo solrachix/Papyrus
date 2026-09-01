@@ -146,6 +146,7 @@
   let comicDispose = null;
   let comicGeneration = 0;
   let epubInteractionCleanup = null;
+  let epubSelectionCleanup = null;
   let epubScrollDiagnostics = null;
   let epubLoadGeneration = 0;
 
@@ -518,6 +519,10 @@
     if (epubInteractionCleanup) {
       epubInteractionCleanup();
       epubInteractionCleanup = null;
+    }
+    if (epubSelectionCleanup) {
+      epubSelectionCleanup();
+      epubSelectionCleanup = null;
     }
     clearComicState();
     while (viewer.firstChild) {
@@ -1143,6 +1148,29 @@
         if (frame) {
           frame.setAttribute('sandbox', 'allow-scripts allow-same-origin');
         }
+        const selectionDocument = contents && contents.document;
+        const selectionWindow = contents && contents.window;
+        if (
+          selectionDocument &&
+          typeof selectionDocument.addEventListener === 'function' &&
+          selectionWindow &&
+          typeof selectionWindow.getSelection === 'function'
+        ) {
+          const handleSelectionChange = () => {
+            const selection = selectionWindow.getSelection();
+            const text = selection ? selection.toString().trim() : '';
+            epubScrollDiagnostics && epubScrollDiagnostics.setSelectionActive(Boolean(text));
+          };
+          selectionDocument.addEventListener('selectionchange', handleSelectionChange);
+          if (epubSelectionCleanup) epubSelectionCleanup();
+          const selectionCleanup = () => {
+            selectionDocument.removeEventListener('selectionchange', handleSelectionChange);
+            if (epubSelectionCleanup === selectionCleanup) {
+              epubSelectionCleanup = null;
+            }
+          };
+          epubSelectionCleanup = selectionCleanup;
+        }
       });
     }
 
@@ -1150,8 +1178,8 @@
       rendition.on('selected', (cfiRange, contents) => {
         const selection = contents && contents.window ? contents.window.getSelection() : null;
         const text = selection ? selection.toString().trim() : '';
+        epubScrollDiagnostics && epubScrollDiagnostics.setSelectionActive(Boolean(text));
         if (text) {
-          epubScrollDiagnostics && epubScrollDiagnostics.setSelectionActive(true);
           sendEvent('TEXT_SELECTED', { text, pageIndex: Math.max(0, currentPage - 1) });
         }
         if (rendition && rendition.annotations && typeof rendition.annotations.remove === 'function') {
@@ -1190,27 +1218,62 @@
       const manager = rendition.manager;
       epubScrollDiagnostics = createEpubScrollDiagnostics(manager);
 
-      // ContinuousManager schedules a check for every debounced scroll event.
-      // During a fast direction change, obsolete checks can queue behind view
-      // append/prepend work and delay the next user scroll. Keep one check in
-      // flight and let a later real scroll request another check.
-      if (manager.q && typeof manager.q.enqueue === 'function') {
-        const originalEnqueue = manager.q.enqueue.bind(manager.q);
-        let pendingCheck = null;
-        manager.q.enqueue = (task, ...args) => {
-          const isCheckTask = typeof task === 'function' &&
-            /\bthis\.check\(\)/.test(String(task));
-          if (!isCheckTask) return originalEnqueue(task, ...args);
-          if (pendingCheck) return Promise.resolve(false);
-          const result = originalEnqueue(task, ...args);
-          pendingCheck = Promise.resolve(result).finally(() => {
-            pendingCheck = null;
-          });
+      // ContinuousManager schedules checks through several internal paths.
+      // Wrap the public method instead of inspecting queue task source, and
+      // retain one trailing check when more work arrives while one is running.
+      const originalCheck = typeof manager.check === 'function' ? manager.check : null;
+      let pendingCheck = null;
+      let trailingCheck = false;
+      let checkRequestId = 0;
+      if (originalCheck) {
+        manager.check = function (...args) {
+          const requestId = ++checkRequestId;
           if (epubScrollDiagnostics) {
-            epubScrollDiagnostics.command('manager.check', {
-              queueLength: typeof manager.q.length === 'function' ? manager.q.length() : null,
+            epubScrollDiagnostics.command('manager.check.request', {
+              requestId,
+              queueLength: manager.q && typeof manager.q.length === 'function'
+                ? manager.q.length()
+                : null,
             });
           }
+          if (pendingCheck) {
+            trailingCheck = true;
+            return pendingCheck;
+          }
+
+          const checkContext = this;
+          pendingCheck = Promise.resolve()
+            .then(() => {
+              epubScrollDiagnostics && epubScrollDiagnostics.command('manager.check.start', {
+                requestId,
+              });
+              return originalCheck.apply(checkContext, args);
+            })
+            .then(
+              (result) => {
+                epubScrollDiagnostics && epubScrollDiagnostics.command('manager.check.end', {
+                  requestId,
+                  status: 'ready',
+                });
+                return result;
+              },
+              (error) => {
+                epubScrollDiagnostics && epubScrollDiagnostics.command('manager.check.end', {
+                  requestId,
+                  status: 'error',
+                  message: error && error.message ? error.message : String(error),
+                });
+                throw error;
+              },
+            )
+            .finally(() => {
+              const shouldRunTrailingCheck = trailingCheck;
+              trailingCheck = false;
+              pendingCheck = null;
+              if (shouldRunTrailingCheck) {
+                void manager.check.apply(checkContext, args).catch(() => undefined);
+              }
+            });
           return pendingCheck;
         };
       }
@@ -1256,6 +1319,12 @@
       rendition.on('touchmove', handleTouchMove);
       rendition.on('touchend', handleTouchEnd);
       epubInteractionCleanup = () => {
+        if (epubSelectionCleanup) {
+          epubSelectionCleanup();
+          epubSelectionCleanup = null;
+        }
+        epubScrollDiagnostics && epubScrollDiagnostics.setSelectionActive(false);
+        if (originalCheck) manager.check = originalCheck;
         if (typeof manager.off === 'function') manager.off('scroll', handleScroll);
         if (typeof manager.off === 'function') manager.off('scrolled', handleScrolled);
         if (typeof rendition.off === 'function') {

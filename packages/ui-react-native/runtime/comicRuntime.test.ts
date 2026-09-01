@@ -211,4 +211,26 @@ describe("mobile comic runtime helpers", () => {
     expect(runtime).not.toContain("flow: 'paginated'");
     expect(html).not.toContain("flow: 'paginated'");
   });
+
+  it("coalesces EPUB manager checks without inspecting function source", () => {
+    const runtime = readFileSync(
+      resolve(process.cwd(), "packages/ui-react-native/runtime/runtime.js"),
+      "utf8"
+    );
+    const html = readFileSync(
+      resolve(process.cwd(), "packages/ui-react-native/runtime/index.html"),
+      "utf8"
+    );
+
+    for (const artifact of [runtime, html]) {
+      expect(artifact).toContain("const originalCheck = typeof manager.check");
+      expect(artifact).toContain("manager.check = function (...args)");
+      expect(artifact).toContain("manager.check.request");
+      expect(artifact).toContain("manager.check.start");
+      expect(artifact).toContain("manager.check.end");
+      expect(artifact).toContain("trailingCheck");
+      expect(artifact).toContain("setSelectionActive(false)");
+      expect(artifact).not.toContain("String(task)");
+    }
+  });
 });
