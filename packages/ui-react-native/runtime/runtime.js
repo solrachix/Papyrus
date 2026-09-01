@@ -263,6 +263,11 @@
       byteLength: payload.byteLength,
       currentType: currentType,
       durationMs: payload.durationMs,
+      uri: payload.uri,
+      status: payload.status,
+      contentLength: payload.contentLength,
+      contentType: payload.contentType,
+      transferEncoding: payload.transferEncoding,
       error: payload.error,
     });
   };
@@ -557,16 +562,53 @@
     return new TextDecoder('utf-8').decode(bytes);
   };
 
+  const isMetroAssetUri = (value) => {
+    try {
+      const url = new URL(value);
+      return (
+        (url.protocol === 'http:' || url.protocol === 'https:') &&
+        url.pathname.startsWith('/assets/') &&
+        url.searchParams.has('platform') &&
+        url.searchParams.has('hash')
+      );
+    } catch {
+      return false;
+    }
+  };
+
   const sourceToArrayBuffer = async (source) => {
     if (source.kind === 'uri') {
       if (/^(?:file|content|android\.resource):\/\//i.test(source.uri)) {
         return readLocalFile(source.uri);
       }
+      const isEpubHttpSource = isMetroAssetUri(source.uri);
+      if (isEpubHttpSource) {
+        sendEpubDiagnostic('epub.source.fetch.start', {uri: source.uri});
+      }
       const response = await fetch(source.uri);
+      if (isEpubHttpSource) {
+        sendEpubDiagnostic('epub.source.fetch.response', {
+          uri: source.uri,
+          status: response.status,
+          contentLength: response.headers.get('content-length'),
+          contentType: response.headers.get('content-type'),
+          transferEncoding: response.headers.get('transfer-encoding'),
+        });
+      }
       if (!response.ok && response.status !== 0) {
         throw new Error(`Falha ao carregar quadrinho (${response.status})`);
       }
-      return response.arrayBuffer();
+      if (isEpubHttpSource) {
+        sendEpubDiagnostic('epub.source.body.start', {uri: source.uri});
+      }
+      const body = await response.arrayBuffer();
+      if (isEpubHttpSource) {
+        sendEpubDiagnostic('epub.source.body.end', {
+          uri: source.uri,
+          byteLength: body.byteLength,
+        });
+      }
+      return body;
      }
      if (source.kind === 'base64') {
        return toExactArrayBuffer(decodeBase64(source.data));

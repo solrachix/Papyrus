@@ -60,7 +60,10 @@ const isMetroAssetUri = (uri?: string) => {
 const SAMPLE_EPUB_URI =
   Platform.OS === 'android'
     ? __DEV__ && isMetroAssetUri(SAMPLE_EPUB?.uri)
-      ? SAMPLE_EPUB?.uri
+      ? SAMPLE_EPUB?.uri?.replace(
+          /^https?:\/\/10\.0\.2\.2(?=:)/,
+          'http://127.0.0.1',
+        )
       : 'android.resource://com.papyrusmobile/raw/assets_sample'
     : SAMPLE_EPUB?.uri;
 const DEFAULT_PDF_URL =
@@ -100,7 +103,12 @@ const createMobileEngine = () => {
 
     if (cbrClientUrl && cbrWorkerUrl && cbrWasmUrl) {
       return new MobileDocumentEngine({
-        webViewRuntimeConfig: {cbrClientUrl, cbrWorkerUrl, cbrWasmUrl},
+        webViewRuntimeConfig: {
+          cbrClientUrl,
+          cbrWorkerUrl,
+          cbrWasmUrl,
+          epubDiagnostics: __DEV__,
+        },
       });
     }
   } catch (error) {
