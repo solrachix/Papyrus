@@ -75,6 +75,14 @@ const isLikelyBase64 = (value: string): boolean => {
 const isHttpUri = (value: string): boolean =>
   value.startsWith("http://") || value.startsWith("https://");
 
+// Metro serves bundled React Native assets over the development server. Keep
+// those URIs intact so the WebView can stream them directly instead of
+// downloading the whole EPUB/CBR through the RN bridge first.
+const isMetroAssetUri = (value: string): boolean =>
+  /^https?:\/\/(?:localhost|127\.0\.0\.1|10\.0\.2\.2)(?::\d+)?\/assets\//i.test(
+    value,
+  );
+
 const isLocalUri = (value: string): boolean =>
   value.startsWith("content://") || value.startsWith("file://");
 
@@ -1034,6 +1042,9 @@ export class WebViewDocumentEngine extends BaseDocumentEngine {
       }
 
       if (looksLikeUri(source)) {
+        if (isMetroAssetUri(source)) {
+          return { kind: "uri", uri: source };
+        }
         if (isHttpUri(source)) {
           const fetched = await this.fetchRemoteSource(type, source);
           if (fetched) return fetched;
@@ -1067,6 +1078,9 @@ export class WebViewDocumentEngine extends BaseDocumentEngine {
           };
         }
         return { kind: "text", text: decodeURIComponent(dataUri.data) };
+      }
+      if (isMetroAssetUri(uri)) {
+        return { kind: "uri", uri };
       }
       if (isHttpUri(uri)) {
         const fetched = await this.fetchRemoteSource(type, uri);

@@ -46,6 +46,20 @@ describe("WebViewDocumentEngine local sources", () => {
     });
   });
 
+  it("keeps Metro asset URIs intact for WebView EPUB loading", async () => {
+    const engine = new WebViewDocumentEngine();
+    const uri =
+      "http://10.0.2.2:8093/assets/assets/long-test.epub?platform=android&hash=abc";
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      (engine as any).normalizeRuntimeSource("epub", {uri}),
+    ).resolves.toEqual({kind: "uri", uri});
+    expect(fetchMock).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+
   it("serves WebView runtime assets through the native bridge", async () => {
     const engine = new WebViewDocumentEngine();
     const postMessage = vi.fn();
