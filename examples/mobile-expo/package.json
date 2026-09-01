@@ -12,7 +12,6 @@
     "fixtures:mobile:check": "node ../../scripts/benchmarks/generate-mobile-pdf-fixtures.mjs --check"
   },
   "dependencies": {
-    "@babel/runtime": "7.29.2",
     "@papyrus-sdk/core": "workspace:*",
     "@papyrus-sdk/engine-native": "workspace:*",
     "@papyrus-sdk/expo-plugin": "workspace:*",
@@ -20,20 +19,13 @@
     "@papyrus-sdk/ui-react-native": "workspace:*",
     "@react-native-clipboard/clipboard": "^1.16.3",
     "expo": "~52.0.0",
-    "expo-asset": "11.0.5",
-    "expo-constants": "17.0.8",
     "expo-dev-client": "~5.0.0",
-    "expo-modules-core": "2.2.3",
-    "hoist-non-react-statics": "3.3.2",
-    "invariant": "2.2.4",
     "react": "18.2.0",
-    "react-is": "18.3.1",
     "react-native": "0.76.0",
     "react-native-gesture-handler": "~2.20.2",
     "react-native-safe-area-context": "^5.6.2",
     "react-native-svg": "^15.5.0",
-    "react-native-webview": "^13.8.0",
-    "zustand": "5.0.12"
+    "react-native-webview": "^13.8.0"
   },
   "devDependencies": {
     "@expo/cli": "0.22.28",
