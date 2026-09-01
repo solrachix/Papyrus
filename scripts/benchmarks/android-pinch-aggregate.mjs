@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 const EVENT_NAMES = new Set([
   'fixture.requested', 'fixture.loaded', 'fixture.invalid', 'fixture.url_ignored', 'viewer.mode',
   'pinch.start', 'pinch.update', 'pinch.end', 'pinch.commit.start', 'pinch.commit.end',
-  'render.request', 'render.ready', 'render.stale', 'render.abandoned', 'render.error', 'render.cancelled',
+  'render.request', 'render.start', 'render.end', 'render.ready', 'render.stale', 'render.abandoned', 'render.error', 'render.cancelled',
   'pinch.preview.cleared', 'sample.start', 'sample.end', 'pinch.cancelled',
 ]);
 
@@ -65,6 +65,8 @@ function summarizeSample(sampleId, list, gfxinfo, environment, hasGfxInfo) {
   const ready = [...readyEvents].reverse().find((item) => cleared && item.timestamp <= cleared.timestamp) ?? readyEvents[readyEvents.length - 1];
   const renderRequests = renderEvents.filter((item) => item.name === 'render.request');
   const request = renderRequests.find((item) => item.renderRequestId === ready?.renderRequestId) ?? renderRequests[0];
+  const renderStart = request ? renderEvents.find((item) => item.name === 'render.start' && item.renderRequestId === request.renderRequestId) : null;
+  const renderEnd = request ? renderEvents.find((item) => item.name === 'render.end' && item.renderRequestId === request.renderRequestId) : null;
   const sampleStart = event(list, 'sample.start');
   const sampleEnd = event(list, 'sample.end');
   const mode = event(list, 'viewer.mode');
@@ -141,6 +143,13 @@ function summarizeSample(sampleId, list, gfxinfo, environment, hasGfxInfo) {
     commitToRequestMs: commitEnd && request ? request.timestamp - commitEnd.timestamp : null,
     requestToReadyMs: request && ready ? ready.timestamp - request.timestamp : null,
     commitToReadyMs: commitEnd && ready ? ready.timestamp - commitEnd.timestamp : null,
+    renderStartToEndMs: renderStart && renderEnd ? renderEnd.timestamp - renderStart.timestamp : null,
+    renderTarget: request ? {
+      layoutWidth: numberFrom(request.layoutWidth),
+      layoutHeight: numberFrom(request.layoutHeight),
+      renderScale: numberFrom(request.renderScale),
+      estimatedTargetPixels: numberFrom(request.estimatedTargetPixels),
+    } : null,
     readyToPreviewClearedMs: ready && cleared ? cleared.timestamp - ready.timestamp : null,
     renderLifecycleValid,
     renderTerminals: Object.fromEntries(['ready', 'stale', 'abandoned', 'error', 'cancelled'].map((status) => [`${status}`, renderEvents.filter((item) => item.name === `render.${status}`).length])),
@@ -175,6 +184,7 @@ function aggregateSamples(samples) {
         jankyPercent: metric(list, (sample) => sample.jankyPercent),
         commitToReadyMs: metric(list, (sample) => sample.commitToReadyMs),
         requestToReadyMs: metric(list, (sample) => sample.requestToReadyMs),
+        renderStartToEndMs: metric(list, (sample) => sample.renderStartToEndMs),
       },
     };
   }
