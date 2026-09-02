@@ -46,14 +46,16 @@ public class PapyrusPageView extends View {
       }
     }
   };
-  private static final ColorMatrixColorFilter SEPIA_FILTER = createSepiaFilter();
-  private static final ColorMatrixColorFilter DARK_FILTER = createDarkFilter();
-  private static final ColorMatrixColorFilter HIGH_CONTRAST_FILTER = createHighContrastFilter();
+  private static final class ThemeFilters {
+    private static final ColorMatrixColorFilter SEPIA = createSepiaFilter();
+    private static final ColorMatrixColorFilter DARK = createDarkFilter();
+    private static final ColorMatrixColorFilter HIGH_CONTRAST = createHighContrastFilter();
+  }
 
   private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
   private Bitmap bitmap;
   private String pageTheme = "normal";
-  private int renderGeneration = 0;
+  private volatile int renderGeneration = 0;
   private String currentRenderKey = null;
 
   public PapyrusPageView(Context context) {
@@ -188,6 +190,14 @@ public class PapyrusPageView extends View {
     render(state, pageIndex, scale, zoom, rotation, new PapyrusRenderCompletion(status -> { }));
   }
 
+  void dispose() {
+    renderGeneration += 1;
+    Bitmap current = bitmap;
+    bitmap = null;
+    currentRenderKey = null;
+    releaseBitmap(current);
+  }
+
   @Override
   protected void onDraw(Canvas canvas) {
     super.onDraw(canvas);
@@ -264,9 +274,9 @@ public class PapyrusPageView extends View {
   }
 
   private static ColorMatrixColorFilter resolveThemeFilter(String theme) {
-    if ("sepia".equals(theme)) return SEPIA_FILTER;
-    if ("dark".equals(theme)) return DARK_FILTER;
-    if ("high-contrast".equals(theme)) return HIGH_CONTRAST_FILTER;
+    if ("sepia".equals(theme)) return ThemeFilters.SEPIA;
+    if ("dark".equals(theme)) return ThemeFilters.DARK;
+    if ("high-contrast".equals(theme)) return ThemeFilters.HIGH_CONTRAST;
     return null;
   }
 

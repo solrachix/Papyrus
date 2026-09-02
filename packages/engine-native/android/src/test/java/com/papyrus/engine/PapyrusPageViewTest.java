@@ -3,6 +3,8 @@ package com.papyrus.engine;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertTrue;
 
+import java.lang.reflect.Field;
+
 import org.junit.Test;
 
 public class PapyrusPageViewTest {
@@ -50,5 +52,20 @@ public class PapyrusPageViewTest {
     assertTrue(PapyrusBitmapOwnership.shouldRecycleEvictedBitmap(false, 0));
     assertTrue(!PapyrusBitmapOwnership.shouldRecycleEvictedBitmap(true, 0));
     assertTrue(!PapyrusBitmapOwnership.shouldRecycleEvictedBitmap(false, 1));
+  }
+
+  @Test
+  public void disposingPageViewClearsSurfaceAndInvalidatesPendingRender() throws Exception {
+    PapyrusPageView view = new PapyrusPageView(null);
+    Field generationField = PapyrusPageView.class.getDeclaredField("renderGeneration");
+    generationField.setAccessible(true);
+    generationField.setInt(view, 7);
+
+    view.dispose();
+
+    Field bitmapField = PapyrusPageView.class.getDeclaredField("bitmap");
+    bitmapField.setAccessible(true);
+    assertTrue(bitmapField.get(view) == null);
+    assertTrue(generationField.getInt(view) == 8);
   }
 }

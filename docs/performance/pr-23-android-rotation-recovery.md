@@ -31,8 +31,10 @@ cache enquanto uma `PapyrusPageView` ainda o referenciava.
   mantendo a proporção e o limite de pixels existente;
 - bitmaps compartilhados pelo `LruCache` agora só são reciclados quando não há
   referências ativas em páginas montadas;
+- `onDropViewInstance()` chama `dispose()` para liberar a referência da página
+  e invalidar renders assíncronos que ainda estejam em voo;
 - o teste unitário cobre o ownership do bitmap e o tamanho seguro da transição
-  `2180×2822 → 1582×2048`.
+  `2180×2822 → 1582×2048`, além do descarte da `PapyrusPageView`.
 
 ## Validação pós-correção
 
