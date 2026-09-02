@@ -148,6 +148,8 @@
   let epubInteractionCleanup = null;
   const epubSelectionCleanups = new Set();
   let epubScrollDiagnostics = null;
+  // Shared generation for all document formats. The historical variable name
+  // is kept because the shipped runtime tests and diagnostics refer to it.
   let epubLoadGeneration = 0;
 
   const sendMessage = (payload) => {
@@ -1090,7 +1092,7 @@
     return pages.length > 0 ? pages : [''];
   };
 
-  const loadText = async (source) => {
+  const loadText = async (source, isCurrentLoad = () => true) => {
     let text = '';
     if (source.kind === 'uri') {
       const res = await fetch(source.uri);
@@ -1101,6 +1103,9 @@
       text = source.text || '';
     }
 
+    if (!isCurrentLoad()) {
+      throw new Error('Document load superseded by a newer load');
+    }
     clearViewer();
     textPages = paginateText(text);
     pageCount = textPages.length;
@@ -1534,7 +1539,17 @@
         zoom = 1.0;
 
         if (currentType === 'text') {
-          const result = await loadText(payload.source);
+          const result = await loadText(
+            payload.source,
+            () => generation === epubLoadGeneration,
+          );
+          if (generation !== epubLoadGeneration) {
+            throw new Error('Document load superseded by a newer load');
+          }
+          sendEvent('document.ready', {
+            loadId: id,
+            pageCount: result.pageCount,
+          });
           sendState();
           sendResponse(id, true, result);
           return;
@@ -1663,6 +1678,15 @@
       sendResponse(id, false, null, 'Unknown command');
     } catch (err) {
       const errorMessage = err && err.message ? err.message : String(err);
+      const isSuperseded = /superseded by a newer load/i.test(errorMessage);
+      if (kind === 'load' && isSuperseded) {
+        sendEvent('document.stale', { loadId: id, error: errorMessage });
+      } else if (kind === 'load') {
+        sendEvent('document.error', {
+          loadId: id,
+          error: { message: errorMessage, stack: err?.stack || null },
+        });
+      }
       if (kind === 'load' && payload?.type === 'epub') {
         sendEpubDiagnostic('epub.load.error', {
           loadId: id,
