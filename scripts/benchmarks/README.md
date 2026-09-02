@@ -74,6 +74,25 @@ O FPS é calculado com a janela real de `dumpsys gfxinfo reset → dump`, regist
 como `gfxWindowDurationMs`; a duração do gesto e a duração total da amostra são
 mantidas como métricas separadas.
 
+## PR25: perfil Android de scroll de PDF
+
+O coletor de scroll é opt-in e exige um dispositivo explícito quando há mais de
+um alvo ADB conectado. Ele espera o lote inicial de páginas antes de resetar o
+`gfxinfo`, para não misturar abertura do documento com a janela de scroll:
+
+```bash
+bash scripts/benchmarks/android-scroll-profile.sh \
+  --fixture all --runs 3 --package com.papyrus.sdk.mobileexpo \
+  --device emulator-5554 --output-dir /tmp/papyrus-pr25-android-scroll
+```
+
+Cada amostra grava `events.ndjson`, `gfxinfo.txt`, `meminfo.txt`,
+`metadata.txt` e uma captura de tela. O script não altera `windowSize`,
+`maxToRenderPerBatch`, overscan ou o scheduler; ele serve para correlacionar
+scroll, viewability, mounts e lifecycle de render com as métricas do Android.
+Os resultados da rodada estão em
+[`docs/performance/pr-25-large-pdf-scroll-jank.md`](../../docs/performance/pr-25-large-pdf-scroll-jank.md).
+
 Para o emulador `Pixel_7_API_35`, o APK do benchmark deve ser construído com
 `x86_64`. GIF/WebP são opcionais e ficam desativados nesse artefato para manter
 o limite de 30 MiB; isso não altera a configuração padrão multi-ABI do app.

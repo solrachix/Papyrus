@@ -43,6 +43,7 @@ import {
 } from "../perf/mobilePerf";
 import { useMobilePerf } from "../perf/MobilePerfContext";
 import { createPinchPerfMachine } from "../perf/pinchPerfSession";
+import { createScrollPerfSession } from "../perf/scrollPerfSession";
 import {
   getSelectionEdgeAutoscroll,
   shouldEnableViewerScroll,
@@ -184,6 +185,7 @@ const Viewer: React.FC<ViewerProps> = ({
     createBurstMonitor("Viewer", "onViewableItemsChanged", 12, 800)
   );
   const scrollMonitorRef = useRef(createScrollPerfMonitor("Viewer"));
+  const scrollPerfSession = useMemo(() => createScrollPerfSession(), []);
   const dimensionsCacheRef = useRef<
     Map<number, { width: number; height: number }>
   >(new Map());
@@ -1504,6 +1506,22 @@ const Viewer: React.FC<ViewerProps> = ({
           viewableCount: viewableItems.length,
           mode: isDouble ? "double" : "continuous",
         });
+        const indexes = viewableItems
+          .map((token) => {
+            if (typeof token.index !== "number") return null;
+            if (!isDouble) return token.index;
+            const row = token.item as
+              | { left: number; right: number | null }
+              | undefined;
+            return row?.left ?? token.index * 2;
+          })
+          .filter((index): index is number => index !== null);
+        mobilePerf.emit("viewer.viewable", {
+          mode: isDouble ? "double" : "continuous",
+          viewableCount: viewableItems.length,
+          firstIndex: indexes.length ? Math.min(...indexes) : null,
+          lastIndex: indexes.length ? Math.max(...indexes) : null,
+        });
       }
 
       const pendingTarget = pendingScrollTargetRef.current;
@@ -1570,6 +1588,7 @@ const Viewer: React.FC<ViewerProps> = ({
       currentPage,
       ensurePageDimensions,
       isDouble,
+      mobilePerf,
       perfEnabled,
       setDocumentStateTracked,
     ]
@@ -1585,12 +1604,31 @@ const Viewer: React.FC<ViewerProps> = ({
       const offsetY = event.nativeEvent?.contentOffset?.y ?? 0;
       trackMobileChromeByOffset(offsetY, `scroll.${mode}`);
       if (!perfEnabled) return;
+      const started = scrollPerfSession.begin(offsetY, `scroll.${mode}`);
+      if (started.started) {
+        mobilePerf.emit("scroll.start", {
+          scrollStartOffsetY: started.startOffsetY,
+          direction: started.direction,
+          source: `scroll.${mode}`,
+        });
+      }
+      scrollPerfSession.track(offsetY);
       const timestampValue = event.nativeEvent?.timestamp;
       const timestamp =
         typeof timestampValue === "number" ? timestampValue : undefined;
       scrollMonitorRef.current.track(timestamp);
     },
-    [perfEnabled, trackMobileChromeByOffset]
+    [mobilePerf, perfEnabled, scrollPerfSession, trackMobileChromeByOffset]
+  );
+
+  const endViewerScroll = useCallback(
+    (reason: string) => {
+      if (!perfEnabled) return;
+      const summary = scrollPerfSession.end(reason);
+      if (!summary) return;
+      mobilePerf.emit("scroll.end", summary);
+    },
+    [mobilePerf, perfEnabled, scrollPerfSession]
   );
 
   const handleWebViewScroll = useCallback(
@@ -1812,6 +1850,7 @@ const Viewer: React.FC<ViewerProps> = ({
                   perfEnabled
                     ? () => {
                         scrollMonitorRef.current.end("single.endDrag");
+                        endViewerScroll("single.endDrag");
                         sampleMemory("Viewer", "single.endDrag", { pageCount });
                       }
                     : undefined
@@ -1820,6 +1859,7 @@ const Viewer: React.FC<ViewerProps> = ({
                   perfEnabled
                     ? () => {
                         scrollMonitorRef.current.end("single.momentumEnd");
+                        endViewerScroll("single.momentumEnd");
                         sampleMemory("Viewer", "single.momentumEnd", {
                           pageCount,
                         });
@@ -1965,6 +2005,7 @@ const Viewer: React.FC<ViewerProps> = ({
                 perfEnabled
                   ? () => {
                       scrollMonitorRef.current.end("continuous.endDrag");
+                      endViewerScroll("continuous.endDrag");
                       sampleMemory("Viewer", "continuous.endDrag", {
                         pageCount,
                       });
@@ -1975,6 +2016,7 @@ const Viewer: React.FC<ViewerProps> = ({
                 perfEnabled
                   ? () => {
                       scrollMonitorRef.current.end("continuous.momentumEnd");
+                      endViewerScroll("continuous.momentumEnd");
                       sampleMemory("Viewer", "continuous.momentumEnd", {
                         pageCount,
                       });
