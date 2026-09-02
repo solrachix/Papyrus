@@ -448,7 +448,14 @@ const PageRenderer: React.FC<PageRendererProps> = ({
           renderScale,
         });
       }
-      const renderPromise = invokeRenderPage(engine, pageIndex, viewTag, renderScale);
+      const renderPromise = invokeRenderPage(engine, pageIndex, viewTag, renderScale, {
+        enabled: perfEnabled,
+        renderRequestId,
+        surfaceId,
+        pageIndex,
+        generation,
+        ...mobilePerf.context,
+      });
       void renderPromise
         .then((result: void | RenderPageResult) => {
           if (renderTimeout) clearTimeout(renderTimeout);

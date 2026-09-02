@@ -24,6 +24,7 @@ import {
   SearchResult,
   TextSelection,
   RenderPageResult,
+  RenderPageTelemetryContext,
   PageTheme,
   Annotation,
   PdfVisiblePage,
@@ -206,7 +207,8 @@ type NativeEngineModule = {
     scale: number,
     zoom: number,
     rotation: number,
-    requestId: string
+    requestId: string,
+    telemetry?: RenderPageTelemetryContext
   ) => Promise<RenderPageResult>;
   renderTextLayer?: (
     engineId: string,
@@ -415,7 +417,8 @@ export class NativeDocumentEngine extends BaseDocumentEngine {
   async renderPage(
     pageIndex: number,
     target: any,
-    scale: number
+    scale: number,
+    telemetry?: RenderPageTelemetryContext
   ): Promise<void | RenderPageResult> {
     const native = this.assertNativeModule();
     if (!native.renderPage) return;
@@ -429,7 +432,8 @@ export class NativeDocumentEngine extends BaseDocumentEngine {
       scale,
       this.zoom,
       this.rotation,
-      requestId
+      requestId,
+      telemetry
     );
   }
 
@@ -953,7 +957,8 @@ export class WebViewDocumentEngine extends BaseDocumentEngine {
   async renderPage(
     pageIndex: number,
     target: any,
-    scale: number
+    scale: number,
+    _telemetry?: RenderPageTelemetryContext
   ): Promise<void> {
     void pageIndex;
     void target;
@@ -1326,9 +1331,10 @@ export class MobileDocumentEngine extends BaseDocumentEngine {
   async renderPage(
     pageIndex: number,
     target: any,
-    scale: number
+    scale: number,
+    telemetry?: RenderPageTelemetryContext
   ): Promise<void> {
-    await this.activeEngine.renderPage(pageIndex, target, scale);
+    await this.activeEngine.renderPage(pageIndex, target, scale, telemetry);
   }
 
   async renderTextLayer(

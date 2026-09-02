@@ -1,5 +1,5 @@
 
-import { DocumentEngine, TextItem, OutlineItem, DocumentLoadInput, TextSelection, PageDestination, RenderPageResult } from '@papyrus-sdk/types';
+import { DocumentEngine, TextItem, OutlineItem, DocumentLoadInput, TextSelection, PageDestination, RenderPageResult, RenderPageTelemetryContext } from '@papyrus-sdk/types';
 
 export abstract class BaseDocumentEngine implements DocumentEngine {
   abstract load(source: DocumentLoadInput): Promise<void>;
@@ -10,7 +10,7 @@ export abstract class BaseDocumentEngine implements DocumentEngine {
   abstract getZoom(): number;
   abstract rotate(direction: 'clockwise' | 'counterclockwise'): void;
   abstract getRotation(): number;
-  abstract renderPage(pageIndex: number, target: any, scale: number): Promise<void | RenderPageResult>;
+  abstract renderPage(pageIndex: number, target: any, scale: number, telemetry?: RenderPageTelemetryContext): Promise<void | RenderPageResult>;
   abstract renderTextLayer(pageIndex: number, container: any, scale: number): Promise<void>;
   abstract getTextContent(pageIndex: number): Promise<TextItem[]>;
   abstract getPageDimensions(pageIndex: number): Promise<{ width: number, height: number }>;

@@ -131,6 +131,18 @@ export interface TextSelection {
   rects: { x: number; y: number; width: number; height: number }[];
 }
 
+export interface RenderPageTelemetryContext {
+  enabled?: boolean;
+  renderRequestId?: string;
+  surfaceId?: string;
+  pageIndex?: number;
+  generation?: number;
+  runId?: string;
+  sampleId?: string;
+  documentLoadId?: string;
+  fixture?: string;
+}
+
 export interface AnnotationReply {
   id: string;
   annotationId: string;
@@ -241,7 +253,12 @@ export interface DocumentEngine {
    * Renderiza o conteúdo visual da página.
    * target: HTMLCanvasElement no Web ou NativeHandle no RN.
    */
-  renderPage(pageIndex: number, target: any, scale: number): Promise<void | RenderPageResult>;
+  renderPage(
+    pageIndex: number,
+    target: any,
+    scale: number,
+    telemetry?: RenderPageTelemetryContext
+  ): Promise<void | RenderPageResult>;
 
   /**
    * Renderiza a camada de texto para seleção.
