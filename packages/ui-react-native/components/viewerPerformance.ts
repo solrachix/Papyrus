@@ -9,6 +9,8 @@ export const resolveRemoveClippedSubviews = ({
   viewerMode: "compat" | "native";
   requestedValue?: boolean;
 }): boolean => {
-  if (platform === "android" && viewerMode === "compat") return false;
+  if (platform === "android" && viewerMode === "compat") {
+    return requestedValue ?? false;
+  }
   return requestedValue ?? true;
 };

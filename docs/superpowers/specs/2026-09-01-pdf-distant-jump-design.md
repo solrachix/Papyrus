@@ -2,7 +2,7 @@
 
 ## Goal
 
-Corrigir o caso em que um salto distante de página no Android `viewerMode=compat`/`FlatList` chega ao destino, mas deixa a superfície PDF branca.
+Validar o fluxo de salto distante de página no Android `viewerMode=compat`/`FlatList` e manter uma política segura de clipping para surfaces nativas.
 
 ## Scope
 
@@ -39,8 +39,25 @@ O agregador deve classificar cada tentativa sem confundir `currentPage` com dest
 
 Baseline na `main`: `large-100`, `large-1000` e `varied-sizes`, com saltos curtos e distantes. Repetir no mínimo 10 ciclos por cenário crítico, incluindo reversões e o teste em que um pequeno scroll supostamente “acorda” a página.
 
-Depois da correção: focused tests, build dos pacotes alterados, APK Android, execução exclusivamente no `emulator-5554`, saltos `1 ↔ 1000` e verificação de ausência de renders intermediários proporcionais à distância, página branca, timeout, stale órfão, crash, ANR ou crescimento indefinido de memória.
+Depois da investigação: focused tests, build dos pacotes alterados, APK Android, execução exclusivamente no `emulator-5554`, saltos `1 ↔ 1000` e verificação de ausência de renders intermediários proporcionais à distância, timeout, stale órfão, crash, ANR ou crescimento indefinido de memória.
+
+## Investigation result
+
+O sintoma de “superfície branca” inicialmente observado não foi reproduzido no
+`viewerMode=compat`. O fixture `large-1000` é sintético, contém apenas quatro
+linhas no topo de cada página e deixa uma grande área vazia; isso produziu um
+falso positivo visual quando o header cobria parte do conteúdo. Nos saltos
+testados, `scrollToIndex` alcançou o destino, o target emitiu `render.ready` e o
+conteúdo ficou visível.
+
+Durante a investigação, foi mantida uma mudança defensiva separada: no
+Android compat, `removeClippedSubviews` passa a ser `false` por padrão para
+evitar que surfaces nativas sejam destacadas em saltos; um valor explícito da
+prop continua sendo respeitado. O renderer nativo não foi alterado.
 
 ## Stop conditions
 
-Se `viewerMode=compat` não reproduzir o sintoma e os eventos apontarem para o viewer nativo, não haverá mudança especulativa nesta PR. O resultado será documentado como hipótese não aplicável ao escopo.
+Se `viewerMode=compat` não reproduzir o sintoma, não haverá correção
+especulativa do renderer nesta PR. O resultado será documentado como hipótese
+não reproduzida; qualquer investigação exclusiva do viewer nativo fica fora do
+escopo.

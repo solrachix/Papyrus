@@ -98,7 +98,9 @@ Performance tuning props are available on `Viewer` and `RightSheet`:
 
 - `virtualWindowSize` (`Viewer`): FlatList window size. Default: `8`.
 - `maxToRenderPerBatch` (`Viewer`): max items per render batch. Default: `6`.
-- `removeClippedSubviews` (`Viewer`): detach offscreen rows. Default: `true`.
+- `removeClippedSubviews` (`Viewer`): detach offscreen rows. Default: `false`
+  for Android `viewerMode="compat"` and `true` otherwise. An explicit value is
+  always respected.
 - `thumbsInitialCount` (`RightSheet`): initial thumbnails rendered when opening pages tab. Default: `4`.
 
 Recommended starting points:

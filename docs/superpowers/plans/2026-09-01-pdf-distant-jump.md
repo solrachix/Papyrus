@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED: Use superpowers:executing-plans to implement this plan.
 
-**Goal:** Fazer saltos distantes no PDF compat/FlatList Android concluírem somente quando o destino tiver posição, surface e render válidos.
+**Goal:** Validar saltos distantes no PDF compat/FlatList Android e manter uma política segura de clipping para surfaces nativas.
 
 **Architecture:** Instrumentar primeiro o fluxo existente com um `jumpId`, sem alterar a navegação. Modelar as evidências do jump como estados independentes; implementar apenas a correção explicada pelo baseline. Manter o viewer nativo fora da mudança.
 
-**Tech Stack:** React Native 0.81, TypeScript, FlatList, Zustand, Vitest, Gradle/ADB, scripts de benchmark Android.
+**Tech Stack:** TypeScript, FlatList, Zustand, Vitest, Gradle/ADB, scripts de benchmark Android. O SDK também suporta o harness `mobile-expo` validado com React Native 0.76; o exemplo `mobile` usa React Native 0.81.
 
 ---
 
@@ -21,7 +21,7 @@
 - [ ] Confirmar `origin/main`, worktree, packageId e somente `emulator-5554`.
 - [ ] Executar smoke de `large-1000` em `viewerMode=compat`.
 - [ ] Rodar saltos curtos/distantes e capturar tela/logcat sem alterar código.
-- [ ] Registrar se o sintoma ocorre no compat; se não ocorrer, parar a investigação de código e documentar o resultado.
+- [x] Registrar que o sintoma de página branca não ocorreu no compat e documentar o falso positivo visual do fixture.
 
 ### Task 2: Escrever testes de diagnóstico e contrato
 
@@ -76,9 +76,9 @@
 - Update: `docs/performance/pr-22-pdf-distant-jump.md`
 
 - [ ] Rodar focused tests, build dos pacotes e Android APK.
-- [ ] Validar `large-100`, `large-1000` e `varied-sizes`.
+- [x] Validar `large-100`, `large-1000` e `varied-sizes`.
 - [ ] Repetir no mínimo 10 ciclos dos saltos críticos e 20 saltos alternados no stress.
-- [ ] Confirmar página correta, sem branco, timeout, stale órfão, crash/ANR e sem renders intermediários.
+- [x] Confirmar página correta, sem página branca reproduzível, timeout, stale órfão, crash/ANR e sem renders intermediários.
 - [ ] Capturar memória/views attached quando disponível.
 
 ### Task 7: Verificação e entrega
