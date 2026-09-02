@@ -63,6 +63,10 @@ regenerado. A captura final permaneceu legível na página 4, sem
 Também foram feitas transições rápidas e o smoke portrait → landscape →
 portrait. A captura pós-correção está em `/tmp/pr23-matrix-final.png`.
 
+O restore final usa somente as fronteiras de mudança de largura e de layout da
+`FlatList`; não há timer arbitrário entre a nova geometria e o
+`scrollToOffset`.
+
 O PSS do processo foi `131883 KB` no início e `146901 KB` ao final da matriz;
 o native heap foi `64340 KB` e `63572 KB`, respectivamente. Essa leitura é um
 smoke de memória, não uma prova de ausência de crescimento em uma sessão longa.

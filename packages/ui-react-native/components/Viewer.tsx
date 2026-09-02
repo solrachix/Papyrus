@@ -1398,10 +1398,7 @@ const Viewer: React.FC<ViewerProps> = ({
     ) {
       pendingOrientationRestoreWidthRef.current = windowWidth;
     }
-    if (pendingOrientationRestoreWidthRef.current !== windowWidth) return;
-
-    const timeout = setTimeout(restoreOrientationScrollOffset, 160);
-    return () => clearTimeout(timeout);
+    restoreOrientationScrollOffset();
   }, [restoreOrientationScrollOffset, windowWidth]);
 
   const getItemLayout = useCallback(
