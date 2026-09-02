@@ -178,6 +178,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   onRenderReadyRef.current = onRenderReady;
   const gestureIdRef = useRef(gestureId);
   gestureIdRef.current = gestureId;
+
   const mobilePerf = useMobilePerf();
   const renderGenerationRef = useRef(createRenderGeneration());
   const [layout, setLayout] = useState({ width: 0, height: 0 });
@@ -188,6 +189,20 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   const { width: windowWidth } = useWindowDimensions();
   const isNative = Platform.OS === "android" || Platform.OS === "ios";
   const perfEnabled = isMobilePerfEnabled();
+
+  useEffect(() => {
+    if (!perfEnabled) return;
+    mobilePerf.emit("surface.mount", {
+      surfaceId,
+      pageIndex,
+    });
+    return () => {
+      mobilePerf.emit("surface.unmount", {
+        surfaceId,
+        pageIndex,
+      });
+    };
+  }, [mobilePerf, pageIndex, perfEnabled, surfaceId]);
   const renderCountRef = useRef(0);
   const inkDrawingActiveRef = useRef(false);
   const selectionDragActiveRef = useRef(false);
