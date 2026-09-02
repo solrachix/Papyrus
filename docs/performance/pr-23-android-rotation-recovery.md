@@ -24,6 +24,11 @@ Em uma execução anterior, a mesma transição também produziu
 `Canvas: trying to use a recycled bitmap`, causado pela remoção do bitmap do
 cache enquanto uma `PapyrusPageView` ainda o referenciava.
 
+A investigação mostrou que o blank de landscape não era um bitmap vazio: a
+renderização produzia pixels não brancos, mas a `FlatList` preservava o offset
+vertical calculado para a geometria de portrait. Depois da mudança de largura,
+a página corrente permanecia fora da viewport, criando um espaço branco visível.
+
 ## Correção
 
 - a configuração do example deixou de bloquear a atividade em portrait;
@@ -40,8 +45,9 @@ cache enquanto uma `PapyrusPageView` ainda o referenciava.
 
 Com o limite `2048`, a mesma transição foi repetida no emulator-5554. O
 bitmap passou a ser instalado em `1582×2048`, com conteúdo não branco, e a
-página permaneceu visível em landscape. A carga inicial em landscape também
-permaneceu legível.
+página permaneceu visível em landscape. A correção adicional restaura o offset
+da página lógica corrente usando as métricas da nova orientação, depois do
+layout da `FlatList`.
 
 O APK final da branch também foi instalado no `emulator-5554` e passou por um
 smoke portrait → landscape → portrait. As duas capturas mostraram a página
@@ -50,9 +56,19 @@ falha fatal do `PapyrusPageView`. O smoke final usou a tela sintética de uma
 página porque o harness Metro foi reiniciado durante a reconstrução do APK;
 ele não substitui a matriz completa com `large-1000`.
 
-Ainda não foram publicados números de uma matriz completa de 20 rotações; o
-resultado desta rodada é a confirmação causal do blank bitmap em dimensões
-maiores e a correção mínima correspondente.
+Uma matriz de 20 alternâncias portrait/landscape foi executada no
+`emulator-5554` com `large-1000`, após reinstalação do APK com bundle JS
+regenerado. A captura final permaneceu legível na página 4, sem
+`Canvas: trying to use a recycled bitmap`, exceção fatal ou ANR no logcat.
+Também foram feitas transições rápidas e o smoke portrait → landscape →
+portrait. A captura pós-correção está em `/tmp/pr23-matrix-final.png`.
+
+O PSS do processo foi `131883 KB` no início e `146901 KB` ao final da matriz;
+o native heap foi `64340 KB` e `63572 KB`, respectivamente. Essa leitura é um
+smoke de memória, não uma prova de ausência de crescimento em uma sessão longa.
+
+O auto-carregamento do fixture e os logs de investigação foram usados apenas
+para a validação local e foram removidos da árvore de trabalho.
 
 ## Comandos de verificação
 
@@ -71,5 +87,7 @@ bash ./gradlew :papyrus-sdk_engine-native:test :app:assembleDebug \
   -x app:generateAutolinkingPackageList
 ```
 
-Resultado: 29 arquivos Vitest / 107 testes aprovados; testes unitários Android
-e `app:assembleDebug` aprovados.
+Resultado: `viewerPerformance.test.ts` 6/6 aprovado; o pacote
+`@papyrus-sdk/ui-react-native` foi compilado; e `app:assembleRelease` foi
+aprovado no harness Android. A matriz foi executada exclusivamente no
+`emulator-5554`.
