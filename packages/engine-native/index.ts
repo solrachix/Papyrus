@@ -583,6 +583,11 @@ type WebViewBridge = {
   postMessage: (message: string) => void;
 };
 
+type Deferred<T> = {
+  resolve: (value: T) => void;
+  reject: (error: Error) => void;
+};
+
 export type WebViewRuntimeSource =
   | string
   | number
@@ -662,8 +667,8 @@ export class WebViewDocumentEngine extends BaseDocumentEngine {
     string,
     { resolve: (data: any) => void; reject: (error: Error) => void }
   >();
-  private bridgeResolvers: Array<(bridge: WebViewBridge) => void> = [];
-  private readyResolvers: Array<() => void> = [];
+  private bridgeResolvers: Array<Deferred<WebViewBridge>> = [];
+  private readyResolvers: Array<Deferred<void>> = [];
   private pageCount = 0;
   private currentPage = 1;
   private zoom = 1.0;
@@ -690,8 +695,21 @@ export class WebViewDocumentEngine extends BaseDocumentEngine {
 
   attachBridge(bridge: WebViewBridge): void {
     this.bridge = bridge;
-    this.bridgeResolvers.forEach((resolve) => resolve(bridge));
+    this.ready = false;
+    this.bridgeResolvers.forEach(({ resolve }) => resolve(bridge));
     this.bridgeResolvers = [];
+  }
+
+  detachBridge(): void {
+    const error = new Error("[Papyrus] WebView detached");
+    this.pending.forEach(({ reject }) => reject(error));
+    this.pending.clear();
+    this.bridgeResolvers.forEach(({ reject }) => reject(error));
+    this.readyResolvers.forEach(({ reject }) => reject(error));
+    this.bridgeResolvers = [];
+    this.readyResolvers = [];
+    this.bridge = null;
+    this.ready = false;
   }
 
   handleMessage(raw: string): void {
@@ -716,7 +734,7 @@ export class WebViewDocumentEngine extends BaseDocumentEngine {
 
     if (message.type === "ready") {
       this.ready = true;
-      this.readyResolvers.forEach((resolve) => resolve());
+      this.readyResolvers.forEach(({ resolve }) => resolve());
       this.readyResolvers = [];
       return;
     }
@@ -1006,25 +1024,20 @@ export class WebViewDocumentEngine extends BaseDocumentEngine {
   }
 
   destroy(): void {
-    this.pending.forEach(({ reject }) =>
-      reject(new Error("[Papyrus] WebView engine destroyed"))
-    );
-    this.pending.clear();
-    this.bridge = null;
-    this.ready = false;
+    this.detachBridge();
   }
 
   private async ensureBridge(): Promise<WebViewBridge> {
     if (this.bridge) return this.bridge;
-    return new Promise((resolve) => {
-      this.bridgeResolvers.push(resolve);
+    return new Promise((resolve, reject) => {
+      this.bridgeResolvers.push({ resolve, reject });
     });
   }
 
   private async ensureReady(): Promise<void> {
     if (this.ready) return;
-    return new Promise((resolve) => {
-      this.readyResolvers.push(resolve);
+    return new Promise((resolve, reject) => {
+      this.readyResolvers.push({ resolve, reject });
     });
   }
 
@@ -1260,6 +1273,10 @@ export class MobileDocumentEngine extends BaseDocumentEngine {
 
   attachWebView(bridge: WebViewBridge): void {
     this.webEngine.attachBridge(bridge);
+  }
+
+  detachWebView(): void {
+    this.webEngine.detachBridge();
   }
 
   handleWebViewMessage(data: string): void {
