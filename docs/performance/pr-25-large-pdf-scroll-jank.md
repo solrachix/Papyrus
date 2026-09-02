@@ -71,3 +71,18 @@ experimento A/B controlado de pré-renderização.
 - PSS e attached views são snapshots no final da janela, não picos.
 - A métrica JS de scroll é auxiliar; os frames oficiais vêm de `gfxinfo`.
 - Não há A/B de comportamento nesta PR porque nenhum fix foi aplicado.
+
+## Controle de overhead do profiler
+
+Para verificar se a instrumentação alterava o resultado, o mesmo APK release
+foi executado três vezes com `perf=0` e três vezes com `perf=1`, no
+`large-1000`, usando os mesmos quatro swipes e a mesma janela de `gfxinfo`.
+
+| Configuração | Frames | Janky % | P90 | P95 | Missed vsync | Slow draw |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `perf=0` | 170 (165–170) | 35.88% (34.12–36.97) | 48 ms | 48 ms | 17 (16–22) | 61 (58–61) |
+| `perf=1` | 167 (163–167) | 37.72% (33.53–39.26) | 48 ms | 48 ms | 19 (10–20) | 62 (56–64) |
+
+A diferença pequena de jank não veio acompanhada de mudança no P90/P95 e
+permanece dentro da variação observada entre execuções. O controle não indica
+contaminação significativa do profiler.

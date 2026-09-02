@@ -82,3 +82,17 @@ agendamento.
   isolada por página.
 - O fixture é sintético e text-only, exceto pelas dimensões variadas.
 - O número de views anexadas é uma fotografia ao final da janela, não um pico.
+
+## Controle de overhead
+
+No `large-1000`, três execuções com `perf=0` e três com `perf=1` usaram o mesmo
+APK, emulador, reset de `gfxinfo` e quatro swipes. As medianas foram:
+
+| Configuração | Janky % | P90 | P95 | Missed vsync | Slow draw |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `perf=0` | 35.88% | 48 ms | 48 ms | 17 | 61 |
+| `perf=1` | 37.72% | 48 ms | 48 ms | 19 | 62 |
+
+O resultado é compatível com overhead praticamente neutro para o perfil; a
+instrumentação continua opt-in e não há evidência de que ela explique o
+jank observado.
