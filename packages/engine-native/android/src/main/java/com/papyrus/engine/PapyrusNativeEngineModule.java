@@ -179,15 +179,23 @@ public class PapyrusNativeEngineModule extends ReactContextBaseJavaModule {
       error -> promise.reject("papyrus_render_error", error)
     );
 
+    telemetry.emit("native.render.uiblock.enqueue");
     uiManager.addUIBlock(new UIBlock() {
       @Override
       public void execute(com.facebook.react.uimanager.NativeViewHierarchyManager nativeViewHierarchyManager) {
-        View view = nativeViewHierarchyManager.resolveView(target);
-        if (view instanceof PapyrusPageView) {
-          ((PapyrusPageView) view).render(state, pageIndex, scale, zoom, rotation, completion, telemetry);
-        } else {
-          telemetry.emit("native.render.stale");
-          completion.complete(PapyrusRenderCompletion.Status.STALE);
+        telemetry.traceBegin("PapyrusRenderUiBlock");
+        try {
+          telemetry.emit("native.render.uiblock.start");
+          View view = nativeViewHierarchyManager.resolveView(target);
+          if (view instanceof PapyrusPageView) {
+            telemetry.emit("native.render.uiblock.surface.resolved");
+            ((PapyrusPageView) view).render(state, pageIndex, scale, zoom, rotation, completion, telemetry);
+          } else {
+            telemetry.emit("native.render.stale");
+            completion.complete(PapyrusRenderCompletion.Status.STALE);
+          }
+        } finally {
+          telemetry.traceEnd();
         }
       }
     });

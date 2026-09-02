@@ -123,6 +123,28 @@ Para o emulador `Pixel_7_API_35`, o APK do benchmark deve ser construído com
 `x86_64`. GIF/WebP são opcionais e ficam desativados nesse artefato para manter
 o limite de 30 MiB; isso não altera a configuração padrão multi-ABI do app.
 
+## PR27: contenção da UI thread com Perfetto
+
+O harness abaixo inicia uma captura Perfetto de duração limitada, executa o
+mesmo protocolo de quatro swipes e copia o `.pftrace` para o diretório local.
+Use sempre o emulador explicitamente:
+
+```bash
+bash scripts/benchmarks/android-ui-thread-trace.sh \
+  --fixture large-1000 \
+  --runs 3 \
+  --package com.papyrus.sdk.mobileexpo \
+  --device emulator-5554 \
+  --output-dir /tmp/papyrus-pr27-large1000-trace
+```
+
+`--runs N` repete o mesmo protocolo dentro da sessão. `--trace 0` executa
+somente o perfil, permitindo comparar o overhead do trace com o mesmo
+protocolo. As seções `android.os.Trace` e os marcadores UIBlock
+são emitidos apenas quando `perf=1`; o caminho normal permanece sem tracing.
+Traces grandes ficam em `/tmp`, enquanto o relatório versiona somente os
+resumos e timestamps relevantes.
+
 ## Fixtures reproduzíveis da PR 13
 
 O catálogo abaixo gera os seis cenários da rodada em um diretório temporário e
