@@ -55,7 +55,7 @@ viewability, e classifica stalls apenas quando há slices de trace utilizáveis.
 | Fixture | Renders completos | UI queue P50 | UI queue máximo | Stalls (>100 ms) | Request → surface P50 |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | `large-100` | 13 | 19,93 ms | 105,56 ms | 1 | 34,99 ms |
-| `large-1000` trace on, 3 runs | 39 | 16,42 ms | 87,54 ms | 0 | 25,15 ms |
+| `large-1000` trace on, 3 runs | 39 | 16,42 ms | 89,75 ms | 0 | 25,15 ms |
 | `varied-sizes` | 4 | 2,71 ms | 8,13 ms | 0 | 32,13 ms |
 
 Nos renders do `large-1000` com trace, o raster teve P50 entre 3,78 e
@@ -70,32 +70,39 @@ Mesmo APK, mesmo `emulator-5554`, `large-1000`, `perf=1`, quatro swipes,
 
 | Métrica mediana | Trace off | Trace on |
 | --- | ---: | ---: |
-| Frames | 166 | 168 |
-| Janky % | 41,57% | 45,83% |
-| P90 | 48 ms | 48 ms |
-| P95 | 48 ms | 48 ms |
-| Missed vsync | 23 | 14 |
-| UI queue P50 | 22,58 ms | 16,42 ms |
+| Frames | 181 | 178 |
+| Janky % | 33,15% | 35,80% |
+| P90 | 48 ms | 46 ms |
+| P95 | 48 ms | 46 ms |
+| Missed vsync | 27 | 2 |
+| UI queue P50 | 18,95 ms | 19,34 ms |
 
-Com apenas três amostras por grupo, há ruído natural no emulador; P90/P95
-ficaram iguais e não apareceu uma penalidade consistente de tracing. O trace
-on produziu um arquivo Perfetto de aproximadamente 30 MB.
+Com apenas três amostras por grupo, há ruído natural no emulador. O jank
+mediano variou 33,15% → 35,80%; P90/P95 ficaram iguais ou melhores no grupo
+trace on, sem penalidade consistente de tracing. O trace on produziu três
+arquivos Perfetto independentes, entre 9,8 e 10,3 MB.
 
 ## O que o trace provou e o que não provou
 
-Os arquivos Perfetto contêm eventos de `Choreographer#doFrame` e as fontes
-solicitadas de scheduling/UI, mas não contêm as strings customizadas
-`PapyrusRenderUiBlock`, `PapyrusSurfaceLayout`, `PapyrusRenderUiCallback` ou
-`PapyrusPageDraw`. Portanto, não é correto publicar uma classificação de
-`RN_UI_MANAGER`, `VIEW_TRAVERSAL`, `GC`, GPU ou outra categoria com base nesse
-trace. Os stalls observados ficam como `INCONCLUSIVE`/baixa confiança quando
-não há slice correlacionável.
+Os três arquivos Perfetto agora contêm as quatro seções customizadas, com 13
+ocorrências de cada uma por run: `PapyrusRenderUiBlock`,
+`PapyrusSurfaceLayout`, `PapyrusRenderUiCallback` e `PapyrusPageDraw`. Isso
+confirma que `atrace_apps` habilitou a instrumentação do processo correto.
+Eles também contêm eventos de `Choreographer#doFrame` e as fontes solicitadas
+de scheduling/UI.
 
-Isso também significa que a PR não distingue definitivamente entre uma fila
-de tarefas pequenas e uma runnable longa. A telemetria Papyrus delimita o
-intervalo e mostra que o raster/draw medidos não o dominam, mas a atribuição
-da contenção ainda exige uma captura que exponha as seções do processo do app
-ou uma instrumentação nativa equivalente.
+O agregador versionado recebe slices já extraídos em JSON; como o ambiente de
+execução não possui `trace_processor_shell`, os `.pftrace` ainda não foram
+convertidos em durações correlacionáveis por `renderRequestId`. Portanto, não
+é correto publicar uma classificação de `RN_UI_MANAGER`, `VIEW_TRAVERSAL`,
+`GC`, GPU ou outra categoria com base apenas na presença dos nomes. Os stalls
+sem slice correlacionável continuam `INCONCLUSIVE`/baixa confiança.
+
+Mesmo com as seções habilitadas, a PR ainda não distingue definitivamente
+entre uma fila de tarefas pequenas e uma runnable longa, porque falta a
+extração temporal do binário. A telemetria Papyrus delimita o intervalo e
+mostra que o raster/draw medidos não o dominam, mas a atribuição da contenção
+ainda exige essa correlação temporal.
 
 ## Conclusão
 
@@ -108,8 +115,9 @@ reader no escuro. O resultado acionável é:
   trace, embora o baseline tenha mostrado um P90 de UI queue acima desse
   limite em uma execução;
 - `varied-sizes` não apresentou contenção relevante no protocolo curto;
-- a classificação causal final permanece inconclusiva porque as seções
-  customizadas não ficaram disponíveis no Perfetto.
+- a captura das seções customizadas foi corrigida e validada, mas a
+  classificação causal final permanece inconclusiva até extrair suas durações
+  e correlacioná-las aos `renderRequestId`.
 
 Próximo passo recomendado: corrigir a captura de slices do processo do app
 ou adicionar uma fronteira nativa que seja exportada de forma correlacionável,

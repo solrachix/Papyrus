@@ -125,9 +125,9 @@ o limite de 30 MiB; isso não altera a configuração padrão multi-ABI do app.
 
 ## PR27: contenção da UI thread com Perfetto
 
-O harness abaixo inicia uma captura Perfetto de duração limitada, executa o
-mesmo protocolo de quatro swipes e copia o `.pftrace` para o diretório local.
-Use sempre o emulador explicitamente:
+O harness abaixo inicia uma captura Perfetto de duração limitada por execução,
+executa o mesmo protocolo de quatro swipes e copia um `.pftrace` separado para
+cada run. Use sempre o emulador explicitamente:
 
 ```bash
 bash scripts/benchmarks/android-ui-thread-trace.sh \
@@ -138,7 +138,8 @@ bash scripts/benchmarks/android-ui-thread-trace.sh \
   --output-dir /tmp/papyrus-pr27-large1000-trace
 ```
 
-`--runs N` repete o mesmo protocolo dentro da sessão. `--trace 0` executa
+`--runs N` cria N sessões e, com tracing ligado, N arquivos Perfetto
+independentes. `--trace 0` executa
 somente o perfil, permitindo comparar o overhead do trace com o mesmo
 protocolo. As seções `android.os.Trace` e os marcadores UIBlock
 são emitidos apenas quando `perf=1`; o caminho normal permanece sem tracing.
