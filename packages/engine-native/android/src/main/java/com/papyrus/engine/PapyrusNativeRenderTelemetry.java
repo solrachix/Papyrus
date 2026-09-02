@@ -69,6 +69,14 @@ final class PapyrusNativeRenderTelemetry {
     Log.i(TAG, "[Papyrus Native Perf] " + buildEventJson(name, SystemClock.elapsedRealtimeNanos(), context));
   }
 
+  void traceBegin(String section) {
+    if (enabled) android.os.Trace.beginSection(section);
+  }
+
+  void traceEnd() {
+    if (enabled) android.os.Trace.endSection();
+  }
+
   void emitDrawOnce() {
     if (drawEmitted.compareAndSet(false, true)) {
       emit("native.draw.start");

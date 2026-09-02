@@ -99,17 +99,27 @@ public class PapyrusPageView extends View {
       return;
     }
 
-    telemetry.emit("native.render.surface.start");
-    final int viewWidth = getWidth();
-    final int viewHeight = getHeight();
-    final float clampedZoom = Math.max(0.1f, Math.min(5.0f, zoom));
-    final float targetScale = Math.max(0.1f, scale) * clampedZoom;
-    final int[] renderSize = PapyrusRenderMath.constrainCompatRenderSize(
-      Math.max(1, (int) (viewWidth * targetScale)),
-      Math.max(1, (int) (viewHeight * targetScale))
-    );
-    final int renderWidth = renderSize[0];
-    final int renderHeight = renderSize[1];
+    telemetry.traceBegin("PapyrusSurfaceLayout");
+    final int viewWidth;
+    final int viewHeight;
+    final float targetScale;
+    final int renderWidth;
+    final int renderHeight;
+    try {
+      telemetry.emit("native.render.surface.start");
+      viewWidth = getWidth();
+      viewHeight = getHeight();
+      final float clampedZoom = Math.max(0.1f, Math.min(5.0f, zoom));
+      targetScale = Math.max(0.1f, scale) * clampedZoom;
+      final int[] renderSize = PapyrusRenderMath.constrainCompatRenderSize(
+        Math.max(1, (int) (viewWidth * targetScale)),
+        Math.max(1, (int) (viewHeight * targetScale))
+      );
+      renderWidth = renderSize[0];
+      renderHeight = renderSize[1];
+    } finally {
+      telemetry.traceEnd();
+    }
     final String renderKey = buildRenderKey(state, pageIndex, renderWidth, renderHeight, targetScale, rotation);
     final int renderToken = ++renderGeneration;
 
@@ -195,25 +205,30 @@ public class PapyrusPageView extends View {
 
         telemetry.emit("native.render.ui.post");
         post(() -> {
-          telemetry.emit("native.render.ui.start");
-          if (renderToken != renderGeneration) {
-            if (!renderedBitmap.isRecycled()) {
-              renderedBitmap.recycle();
+          telemetry.traceBegin("PapyrusRenderUiCallback");
+          try {
+            telemetry.emit("native.render.ui.start");
+            if (renderToken != renderGeneration) {
+              if (!renderedBitmap.isRecycled()) {
+                renderedBitmap.recycle();
+              }
+              telemetry.emit("native.render.stale");
+              completion.complete(PapyrusRenderCompletion.Status.STALE);
+              return;
             }
-            telemetry.emit("native.render.stale");
-            completion.complete(PapyrusRenderCompletion.Status.STALE);
-            return;
+            putCachedBitmap(renderKey, renderedBitmap, telemetry);
+            currentRenderKey = renderKey;
+            telemetry.emit("native.render.install.start");
+            installBitmap(renderedBitmap);
+            activeTelemetry = telemetry;
+            telemetry.emit("native.render.install.end");
+            invalidate();
+            telemetry.emit("native.render.invalidate");
+            telemetry.emit("native.render.ready");
+            completion.complete(PapyrusRenderCompletion.Status.READY);
+          } finally {
+            telemetry.traceEnd();
           }
-          putCachedBitmap(renderKey, renderedBitmap, telemetry);
-          currentRenderKey = renderKey;
-          telemetry.emit("native.render.install.start");
-          installBitmap(renderedBitmap);
-          activeTelemetry = telemetry;
-          telemetry.emit("native.render.install.end");
-          invalidate();
-          telemetry.emit("native.render.invalidate");
-          telemetry.emit("native.render.ready");
-          completion.complete(PapyrusRenderCompletion.Status.READY);
         });
       } catch (OutOfMemoryError error) {
         Log.e(TAG, "Unable to allocate bitmap for PDF page; keeping previous surface", error);
@@ -250,8 +265,9 @@ public class PapyrusPageView extends View {
     super.onDraw(canvas);
     if (bitmap == null) return;
     Rect dest = new Rect(0, 0, getWidth(), getHeight());
+    PapyrusNativeRenderTelemetry drawTelemetry = activeTelemetry;
+    if (drawTelemetry != null) drawTelemetry.traceBegin("PapyrusPageDraw");
     try {
-      PapyrusNativeRenderTelemetry drawTelemetry = activeTelemetry;
       if (drawTelemetry != null) drawTelemetry.emitDrawOnce();
       paint.setColorFilter(resolveThemeFilter(pageTheme));
       canvas.drawBitmap(bitmap, null, dest, paint);
@@ -261,6 +277,8 @@ public class PapyrusPageView extends View {
       Log.w(TAG, "Failed to draw rendered page bitmap safely", error);
       releaseBitmap(bitmap);
       bitmap = null;
+    } finally {
+      if (drawTelemetry != null) drawTelemetry.traceEnd();
     }
   }
 
