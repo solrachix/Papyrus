@@ -4,7 +4,7 @@
     "slug": "papyrus-sdk",
     "owner": "solrachix",
     "version": "0.0.1",
-    "orientation": "portrait",
+    "orientation": "default",
     "entryPoint": "./App.tsx",
     "scheme": "exp+papyrus-sdk",
     "assetBundlePatterns": [

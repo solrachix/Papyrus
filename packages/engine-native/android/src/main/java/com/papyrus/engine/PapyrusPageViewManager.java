@@ -19,4 +19,10 @@ public class PapyrusPageViewManager extends SimpleViewManager<PapyrusPageView> {
   public void setPageTheme(PapyrusPageView view, String pageTheme) {
     view.setPageTheme(pageTheme);
   }
+
+  @Override
+  public void onDropViewInstance(PapyrusPageView view) {
+    view.dispose();
+    super.onDropViewInstance(view);
+  }
 }

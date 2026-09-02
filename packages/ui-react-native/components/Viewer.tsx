@@ -66,7 +66,10 @@ import {
   type ViewerScrollTarget,
 } from "./viewerNavigation";
 import { resolvePageTapChromeVisibility } from "./mobileChromeInteraction";
-import { resolveRemoveClippedSubviews } from "./viewerPerformance";
+import {
+  resolveOrientationScrollOffset,
+  resolveRemoveClippedSubviews,
+} from "./viewerPerformance";
 
 export interface ViewerProps {
   engine: DocumentEngine;
@@ -185,6 +188,8 @@ const Viewer: React.FC<ViewerProps> = ({
     Map<number, { width: number; height: number }>
   >(new Map());
   const dimensionsPendingRef = useRef<Set<number>>(new Set());
+  const previousWindowWidthRef = useRef<number | null>(null);
+  const pendingOrientationRestoreWidthRef = useRef<number | null>(null);
   const layoutRefreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null
   );
@@ -1355,6 +1360,47 @@ const Viewer: React.FC<ViewerProps> = ({
     [scaledListLayoutMetrics]
   );
 
+  const restoreOrientationScrollOffset = useCallback(() => {
+    if (
+      pendingOrientationRestoreWidthRef.current !== windowWidth ||
+      pageCount <= 0 ||
+      isSingle ||
+      isWebView
+    ) {
+      return;
+    }
+
+    const offset = resolveOrientationScrollOffset({
+      currentPage,
+      pageCount,
+      isDouble,
+      getItemOffset: scaledListLayoutMetrics.getOffset,
+    });
+    listRef.current?.scrollToOffset({ offset, animated: false });
+    lastScrollOffsetYRef.current = offset;
+    pendingOrientationRestoreWidthRef.current = null;
+  }, [
+    currentPage,
+    isDouble,
+    isSingle,
+    isWebView,
+    pageCount,
+    scaledListLayoutMetrics,
+    windowWidth,
+  ]);
+
+  useEffect(() => {
+    const previousWindowWidth = previousWindowWidthRef.current;
+    previousWindowWidthRef.current = windowWidth;
+    if (
+      previousWindowWidth !== null &&
+      previousWindowWidth !== windowWidth
+    ) {
+      pendingOrientationRestoreWidthRef.current = windowWidth;
+    }
+    restoreOrientationScrollOffset();
+  }, [restoreOrientationScrollOffset, windowWidth]);
+
   const getItemLayout = useCallback(
     (_: unknown, index: number) => {
       if (scaledListLayoutMetrics.itemCount === 0) {
@@ -1856,7 +1902,10 @@ const Viewer: React.FC<ViewerProps> = ({
               onViewableItemsChanged={onViewableItemsChanged}
               viewabilityConfig={{ itemVisiblePercentThreshold: 60 }}
               scrollEnabled={resolvedViewerScrollEnabled}
-              onLayout={() => captureViewerFrame(listRef.current)}
+              onLayout={() => {
+                captureViewerFrame(listRef.current);
+                restoreOrientationScrollOffset();
+              }}
               onContentSizeChange={(_, height) => {
                 viewerContentHeightRef.current = height;
               }}

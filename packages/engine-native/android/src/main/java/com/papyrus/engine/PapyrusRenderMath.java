@@ -3,19 +3,30 @@ package com.papyrus.engine;
 final class PapyrusRenderMath {
   static final long MAX_RENDER_PIXELS = 8L * 1024L * 1024L;
   static final int MAX_RENDER_EDGE = 4096;
+  // Pdfium's compat surface becomes blank on the tested Android API when a
+  // single page exceeds this edge during a configuration change.
+  static final int COMPAT_MAX_RENDER_EDGE = 2048;
 
   private PapyrusRenderMath() {
   }
 
   static int[] constrainRenderSize(int requestedWidth, int requestedHeight) {
+    return constrainRenderSize(requestedWidth, requestedHeight, MAX_RENDER_EDGE);
+  }
+
+  static int[] constrainCompatRenderSize(int requestedWidth, int requestedHeight) {
+    return constrainRenderSize(requestedWidth, requestedHeight, COMPAT_MAX_RENDER_EDGE);
+  }
+
+  private static int[] constrainRenderSize(int requestedWidth, int requestedHeight, int maxEdge) {
     int width = Math.max(1, requestedWidth);
     int height = Math.max(1, requestedHeight);
     double scale = 1.0d;
 
-    if (width > MAX_RENDER_EDGE || height > MAX_RENDER_EDGE) {
+    if (width > maxEdge || height > maxEdge) {
       scale = Math.min(
         scale,
-        Math.min((double) MAX_RENDER_EDGE / width, (double) MAX_RENDER_EDGE / height)
+        Math.min((double) maxEdge / width, (double) maxEdge / height)
       );
     }
 
