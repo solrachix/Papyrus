@@ -14,6 +14,11 @@ import android.view.View;
 
 import com.shockwave.pdfium.PdfDocument;
 
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.Map;
+import java.util.Set;
+import java.util.WeakHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -23,6 +28,9 @@ public class PapyrusPageView extends View {
   static final int RENDER_CACHE_BYTES = 32 * 1024 * 1024;
   private static final String TAG = "PapyrusPageView";
   private static final ExecutorService RENDER_EXECUTOR = Executors.newSingleThreadExecutor();
+  private static final Object CACHE_LOCK = new Object();
+  private static final Map<Bitmap, Integer> ACTIVE_BITMAP_REFERENCES = new WeakHashMap<>();
+  private static final Set<Bitmap> CACHED_BITMAPS = Collections.newSetFromMap(new IdentityHashMap<>());
   private static final LruCache<String, Bitmap> RENDER_CACHE = new LruCache<String, Bitmap>(RENDER_CACHE_BYTES) {
     @Override
     protected int sizeOf(String key, Bitmap value) {
@@ -31,8 +39,10 @@ public class PapyrusPageView extends View {
 
     @Override
     protected void entryRemoved(boolean evicted, String key, Bitmap oldValue, Bitmap newValue) {
-      if (oldValue != null && oldValue != newValue && !oldValue.isRecycled()) {
-        oldValue.recycle();
+      if (oldValue == null || oldValue == newValue) return;
+      synchronized (CACHE_LOCK) {
+        CACHED_BITMAPS.remove(oldValue);
+        recycleIfUnownedLocked(oldValue);
       }
     }
   };
@@ -84,7 +94,7 @@ public class PapyrusPageView extends View {
     final int viewHeight = getHeight();
     final float clampedZoom = Math.max(0.1f, Math.min(5.0f, zoom));
     final float targetScale = Math.max(0.1f, scale) * clampedZoom;
-    final int[] renderSize = PapyrusRenderMath.constrainRenderSize(
+    final int[] renderSize = PapyrusRenderMath.constrainCompatRenderSize(
       Math.max(1, (int) (viewWidth * targetScale)),
       Math.max(1, (int) (viewHeight * targetScale))
     );
@@ -102,7 +112,7 @@ public class PapyrusPageView extends View {
     Bitmap cached = RENDER_CACHE.get(renderKey);
     if (cached != null && !cached.isRecycled()) {
       currentRenderKey = renderKey;
-      bitmap = cached;
+      installBitmap(cached);
       invalidate();
       completion.complete(PapyrusRenderCompletion.Status.READY);
       return;
@@ -154,9 +164,9 @@ public class PapyrusPageView extends View {
             completion.complete(PapyrusRenderCompletion.Status.STALE);
             return;
           }
-          RENDER_CACHE.put(renderKey, renderedBitmap);
+          putCachedBitmap(renderKey, renderedBitmap);
           currentRenderKey = renderKey;
-          bitmap = renderedBitmap;
+          installBitmap(renderedBitmap);
           invalidate();
           completion.complete(PapyrusRenderCompletion.Status.READY);
         });
@@ -189,15 +199,13 @@ public class PapyrusPageView extends View {
       paint.setColorFilter(null);
     } catch (RuntimeException error) {
       Log.w(TAG, "Failed to draw rendered page bitmap safely", error);
-      if (bitmap != null && !bitmap.isRecycled()) {
-        bitmap.recycle();
-      }
+      releaseBitmap(bitmap);
       bitmap = null;
     }
   }
 
   static int[] constrainRenderSize(int requestedWidth, int requestedHeight) {
-    return PapyrusRenderMath.constrainRenderSize(requestedWidth, requestedHeight);
+    return PapyrusRenderMath.constrainCompatRenderSize(requestedWidth, requestedHeight);
   }
 
   static String buildRenderKey(PapyrusEngineStore.EngineState state,
@@ -209,6 +217,50 @@ public class PapyrusPageView extends View {
     String source = state == null || state.sourcePath == null ? "" : state.sourcePath;
     int documentIdentity = state == null || state.document == null ? 0 : System.identityHashCode(state.document);
     return PapyrusRenderMath.buildRenderKey(source, documentIdentity, pageIndex, renderWidth, renderHeight, targetScale, rotation);
+  }
+
+  private static void putCachedBitmap(String key, Bitmap value) {
+    synchronized (CACHE_LOCK) {
+      CACHED_BITMAPS.add(value);
+    }
+    RENDER_CACHE.put(key, value);
+  }
+
+  private void installBitmap(Bitmap nextBitmap) {
+    if (bitmap == nextBitmap) return;
+    releaseBitmap(bitmap);
+    bitmap = nextBitmap;
+    retainBitmap(nextBitmap);
+  }
+
+  private static void retainBitmap(Bitmap value) {
+    if (value == null) return;
+    synchronized (CACHE_LOCK) {
+      Integer references = ACTIVE_BITMAP_REFERENCES.get(value);
+      ACTIVE_BITMAP_REFERENCES.put(value, references == null ? 1 : references + 1);
+    }
+  }
+
+  private static void releaseBitmap(Bitmap value) {
+    if (value == null) return;
+    synchronized (CACHE_LOCK) {
+      Integer references = ACTIVE_BITMAP_REFERENCES.get(value);
+      if (references == null || references <= 1) {
+        ACTIVE_BITMAP_REFERENCES.remove(value);
+      } else {
+        ACTIVE_BITMAP_REFERENCES.put(value, references - 1);
+      }
+      recycleIfUnownedLocked(value);
+    }
+  }
+
+  private static void recycleIfUnownedLocked(Bitmap value) {
+    Integer references = ACTIVE_BITMAP_REFERENCES.get(value);
+    boolean cached = CACHED_BITMAPS.contains(value);
+    int activeReferences = references == null ? 0 : references;
+    if (PapyrusBitmapOwnership.shouldRecycleEvictedBitmap(cached, activeReferences) && !value.isRecycled()) {
+      value.recycle();
+    }
   }
 
   private static ColorMatrixColorFilter resolveThemeFilter(String theme) {

@@ -35,7 +35,7 @@
 
 **Files:** no production changes. Create `docs/performance/pr-23-android-rotation-recovery.md` only after collecting evidence.
 
-- [ ] **Step 1: Confirm checkout and device.**
+- [x] **Step 1: Confirm checkout and device.**
 
   Run:
 
@@ -51,15 +51,15 @@
 
   Expected: worktree `/tmp/papyrus-pr23-android-rotation-recovery`, branch `codex/pr23-android-rotation-recovery`, clean status, `origin/main` containing merge `1bde57e`, and only `emulator-5554` used.
 
-- [ ] **Step 2: Build/install the debug APK from this worktree.**
+- [x] **Step 2: Build/install the debug APK from this worktree.**
 
   Reuse the existing example build path and package configuration. Record the exact APK path, package id, commit SHA and Metro port. Do not change native code merely to make the build pass.
 
-- [ ] **Step 3: Open the compat PDF and verify a stable initial surface.**
+- [x] **Step 3: Open the compat PDF and verify a stable initial surface.**
 
   Use a small/normal PDF first, then `large-100`, `large-1000` and `varied-sizes`. Confirm `document.ready`/`render.ready`, visible content and no loading spinner before rotating.
 
-- [ ] **Step 4: Record the baseline protocol.**
+- [x] **Step 4: Record the baseline protocol.**
 
   For pages `1`, `2`, `50`, `90`, `500`, `900` and the last page when available, run portrait → landscape → portrait. Save screenshot and filtered logcat per case. Mark each result as deterministic/intermittent and identify the direction that fails.
 
@@ -69,7 +69,7 @@
 
 **Files:** no production changes.
 
-- [ ] **Step 1: Lock and change device orientation explicitly.**
+- [x] **Step 1: Lock and change device orientation explicitly.**
 
   Use only `adb -s emulator-5554 shell settings put system accelerometer_rotation 0` and `adb -s emulator-5554 shell settings put system user_rotation 0|1`, or the equivalent existing harness helper. Record the orientation command and resulting display dimensions; do not infer orientation from timing.
 
@@ -93,13 +93,16 @@
 
   Repeat the relevant cases with `large-100`, `large-1000` and `varied-sizes`, including a naturally portrait page, a naturally landscape page, a very tall page and a very wide page. Keep PDF page orientation separate from device orientation.
 
-- [ ] **Step 4: Apply the stop condition.**
+- [x] **Step 4: Apply the stop condition.**
 
   If compat remains correct and the failure exists only in the native viewer, stop production investigation, document that the symptom is outside PR23 scope, and do not modify `PapyrusPdfViewerView`.
 
 ---
 
 ## Task 3: Add failing tests for rotation lifecycle state
+
+Not applicable: the reproduction identified a native Pdfium bitmap-size/cache
+failure before a React Native orientation state machine was implicated.
 
 **Files:** create `packages/ui-react-native/components/orientationRecovery.ts` and `packages/ui-react-native/components/orientationRecovery.test.ts` only if the baseline identifies a state-machine or predicate that can be isolated.
 
@@ -143,6 +146,9 @@
 
 ## Task 4: Instrument the existing runtime without changing semantics
 
+Not applicable: the native logs and controlled screenshots were sufficient to
+correlate the failing render boundary; no additional JS telemetry was needed.
+
 **Files:** modify `Viewer.tsx`, `PageRenderer.tsx` or `perfSession.ts` only where the baseline shows a missing causal boundary.
 
 - [ ] **Step 1: Add an opt-in orientation cycle.**
@@ -171,7 +177,7 @@
 
 **Files:** create/update `scripts/benchmarks/android-rotation-aggregate.mjs` and its test only if raw logs need deterministic classification.
 
-- [ ] **Step 1: Correlate one orientation cycle.**
+- [x] **Step 1: Correlate one orientation cycle.**
 
   Build the sequence:
 
@@ -186,7 +192,7 @@
   → loading complete
   ```
 
-- [ ] **Step 2: Classify only observed failures.**
+- [x] **Step 2: Classify only observed failures.**
 
   Use one of: invalid/transient layout, old render satisfying new state, stale render without replacement, logical page loss, stale offset restoration, old-sized surface/bitmap, target unmount without replacement, or loading terminal missing. Do not implement a fix from a category without a matching event sequence.
 
@@ -194,7 +200,7 @@
 
   For rapid rotations, prove that intermediate cycles may end stale/abandoned but the final orientation has one valid replacement render and no infinite loading.
 
-- [ ] **Step 4: Record the baseline report.**
+- [x] **Step 4: Record the baseline report.**
 
   Include device/API, commit, APK, fixture, page, orientation sequence, screenshots, event sequence, failure type, current page, target page, generation and limitations. Do not publish invented timing or memory values.
 
@@ -206,15 +212,15 @@
 
 - [ ] **Step 1: Adapt the failing pure test to the proven contract.**
 
-- [ ] **Step 2: Implement one narrow fix.**
+- [x] **Step 2: Implement one narrow fix.**
 
   Examples allowed only when logs prove them: reject invalid dimensions before rendering; preserve logical page and recalculate position from new layout; invalidate old generation and request a deterministic replacement; retain loading until the current target is ready; or guard against surface remount losing its render request.
 
-- [ ] **Step 3: Do not add unrelated behavior.**
+- [x] **Step 3: Do not add unrelated behavior.**
 
   No native viewer edits, pinch changes, page-jump changes, global virtualization changes or arbitrary delays.
 
-- [ ] **Step 4: Run focused tests and the package build.**
+- [x] **Step 4: Run focused tests and the package build.**
 
   Expected: all focused tests pass and the changed package builds cleanly.
 
@@ -224,7 +230,9 @@
 
 **Files:** update `docs/performance/pr-23-android-rotation-recovery.md`.
 
-- [ ] **Step 1: Rebuild/install the APK from the exact branch head.**
+- [x] **Step 1: Rebuild/install the APK from the exact branch head.**
+
+  Final debug APK built and installed on `emulator-5554`.
 
 - [ ] **Step 2: Repeat the identical before/after cases.**
 
@@ -246,9 +254,9 @@
 
 ## Task 8: Final verification and delivery
 
-- [ ] Run focused tests, the full `packages/ui-react-native` suite, and `pnpm --filter @papyrus-sdk/ui-react-native build`.
-- [ ] Run `git diff --check`.
-- [ ] If `engine-native` was changed, run its Android tests/build; otherwise leave it untouched.
+- [x] Run focused tests, the full `packages/ui-react-native` suite, and `pnpm --filter @papyrus-sdk/ui-react-native build`.
+- [x] Run `git diff --check`.
+- [x] If `engine-native` was changed, run its Android tests/build; otherwise leave it untouched.
 - [ ] Update the PR description with exact baseline/after evidence, root cause, files, event sequence, tests, APK and emulator result.
 - [ ] Confirm branch is based on `origin/main`, worktree is clean, and diff is limited to Android compat orientation scope.
 - [ ] Commit in focused steps, push `codex/pr23-android-rotation-recovery`, open the PR and do not merge automatically.
