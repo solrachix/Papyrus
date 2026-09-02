@@ -150,7 +150,7 @@ public class PapyrusNativeEngineModule extends ReactContextBaseJavaModule {
   }
 
   @ReactMethod
-  public void renderPage(final String engineId, final int pageIndex, final int target, final float scale, final float zoom, final int rotation, final String requestId, final Promise promise) {
+  public void renderPage(final String engineId, final int pageIndex, final int target, final float scale, final float zoom, final int rotation, final String requestId, final ReadableMap telemetryContext, final Promise promise) {
     final PapyrusEngineStore.EngineState state = PapyrusEngineStore.getEngine(engineId);
     if (state == null) {
       promise.reject("papyrus_no_engine", "Engine not found");
@@ -165,6 +165,15 @@ public class PapyrusNativeEngineModule extends ReactContextBaseJavaModule {
     final String resolvedRequestId = requestId == null || requestId.isEmpty()
       ? "native-render-" + (++renderRequestCounter)
       : requestId;
+    final PapyrusNativeRenderTelemetry telemetry = PapyrusNativeRenderTelemetry.from(
+      telemetryContext,
+      resolvedRequestId,
+      null,
+      pageIndex,
+      target,
+      0
+    );
+    telemetry.emit("native.render.request");
     final PapyrusRenderCompletion completion = new PapyrusRenderCompletion(
       status -> resolveRenderPromise(promise, resolvedRequestId, status),
       error -> promise.reject("papyrus_render_error", error)
@@ -175,8 +184,9 @@ public class PapyrusNativeEngineModule extends ReactContextBaseJavaModule {
       public void execute(com.facebook.react.uimanager.NativeViewHierarchyManager nativeViewHierarchyManager) {
         View view = nativeViewHierarchyManager.resolveView(target);
         if (view instanceof PapyrusPageView) {
-          ((PapyrusPageView) view).render(state, pageIndex, scale, zoom, rotation, completion);
+          ((PapyrusPageView) view).render(state, pageIndex, scale, zoom, rotation, completion, telemetry);
         } else {
+          telemetry.emit("native.render.stale");
           completion.complete(PapyrusRenderCompletion.Status.STALE);
         }
       }

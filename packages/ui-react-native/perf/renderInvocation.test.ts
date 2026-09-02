@@ -16,4 +16,24 @@ describe('render invocation telemetry boundary', () => {
     expect(called).toBe(true);
     await expect(result).rejects.toBe(error);
   });
+
+  it('forwards the optional native render telemetry context', async () => {
+    const telemetry = {
+      enabled: true,
+      renderRequestId: 'render-1',
+      surfaceId: 'page-0',
+      generation: 3,
+      fixture: 'large-1000',
+    };
+    let received: unknown;
+    const engine = {
+      renderPage: (...args: unknown[]) => {
+        received = args[3];
+        return Promise.resolve({ status: 'ready' });
+      },
+    };
+
+    await invokeRenderPage(engine as never, 0, 42, 1, telemetry);
+    expect(received).toEqual(telemetry);
+  });
 });

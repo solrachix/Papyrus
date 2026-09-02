@@ -93,6 +93,32 @@ scroll, viewability, mounts e lifecycle de render com as métricas do Android.
 Os resultados da rodada estão em
 [`docs/performance/pr-25-large-pdf-scroll-jank.md`](../../docs/performance/pr-25-large-pdf-scroll-jank.md).
 
+## PR26: fases nativas do render PDF
+
+O perfil nativo é opt-in e somente diagnóstico. Ele usa o mesmo protocolo de
+scroll da PR25 e, quando `perf=1`, grava em cada amostra:
+
+- `events.ndjson`: eventos JS já existentes;
+- `native-events.ndjson`: fila, worker, lock, raster Pdfium, cache, handoff
+  para a UI, instalação, invalidação e primeiro draw;
+- `native-render.json`: fases agregadas por `renderRequestId`.
+
+Execute sempre com o emulador explícito:
+
+```bash
+bash scripts/benchmarks/android-scroll-profile.sh \
+  --fixture large-1000 \
+  --runs 1 \
+  --perf 1 \
+  --package com.papyrus.sdk.mobileexpo \
+  --device emulator-5554 \
+  --output-dir /tmp/papyrus-pr26-native-render
+```
+
+Para o controle de overhead, repita o mesmo protocolo com `--perf 0`. Nesse
+modo não há marcadores nativos nem fallback silencioso de métricas; a execução
+serve apenas para comparar o custo do profiler.
+
 Para o emulador `Pixel_7_API_35`, o APK do benchmark deve ser construído com
 `x86_64`. GIF/WebP são opcionais e ficam desativados nesse artefato para manter
 o limite de 30 MiB; isso não altera a configuração padrão multi-ABI do app.

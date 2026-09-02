@@ -31,6 +31,7 @@ public class PapyrusPageView extends View {
   private static final Object CACHE_LOCK = new Object();
   private static final Map<Bitmap, Integer> ACTIVE_BITMAP_REFERENCES = new WeakHashMap<>();
   private static final Set<Bitmap> CACHED_BITMAPS = Collections.newSetFromMap(new IdentityHashMap<>());
+  private static final Map<String, PapyrusNativeRenderTelemetry> CACHE_TELEMETRY = new java.util.HashMap<>();
   private static final LruCache<String, Bitmap> RENDER_CACHE = new LruCache<String, Bitmap>(RENDER_CACHE_BYTES) {
     @Override
     protected int sizeOf(String key, Bitmap value) {
@@ -42,7 +43,9 @@ public class PapyrusPageView extends View {
       if (oldValue == null || oldValue == newValue) return;
       synchronized (CACHE_LOCK) {
         CACHED_BITMAPS.remove(oldValue);
+        PapyrusNativeRenderTelemetry telemetry = CACHE_TELEMETRY.remove(key);
         recycleIfUnownedLocked(oldValue);
+        if (telemetry != null) telemetry.emitCacheEvict();
       }
     }
   };
@@ -54,6 +57,7 @@ public class PapyrusPageView extends View {
 
   private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
   private Bitmap bitmap;
+  private PapyrusNativeRenderTelemetry activeTelemetry;
   private String pageTheme = "normal";
   private volatile int renderGeneration = 0;
   private String currentRenderKey = null;
@@ -78,17 +82,20 @@ public class PapyrusPageView extends View {
               final float scale,
               final float zoom,
               final int rotation,
-              final PapyrusRenderCompletion completion) {
+              final PapyrusRenderCompletion completion,
+              final PapyrusNativeRenderTelemetry telemetry) {
     if (state == null || state.document == null) {
+      telemetry.emit("native.render.stale");
       completion.complete(PapyrusRenderCompletion.Status.STALE);
       return;
     }
     if (state.isSearching) {
+      telemetry.emit("native.render.stale");
       completion.complete(PapyrusRenderCompletion.Status.STALE);
       return;
     }
     if (getWidth() == 0 || getHeight() == 0) {
-      post(() -> render(state, pageIndex, scale, zoom, rotation, completion));
+      post(() -> render(state, pageIndex, scale, zoom, rotation, completion, telemetry));
       return;
     }
 
@@ -106,77 +113,114 @@ public class PapyrusPageView extends View {
     final int renderToken = ++renderGeneration;
 
     if (renderKey.equals(currentRenderKey) && bitmap != null && !bitmap.isRecycled()) {
+      telemetry.emit("native.render.cache.hit");
+      telemetry.emit("native.render.ui.start");
+      telemetry.emit("native.render.install.start");
+      activeTelemetry = telemetry;
+      telemetry.emit("native.render.install.end");
       invalidate();
+      telemetry.emit("native.render.invalidate");
+      telemetry.emit("native.render.ready");
       completion.complete(PapyrusRenderCompletion.Status.READY);
       return;
     }
 
     Bitmap cached = RENDER_CACHE.get(renderKey);
     if (cached != null && !cached.isRecycled()) {
+      telemetry.emit("native.render.cache.hit");
       currentRenderKey = renderKey;
+      telemetry.emit("native.render.ui.start");
+      telemetry.emit("native.render.install.start");
       installBitmap(cached);
+      activeTelemetry = telemetry;
+      telemetry.emit("native.render.install.end");
       invalidate();
+      telemetry.emit("native.render.invalidate");
+      telemetry.emit("native.render.ready");
       completion.complete(PapyrusRenderCompletion.Status.READY);
       return;
     }
 
+    telemetry.emit("native.render.cache.miss");
+    telemetry.emit("native.render.enqueue");
     RENDER_EXECUTOR.execute(() -> {
+      telemetry.emit("native.render.worker.start");
       PdfDocument doc = state.document;
       if (doc == null) {
+        telemetry.emit("native.render.stale");
         completion.complete(PapyrusRenderCompletion.Status.STALE);
         return;
       }
       if (renderToken != renderGeneration) {
+        telemetry.emit("native.render.stale");
         completion.complete(PapyrusRenderCompletion.Status.STALE);
         return;
       }
 
       try {
         Bitmap rendered = null;
+        telemetry.emit("native.render.lock.wait.start");
         synchronized (state.pdfiumLock) {
+          telemetry.emit("native.render.lock.acquired");
           if (renderToken != renderGeneration) {
+            telemetry.emit("native.render.stale");
             completion.complete(PapyrusRenderCompletion.Status.STALE);
             return;
           }
           if (doc != state.document) {
+            telemetry.emit("native.render.stale");
             completion.complete(PapyrusRenderCompletion.Status.STALE);
             return;
           }
           int pageCount = state.pdfium.getPageCount(doc);
           if (pageIndex < 0 || pageIndex >= pageCount) {
+            telemetry.emit("native.render.stale");
             completion.complete(PapyrusRenderCompletion.Status.STALE);
             return;
           }
           state.pdfium.openPage(doc, pageIndex);
           rendered = Bitmap.createBitmap(renderWidth, renderHeight, Bitmap.Config.ARGB_8888);
+          telemetry.emit("native.render.raster.start");
           state.pdfium.renderPageBitmap(doc, rendered, pageIndex, 0, 0, renderWidth, renderHeight, true);
+          telemetry.emit("native.render.raster.end");
         }
 
         if (rendered == null) {
+          telemetry.emit("native.render.stale");
           completion.complete(PapyrusRenderCompletion.Status.STALE);
           return;
         }
         final Bitmap renderedBitmap = rendered;
 
+        telemetry.emit("native.render.ui.post");
         post(() -> {
+          telemetry.emit("native.render.ui.start");
           if (renderToken != renderGeneration) {
             if (!renderedBitmap.isRecycled()) {
               renderedBitmap.recycle();
             }
+            telemetry.emit("native.render.stale");
             completion.complete(PapyrusRenderCompletion.Status.STALE);
             return;
           }
-          putCachedBitmap(renderKey, renderedBitmap);
+          putCachedBitmap(renderKey, renderedBitmap, telemetry);
           currentRenderKey = renderKey;
+          telemetry.emit("native.render.install.start");
           installBitmap(renderedBitmap);
+          activeTelemetry = telemetry;
+          telemetry.emit("native.render.install.end");
           invalidate();
+          telemetry.emit("native.render.invalidate");
+          telemetry.emit("native.render.ready");
           completion.complete(PapyrusRenderCompletion.Status.READY);
         });
       } catch (OutOfMemoryError error) {
         Log.e(TAG, "Unable to allocate bitmap for PDF page; keeping previous surface", error);
+        telemetry.emit("native.render.error");
         completion.error(error);
       } catch (RuntimeException error) {
         Log.w(TAG, "Failed to render PDF page; keeping previous surface", error);
+        telemetry.emit("native.render.error");
         completion.error(error);
       }
     });
@@ -187,7 +231,8 @@ public class PapyrusPageView extends View {
               final float scale,
               final float zoom,
               final int rotation) {
-    render(state, pageIndex, scale, zoom, rotation, new PapyrusRenderCompletion(status -> { }));
+    render(state, pageIndex, scale, zoom, rotation, new PapyrusRenderCompletion(status -> { }),
+      PapyrusNativeRenderTelemetry.from(null, "native-render-untracked", null, pageIndex, getId(), 0));
   }
 
   void dispose() {
@@ -195,6 +240,7 @@ public class PapyrusPageView extends View {
     Bitmap current = bitmap;
     bitmap = null;
     currentRenderKey = null;
+    activeTelemetry = null;
     releaseBitmap(current);
   }
 
@@ -204,9 +250,12 @@ public class PapyrusPageView extends View {
     if (bitmap == null) return;
     Rect dest = new Rect(0, 0, getWidth(), getHeight());
     try {
+      PapyrusNativeRenderTelemetry drawTelemetry = activeTelemetry;
+      if (drawTelemetry != null) drawTelemetry.emitDrawOnce();
       paint.setColorFilter(resolveThemeFilter(pageTheme));
       canvas.drawBitmap(bitmap, null, dest, paint);
       paint.setColorFilter(null);
+      if (drawTelemetry != null) drawTelemetry.emitDrawEnd();
     } catch (RuntimeException error) {
       Log.w(TAG, "Failed to draw rendered page bitmap safely", error);
       releaseBitmap(bitmap);
@@ -229,11 +278,15 @@ public class PapyrusPageView extends View {
     return PapyrusRenderMath.buildRenderKey(source, documentIdentity, pageIndex, renderWidth, renderHeight, targetScale, rotation);
   }
 
-  private static void putCachedBitmap(String key, Bitmap value) {
+  private static void putCachedBitmap(String key, Bitmap value, PapyrusNativeRenderTelemetry telemetry) {
     synchronized (CACHE_LOCK) {
       CACHED_BITMAPS.add(value);
     }
     RENDER_CACHE.put(key, value);
+    synchronized (CACHE_LOCK) {
+      if (telemetry.isEnabled()) CACHE_TELEMETRY.put(key, telemetry);
+    }
+    telemetry.emitCachePut();
   }
 
   private void installBitmap(Bitmap nextBitmap) {

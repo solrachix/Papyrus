@@ -6,6 +6,7 @@ runs=1
 package_id=""
 device=""
 output_dir="${TMPDIR:-/tmp}/papyrus-pr25-android-scroll"
+perf=1
 
 while (($#)); do
   case "$1" in
@@ -14,12 +15,13 @@ while (($#)); do
     --package) package_id=${2:?missing --package value}; shift 2 ;;
     --device) device=${2:?missing --device value}; shift 2 ;;
     --output-dir) output_dir=${2:?missing --output-dir value}; shift 2 ;;
-    *) echo "usage: $0 --fixture NAME[,NAME...]|all --runs N --package ID [--device SERIAL] [--output-dir DIR]" >&2; exit 2 ;;
+    --perf) perf=${2:?missing --perf value}; shift 2 ;;
+    *) echo "usage: $0 --fixture NAME[,NAME...]|all --runs N --perf 0|1 --package ID [--device SERIAL] [--output-dir DIR]" >&2; exit 2 ;;
   esac
 done
 
-if [[ -z "$fixtures" || -z "$package_id" || ! "$runs" =~ ^[1-9][0-9]*$ ]]; then
-  echo "--fixture, --runs and --package are required" >&2
+if [[ -z "$fixtures" || -z "$package_id" || ! "$runs" =~ ^[1-9][0-9]*$ || "$perf" != 0 && "$perf" != 1 ]]; then
+  echo "--fixture, --runs, --package and --perf 0|1 are required" >&2
   exit 2
 fi
 
@@ -78,13 +80,17 @@ start_fixture() {
   local fixture=$1
   local run_id=$2
   local sample_id=$3
-  local url="exp+papyrus-sdk://reader?fixture=${fixture}&viewerMode=compat&perf=1&runId=${run_id}&sampleId=${sample_id}"
+  local url="exp+papyrus-sdk://reader?fixture=${fixture}&viewerMode=compat&perf=${perf}&runId=${run_id}&sampleId=${sample_id}"
   local escaped_url="${url//&/\\&}"
   adb -s "$device" shell am force-stop "$package_id"
   adb -s "$device" logcat -c
   adb -s "$device" shell am start -W -a android.intent.action.VIEW -d "$escaped_url" "$package_id" >/dev/null
-  wait_for_log "fixture.loaded.*${fixture}" 90
-  wait_for_initial_render "$fixture"
+  if ((perf == 1)); then
+    wait_for_log "fixture.loaded.*${fixture}" 90
+    wait_for_initial_render "$fixture"
+  else
+    sleep 5
+  fi
 }
 
 for fixture in "${fixture_list[@]}"; do
@@ -105,10 +111,16 @@ for fixture in "${fixture_list[@]}"; do
     adb -s "$device" shell dumpsys meminfo "$package_id" > "$sample_dir/meminfo.txt"
     adb -s "$device" logcat -d -v brief > "$sample_dir/logcat.txt"
     sed -n 's/.*\[Papyrus Perf\] //p' "$sample_dir/logcat.txt" > "$sample_dir/events.ndjson"
+    sed -n 's/.*\[Papyrus Native Perf\] //p' "$sample_dir/logcat.txt" > "$sample_dir/native-events.ndjson"
+    if ((perf == 1)); then
+      node "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/scripts/benchmarks/android-native-render-aggregate.mjs" \
+        "$sample_dir/native-events.ndjson" "$sample_dir/native-render.json"
+    fi
     printf '%s\n' \
       "fixture=$fixture" \
       "run=$run" \
       "device=$device" \
+      "perf=$perf" \
       "viewerMode=compat" \
       "scrollProtocol=4x vertical swipe" \
       > "$sample_dir/metadata.txt"
