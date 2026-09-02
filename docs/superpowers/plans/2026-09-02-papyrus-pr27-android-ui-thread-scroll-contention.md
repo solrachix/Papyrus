@@ -112,7 +112,7 @@
 
 ### Task 8: Publicar PR27 sem merge
 
-- [ ] Commitar somente arquivos da PR27.
-- [ ] Push da branch `codex/pr27-android-ui-thread-scroll-contention`.
-- [ ] Abrir PR contra `main` com evidências exatas e limitações.
-- [ ] Não fazer merge automaticamente.
+- [x] Commitar somente arquivos da PR27.
+- [x] Push da branch `codex/pr27-android-ui-thread-scroll-contention`.
+- [x] Abrir PR contra `main` com evidências exatas e limitações.
+- [x] Não fazer merge automaticamente.
