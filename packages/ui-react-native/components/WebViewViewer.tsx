@@ -41,6 +41,7 @@ type WebViewBridge = {
 
 type WebViewBridgeEngine = DocumentEngine & {
   attachWebView?: (bridge: WebViewBridge) => void;
+  detachWebView?: () => void;
   handleWebViewMessage?: (data: string) => void;
   getWebViewRuntimeSource?: () => unknown;
   getWebViewRuntimeConfig?: () => Record<string, string> | undefined;
@@ -125,6 +126,10 @@ const WebViewViewer: React.FC<WebViewViewerProps> = ({
         webViewRef.current?.postMessage(message);
       },
     });
+
+    return () => {
+      bridgeEngine.detachWebView?.();
+    };
   }, [bridgeEngine]);
 
   const handleMessage = (event: WebViewMessageEvent) => {

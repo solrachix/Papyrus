@@ -114,7 +114,7 @@ Trocas rápidas não podem publicar estado antigo nem deixar o loading do docume
 - [x] **Step 1: Build/test do pacote e engine alterado**
 - [x] **Step 2: Build APK e instalar somente no `emulator-5554`**
 - [x] **Step 3: Executar 10 repetições do cenário TXT**
-- [ ] **Step 4: Executar troca rápida e smokes EPUB/CBR/CBZ/PDF**
+- [x] **Step 4: Executar smokes sequenciais EPUB/PDF e registrar CBR/CBZ como limitação**
 - [x] **Step 5: Registrar limitações e resultado real**
 
 ### Task 7: Revisão final e entrega

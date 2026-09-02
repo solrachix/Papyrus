@@ -31,6 +31,9 @@ web e stress profundo de memória permanecem fora do escopo.
 - O runtime WebView compartilha a geração entre formatos e verifica a geração
   de TXT antes de limpar/renderizar o conteúdo. Cargas TXT superseded emitem
   `document.stale`; erros emitem `document.error`.
+- A ponte do WebView agora é invalidada no unmount e não reutiliza o estado
+  `ready` de uma instância anterior. Isso evita que uma troca PDF → TXT envie a
+  carga para uma referência de WebView já destruída.
 - A amostra TXT usa quebras de linha reais.
 - Foram adicionados fixtures determinísticos `small`, `multiline`, `unicode`,
   `large` e `empty` para os testes do harness.
@@ -54,14 +57,26 @@ Também foram feitos 10 acionamentos consecutivos do botão `TEXT` no mesmo
 APK/emulador. Ao final da sequência o conteúdo permanecia visível e não houve
 erro do app no logcat; não foram coletadas capturas individuais de cada ciclo.
 
+Após a correção do lifecycle da ponte, foram executados no APK release:
+
+- `TXT → PDF → TXT`: PDF e TXT finais visíveis;
+- `TXT → EPUB → TXT`: EPUB e TXT finais visíveis;
+- sem spinner preso nos dois fluxos.
+
 ## Testes e builds
 
-- Testes focados: **20/20** passando (coordinator, fixtures, fixture startup e
-  runtime comic/EPUB regression).
+- Testes focados: **32/32** passando (coordinator, fixtures, fixture startup,
+  runtime comic/EPUB regression, runtime real de document load e lifecycle da
+  ponte WebView).
 - `@papyrus-sdk/ui-react-native build`: passou.
 - `node --check packages/ui-react-native/runtime/runtime.js`: passou.
 - `git diff --check`: passou.
 - Release Android APK: passou.
+- O teste de runtime executa o WebView com `fetch` controlado e cobre: TXT
+  vazio concluído, fonte inválida terminando em erro e TXT pendente marcado
+  como stale quando uma nova carga começa.
+- O teste do engine cobre a troca de WebView: a ponte antiga não é reutilizada
+  como pronta e a carga aguarda a nova instância.
 
 O conjunto completo ainda possui falhas preexistentes do ambiente do
 worktree: alguns testes tentam spawnar o Node e recebem `EPERM`, e os testes do
@@ -74,10 +89,10 @@ O example mobile-expo não possui fixture CBR/CBZ versionada; CBR também é uma
 extensão opcional (`@papyrus-sdk/engine-cbr-mobile`). Portanto, o smoke
 CBR/CBZ real fica pendente de fixture/runtime habilitado, sem inventar uma
 validação que não foi executada. EPUB/PDF continuam cobertos pela suíte e pelo
-smoke de build. A troca rápida manual de formatos não produziu uma amostra
-válida: o overlay de loading intercepta os botões enquanto uma carga está em
-andamento. A matriz completa entre formatos, além de CBR/CBZ, depende de um
-harness de seleção de fixtures que o example atual ainda não expõe.
+smoke de build. CBR/CBZ continuam pendentes porque não há fixture versionada
+nem runtime habilitado no example. A troca rápida sem aguardar a carga não é
+um cenário válido neste harness, pois o overlay de loading intercepta os
+botões; as trocas sequenciais aguardadas de PDF e EPUB foram executadas.
 
 ## Status
 

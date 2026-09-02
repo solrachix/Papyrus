@@ -121,6 +121,40 @@ describe("WebViewDocumentEngine local sources", () => {
     vi.unstubAllGlobals();
   });
 
+  it("does not reuse a detached WebView bridge readiness state", async () => {
+    const engine = new WebViewDocumentEngine();
+    const oldPostMessage = vi.fn();
+    const nextPostMessage = vi.fn();
+
+    engine.attachBridge({ postMessage: oldPostMessage });
+    engine.handleMessage(JSON.stringify({ type: "ready" }));
+    (engine as any).detachBridge();
+
+    const load = engine.load({ type: "text", source: "new document" });
+    await Promise.resolve();
+    expect(nextPostMessage).not.toHaveBeenCalled();
+
+    engine.attachBridge({ postMessage: nextPostMessage });
+    await Promise.resolve();
+    expect(nextPostMessage).not.toHaveBeenCalled();
+
+    engine.handleMessage(JSON.stringify({ type: "ready" }));
+    await vi.waitFor(() => expect(nextPostMessage).toHaveBeenCalledTimes(1));
+
+    const request = JSON.parse(nextPostMessage.mock.calls[0][0]);
+    expect(request).toMatchObject({ kind: "load", payload: { type: "text" } });
+    engine.handleMessage(
+      JSON.stringify({
+        type: "response",
+        id: request.id,
+        ok: true,
+        data: { pageCount: 1 },
+      }),
+    );
+    await load;
+    expect(oldPostMessage).not.toHaveBeenCalled();
+  });
+
   it("guards native bitmap promotion by generation and keeps OOM explicit", () => {
     const source = readFileSync(
       resolve(

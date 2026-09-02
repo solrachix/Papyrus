@@ -41,4 +41,25 @@ describe("document load coordinator", () => {
     expect(coordinator.finish(load, "error")).toBe(true);
     expect(coordinator.current()).toMatchObject({ terminal: "error" });
   });
+
+  it.each([
+    ["text", "epub", "text"],
+    ["text", "pdf", "text"],
+  ] as const)("keeps only the current document in %s -> %s -> %s", async (...formats) => {
+    const coordinator = createDocumentLoadCoordinator((generation) => `load-${generation}`);
+    const published: string[] = [];
+    const pending = formats.map((format) => coordinator.start(format));
+
+    const finishIfCurrent = (index: number) => {
+      const load = pending[index];
+      if (coordinator.finish(load, "complete")) published.push(load.format);
+    };
+
+    finishIfCurrent(0);
+    finishIfCurrent(1);
+    finishIfCurrent(2);
+
+    expect(published).toEqual(["text"]);
+    expect(coordinator.current()).toMatchObject({ format: "text", terminal: "complete" });
+  });
 });
