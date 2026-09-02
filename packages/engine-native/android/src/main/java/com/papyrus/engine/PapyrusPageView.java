@@ -99,6 +99,7 @@ public class PapyrusPageView extends View {
       return;
     }
 
+    telemetry.emit("native.render.surface.start");
     final int viewWidth = getWidth();
     final int viewHeight = getHeight();
     final float clampedZoom = Math.max(0.1f, Math.min(5.0f, zoom));

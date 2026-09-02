@@ -61,7 +61,7 @@
 - Modify: `scripts/benchmarks/android-native-render-aggregate.mjs`
 - Modify: `scripts/benchmarks/android-native-render-aggregate.test.mjs`
 
-- [ ] Parse native marker lines and existing JS events without mixing samples.
+- [x] Parse native marker lines and existing JS events without mixing samples.
 - [x] Derive queue wait, lock wait, raster, post-raster, UI queue, install, draw, request-to-ready, and cache metrics.
 - [x] Join phase data to `renderRequestId` and retain page/surface/generation context.
 - [x] Output JSON and concise Markdown-friendly summaries with valid/incomplete counts.
@@ -87,10 +87,16 @@
 - [x] Confirm `perf=0` emits no native markers and `perf=1` correlates every native request with a JS render request.
 - [x] Run the PR25-style 3× `perf=0` vs 3× `perf=1` control; report measurements without claiming a gain.
 - [x] Run shell/node syntax checks and inspect the final diff for out-of-scope files.
+- [x] Add `request → surface` and `surface → enqueue` measurements and validate
+  cache-hit samples without an artificial enqueue phase.
+- [x] Run `large-100` and `varied-sizes` with `perf=1` and record their native
+  phase distributions.
 
 ## Task 7: Publish PR26
 
 - [ ] Commit only scoped PR26 changes.
 - [ ] Push `codex/pr26-native-raster-draw-profile`.
-- [ ] Open the PR against `main` with exact tests, APK/emulator evidence, profiler-overhead control, limitations, and next-step classification.
-- [ ] Do not merge automatically.
+- [ ] Update the existing PR against `main` with exact tests, APK/emulator
+  evidence, profiler-overhead control, limitations, and next-step
+  classification.
+- [x] Do not merge automatically.

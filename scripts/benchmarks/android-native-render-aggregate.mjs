@@ -2,6 +2,7 @@ import fs from 'node:fs';
 
 const PHASES = [
   'native.render.request',
+  'native.render.surface.start',
   'native.render.enqueue',
   'native.render.worker.start',
   'native.render.lock.wait.start',
@@ -90,7 +91,7 @@ function summarizeRequest(renderRequestId, events) {
   const expected = cache === 'hit'
     ? [
         'native.render.request',
-        'native.render.enqueue',
+        'native.render.surface.start',
         'native.render.cache.hit',
         'native.render.ui.start',
         'native.render.install.start',
@@ -102,6 +103,7 @@ function summarizeRequest(renderRequestId, events) {
       ]
     : [
         'native.render.request',
+        'native.render.surface.start',
         'native.render.enqueue',
         'native.render.worker.start',
         'native.render.raster.start',
@@ -133,6 +135,8 @@ function summarizeRequest(renderRequestId, events) {
     surfaceId: request?.surfaceId ?? null,
     generation: request?.generation ?? null,
     cache,
+    requestToSurfaceMs: round(durationMs(request, phase('native.render.surface.start'))),
+    surfaceToEnqueueMs: round(durationMs(phase('native.render.surface.start'), phase('native.render.enqueue'))),
     queueWaitMs: round(durationMs(phase('native.render.enqueue'), phase('native.render.worker.start'))),
     lockWaitMs: round(durationMs(lockWaitStart, lockAcquired)),
     rasterMs: round(durationMs(phase('native.render.raster.start'), phase('native.render.raster.end'))),
@@ -181,7 +185,7 @@ function aggregateByKey(samples) {
       cache: list[0].cache,
       totalN: list.length,
       validN: list.filter((sample) => sample.status === 'complete').length,
-      metrics: Object.fromEntries(['queueWaitMs', 'lockWaitMs', 'rasterMs', 'postRasterMs', 'uiQueueMs', 'installMs', 'drawMs', 'requestToReadyMs'].map((name) => [name, metric(list, name)])),
+      metrics: Object.fromEntries(['requestToSurfaceMs', 'surfaceToEnqueueMs', 'queueWaitMs', 'lockWaitMs', 'rasterMs', 'postRasterMs', 'uiQueueMs', 'installMs', 'drawMs', 'requestToReadyMs'].map((name) => [name, metric(list, name)])),
     };
   }
   return aggregates;
