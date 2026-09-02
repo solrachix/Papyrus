@@ -66,6 +66,7 @@ import {
   type ViewerScrollTarget,
 } from "./viewerNavigation";
 import { resolvePageTapChromeVisibility } from "./mobileChromeInteraction";
+import { resolveRemoveClippedSubviews } from "./viewerPerformance";
 
 export interface ViewerProps {
   engine: DocumentEngine;
@@ -256,7 +257,11 @@ const Viewer: React.FC<ViewerProps> = ({
       ),
     [maxToRenderPerBatch]
   );
-  const resolvedRemoveClippedSubviews = removeClippedSubviews ?? true;
+  const resolvedRemoveClippedSubviews = resolveRemoveClippedSubviews({
+    platform: Platform.OS as "android" | "ios" | "web",
+    viewerMode: resolvedViewerMode,
+    requestedValue: removeClippedSubviews,
+  });
 
   renderCounterRef.current({
     pageCount,

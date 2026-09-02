@@ -175,7 +175,9 @@ Ao carregar EPUB/TXT, renderize `<Viewer />` antes de aguardar `engine.load(...)
 
 - `virtualWindowSize` (`Viewer`): tamanho da janela da FlatList.
 - `maxToRenderPerBatch` (`Viewer`): itens por lote.
-- `removeClippedSubviews` (`Viewer`): remove linhas fora da tela.
+- `removeClippedSubviews` (`Viewer`): remove linhas fora da tela. O padrão é
+  `false` no Android com `viewerMode="compat"` e `true` nos demais caminhos;
+  um valor explícito continua sendo respeitado.
 - `thumbsInitialCount` (`RightSheet`): quantidade inicial de thumbnails.
 
 ## Dicas de performance (mobile)
