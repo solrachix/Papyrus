@@ -94,9 +94,9 @@
 
 ## Task 7: Publish PR26
 
-- [ ] Commit only scoped PR26 changes.
-- [ ] Push `codex/pr26-native-raster-draw-profile`.
-- [ ] Update the existing PR against `main` with exact tests, APK/emulator
+- [x] Commit only scoped PR26 changes.
+- [x] Push `codex/pr26-native-raster-draw-profile`.
+- [x] Update the existing PR against `main` with exact tests, APK/emulator
   evidence, profiler-overhead control, limitations, and next-step
   classification.
 - [x] Do not merge automatically.
