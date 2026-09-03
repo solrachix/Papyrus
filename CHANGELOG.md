@@ -21,7 +21,7 @@ PR29.
 
 | Package | Version |
 | --- | --- |
-| `@papyrus-sdk/core` | `0.2.20` |
+| `@papyrus-sdk/core` | `0.2.21` |
 | `@papyrus-sdk/engine-cbr` | `0.1.2` |
 | `@papyrus-sdk/engine-cbz` | `0.1.2` |
 | `@papyrus-sdk/engine-cbz-rust` | `0.1.1` |
@@ -30,3 +30,6 @@ PR29.
 | `@papyrus-sdk/types` | `0.2.14` |
 | `@papyrus-sdk/ui-react` | `0.2.30` |
 | `@papyrus-sdk/ui-react-native` | `0.2.26` |
+
+`@papyrus-sdk/core@0.2.20` was superseded by `0.2.21` to align its published
+types dependency with this release. Publish `@papyrus-sdk/types` before core.

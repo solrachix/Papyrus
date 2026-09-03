@@ -31,8 +31,8 @@
     "test:dist": "pnpm build && cd ../.. && pnpm exec vitest run packages/engine-cbz-rust/dist-smoke.test.ts"
   },
   "dependencies": {
-    "@papyrus-sdk/engine-cbz": "workspace:*",
-    "@papyrus-sdk/engine-comic-core": "workspace:*"
+    "@papyrus-sdk/engine-cbz": "0.1.2",
+    "@papyrus-sdk/engine-comic-core": "0.1.0"
   },
   "peerDependencies": {
     "@papyrus-sdk/core": ">=0.2.19",
