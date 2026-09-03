@@ -1,8 +1,15 @@
 {
   "name": "@papyrus-sdk/engine-cbr",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "license": "MIT",
-  "keywords": ["papyrus", "comic", "cbr", "rar", "reader", "engine"],
+  "keywords": [
+    "papyrus",
+    "comic",
+    "cbr",
+    "rar",
+    "reader",
+    "engine"
+  ],
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
@@ -13,7 +20,9 @@
       "require": "./dist/index.js"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsup index.ts --dts --format cjs,esm --out-dir dist --clean --sourcemap"
   },
