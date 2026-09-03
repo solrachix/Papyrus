@@ -1,8 +1,16 @@
 {
   "name": "@papyrus-sdk/engine-cbz-rust",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "license": "MIT",
-  "keywords": ["papyrus", "comic", "cbz", "rust", "wasm", "reader", "engine"],
+  "keywords": [
+    "papyrus",
+    "comic",
+    "cbz",
+    "rust",
+    "wasm",
+    "reader",
+    "engine"
+  ],
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
@@ -13,15 +21,18 @@
       "require": "./dist/index.js"
     }
   },
-  "files": ["dist", "wasm"],
+  "files": [
+    "dist",
+    "wasm"
+  ],
   "scripts": {
     "build": "tsup index.ts --dts --format cjs,esm --out-dir dist --clean --sourcemap && node copy-wasm.mjs",
     "build:wasm": "node ../../scripts/build-cbz-rust-wasm.mjs",
     "test:dist": "pnpm build && cd ../.. && pnpm exec vitest run packages/engine-cbz-rust/dist-smoke.test.ts"
   },
   "dependencies": {
-    "@papyrus-sdk/engine-cbz": "workspace:*",
-    "@papyrus-sdk/engine-comic-core": "workspace:*"
+    "@papyrus-sdk/engine-cbz": "0.1.2",
+    "@papyrus-sdk/engine-comic-core": "0.1.0"
   },
   "peerDependencies": {
     "@papyrus-sdk/core": ">=0.2.19",
