@@ -121,7 +121,7 @@
 **Files:**
 - Modify: `docs/performance/pr-28-android-memory-lifecycle-stress.md`
 
-- [ ] Commitar somente arquivos scoped da PR28.
-- [ ] Push da branch `codex/pr28-android-memory-lifecycle-stress`.
-- [ ] Abrir PR contra `main` com resultados, limitações e decisão de merge.
+- [x] Commitar somente arquivos scoped da PR28.
+- [x] Push da branch `codex/pr28-android-memory-lifecycle-stress`.
+- [x] Abrir PR contra `main` com resultados, limitações e decisão de merge.
 - [x] Não fazer merge automaticamente.
