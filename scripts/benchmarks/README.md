@@ -150,8 +150,10 @@ resumos e timestamps relevantes.
 
 O runner de lifecycle é diagnóstico e não executa `System.gc()`, limpa cache
 manualmente nem altera o comportamento do viewer. Ele aceita somente o
-`emulator-5554` e coleta checkpoints de PSS/heap, views, activities, WebViews,
-PID e logcat nos ciclos `0/1/5/10/20` (quando aplicável):
+`emulator-5554`, faz um único cold start por cenário e usa deep links warm para
+as trocas seguintes. Assim, os ciclos de retenção permanecem no mesmo processo.
+Ele coleta checkpoints de PSS/heap, views, activities, WebViews, PID e logcat
+nos ciclos `0/1/5/10/20` (quando aplicável):
 
 ```bash
 bash scripts/benchmarks/android-lifecycle-stress.sh \
@@ -168,9 +170,13 @@ Os cenários disponíveis são `reopen-small`, `small-large`, `large-reopen`,
 `cross-format`, `background`, `background-render`, `switch-during-render`,
 `reverse-navigation`, `orientation` e `long`. Cada execução grava
 `checkpoints.ndjson`, dumps brutos por checkpoint, `failures.txt` e
-`aggregate.json`. O agregador aceita JSON array ou NDJSON e separa o
-aquecimento da tendência pós-aquecimento; ele só classifica suspeita de leak
-quando há evidência suficiente de crescimento de memória e/ou recursos.
+`aggregate.json`. O agregador aceita JSON array ou NDJSON, publica a
+`pidSequence` e invalida a classificação `HEALTHY` quando algum checkpoint não
+tem o mesmo PID inicial. Ele separa o aquecimento da tendência pós-aquecimento
+e só classifica suspeita de leak quando há evidência suficiente de crescimento
+de memória e/ou recursos. `force-stop` fica restrito ao cold start inicial;
+execuções anteriores que reiniciavam o processo a cada ciclo não são evidência
+de retenção.
 
 O protocolo completo e os resultados versionados ficam em
 [`docs/performance/pr-28-android-memory-lifecycle-stress.md`](../../docs/performance/pr-28-android-memory-lifecycle-stress.md).

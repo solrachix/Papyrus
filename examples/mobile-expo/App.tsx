@@ -56,21 +56,19 @@ const App: React.FC = () => {
       const parsed = parsePapyrusReaderUrl(url);
       const resolvedLaunch = parsed.valid ? resolveFixtureLaunch(parsed) : null;
       const runId = resolvedLaunch?.runId ?? createRunId();
+      const load = parsed.valid ? loadCoordinatorRef.current.start('pdf') : null;
       const loadSession = createPerfSession({
         enabled: resolvedLaunch?.perfEnabled === true,
         context: {
           runId,
           sampleId: resolvedLaunch?.sampleId,
-          documentLoadId: `${runId}-document-1`,
+          documentLoadId: load?.loadId ?? `${runId}-invalid-load`,
           fixture: resolvedLaunch?.fixture ?? 'unknown',
         },
         sink: (line) => console.log(`[Papyrus Perf] ${line}`),
       });
-      if (!warm) {
-        (globalThis as Record<string, unknown>).__PAPYRUS_MOBILE_PERF__ = loadSession.enabled;
-        setPerfSession(loadSession);
-      }
-      const load = warm ? null : loadCoordinatorRef.current.start('pdf');
+      (globalThis as Record<string, unknown>).__PAPYRUS_MOBILE_PERF__ = loadSession.enabled;
+      setPerfSession(loadSession);
       if (load) {
         setLoadError(null);
         setActiveType('pdf');
@@ -94,7 +92,7 @@ const App: React.FC = () => {
           },
           emit: (name, payload) => loadSession.emit(name, payload),
         });
-        if (result.ignored || !result.resolved || !load) return;
+        if (!result.resolved || !load) return;
         if (!loadCoordinatorRef.current.isCurrent(load)) return;
         const pageCount = result.pageCount;
         if (INITIAL_SDK_CONFIG.initialZoom) engine.setZoom(INITIAL_SDK_CONFIG.initialZoom);

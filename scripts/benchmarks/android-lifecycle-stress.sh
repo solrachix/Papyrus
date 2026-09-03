@@ -52,6 +52,7 @@ repo_root="$(cd "$script_dir/../.." && pwd)"
 mkdir -p "$output_dir"
 : > "$output_dir/checkpoints.ndjson"
 : > "$output_dir/failures.txt"
+initial_pid=''
 
 adb_cmd=(adb -s "$device")
 if [[ "$device" != 'emulator-5554' ]]; then
@@ -84,6 +85,26 @@ json_number_or_null() {
   fi
 }
 
+reader_uri() {
+  local selected_fixture="$1"
+  printf 'exp+papyrus-sdk://reader?fixture=%s&viewerMode=compat&perf=%s&runId=pr28-%s&sampleId=%s-%s' \
+    "$selected_fixture" "$perf" "$scenario" "$scenario" "$selected_fixture"
+}
+
+adb_start_reader() {
+  local uri="$1"
+  local escaped_uri
+  escaped_uri="${uri//&/\\&}"
+  "${adb_cmd[@]}" shell am start -W -a android.intent.action.VIEW -d "$escaped_uri" "$package_id"
+}
+
+adb_start_reader_unwaited() {
+  local uri="$1"
+  local escaped_uri
+  escaped_uri="${uri//&/\\&}"
+  "${adb_cmd[@]}" shell am start -a android.intent.action.VIEW -d "$escaped_uri" "$package_id"
+}
+
 wait_for_pdf_surface() {
   local xml="$output_dir/wait-ui.xml"
   local attempt
@@ -110,7 +131,6 @@ capture_checkpoint() {
   "${adb_cmd[@]}" shell uiautomator dump /sdcard/pr28-ui.xml >/dev/null 2>&1 || true
   "${adb_cmd[@]}" exec-out cat /sdcard/pr28-ui.xml > "$dir/ui.xml" 2>/dev/null || true
   "${adb_cmd[@]}" logcat -d -v brief -t 250 > "$dir/logcat.txt" 2>&1 || true
-  rg 'papyrus|Papyrus|render\.|engine\.|surface\.' "$dir/logcat.txt" > "$dir/events.txt" 2>/dev/null || true
 
   local total_pss native_heap java_heap graphics attached_views activities web_views pid
   total_pss="$(mem_value '^[[:space:]]*TOTAL PSS:' "$dir/meminfo.txt")"
@@ -121,6 +141,17 @@ capture_checkpoint() {
   activities="$(object_count 'Activities:' "$dir/meminfo.txt")"
   web_views="$(object_count 'WebViews:' "$dir/meminfo.txt")"
   pid="$(tr -d '[:space:]' < "$dir/pid.txt" || true)"
+  if [[ "$pid" =~ ^[0-9]+$ ]]; then
+    "${adb_cmd[@]}" logcat -d --pid "$pid" -v brief -t 250 > "$dir/app-logcat.txt" 2>&1 || true
+  else
+    : > "$dir/app-logcat.txt"
+  fi
+  rg 'papyrus|Papyrus|render\.|engine\.|surface\.' "$dir/app-logcat.txt" > "$dir/events.txt" 2>/dev/null || true
+  if [[ "$cycle" == '0' && "$pid" =~ ^[0-9]+$ ]]; then
+    initial_pid="$pid"
+  elif [[ -n "$initial_pid" && "$pid" != "$initial_pid" ]]; then
+    echo "pid changed at cycle $cycle: initial=$initial_pid current=${pid:-missing}" >> "$output_dir/failures.txt"
+  fi
 
   cat >> "$output_dir/checkpoints.ndjson" <<EOF
 {"cycle":$cycle,"label":"$label","totalPssKb":$(json_number_or_null "$total_pss"),"nativeHeapKb":$(json_number_or_null "$native_heap"),"javaHeapKb":$(json_number_or_null "$java_heap"),"graphicsKb":$(json_number_or_null "$graphics"),"resources":{"attachedViews":$(json_number_or_null "$attached_views"),"activities":$(json_number_or_null "$activities"),"webViews":$(json_number_or_null "$web_views")},"pid":$(if [[ "$pid" =~ ^[0-9]+$ ]]; then printf '%s' "$pid"; else printf 'null'; fi)}
@@ -131,17 +162,25 @@ start_pdf() {
   local selected_fixture="$1"
   "${adb_cmd[@]}" shell am force-stop "$package_id"
   "${adb_cmd[@]}" logcat -c
-  local uri="exp+papyrus-sdk://reader?fixture=${selected_fixture}&viewerMode=compat&perf=${perf}&runId=pr28-${scenario}&sampleId=${scenario}-${selected_fixture}"
-  "${adb_cmd[@]}" shell am start -W -a android.intent.action.VIEW -d "$uri" "$package_id" > "$output_dir/start-${selected_fixture}.txt" 2>&1 || true
+  local uri
+  uri="$(reader_uri "$selected_fixture")"
+  adb_start_reader "$uri" > "$output_dir/start-${selected_fixture}.txt" 2>&1 || true
   wait_for_pdf_surface || true
 }
 
-start_pdf_unwaited() {
+open_fixture_warm() {
   local selected_fixture="$1"
-  "${adb_cmd[@]}" shell am force-stop "$package_id"
-  "${adb_cmd[@]}" logcat -c
-  local uri="exp+papyrus-sdk://reader?fixture=${selected_fixture}&viewerMode=compat&perf=${perf}&runId=pr28-${scenario}&sampleId=${scenario}-${selected_fixture}"
-  "${adb_cmd[@]}" shell am start -W -a android.intent.action.VIEW -d "$uri" "$package_id" > "$output_dir/start-${selected_fixture}-unwaited.txt" 2>&1 || true
+  local uri
+  uri="$(reader_uri "$selected_fixture")"
+  adb_start_reader "$uri" > "$output_dir/warm-${selected_fixture}.txt" 2>&1 || true
+  wait_for_pdf_surface || true
+}
+
+open_fixture_warm_unwaited() {
+  local selected_fixture="$1"
+  local uri
+  uri="$(reader_uri "$selected_fixture")"
+  adb_start_reader_unwaited "$uri" > "$output_dir/warm-${selected_fixture}-unwaited.txt" 2>&1 || true
 }
 
 tap_format() {
@@ -200,15 +239,15 @@ capture_checkpoint 0 initial
 for cycle in $(seq 1 "$cycles"); do
   case "$scenario" in
     reopen-small)
-      start_pdf small
+      open_fixture_warm small
       ;;
     small-large)
-      start_pdf small
-      start_pdf large-100
+      open_fixture_warm large-100
+      open_fixture_warm small
       ;;
     large-reopen)
-      start_pdf large-1000
       scroll_short
+      open_fixture_warm large-1000
       ;;
     cross-format)
       tap_format text
@@ -221,25 +260,23 @@ for cycle in $(seq 1 "$cycles"); do
       background_foreground
       ;;
     background-render)
-      start_pdf_unwaited large-1000
+      open_fixture_warm_unwaited large-1000
       background_foreground
       ;;
     switch-during-render)
-      start_pdf_unwaited large-1000
+      open_fixture_warm_unwaited large-1000
       sleep 1
       tap_format text
       ;;
     reverse-navigation)
-      start_pdf large-1000
       scroll_short
-      start_pdf small
-      start_pdf large-1000
+      open_fixture_warm small
+      open_fixture_warm large-1000
       ;;
     orientation)
       rotate_round_trip
       ;;
     long)
-      start_pdf large-100
       scroll_short
       tap_format text
       tap_format epub
@@ -255,8 +292,14 @@ for cycle in $(seq 1 "$cycles"); do
   checkpoint_if_needed "$cycle"
 done
 
-"${adb_cmd[@]}" logcat -d -v brief -t 1000 > "$output_dir/logcat-final.txt" 2>&1 || true
-rg -i 'FATAL EXCEPTION|ANR|OutOfMemoryError|recycled bitmap|IllegalStateException|WindowLeaked|papyrus_render_error' "$output_dir" >> "$output_dir/failures.txt" 2>/dev/null || true
+if [[ "$initial_pid" =~ ^[0-9]+$ ]]; then
+  "${adb_cmd[@]}" logcat -d --pid "$initial_pid" -v brief -t 1000 > "$output_dir/logcat-final.txt" 2>&1 || true
+else
+  : > "$output_dir/logcat-final.txt"
+fi
+rg -i 'FATAL EXCEPTION|ANR|OutOfMemoryError|recycled bitmap|IllegalStateException|WindowLeaked|papyrus_render_error' \
+  "$output_dir"/cycle-*/app-logcat.txt "$output_dir/logcat-final.txt" \
+  >> "$output_dir/failures.txt" 2>/dev/null || true
 printf '%s\n' "$scenario" > "$output_dir/scenario.txt"
 printf '%s\n' "$fixture" > "$output_dir/fixture.txt"
 printf '%s\n' "$device" > "$output_dir/device.txt"

@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 
 const numberFrom = (value) => {
+  if (value === null || value === undefined || value === '') return null;
   const number = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(number) ? number : null;
 };
@@ -70,6 +71,11 @@ export function aggregateLifecycleStress({ scenario = 'unknown', warmupCycles = 
   const trend = Object.fromEntries(memoryKeys.map((key) => [key, { slopePerCycle: slopePerCycle(postWarmup, key) }]));
   const resourceKeys = [...new Set(checkpoints.flatMap((sample) => Object.keys(sample.resources ?? {})))];
   const resources = Object.fromEntries(resourceKeys.map((key) => [key, summarizeResource(checkpoints, key)]));
+  const pidSequence = checkpoints.map((sample) => numberFrom(sample.pid));
+  const pids = pidSequence.filter((pid) => pid !== null);
+  const pidStable = pids.length === 0
+    ? null
+    : pids.length === pidSequence.length && pids.every((pid) => pid === pids[0]);
   const growingResources = Object.values(resources).some((resource) => resource.monotonicGrowth);
   const pssSlope = trend.totalPssKb.slopePerCycle;
   const nativeSlope = trend.nativeHeapKb.slopePerCycle;
@@ -77,7 +83,9 @@ export function aggregateLifecycleStress({ scenario = 'unknown', warmupCycles = 
   const strongGrowth = pssSlope !== null && pssSlope > 5;
   const enoughEvidence = postWarmup.length >= 3;
   const leakSuspect = enoughEvidence && (strongGrowth || (nativeSlope !== null && nativeSlope > 5) || (javaSlope !== null && javaSlope > 5) || growingResources && pssSlope !== null && pssSlope > 1);
-  const classification = !enoughEvidence
+  const classification = pidStable === false
+    ? 'INCONCLUSIVE'
+    : !enoughEvidence
     ? 'INCONCLUSIVE'
     : leakSuspect && (growingResources || (nativeSlope !== null && nativeSlope > 5) || (javaSlope !== null && javaSlope > 5))
       ? 'MIXED'
@@ -93,9 +101,11 @@ export function aggregateLifecycleStress({ scenario = 'unknown', warmupCycles = 
     memory,
     trend,
     resources,
+    pidSequence,
+    pidStable,
     leakSuspect,
     classification,
-    confidence: enoughEvidence ? (leakSuspect ? 'MEDIUM' : 'HIGH') : 'LOW',
+    confidence: pidStable === false ? 'LOW' : enoughEvidence ? (leakSuspect ? 'MEDIUM' : 'HIGH') : 'LOW',
   };
 }
 

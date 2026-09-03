@@ -63,3 +63,36 @@ test('flags strong post-warm-up monotonic growth with growing resources', () => 
   assert.ok(report.trend.totalPssKb.slopePerCycle > 5);
   assert.equal(report.resources.attachedViews.monotonicGrowth, true);
 });
+
+test('does not classify a scenario as healthy when the process changes', () => {
+  const report = aggregateLifecycleStress({
+    scenario: 'warm-switch',
+    warmupCycles: 1,
+    samples: [
+      { cycle: 0, pid: 100, totalPssKb: 100000, nativeHeapKb: 22000, javaHeapKb: 12000, resources: { attachedViews: 2 } },
+      { cycle: 1, pid: 100, totalPssKb: 100500, nativeHeapKb: 22000, javaHeapKb: 12000, resources: { attachedViews: 2 } },
+      { cycle: 5, pid: 101, totalPssKb: 100400, nativeHeapKb: 22000, javaHeapKb: 12000, resources: { attachedViews: 2 } },
+    ],
+  });
+
+  assert.equal(report.pidStable, false);
+  assert.equal(report.classification, 'INCONCLUSIVE');
+  assert.equal(report.leakSuspect, false);
+});
+
+test('missing PID checkpoint invalidates the same-process invariant', () => {
+  const report = aggregateLifecycleStress({
+    scenario: 'missing-pid',
+    warmupCycles: 1,
+    samples: [
+      { cycle: 0, pid: 100, totalPssKb: 100000, nativeHeapKb: 22000, javaHeapKb: 12000, resources: {} },
+      { cycle: 1, pid: null, totalPssKb: 100500, nativeHeapKb: 22000, javaHeapKb: 12000, resources: {} },
+      { cycle: 5, pid: 100, totalPssKb: 100400, nativeHeapKb: 22000, javaHeapKb: 12000, resources: {} },
+    ],
+  });
+
+  assert.deepEqual(report.pidSequence, [100, null, 100]);
+  assert.equal(report.pidStable, false);
+  assert.equal(report.classification, 'INCONCLUSIVE');
+  assert.equal(report.confidence, 'LOW');
+});

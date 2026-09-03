@@ -83,15 +83,15 @@
 **Files:**
 - Runtime artifacts only: `/tmp/papyrus-pr28-*`
 
+- [x] Executar cada cenário com um único cold start e trocas warm dentro do mesmo PID.
 - [x] Executar reopen `small` 20 ciclos.
 - [x] Executar alternância `small ↔ large-100` 20 trocas.
 - [x] Executar reopen `large-1000` 10 ciclos com scroll curto.
-- [x] Executar cross-format PDF/TXT/EPUB por 10 ciclos.
-- [x] Executar background/foreground 20 vezes e render interrompido.
+- [x] Executar cross-format PDF/TXT/EPUB por 10 ciclos como controle.
 - [x] Executar troca durante render 10 vezes.
-- [x] Executar reverse revisit e smoke de orientação.
-- [x] Executar long stress 10 ciclos e cold restart final.
-- [x] Executar controle curto com `perf=0` no stress e `perf=1` em rodada diagnóstica separada.
+- [x] Executar long stress 10 ciclos.
+- [x] Executar smoke `perf=1` para confirmar `fixture.loaded` nas trocas warm.
+- [ ] Repetir `long` e `switch-during-render` após separar cache/steady state de leak.
 
 ### Task 7: Classificar tendência e decidir se há fix
 
@@ -101,8 +101,8 @@
 - [x] Consolidar checkpoints brutos e slope pós-warm-up por cenário.
 - [x] Classificar cenários saudáveis ou inconclusivos quando a amostra foi curta; não inferir owners sem contador.
 - [x] Verificar logcat para crash/ANR/OOM/recycled bitmap/WindowLeaked e PID antes/depois.
-- [x] Como não houve leak reproduzido, manter a PR sem mudança comportamental.
-- [x] Não aplicável: nenhum leak exigiu teste/fix before/after.
+- [x] Classificar cenários com PID estável; crescimento em `long`/`switch-during-render` ficou explícito.
+- [x] Não aplicar fix de produto enquanto o owner do crescimento não for identificado.
 
 ## Chunk 5: Verificação e publicação
 
@@ -112,7 +112,7 @@
 - Modify: `docs/performance/pr-28-android-memory-lifecycle-stress.md`
 
 - [x] Rodar focused Node/JS tests; a suíte global também foi tentada e manteve falhas preexistentes de ambiente/testes.
-- [x] Fazer smokes PDF, rotation, TXT, EPUB e trocas cross-format dentro do runner; distant jump/pinch não foram objetivo desta PR.
+- [x] Fazer smoke PDF e trocas warm/cross-format dentro do runner; distant jump/pinch não foram objetivo desta PR.
 - [x] Confirmar `git diff --check`, `bash -n` e `node --check`.
 - [x] Não usar o POCO/dispositivo físico.
 
@@ -123,5 +123,5 @@
 
 - [x] Commitar somente arquivos scoped da PR28.
 - [x] Push da branch `codex/pr28-android-memory-lifecycle-stress`.
-- [x] Abrir PR contra `main` com resultados, limitações e decisão de merge.
+- [x] Atualizar a PR contra `main` com resultados warm, PID invariant e limitações.
 - [x] Não fazer merge automaticamente.
