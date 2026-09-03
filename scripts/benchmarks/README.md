@@ -168,7 +168,8 @@ bash scripts/benchmarks/android-lifecycle-stress.sh \
 
 Os cenários disponíveis são `reopen-small`, `small-large`, `large-reopen`,
 `cross-format`, `background`, `background-render`, `switch-during-render`,
-`reverse-navigation`, `orientation` e `long`. Cada execução grava
+`switch-during-render-return-pdf`, `text-steady-state`, `reverse-navigation`,
+`orientation` e `long`. Cada execução grava
 `checkpoints.ndjson`, dumps brutos por checkpoint, `failures.txt` e
 `aggregate.json`. O agregador aceita JSON array ou NDJSON, publica a
 `pidSequence` e invalida a classificação `HEALTHY` quando algum checkpoint não
@@ -177,6 +178,12 @@ e só classifica suspeita de leak quando há evidência suficiente de cresciment
 de memória e/ou recursos. `force-stop` fica restrito ao cold start inicial;
 execuções anteriores que reiniciavam o processo a cada ciclo não são evidência
 de retenção.
+
+Com `--perf 1`, cada checkpoint também captura o último snapshot opt-in de
+ownership publicado pelo engine: engines/documentos, bytes/entradas do cache,
+referências de bitmaps, PageViews ativas, bitmaps cacheados, renders ativos,
+WebViews e requests pendentes do bridge. A ausência desses campos em `perf=0`
+é intencional.
 
 O protocolo completo e os resultados versionados ficam em
 [`docs/performance/pr-28-android-memory-lifecycle-stress.md`](../../docs/performance/pr-28-android-memory-lifecycle-stress.md).

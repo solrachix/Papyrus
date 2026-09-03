@@ -64,6 +64,54 @@ test('flags strong post-warm-up monotonic growth with growing resources', () => 
   assert.equal(report.resources.attachedViews.monotonicGrowth, true);
 });
 
+test('identifies native-only growth as native heap', () => {
+  const report = aggregateLifecycleStress({
+    scenario: 'native-growth',
+    warmupCycles: 1,
+    samples: [
+      { cycle: 0, totalPssKb: 100000, nativeHeapKb: 22000, javaHeapKb: 12000, resources: {} },
+      { cycle: 1, totalPssKb: 120000, nativeHeapKb: 30000, javaHeapKb: 12000, resources: {} },
+      { cycle: 5, totalPssKb: 121000, nativeHeapKb: 50000, javaHeapKb: 12000, resources: {} },
+      { cycle: 10, totalPssKb: 121500, nativeHeapKb: 80000, javaHeapKb: 12000, resources: {} },
+    ],
+  });
+
+  assert.equal(report.classification, 'NATIVE_HEAP');
+  assert.equal(report.leakSuspect, true);
+});
+
+test('identifies Java-only growth as Java heap', () => {
+  const report = aggregateLifecycleStress({
+    scenario: 'java-growth',
+    warmupCycles: 1,
+    samples: [
+      { cycle: 0, totalPssKb: 100000, nativeHeapKb: 22000, javaHeapKb: 12000, resources: {} },
+      { cycle: 1, totalPssKb: 120000, nativeHeapKb: 22000, javaHeapKb: 20000, resources: {} },
+      { cycle: 5, totalPssKb: 121000, nativeHeapKb: 22000, javaHeapKb: 40000, resources: {} },
+      { cycle: 10, totalPssKb: 121500, nativeHeapKb: 22000, javaHeapKb: 80000, resources: {} },
+    ],
+  });
+
+  assert.equal(report.classification, 'JAVA_HEAP');
+  assert.equal(report.leakSuspect, true);
+});
+
+test('keeps PSS-only growth inconclusive without an owner signal', () => {
+  const report = aggregateLifecycleStress({
+    scenario: 'pss-only-growth',
+    warmupCycles: 1,
+    samples: [
+      { cycle: 0, totalPssKb: 100000, nativeHeapKb: 22000, javaHeapKb: 12000, resources: {} },
+      { cycle: 1, totalPssKb: 120000, nativeHeapKb: 22000, javaHeapKb: 12000, resources: {} },
+      { cycle: 5, totalPssKb: 160000, nativeHeapKb: 22000, javaHeapKb: 12000, resources: {} },
+      { cycle: 10, totalPssKb: 220000, nativeHeapKb: 22000, javaHeapKb: 12000, resources: {} },
+    ],
+  });
+
+  assert.equal(report.classification, 'INCONCLUSIVE');
+  assert.equal(report.leakSuspect, true);
+});
+
 test('does not classify a scenario as healthy when the process changes', () => {
   const report = aggregateLifecycleStress({
     scenario: 'warm-switch',
@@ -95,4 +143,24 @@ test('missing PID checkpoint invalidates the same-process invariant', () => {
   assert.equal(report.pidStable, false);
   assert.equal(report.classification, 'INCONCLUSIVE');
   assert.equal(report.confidence, 'LOW');
+});
+
+test('summarizes lifecycle ownership counters independently from heap slopes', () => {
+  const report = aggregateLifecycleStress({
+    scenario: 'counter-snapshot',
+    warmupCycles: 1,
+    samples: [
+      { cycle: 0, pid: 100, totalPssKb: 100000, nativeHeapKb: 22000, javaHeapKb: 12000, counters: { engineStates: 1, renderCacheBytes: 0, activeBitmapRefs: 0, activeRenderRequests: 0, webViewCount: 0, pendingBridgeRequests: 0 } },
+      { cycle: 1, pid: 100, totalPssKb: 100500, nativeHeapKb: 22000, javaHeapKb: 12000, counters: { engineStates: 1, renderCacheBytes: 4096, activeBitmapRefs: 1, activeRenderRequests: 2, webViewCount: 0, pendingBridgeRequests: 0 } },
+      { cycle: 5, pid: 100, totalPssKb: 100600, nativeHeapKb: 22000, javaHeapKb: 12000, counters: { engineStates: 1, renderCacheBytes: 4096, activeBitmapRefs: 1, activeRenderRequests: 0, webViewCount: 0, pendingBridgeRequests: 0 } },
+      { cycle: 10, pid: 100, totalPssKb: 100700, nativeHeapKb: 22000, javaHeapKb: 12000, counters: { engineStates: 1, renderCacheBytes: 4096, activeBitmapRefs: 1, activeRenderRequests: 0, webViewCount: 0, pendingBridgeRequests: 0 } },
+    ],
+  });
+
+  assert.equal(report.counters.activeBitmapRefs.initial, 0);
+  assert.equal(report.counters.activeBitmapRefs.peak, 1);
+  assert.equal(report.counters.activeBitmapRefs.final, 1);
+  assert.equal(report.counters.activeBitmapRefs.monotonicGrowth, true);
+  assert.equal(report.counters.renderCacheBytes.peak, 4096);
+  assert.equal(report.classification, 'HEALTHY');
 });

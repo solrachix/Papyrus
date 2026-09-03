@@ -120,6 +120,15 @@ class PapyrusNativeEngineModule : Module() {
       state.pdfium.getPageCount(state.document)
     }
 
+    Function("getLifecycleStats") {
+      val stats = mutableMapOf<String, Any?>(
+        "engineStates" to PapyrusEngineStore.engineCount(),
+        "loadedDocuments" to PapyrusEngineStore.loadedDocumentCount(),
+      )
+      PapyrusPageView.lifecycleStats().forEach { (key, value) -> stats[key] = value }
+      stats
+    }
+
     AsyncFunction("renderPage") { engineId: String, pageIndex: Int, target: Int, scale: Double, zoom: Double, rotation: Int ->
       val state = PapyrusEngineStore.getEngine(engineId) ?: return@AsyncFunction
       UiThreadUtil.runOnUiThread {

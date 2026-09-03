@@ -73,8 +73,9 @@
 
 - [x] Auditar document identity/generation/terminal render nos eventos existentes.
 - [x] Confirmar que engines, active renders, cache bytes/entries, active bitmap refs e pending bridge requests não estavam expostos de forma confiável no harness atual.
-- [x] Não adicionar contadores diagnósticos porque nenhum recurso essencial ficou sem evidência para a decisão desta rodada.
-- [x] Não houve leak reproduzido; nenhum fix de produto foi criado.
+- [x] Adicionar counters opt-in de engines, documentos, cache, bitmap refs,
+      PageViews, renders ativos, WebViews e bridge requests.
+- [x] Manter a instrumentação sem alterar política de cache ou renderização.
 
 ## Chunk 4: Stress, análise e correção mínima
 
@@ -91,7 +92,8 @@
 - [x] Executar troca durante render 10 vezes.
 - [x] Executar long stress 10 ciclos.
 - [x] Executar smoke `perf=1` para confirmar `fixture.loaded` nas trocas warm.
-- [ ] Repetir `long` e `switch-during-render` após separar cache/steady state de leak.
+- [x] Repetir `switch-during-render` retornando ao PDF para separar WebView/steady state.
+- [x] Repetir `long` por 20 ciclos com counters e confirmar estabilização da janela.
 
 ### Task 7: Classificar tendência e decidir se há fix
 
@@ -99,10 +101,12 @@
 - Create: `docs/performance/pr-28-android-memory-lifecycle-stress.md`
 
 - [x] Consolidar checkpoints brutos e slope pós-warm-up por cenário.
+- [x] Adicionar counters opt-in de ownership/lifecycle ao runtime e aos checkpoints.
+- [x] Cobrir classificação nativa, Java e PSS-only com testes do agregador.
 - [x] Classificar cenários saudáveis ou inconclusivos quando a amostra foi curta; não inferir owners sem contador.
 - [x] Verificar logcat para crash/ANR/OOM/recycled bitmap/WindowLeaked e PID antes/depois.
-- [x] Classificar cenários com PID estável; crescimento em `long`/`switch-during-render` ficou explícito.
-- [x] Não aplicar fix de produto enquanto o owner do crescimento não for identificado.
+- [x] Classificar cenários com PID estável; `long` estabilizou PageViews/refs no ciclo 10.
+- [x] Não aplicar fix de produto: não houve crescimento contínuo após o aquecimento.
 
 ## Chunk 5: Verificação e publicação
 
@@ -121,7 +125,7 @@
 **Files:**
 - Modify: `docs/performance/pr-28-android-memory-lifecycle-stress.md`
 
-- [x] Commitar somente arquivos scoped da PR28.
-- [x] Push da branch `codex/pr28-android-memory-lifecycle-stress`.
-- [x] Atualizar a PR contra `main` com resultados warm, PID invariant e limitações.
+- [ ] Commitar somente arquivos scoped da PR28 após a validação final.
+- [ ] Push da branch `codex/pr28-android-memory-lifecycle-stress` após a validação final.
+- [ ] Atualizar a PR contra `main` com resultados warm, PID invariant e conclusão bounded.
 - [x] Não fazer merge automaticamente.

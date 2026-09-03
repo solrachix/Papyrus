@@ -484,6 +484,14 @@ const PageRenderer: React.FC<PageRendererProps> = ({
           if (status !== "ready" || !renderGenerationRef.current.isCurrent(generation)) return;
           onRenderReadyRef.current?.(pageIndex, zoom);
           if (!perfEnabled) return;
+          const lifecycleStats = (
+            engine as DocumentEngine & {
+              getLifecycleStats?: () => Record<string, number>;
+            }
+          ).getLifecycleStats?.();
+          if (lifecycleStats) {
+            mobilePerf.emit("lifecycle.counters", lifecycleStats);
+          }
           const renderDurationMs = perfNow() - startedAt;
           if (renderDurationMs >= 40) {
             logPerfEvent("PageRenderer", "renderPage.slow", {

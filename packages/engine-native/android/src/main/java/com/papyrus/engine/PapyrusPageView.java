@@ -21,6 +21,8 @@ import java.util.Set;
 import java.util.WeakHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class PapyrusPageView extends View {
   static final long MAX_RENDER_PIXELS = PapyrusRenderMath.MAX_RENDER_PIXELS;
@@ -28,6 +30,8 @@ public class PapyrusPageView extends View {
   static final int RENDER_CACHE_BYTES = 32 * 1024 * 1024;
   private static final String TAG = "PapyrusPageView";
   private static final ExecutorService RENDER_EXECUTOR = Executors.newSingleThreadExecutor();
+  private static final AtomicInteger ACTIVE_RENDER_REQUESTS = new AtomicInteger();
+  private static final AtomicInteger ACTIVE_PAGE_VIEWS = new AtomicInteger();
   private static final Object CACHE_LOCK = new Object();
   private static final Map<Bitmap, Integer> ACTIVE_BITMAP_REFERENCES = new WeakHashMap<>();
   private static final Set<Bitmap> CACHED_BITMAPS = Collections.newSetFromMap(new IdentityHashMap<>());
@@ -61,13 +65,16 @@ public class PapyrusPageView extends View {
   private String pageTheme = "normal";
   private volatile int renderGeneration = 0;
   private String currentRenderKey = null;
+  private final AtomicBoolean disposed = new AtomicBoolean(false);
 
   public PapyrusPageView(Context context) {
     super(context);
+    ACTIVE_PAGE_VIEWS.incrementAndGet();
   }
 
   public PapyrusPageView(Context context, AttributeSet attrs) {
     super(context, attrs);
+    ACTIVE_PAGE_VIEWS.incrementAndGet();
   }
 
   public void setPageTheme(String nextPageTheme) {
@@ -154,21 +161,24 @@ public class PapyrusPageView extends View {
 
     telemetry.emit("native.render.cache.miss");
     telemetry.emit("native.render.enqueue");
-    RENDER_EXECUTOR.execute(() -> {
-      telemetry.emit("native.render.worker.start");
-      PdfDocument doc = state.document;
-      if (doc == null) {
-        telemetry.emit("native.render.stale");
-        completion.complete(PapyrusRenderCompletion.Status.STALE);
-        return;
-      }
-      if (renderToken != renderGeneration) {
-        telemetry.emit("native.render.stale");
-        completion.complete(PapyrusRenderCompletion.Status.STALE);
-        return;
-      }
+    ACTIVE_RENDER_REQUESTS.incrementAndGet();
+    try {
+      RENDER_EXECUTOR.execute(() -> {
+        try {
+          telemetry.emit("native.render.worker.start");
+          PdfDocument doc = state.document;
+          if (doc == null) {
+            telemetry.emit("native.render.stale");
+            completion.complete(PapyrusRenderCompletion.Status.STALE);
+            return;
+          }
+          if (renderToken != renderGeneration) {
+            telemetry.emit("native.render.stale");
+            completion.complete(PapyrusRenderCompletion.Status.STALE);
+            return;
+          }
 
-      try {
+          try {
         Bitmap rendered = null;
         telemetry.emit("native.render.lock.wait.start");
         synchronized (state.pdfiumLock) {
@@ -230,16 +240,41 @@ public class PapyrusPageView extends View {
             telemetry.traceEnd();
           }
         });
-      } catch (OutOfMemoryError error) {
-        Log.e(TAG, "Unable to allocate bitmap for PDF page; keeping previous surface", error);
-        telemetry.emit("native.render.error");
-        completion.error(error);
-      } catch (RuntimeException error) {
-        Log.w(TAG, "Failed to render PDF page; keeping previous surface", error);
-        telemetry.emit("native.render.error");
-        completion.error(error);
+          } catch (OutOfMemoryError error) {
+            Log.e(TAG, "Unable to allocate bitmap for PDF page; keeping previous surface", error);
+            telemetry.emit("native.render.error");
+            completion.error(error);
+          } catch (RuntimeException error) {
+            Log.w(TAG, "Failed to render PDF page; keeping previous surface", error);
+            telemetry.emit("native.render.error");
+            completion.error(error);
+          }
+        } finally {
+          ACTIVE_RENDER_REQUESTS.decrementAndGet();
+        }
+      });
+    } catch (RuntimeException error) {
+      ACTIVE_RENDER_REQUESTS.decrementAndGet();
+      telemetry.emit("native.render.error");
+      completion.error(error);
+    }
+  }
+
+  static Map<String, Integer> lifecycleStats() {
+    Map<String, Integer> stats = new java.util.HashMap<>();
+    synchronized (CACHE_LOCK) {
+      int activeBitmapRefs = 0;
+      for (Integer references : ACTIVE_BITMAP_REFERENCES.values()) {
+        if (references != null) activeBitmapRefs += references;
       }
-    });
+      stats.put("renderCacheBytes", RENDER_CACHE.size());
+      stats.put("renderCacheEntries", RENDER_CACHE.snapshot().size());
+      stats.put("activeBitmapRefs", activeBitmapRefs);
+      stats.put("cachedBitmapCount", CACHED_BITMAPS.size());
+      stats.put("activeRenderRequests", ACTIVE_RENDER_REQUESTS.get());
+      stats.put("activePageViews", ACTIVE_PAGE_VIEWS.get());
+    }
+    return stats;
   }
 
   void render(final PapyrusEngineStore.EngineState state,
@@ -252,6 +287,8 @@ public class PapyrusPageView extends View {
   }
 
   void dispose() {
+    if (!disposed.compareAndSet(false, true)) return;
+    ACTIVE_PAGE_VIEWS.decrementAndGet();
     renderGeneration += 1;
     Bitmap current = bitmap;
     bitmap = null;

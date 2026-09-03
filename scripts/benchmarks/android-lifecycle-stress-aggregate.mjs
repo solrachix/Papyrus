@@ -60,6 +60,21 @@ function summarizeResource(samples, key) {
   };
 }
 
+function summarizeCounter(samples, key) {
+  const values = samples
+    .map((sample) => numberFrom(sample.counters?.[key]))
+    .filter((value) => value !== null);
+  const monotonicGrowth = values.length >= 3 && values.every((value, index) => index === 0 || value >= values[index - 1]) && values.some((value, index) => index > 0 && value > values[index - 1]);
+  return {
+    initial: values[0] ?? null,
+    peak: values.length ? Math.max(...values) : null,
+    max: values.length ? Math.max(...values) : null,
+    final: values.at(-1) ?? null,
+    min: values.length ? Math.min(...values) : null,
+    monotonicGrowth,
+  };
+}
+
 export function aggregateLifecycleStress({ scenario = 'unknown', warmupCycles = 1, samples = [] } = {}) {
   const checkpoints = samples
     .map((sample) => ({ ...sample, cycle: numberFrom(sample.cycle) }))
@@ -71,6 +86,8 @@ export function aggregateLifecycleStress({ scenario = 'unknown', warmupCycles = 
   const trend = Object.fromEntries(memoryKeys.map((key) => [key, { slopePerCycle: slopePerCycle(postWarmup, key) }]));
   const resourceKeys = [...new Set(checkpoints.flatMap((sample) => Object.keys(sample.resources ?? {})))];
   const resources = Object.fromEntries(resourceKeys.map((key) => [key, summarizeResource(checkpoints, key)]));
+  const counterKeys = [...new Set(checkpoints.flatMap((sample) => Object.keys(sample.counters ?? {})))];
+  const counters = Object.fromEntries(counterKeys.map((key) => [key, summarizeCounter(checkpoints, key)]));
   const pidSequence = checkpoints.map((sample) => numberFrom(sample.pid));
   const pids = pidSequence.filter((pid) => pid !== null);
   const pidStable = pids.length === 0
@@ -81,17 +98,26 @@ export function aggregateLifecycleStress({ scenario = 'unknown', warmupCycles = 
   const nativeSlope = trend.nativeHeapKb.slopePerCycle;
   const javaSlope = trend.javaHeapKb.slopePerCycle;
   const strongGrowth = pssSlope !== null && pssSlope > 5;
+  const nativeGrowth = nativeSlope !== null && nativeSlope > 5;
+  const javaGrowth = javaSlope !== null && javaSlope > 5;
   const enoughEvidence = postWarmup.length >= 3;
-  const leakSuspect = enoughEvidence && (strongGrowth || (nativeSlope !== null && nativeSlope > 5) || (javaSlope !== null && javaSlope > 5) || growingResources && pssSlope !== null && pssSlope > 1);
+  const resourceGrowthWithMemory = growingResources && (strongGrowth || nativeGrowth || javaGrowth || (pssSlope !== null && pssSlope > 1));
+  const leakSuspect = enoughEvidence && (strongGrowth || nativeGrowth || javaGrowth || resourceGrowthWithMemory);
   const classification = pidStable === false
     ? 'INCONCLUSIVE'
     : !enoughEvidence
     ? 'INCONCLUSIVE'
-    : leakSuspect && (growingResources || (nativeSlope !== null && nativeSlope > 5) || (javaSlope !== null && javaSlope > 5))
-      ? 'MIXED'
-      : leakSuspect
-        ? 'NATIVE_HEAP'
-        : 'HEALTHY';
+    : !leakSuspect
+      ? 'HEALTHY'
+      : nativeGrowth && javaGrowth
+        ? 'MIXED'
+        : resourceGrowthWithMemory
+          ? 'MIXED'
+          : nativeGrowth
+            ? 'NATIVE_HEAP'
+            : javaGrowth
+              ? 'JAVA_HEAP'
+              : 'INCONCLUSIVE';
 
   return {
     schemaVersion: 1,
@@ -101,6 +127,7 @@ export function aggregateLifecycleStress({ scenario = 'unknown', warmupCycles = 
     memory,
     trend,
     resources,
+    counters,
     pidSequence,
     pidStable,
     leakSuspect,

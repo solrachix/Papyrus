@@ -146,6 +146,26 @@ capture_checkpoint() {
   else
     : > "$dir/app-logcat.txt"
   fi
+  local lifecycle_counters='null'
+  if [[ "$perf" == '1' && "$pid" =~ ^[0-9]+$ ]]; then
+    lifecycle_counters="$(node --input-type=module -e '
+      import fs from "node:fs";
+      const text = fs.readFileSync(process.argv[1], "utf8");
+      const keys = ["engineStates", "loadedDocuments", "renderCacheBytes", "renderCacheEntries", "activeBitmapRefs", "cachedBitmapCount", "activeRenderRequests", "activePageViews", "webViewCount", "pendingBridgeRequests"];
+      for (const line of text.split(/\r?\n/).reverse()) {
+        const marker = line.indexOf("[Papyrus Perf] ");
+        if (marker < 0) continue;
+        try {
+          const event = JSON.parse(line.slice(marker + "[Papyrus Perf] ".length));
+          if (event.name !== "lifecycle.counters") continue;
+          const counters = Object.fromEntries(keys.filter((key) => Number.isFinite(Number(event[key]))).map((key) => [key, Number(event[key])]));
+          process.stdout.write(JSON.stringify(counters));
+          break;
+        } catch {}
+      }
+    ' "$dir/app-logcat.txt")"
+    [[ -z "$lifecycle_counters" ]] && lifecycle_counters='null'
+  fi
   rg 'papyrus|Papyrus|render\.|engine\.|surface\.' "$dir/app-logcat.txt" > "$dir/events.txt" 2>/dev/null || true
   if [[ "$cycle" == '0' && "$pid" =~ ^[0-9]+$ ]]; then
     initial_pid="$pid"
@@ -154,7 +174,7 @@ capture_checkpoint() {
   fi
 
   cat >> "$output_dir/checkpoints.ndjson" <<EOF
-{"cycle":$cycle,"label":"$label","totalPssKb":$(json_number_or_null "$total_pss"),"nativeHeapKb":$(json_number_or_null "$native_heap"),"javaHeapKb":$(json_number_or_null "$java_heap"),"graphicsKb":$(json_number_or_null "$graphics"),"resources":{"attachedViews":$(json_number_or_null "$attached_views"),"activities":$(json_number_or_null "$activities"),"webViews":$(json_number_or_null "$web_views")},"pid":$(if [[ "$pid" =~ ^[0-9]+$ ]]; then printf '%s' "$pid"; else printf 'null'; fi)}
+{"cycle":$cycle,"label":"$label","totalPssKb":$(json_number_or_null "$total_pss"),"nativeHeapKb":$(json_number_or_null "$native_heap"),"javaHeapKb":$(json_number_or_null "$java_heap"),"graphicsKb":$(json_number_or_null "$graphics"),"resources":{"attachedViews":$(json_number_or_null "$attached_views"),"activities":$(json_number_or_null "$activities"),"webViews":$(json_number_or_null "$web_views")},"counters":$lifecycle_counters,"pid":$(if [[ "$pid" =~ ^[0-9]+$ ]]; then printf '%s' "$pid"; else printf 'null'; fi)}
 EOF
 }
 
@@ -230,7 +250,7 @@ checkpoint_if_needed() {
 
 initial_fixture="$fixture"
 case "$scenario" in
-  large-reopen|background-render|switch-during-render|reverse-navigation) initial_fixture='large-1000' ;;
+  large-reopen|background-render|switch-during-render|switch-during-render-return-pdf|text-steady-state|reverse-navigation) initial_fixture='large-1000' ;;
   long) initial_fixture='large-100' ;;
 esac
 start_pdf "$initial_fixture"
@@ -267,6 +287,16 @@ for cycle in $(seq 1 "$cycles"); do
       open_fixture_warm_unwaited large-1000
       sleep 1
       tap_format text
+      ;;
+    switch-during-render-return-pdf)
+      open_fixture_warm_unwaited large-1000
+      sleep 1
+      tap_format text
+      open_fixture_warm small
+      ;;
+    text-steady-state)
+      tap_format text
+      sleep 5
       ;;
     reverse-navigation)
       scroll_short

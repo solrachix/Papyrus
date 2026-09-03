@@ -98,6 +98,9 @@ const App: React.FC = () => {
         if (INITIAL_SDK_CONFIG.initialZoom) engine.setZoom(INITIAL_SDK_CONFIG.initialZoom);
         const outline = await engine.getOutline();
         if (!loadCoordinatorRef.current.isCurrent(load)) return;
+        if (loadSession.enabled) {
+          loadSession.emit('lifecycle.counters', engine.getLifecycleStats());
+        }
         loadCoordinatorRef.current.finish(load, 'complete');
         setLoadError(null);
         setDocumentState({ isLoaded: true, pageCount, outline });

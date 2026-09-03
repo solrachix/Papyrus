@@ -4,6 +4,7 @@ import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertTrue;
 
 import java.lang.reflect.Field;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.Test;
 
@@ -57,6 +58,10 @@ public class PapyrusPageViewTest {
   @Test
   public void disposingPageViewClearsSurfaceAndInvalidatesPendingRender() throws Exception {
     PapyrusPageView view = new PapyrusPageView(null);
+    Field activeViewsField = PapyrusPageView.class.getDeclaredField("ACTIVE_PAGE_VIEWS");
+    activeViewsField.setAccessible(true);
+    AtomicInteger activeViews = (AtomicInteger) activeViewsField.get(null);
+    int activeViewsBeforeDispose = activeViews.get();
     Field generationField = PapyrusPageView.class.getDeclaredField("renderGeneration");
     generationField.setAccessible(true);
     generationField.setInt(view, 7);
@@ -67,5 +72,9 @@ public class PapyrusPageViewTest {
     bitmapField.setAccessible(true);
     assertTrue(bitmapField.get(view) == null);
     assertTrue(generationField.getInt(view) == 8);
+    assertTrue(activeViews.get() == activeViewsBeforeDispose - 1);
+
+    view.dispose();
+    assertTrue(activeViews.get() == activeViewsBeforeDispose - 1);
   }
 }
