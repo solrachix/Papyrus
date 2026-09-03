@@ -28,21 +28,21 @@ describe('fixture bootstrap', () => {
     }));
   });
 
-  it('ignores warm URLs without reloading and emits the explicit event', async () => {
-    const engine = { load: vi.fn(), getPageCount: vi.fn() };
+  it('loads warm URLs in the existing process', async () => {
+    const engine = { load: vi.fn().mockResolvedValue(undefined), getPageCount: vi.fn().mockReturnValue(100) };
     const emit = vi.fn();
     const result = await bootstrapFixtureLaunch({
       url: 'exp+papyrus-sdk://reader?fixture=large-100',
       warm: true,
       engine,
-      registry: {},
-      manifest: {},
+      registry: { 'large-100': { uri: 'asset://large-100' } },
+      manifest: { 'large-100': { sha256: 'hash-100', byteLength: 123, pageCount: 100 } },
       resolveAsset: (asset) => asset,
       emit,
     });
-    expect(result).toMatchObject({ ignored: true });
-    expect(engine.load).not.toHaveBeenCalled();
-    expect(emit).toHaveBeenCalledWith('fixture.url_ignored', expect.any(Object));
+    expect(result).toMatchObject({ ignored: false, resolved: { fixture: 'large-100' } });
+    expect(engine.load).toHaveBeenCalledWith({ uri: 'asset://large-100' });
+    expect(emit.mock.calls.map(([name]) => name)).toEqual(['fixture.requested', 'fixture.loaded']);
   });
 
   it('keeps the requested fixture metadata on both sides of the load boundary', async () => {

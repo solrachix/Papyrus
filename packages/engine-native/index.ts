@@ -200,6 +200,7 @@ type NativeEngineModule = {
     source: NativeDocumentSource
   ) => Promise<{ pageCount?: number } | void>;
   getPageCount?: (engineId: string) => number;
+  getLifecycleStats?: () => Record<string, number>;
   renderPage?: (
     engineId: string,
     pageIndex: number,
@@ -377,6 +378,10 @@ export class NativeDocumentEngine extends BaseDocumentEngine {
 
   getPageCount(): number {
     return this.pageCount;
+  }
+
+  getLifecycleStats(): Record<string, number> {
+    return this.nativeModule?.getLifecycleStats?.() ?? {};
   }
 
   getCurrentPage(): number {
@@ -695,6 +700,13 @@ export class WebViewDocumentEngine extends BaseDocumentEngine {
 
   getRenderTargetType(): "webview" {
     return "webview";
+  }
+
+  getLifecycleStats(): Record<string, number> {
+    return {
+      webViewCount: this.bridge ? 1 : 0,
+      pendingBridgeRequests: this.pending.size,
+    };
   }
 
   attachBridge(bridge: WebViewBridge): void {
@@ -1274,6 +1286,13 @@ export class MobileDocumentEngine extends BaseDocumentEngine {
     return this.activeEngine === this.pdfEngine
       ? this.pdfEngine.getNativeEngineId()
       : null;
+  }
+
+  getLifecycleStats(): Record<string, number> {
+    return {
+      ...this.pdfEngine.getLifecycleStats(),
+      ...this.webEngine.getLifecycleStats(),
+    };
   }
 
   attachWebView(bridge: WebViewBridge): void {

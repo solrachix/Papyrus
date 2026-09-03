@@ -149,6 +149,17 @@ public class PapyrusNativeEngineModule extends ReactContextBaseJavaModule {
     return state.pdfium.getPageCount(state.document);
   }
 
+  @ReactMethod(isBlockingSynchronousMethod = true)
+  public WritableMap getLifecycleStats() {
+    WritableMap result = Arguments.createMap();
+    result.putInt("engineStates", PapyrusEngineStore.engineCount());
+    result.putInt("loadedDocuments", PapyrusEngineStore.loadedDocumentCount());
+    for (java.util.Map.Entry<String, Integer> entry : PapyrusPageView.lifecycleStats().entrySet()) {
+      result.putInt(entry.getKey(), entry.getValue());
+    }
+    return result;
+  }
+
   @ReactMethod
   public void renderPage(final String engineId, final int pageIndex, final int target, final float scale, final float zoom, final int rotation, final String requestId, final ReadableMap telemetryContext, final Promise promise) {
     final PapyrusEngineStore.EngineState state = PapyrusEngineStore.getEngine(engineId);

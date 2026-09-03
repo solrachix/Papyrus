@@ -15,10 +15,7 @@ type StartupArgs = {
 
 export async function bootstrapFixtureLaunch({ url, warm = false, engine, registry, manifest, resolveAsset, emit }: StartupArgs) {
   const parsed = parsePapyrusReaderUrl(url);
-  if (warm) {
-    emit('fixture.url_ignored', { reason: 'warm-start', url, perfEnabled: parsed.perfEnabled });
-    return { ignored: true, parsed };
-  }
+  void warm;
 
   if (!parsed.valid) {
     emit('fixture.invalid', { reason: parsed.reason ?? 'unsupported-url', url, perfEnabled: parsed.perfEnabled });

@@ -39,6 +39,18 @@ final class PapyrusEngineStore {
     return ENGINES.get(engineId);
   }
 
+  static int engineCount() {
+    return ENGINES.size();
+  }
+
+  static int loadedDocumentCount() {
+    int count = 0;
+    for (EngineState state : ENGINES.values()) {
+      if (state.document != null) count++;
+    }
+    return count;
+  }
+
   static void destroyEngine(String engineId) {
     EngineState state = ENGINES.remove(engineId);
     if (state == null) return;

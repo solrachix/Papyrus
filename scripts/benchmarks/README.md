@@ -146,6 +146,48 @@ são emitidos apenas quando `perf=1`; o caminho normal permanece sem tracing.
 Traces grandes ficam em `/tmp`, enquanto o relatório versiona somente os
 resumos e timestamps relevantes.
 
+## PR28: stress de memória e lifecycle no Android
+
+O runner de lifecycle é diagnóstico e não executa `System.gc()`, limpa cache
+manualmente nem altera o comportamento do viewer. Ele aceita somente o
+`emulator-5554`, faz um único cold start por cenário e usa deep links warm para
+as trocas seguintes. Assim, os ciclos de retenção permanecem no mesmo processo.
+Ele coleta checkpoints de PSS/heap, views, activities, WebViews, PID e logcat
+nos ciclos `0/1/5/10/20` (quando aplicável):
+
+```bash
+bash scripts/benchmarks/android-lifecycle-stress.sh \
+  --device emulator-5554 \
+  --scenario reopen-small \
+  --cycles 20 \
+  --package com.papyrus.sdk.mobileexpo \
+  --output-dir /tmp/papyrus-pr28-reopen-small \
+  --fixture small \
+  --perf 0
+```
+
+Os cenários disponíveis são `reopen-small`, `small-large`, `large-reopen`,
+`cross-format`, `background`, `background-render`, `switch-during-render`,
+`switch-during-render-return-pdf`, `text-steady-state`, `reverse-navigation`,
+`orientation` e `long`. Cada execução grava
+`checkpoints.ndjson`, dumps brutos por checkpoint, `failures.txt` e
+`aggregate.json`. O agregador aceita JSON array ou NDJSON, publica a
+`pidSequence` e invalida a classificação `HEALTHY` quando algum checkpoint não
+tem o mesmo PID inicial. Ele separa o aquecimento da tendência pós-aquecimento
+e só classifica suspeita de leak quando há evidência suficiente de crescimento
+de memória e/ou recursos. `force-stop` fica restrito ao cold start inicial;
+execuções anteriores que reiniciavam o processo a cada ciclo não são evidência
+de retenção.
+
+Com `--perf 1`, cada checkpoint também captura o último snapshot opt-in de
+ownership publicado pelo engine: engines/documentos, bytes/entradas do cache,
+referências de bitmaps, PageViews ativas, bitmaps cacheados, renders ativos,
+WebViews e requests pendentes do bridge. A ausência desses campos em `perf=0`
+é intencional.
+
+O protocolo completo e os resultados versionados ficam em
+[`docs/performance/pr-28-android-memory-lifecycle-stress.md`](../../docs/performance/pr-28-android-memory-lifecycle-stress.md).
+
 ## Fixtures reproduzíveis da PR 13
 
 O catálogo abaixo gera os seis cenários da rodada em um diretório temporário e
