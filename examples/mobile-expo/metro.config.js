@@ -9,11 +9,13 @@ const { assetExts } = config.resolver;
 
 config.resolver.assetExts = [...assetExts, 'pdf', 'epub', 'html'];
 
-// This workspace also contains an RN 0.81 example. Keep this Expo 52/RN 0.76
-// app pinned to its own dependency graph while still resolving workspace SDKs.
+// Expo 52 requires a small public surface for its config/preset packages. The
+// remaining dependencies stay isolated and are resolved through pnpm's virtual
+// store, which keeps the RN 0.76 example independent from the RN 0.81 example.
 config.resolver.nodeModulesPaths = [
   path.resolve(projectRoot, 'node_modules'),
   path.resolve(workspaceRoot, 'node_modules'),
+  path.resolve(workspaceRoot, 'node_modules/.pnpm/node_modules'),
 ];
 config.resolver.disableHierarchicalLookup = true;
 
