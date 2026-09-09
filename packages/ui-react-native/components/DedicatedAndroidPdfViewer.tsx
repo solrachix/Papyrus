@@ -7,6 +7,7 @@ import { PapyrusPdfDocumentView } from "@papyrus-sdk/engine-native";
 import { IconCopy, IconHighlight, IconUnderline, IconCommentBubble } from "../icons";
 import { copySelectionText } from "./clipboard";
 import { resolvePageTapChromeVisibility } from "./mobileChromeInteraction";
+import { shouldDismissSelectionOnContentInteraction } from "./selectionContentInteraction";
 
 const TEXT_MARKUP_TOOLS = new Set(["highlight", "underline", "squiggly", "strikeout"]);
 
@@ -240,6 +241,15 @@ export default function DedicatedAndroidPdfViewer({
           setSelectedAnnotation(event.nativeEvent.id);
         }}
         onTap={() => {
+          if (
+            shouldDismissSelectionOnContentInteraction({
+              selectionActive: selectionRef.current !== null,
+              interaction: "tap",
+            })
+          ) {
+            setSelection(null);
+            selectionRef.current = null;
+          }
           const nextVisible = resolvePageTapChromeVisibility({
             chromeVisible: chromeVisibleRef.current,
             selectionActive: selectionRef.current !== null,
@@ -268,18 +278,20 @@ export default function DedicatedAndroidPdfViewer({
           }
         }}
         onScroll={(event) => {
+          if (
+            shouldDismissSelectionOnContentInteraction({
+              selectionActive: selectionRef.current !== null,
+              interaction: "scroll",
+            })
+          ) {
+            setSelection(null);
+            selectionRef.current = null;
+          }
           trackMobileChromeByOffset(event.nativeEvent.offsetY, "native.scroll");
         }}
       />
       {selection && (
         <>
-          <Pressable
-            style={styles.overlay}
-            onPress={() => {
-              setSelection(null);
-              selectionRef.current = null;
-            }}
-          />
           <View style={styles.selectionToolbar} pointerEvents="box-none">
             <View style={styles.toolbarContent}>
               <Pressable
@@ -360,10 +372,6 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.1)",
     alignItems: "center",
     justifyContent: "center",
-  },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 40,
   },
   toolbarButtonText: {
     color: "#fff",
