@@ -44,8 +44,8 @@ const config = {
     nodeModulesPaths: [
       path.resolve(projectRoot, 'node_modules'),
       path.resolve(workspaceRoot, 'node_modules'),
+      path.resolve(workspaceRoot, 'node_modules/.pnpm/node_modules'),
     ],
-    disableHierarchicalLookup: true,
   },
 };
 

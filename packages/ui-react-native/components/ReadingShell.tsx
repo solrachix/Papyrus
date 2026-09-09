@@ -151,6 +151,7 @@ export function ReadingShell({
       </View>
       <ProgressPill
         documentType={documentType}
+        onNavigateToPage={navigateToPage}
         onPress={() =>
           openDestination(
             documentType === "pdf"
