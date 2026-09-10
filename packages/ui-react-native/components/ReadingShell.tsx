@@ -55,6 +55,7 @@ export function ReadingShell({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchResultsOpen, setSearchResultsOpen] = useState(false);
   const [pageJumpOpen, setPageJumpOpen] = useState(false);
+  const [pageScrubActive, setPageScrubActive] = useState(false);
   const isDark = uiTheme === "dark";
 
   React.useEffect(() => {
@@ -147,7 +148,11 @@ export function ReadingShell({
         showPageNavigationControls={false}
       />
       <View style={styles.viewerStage}>
-        <Viewer engine={engine} {...viewerProps} />
+        <Viewer
+          engine={engine}
+          {...viewerProps}
+          pageScrubActive={pageScrubActive}
+        />
       </View>
       <ProgressPill
         documentType={documentType}
@@ -162,6 +167,7 @@ export function ReadingShell({
           )
         }
         onOpenPageJump={() => setPageJumpOpen(true)}
+        onScrubbingChange={setPageScrubActive}
       />
       <BottomBar
         documentType={documentType}

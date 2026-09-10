@@ -1,7 +1,7 @@
-import React, { useMemo, useRef } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
+  Animated,
   PanResponder,
-  Pressable,
   StyleSheet,
   Text,
   View,
@@ -10,16 +10,24 @@ import {
 import { useViewerStore } from "@papyrus-sdk/core";
 import { DocumentType } from "@papyrus-sdk/types";
 import { IconPageNav } from "../icons";
-import { getProgressPillInteraction } from "./progressPillInteraction";
 import { resolveMobileChromeOffsets } from "./mobileChromeMetrics";
 import { usePapyrusSafeAreaInsets } from "./PapyrusSafeArea";
-import { resolvePageScrubberPage } from "./pageScrubberModel";
+import {
+  createPageScrubberNavigationController,
+  resolvePageScrubberPage,
+  resolvePageScrubberReleaseAction,
+  resolvePageScrubberTouchPolicy,
+  resolvePageScrubberThumbTop,
+  resolvePageScrubberThumbTopFromPosition,
+  shouldRenderPageScrubber,
+} from "./pageScrubberModel";
 
 type ProgressPillProps = {
   documentType: DocumentType;
   onPress: () => void;
   onOpenPageJump?: () => void;
   onNavigateToPage?: (page: number) => void;
+  onScrubbingChange?: (active: boolean) => void;
 };
 
 const clampPercent = (value: number) =>
@@ -30,6 +38,7 @@ export function ProgressPill({
   onPress,
   onOpenPageJump,
   onNavigateToPage,
+  onScrubbingChange,
 }: ProgressPillProps) {
   const {
     currentPage,
@@ -49,60 +58,205 @@ export function ProgressPill({
   const thumbHeight = 44;
   const trackYRef = useRef(0);
   const scrubberRef = useRef<View>(null);
-  const lastScrubbedPageRef = useRef<number | null>(null);
+  const currentPageRef = useRef(currentPage);
+  currentPageRef.current = currentPage;
+  const isScrubbingRef = useRef(false);
+  const hasMovedRef = useRef(false);
+  const longPressTriggeredRef = useRef(false);
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingReleasedScrubPageRef = useRef<number | null>(null);
+  const [scrubPreviewPage, setScrubPreviewPage] = useState<number | null>(null);
+  const onNavigateToPageRef = useRef(onNavigateToPage);
+  const onPressRef = useRef(onPress);
+  const onOpenPageJumpRef = useRef(onOpenPageJump);
+  const onScrubbingChangeRef = useRef(onScrubbingChange);
+  onScrubbingChangeRef.current = onScrubbingChange;
+  const scrubToPositionRef = useRef<(position: number) => void>(() => {});
+  const scrubNavigationControllerRef = useRef(
+    createPageScrubberNavigationController((page) => {
+      onNavigateToPageRef.current?.(page);
+    }),
+  );
+  const scrubberResponderRef = useRef<ReturnType<typeof PanResponder.create> | null>(null);
+  const touchPolicy = resolvePageScrubberTouchPolicy();
 
+  const displayedPage = scrubPreviewPage ?? currentPage;
   const label = useMemo(() => {
     const total = Math.max(pageCount, 1);
-    const percent = clampPercent((currentPage / total) * 100);
+    const percent = clampPercent((displayedPage / total) * 100);
 
     if (documentType === "pdf") {
-      return `${currentPage}/${pageCount || 0}`;
+      return `${displayedPage}/${pageCount || 0}`;
     }
 
     if (documentType === "epub") {
-      return `Cap. ${currentPage} · ${percent}%`;
+      return `Cap. ${displayedPage} · ${percent}%`;
     }
 
     return `${percent}%`;
-  }, [currentPage, documentType, pageCount]);
+  }, [displayedPage, documentType, pageCount]);
 
-  if (!mobileChromeVisible || !mobileProgressPillVisible) return null;
+  const thumbTop = resolvePageScrubberThumbTop({
+    currentPage,
+    trackHeight,
+    thumbHeight,
+    pageCount,
+  });
+  const thumbTopRef = useRef(new Animated.Value(thumbTop));
+  const thumbTopSnapshotRef = useRef(thumbTop);
+  thumbTopSnapshotRef.current = thumbTop;
+  const scrubberMetricsRef = useRef({ trackHeight, thumbHeight, pageCount });
+  scrubberMetricsRef.current = { trackHeight, thumbHeight, pageCount };
+
+  useEffect(() => {
+    onNavigateToPageRef.current = onNavigateToPage;
+  }, [onNavigateToPage]);
+
+  useEffect(() => {
+    onPressRef.current = onPress;
+    onOpenPageJumpRef.current = onOpenPageJump;
+  }, [onOpenPageJump, onPress]);
+
+  useEffect(() => {
+    const pendingPage = pendingReleasedScrubPageRef.current;
+    if (pendingPage !== null && currentPage === pendingPage) {
+      pendingReleasedScrubPageRef.current = null;
+      setScrubPreviewPage(null);
+    }
+  }, [currentPage]);
+
+  useEffect(() => {
+    if (!isScrubbingRef.current) {
+      thumbTopRef.current.setValue(thumbTop);
+    }
+  }, [thumbTop, thumbTopRef]);
+
+  useEffect(
+    () => () => {
+      if (longPressTimerRef.current !== null) {
+        clearTimeout(longPressTimerRef.current);
+      }
+    },
+    [],
+  );
+
+  if (
+    !shouldRenderPageScrubber({
+      mobileChromeVisible,
+      mobileProgressPillVisible,
+      isScrubbing: isScrubbingRef.current,
+    })
+  ) {
+    return null;
+  }
 
   const scrubToPosition = (position: number) => {
+    const { trackHeight, thumbHeight, pageCount } = scrubberMetricsRef.current;
+    const visualPosition = resolvePageScrubberThumbTopFromPosition({
+      position,
+      trackHeight,
+      thumbHeight,
+    });
+    thumbTopRef.current.setValue(visualPosition);
     const nextPage = resolvePageScrubberPage({
       position,
       trackHeight,
       thumbHeight,
       pageCount,
     });
-    if (nextPage === null || nextPage === lastScrubbedPageRef.current) return;
-    lastScrubbedPageRef.current = nextPage;
-    onNavigateToPage?.(nextPage);
+    if (nextPage === null) return;
+    scrubNavigationControllerRef.current.update(nextPage);
+    setScrubPreviewPage(nextPage);
   };
 
-  const scrubberResponder = PanResponder.create({
-    onStartShouldSetPanResponder: () => false,
-    onMoveShouldSetPanResponder: (_, gestureState) =>
-      Math.abs(gestureState.dy) > 4,
-    onPanResponderGrant: (_, gestureState) => {
-      scrubToPosition(gestureState.y0 - trackYRef.current);
-    },
-    onPanResponderMove: (_, gestureState) => {
-      scrubToPosition(gestureState.moveY - trackYRef.current);
-    },
-    onPanResponderRelease: () => {
-      lastScrubbedPageRef.current = null;
-    },
-    onPanResponderTerminate: () => {
-      lastScrubbedPageRef.current = null;
-    },
-  });
+  scrubToPositionRef.current = scrubToPosition;
 
-  const progressRatio =
-    pageCount <= 1
-      ? 0
-      : Math.max(0, Math.min(1, (currentPage - 1) / (pageCount - 1)));
-  const thumbTop = progressRatio * (trackHeight - thumbHeight);
+  if (scrubberResponderRef.current === null) {
+    scrubberResponderRef.current = PanResponder.create({
+      onStartShouldSetPanResponder: () => touchPolicy.claimOnStart,
+      onStartShouldSetPanResponderCapture: () => touchPolicy.captureOnStart,
+      onMoveShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponderCapture: () => touchPolicy.captureOnMove,
+      onPanResponderTerminationRequest: () => false,
+      onPanResponderGrant: () => {
+        isScrubbingRef.current = true;
+        onScrubbingChangeRef.current?.(true);
+        hasMovedRef.current = false;
+        longPressTriggeredRef.current = false;
+        scrubNavigationControllerRef.current.begin();
+        pendingReleasedScrubPageRef.current = null;
+        setScrubPreviewPage(currentPageRef.current);
+        if (longPressTimerRef.current !== null) {
+          clearTimeout(longPressTimerRef.current);
+        }
+        longPressTimerRef.current = onOpenPageJumpRef.current
+          ? setTimeout(() => {
+              longPressTimerRef.current = null;
+              if (!hasMovedRef.current) {
+                longPressTriggeredRef.current = true;
+                onOpenPageJumpRef.current?.();
+              }
+            }, 500)
+          : null;
+      },
+      onPanResponderMove: (_, gestureState) => {
+        if (Math.abs(gestureState.dy) <= 4) return;
+        hasMovedRef.current = true;
+        if (longPressTimerRef.current !== null) {
+          clearTimeout(longPressTimerRef.current);
+          longPressTimerRef.current = null;
+        }
+        scrubToPositionRef.current(gestureState.moveY - trackYRef.current);
+      },
+      onPanResponderRelease: () => {
+        if (longPressTimerRef.current !== null) {
+          clearTimeout(longPressTimerRef.current);
+          longPressTimerRef.current = null;
+        }
+        isScrubbingRef.current = false;
+        onScrubbingChangeRef.current?.(false);
+        const releasedPage = scrubNavigationControllerRef.current.release();
+        const releaseAction = resolvePageScrubberReleaseAction({
+          hasMoved: hasMovedRef.current,
+          pendingPage: releasedPage,
+        });
+        if (releaseAction.kind === "navigate") {
+          pendingReleasedScrubPageRef.current = releaseAction.page;
+          if (!onNavigateToPageRef.current) {
+            setScrubPreviewPage(null);
+          }
+        } else {
+          scrubNavigationControllerRef.current.cancel();
+          pendingReleasedScrubPageRef.current = null;
+          setScrubPreviewPage(null);
+          if (!longPressTriggeredRef.current) onPressRef.current();
+        }
+        hasMovedRef.current = false;
+        longPressTriggeredRef.current = false;
+      },
+      onPanResponderTerminate: () => {
+        if (longPressTimerRef.current !== null) {
+          clearTimeout(longPressTimerRef.current);
+          longPressTimerRef.current = null;
+        }
+        isScrubbingRef.current = false;
+        onScrubbingChangeRef.current?.(false);
+        scrubNavigationControllerRef.current.cancel();
+        pendingReleasedScrubPageRef.current = null;
+        setScrubPreviewPage(null);
+        hasMovedRef.current = false;
+        longPressTriggeredRef.current = false;
+        thumbTopRef.current.setValue(thumbTopSnapshotRef.current);
+      },
+    });
+  }
+
+  const responderPanHandlers = scrubberResponderRef.current?.panHandlers ?? {};
+  const responderTarget: "track" | "pill" = touchPolicy.responderTarget;
+  const scrubberPanHandlers =
+    responderTarget === "track" ? responderPanHandlers : {};
+  const pillPanHandlers =
+    responderTarget === "pill" ? responderPanHandlers : {};
 
   return (
     <View
@@ -118,7 +272,7 @@ export function ProgressPill({
       <View
         ref={scrubberRef}
         style={[styles.scrubber, { height: trackHeight }]}
-        {...scrubberResponder.panHandlers}
+        {...scrubberPanHandlers}
         onLayout={() => {
           scrubberRef.current?.measureInWindow((_x, y) => {
             trackYRef.current = y;
@@ -126,14 +280,14 @@ export function ProgressPill({
         }}
       >
         <View style={[styles.track, isDark && styles.trackDark]} />
-        <View style={[styles.thumb, { top: thumbTop }]}>
-          <Pressable
-            {...getProgressPillInteraction(onPress, onOpenPageJump)}
+        <Animated.View style={[styles.thumb, { top: thumbTopRef.current }]}>
+          <View
             style={[
               styles.pill,
               isDark && styles.pillDark,
               { borderColor: `${accentColor}33` },
             ]}
+            {...pillPanHandlers}
             testID="papyrus-progress-pill"
           >
             <View style={styles.labelHit}>
@@ -148,8 +302,8 @@ export function ProgressPill({
                 strokeWidth={1.8}
               />
             </View>
-          </Pressable>
-        </View>
+          </View>
+        </Animated.View>
       </View>
     </View>
   );
