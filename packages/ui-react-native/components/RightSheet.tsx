@@ -36,6 +36,7 @@ import {
   getAnnotationKindLabel,
   getReaderSheetPalette,
 } from "./readerSheetPresentation";
+import { shouldRemoveThumbnailClipping } from "./thumbnailClipping";
 
 export interface RightSheetProps {
   engine: DocumentEngine;
@@ -654,7 +655,9 @@ const RightSheet: React.FC<RightSheetProps> = ({
                 updateCellsBatchingPeriod={
                   THUMBNAILS_UPDATE_CELLS_BATCHING_PERIOD
                 }
-                removeClippedSubviews
+                removeClippedSubviews={shouldRemoveThumbnailClipping({
+                  useNativePreview,
+                })}
                 viewabilityConfig={{ itemVisiblePercentThreshold: 20 }}
                 onViewableItemsChanged={onThumbnailsViewableItemsChanged}
                 renderItem={renderThumbnailItem}
