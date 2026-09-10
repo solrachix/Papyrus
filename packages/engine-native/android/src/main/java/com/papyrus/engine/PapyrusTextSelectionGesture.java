@@ -8,6 +8,10 @@ final class PapyrusTextSelectionGesture {
     return isDoubleTap;
   }
 
+  static boolean shouldEmitPageTap(boolean isDoubleTap) {
+    return !isDoubleTap;
+  }
+
   static boolean shouldContinueAfterSelectionTouch(boolean hitHandle) {
     return !hitHandle;
   }

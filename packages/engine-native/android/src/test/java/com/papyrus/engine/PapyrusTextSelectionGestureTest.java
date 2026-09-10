@@ -13,6 +13,12 @@ public class PapyrusTextSelectionGestureTest {
   }
 
   @Test
+  public void confirmedSingleTapEmitsPageTapButDoubleTapDoesNot() {
+    assertTrue(PapyrusTextSelectionGesture.shouldEmitPageTap(false));
+    assertFalse(PapyrusTextSelectionGesture.shouldEmitPageTap(true));
+  }
+
+  @Test
   public void doubleTapActivatesTextSelection() {
     assertTrue(PapyrusTextSelectionGesture.shouldActivate(true));
   }

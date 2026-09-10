@@ -708,7 +708,38 @@ public class PapyrusPdfViewerView extends View {
           pendingSingleTap = null;
         }
 
-        if (PapyrusTextSelectionGesture.shouldActivate(isDoubleTap)) {
+        if (PapyrusTextSelectionGesture.shouldEmitPageTap(isDoubleTap)) {
+          lastTapTime = now;
+          lastTapX = event.getX();
+          lastTapY = event.getY();
+          final float tapX = event.getX();
+          final float tapY = event.getY();
+          pendingSingleTap = () -> {
+            pendingSingleTap = null;
+            if (isSelectingText) {
+              isSelectingText = false;
+              selectPageIndex = -1;
+              selectedRects.clear();
+              selectedText = "";
+              invalidate();
+            }
+            ensureLayout();
+            float docX = tapX + offsetX;
+            float docY = tapY + offsetY;
+            int pageIdx = findPageIndexAt(docX, docY);
+            if (pageIdx < 0) return;
+            PageFrame frame = pageFrames.get(pageIdx);
+            float nx = (docX - frame.left) / frame.width;
+            float ny = (docY - frame.top) / frame.height;
+            Annotation hit = findAnnotationAt(pageIdx, nx, ny);
+            if (hit != null) {
+              emitAnnotationTap(hit);
+            } else {
+              emitTap(pageIdx, clamp01(nx), clamp01(ny));
+            }
+          };
+          mainHandler.postDelayed(pendingSingleTap, DOUBLE_TAP_MAX_DELTA_MS + 50);
+        } else {
           lastTapTime = 0;
           ensureLayout();
           float docX = event.getX() + offsetX;
@@ -726,21 +757,6 @@ public class PapyrusPdfViewerView extends View {
             selectEndY = ny;
             performTextSelection();
           }
-        } else {
-          lastTapTime = now;
-          lastTapX = event.getX();
-          lastTapY = event.getY();
-          pendingSingleTap = () -> {
-            pendingSingleTap = null;
-            if (isSelectingText) {
-              isSelectingText = false;
-              selectPageIndex = -1;
-              selectedRects.clear();
-              selectedText = "";
-              invalidate();
-            }
-          };
-          mainHandler.postDelayed(pendingSingleTap, DOUBLE_TAP_MAX_DELTA_MS + 50);
         }
         return true;
       default:
