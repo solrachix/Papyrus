@@ -45,6 +45,7 @@ import {
   getSelectionEdgeAutoscroll,
   shouldEnableViewerScroll,
 } from "../gesture/selectionInteraction";
+import { shouldEnableViewerScrollForPageScrub } from "./pageScrubberModel";
 import {
   DEFAULT_PINCH_ZOOM_BOUNDS,
   resolvePinchGestureZoom,
@@ -72,6 +73,7 @@ export interface ViewerProps {
   removeClippedSubviews?: boolean;
   useDedicatedAndroidPdfViewer?: boolean;
   viewerMode?: PdfViewerMode;
+  pageScrubActive?: boolean;
 }
 
 const LIST_TOP_PADDING = 18;
@@ -125,6 +127,7 @@ const Viewer: React.FC<ViewerProps> = ({
   removeClippedSubviews,
   useDedicatedAndroidPdfViewer,
   viewerMode,
+  pageScrubActive = false,
 }) => {
   const pageCount = useViewerStore((state) => state.pageCount);
   const currentPage = useViewerStore((state) => state.currentPage);
@@ -193,6 +196,8 @@ const Viewer: React.FC<ViewerProps> = ({
   const selectionDragActiveRef = useRef(false);
   const [gestureScrollLockActive, setGestureScrollLockActive] = useState(false);
   const gestureScrollLockActiveRef = useRef(false);
+  const pageScrubActiveRef = useRef(pageScrubActive);
+  pageScrubActiveRef.current = pageScrubActive;
   const pinchPreviewScale = useRef(new Animated.Value(1)).current;
   const pinchPreviewFocalX = useRef(new Animated.Value(0)).current;
   const pinchPreviewFocalY = useRef(new Animated.Value(0)).current;
@@ -804,6 +809,11 @@ const Viewer: React.FC<ViewerProps> = ({
     selectionDragActive,
     gestureScrollLockActive,
   });
+  const pageScrubResolvedScrollEnabled =
+    shouldEnableViewerScrollForPageScrub({
+      viewerScrollEnabled: resolvedViewerScrollEnabled,
+      isScrubbing: pageScrubActive,
+    });
 
   const setViewerScrollEnabledNative = useCallback((enabled: boolean) => {
     const scrollNode = listRef.current as unknown as {
@@ -815,12 +825,14 @@ const Viewer: React.FC<ViewerProps> = ({
   const syncViewerScrollEnabled = useCallback(
     (
       nextSelectionDragActive = selectionDragActiveRef.current,
-      nextGestureScrollLockActive = gestureScrollLockActiveRef.current
+      nextGestureScrollLockActive = gestureScrollLockActiveRef.current,
+      nextPageScrubActive = pageScrubActiveRef.current,
     ) => {
       setViewerScrollEnabledNative(
         shouldEnableViewerScroll({
           selectionDragActive: nextSelectionDragActive,
-          gestureScrollLockActive: nextGestureScrollLockActive,
+          gestureScrollLockActive:
+            nextGestureScrollLockActive || nextPageScrubActive,
         })
       );
     },
@@ -1103,6 +1115,14 @@ const Viewer: React.FC<ViewerProps> = ({
       gestureScrollLockActiveRef.current
     );
   }, [selectionDragActive, syncViewerScrollEnabled]);
+
+  useEffect(() => {
+    syncViewerScrollEnabled(
+      selectionDragActiveRef.current,
+      gestureScrollLockActiveRef.current,
+      pageScrubActive,
+    );
+  }, [pageScrubActive, syncViewerScrollEnabled]);
 
   useEffect(() => {
     const pendingRestore = pendingPinchAnchorRestoreRef.current;
@@ -1679,7 +1699,9 @@ const Viewer: React.FC<ViewerProps> = ({
               ref={horizontalScrollRef}
               horizontal
               scrollEnabled={
-                !gestureScrollLockActive && documentSurfaceWidth > windowWidth
+                !gestureScrollLockActive &&
+                !pageScrubActive &&
+                documentSurfaceWidth > windowWidth
               }
               showsHorizontalScrollIndicator={false}
               onScroll={(event) => {
@@ -1696,7 +1718,7 @@ const Viewer: React.FC<ViewerProps> = ({
                 style={{ width: documentSurfaceWidth }}
                 contentContainerStyle={styles.singleContent}
                 showsVerticalScrollIndicator={false}
-                scrollEnabled={resolvedViewerScrollEnabled}
+                scrollEnabled={pageScrubResolvedScrollEnabled}
                 onLayout={() =>
                   captureViewerFrame(listRef.current as unknown as ScrollView)
                 }
@@ -1784,7 +1806,9 @@ const Viewer: React.FC<ViewerProps> = ({
             ref={horizontalScrollRef}
             horizontal
             scrollEnabled={
-              !gestureScrollLockActive && documentSurfaceWidth > windowWidth
+              !gestureScrollLockActive &&
+              !pageScrubActive &&
+              documentSurfaceWidth > windowWidth
             }
             showsHorizontalScrollIndicator={false}
             onScroll={(event) => {
@@ -1808,7 +1832,7 @@ const Viewer: React.FC<ViewerProps> = ({
               renderItem={renderItem}
               onViewableItemsChanged={onViewableItemsChanged}
               viewabilityConfig={{ itemVisiblePercentThreshold: 60 }}
-              scrollEnabled={resolvedViewerScrollEnabled}
+              scrollEnabled={pageScrubResolvedScrollEnabled}
               onLayout={() => captureViewerFrame(listRef.current)}
               onContentSizeChange={(_, height) => {
                 viewerContentHeightRef.current = height;
