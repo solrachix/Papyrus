@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-09-11
+
+### Changed
+
+- O trilho do scrubber agora aparece apenas durante o arraste, revelando com animação a partir do pill.
+- O trilho termina mais próximo da barra inferior em telas altas, sem colidir com os controles.
+- O arraste do scrubber permanece funcional quando a medição de janela retorna coordenadas inválidas (fallback pelo delta do gesto).
+
+### Published packages
+
+| Package | Version |
+| --- | --- |
+| `@papyrus-sdk/ui-react-native` | `0.2.31` |
+
 ## 2026-09-10
 
 ### Changed

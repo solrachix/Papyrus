@@ -119,6 +119,32 @@ export const resolvePageScrubberThumbTopFromPosition = ({
 }: PageScrubberThumbPositionInput): number =>
   Math.max(0, Math.min(trackHeight - thumbHeight, position - thumbHeight / 2));
 
+type PageScrubberTrackRevealOriginInput = {
+  thumbTop: number;
+  thumbHeight: number;
+  trackHeight: number;
+};
+
+export const resolvePageScrubberTrackRevealOrigin = ({
+  thumbTop,
+  thumbHeight,
+  trackHeight,
+}: PageScrubberTrackRevealOriginInput): number =>
+  Math.max(0, Math.min(trackHeight, thumbTop + thumbHeight / 2));
+
+type PageScrubberTrackHeightInput = {
+  windowHeight: number;
+  topOffset: number;
+  bottomOffset: number;
+};
+
+export const resolvePageScrubberTrackHeight = ({
+  windowHeight,
+  topOffset,
+  bottomOffset,
+}: PageScrubberTrackHeightInput): number =>
+  Math.max(180, Math.min(720, windowHeight - topOffset - bottomOffset - 56));
+
 export const resolvePageScrubberThumbTop = ({
   currentPage,
   trackHeight,

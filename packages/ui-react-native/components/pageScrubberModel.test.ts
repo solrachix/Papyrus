@@ -11,6 +11,8 @@ import {
   resolvePageScrubberTouchPolicy,
   resolvePageScrubberOverlayStyle,
   resolvePageScrubberPointerEvents,
+  resolvePageScrubberTrackHeight,
+  resolvePageScrubberTrackRevealOrigin,
   shouldEnableViewerScrollForPageScrub,
   shouldRenderPageScrubber,
 } from "./pageScrubberModel";
@@ -38,6 +40,18 @@ describe("resolvePageScrubberPage", () => {
     expect(
       resolvePageScrubberPage({ position: 100, trackHeight: 300, thumbHeight: 44, pageCount: 0 })
     ).toBeNull();
+  });
+
+  it("maps proportionally for very large documents", () => {
+    expect(
+      resolvePageScrubberPage({ position: 22, trackHeight: 300, thumbHeight: 44, pageCount: 1200 })
+    ).toBe(1);
+    expect(
+      resolvePageScrubberPage({ position: 150, trackHeight: 300, thumbHeight: 44, pageCount: 1200 })
+    ).toBe(601);
+    expect(
+      resolvePageScrubberPage({ position: 278, trackHeight: 300, thumbHeight: 44, pageCount: 1200 })
+    ).toBe(1200);
   });
 });
 
@@ -103,6 +117,67 @@ describe("resolvePageScrubberGesturePosition", () => {
         startThumbTop: 256,
       }),
     ).toBe(22);
+  });
+});
+
+describe("resolvePageScrubberTrackHeight", () => {
+  it("uses the available height on tall screens instead of a short fixed cap", () => {
+    expect(
+      resolvePageScrubberTrackHeight({
+        windowHeight: 872,
+        topOffset: 102,
+        bottomOffset: 38,
+      }),
+    ).toBe(676);
+  });
+
+  it("keeps a minimum track on short screens", () => {
+    expect(
+      resolvePageScrubberTrackHeight({
+        windowHeight: 360,
+        topOffset: 102,
+        bottomOffset: 38,
+      }),
+    ).toBe(180);
+  });
+
+  it("caps the track on very tall screens", () => {
+    expect(
+      resolvePageScrubberTrackHeight({
+        windowHeight: 1400,
+        topOffset: 100,
+        bottomOffset: 40,
+      }),
+    ).toBe(720);
+  });
+});
+
+describe("resolvePageScrubberTrackRevealOrigin", () => {
+  it("grows the track from the middle of the thumb", () => {
+    expect(
+      resolvePageScrubberTrackRevealOrigin({
+        thumbTop: 100,
+        thumbHeight: 44,
+        trackHeight: 300,
+      }),
+    ).toBe(122);
+  });
+
+  it("clamps the origin to the track bounds", () => {
+    expect(
+      resolvePageScrubberTrackRevealOrigin({
+        thumbTop: -60,
+        thumbHeight: 44,
+        trackHeight: 300,
+      }),
+    ).toBe(0);
+    expect(
+      resolvePageScrubberTrackRevealOrigin({
+        thumbTop: 400,
+        thumbHeight: 44,
+        trackHeight: 300,
+      }),
+    ).toBe(300);
   });
 });
 

@@ -22,6 +22,8 @@ import {
   resolvePageScrubberTouchPolicy,
   resolvePageScrubberThumbTop,
   resolvePageScrubberThumbTopFromPosition,
+  resolvePageScrubberTrackHeight,
+  resolvePageScrubberTrackRevealOrigin,
   shouldRenderPageScrubber,
 } from "./pageScrubberModel";
 
@@ -56,10 +58,11 @@ export function ProgressPill({
   const { height: windowHeight } = useWindowDimensions();
   const windowHeightRef = useRef(windowHeight);
   windowHeightRef.current = windowHeight;
-  const trackHeight = Math.max(
-    180,
-    Math.min(520, windowHeight - offsets.progress - offsets.bottom - 132)
-  );
+  const trackHeight = resolvePageScrubberTrackHeight({
+    windowHeight,
+    topOffset: offsets.progress,
+    bottomOffset: offsets.bottom,
+  });
   const thumbHeight = 44;
   const trackYRef = useRef(0);
   const scrubberRef = useRef<View>(null);
@@ -111,6 +114,8 @@ export function ProgressPill({
   const thumbTopSnapshotRef = useRef(thumbTop);
   thumbTopSnapshotRef.current = thumbTop;
   const scrubStartThumbTopRef = useRef(0);
+  const trackReveal = useRef(new Animated.Value(0)).current;
+  const [trackOriginY, setTrackOriginY] = useState(0);
   const scrubberMetricsRef = useRef({ trackHeight, thumbHeight, pageCount });
   scrubberMetricsRef.current = { trackHeight, thumbHeight, pageCount };
 
@@ -190,6 +195,19 @@ export function ProgressPill({
         hasMovedRef.current = false;
         longPressTriggeredRef.current = false;
         scrubStartThumbTopRef.current = thumbTopSnapshotRef.current;
+        setTrackOriginY(
+          resolvePageScrubberTrackRevealOrigin({
+            thumbTop: thumbTopSnapshotRef.current,
+            thumbHeight,
+            trackHeight: scrubberMetricsRef.current.trackHeight,
+          }),
+        );
+        trackReveal.setValue(0);
+        Animated.timing(trackReveal, {
+          toValue: 1,
+          duration: 180,
+          useNativeDriver: false,
+        }).start();
         scrubNavigationControllerRef.current.begin();
         pendingReleasedScrubPageRef.current = null;
         setScrubPreviewPage(currentPageRef.current);
@@ -233,6 +251,11 @@ export function ProgressPill({
         }
         isScrubbingRef.current = false;
         onScrubbingChangeRef.current?.(false);
+        Animated.timing(trackReveal, {
+          toValue: 0,
+          duration: 140,
+          useNativeDriver: false,
+        }).start();
         const releasedPage = scrubNavigationControllerRef.current.release();
         const releaseAction = resolvePageScrubberReleaseAction({
           hasMoved: hasMovedRef.current,
@@ -259,6 +282,11 @@ export function ProgressPill({
         }
         isScrubbingRef.current = false;
         onScrubbingChangeRef.current?.(false);
+        Animated.timing(trackReveal, {
+          toValue: 0,
+          duration: 140,
+          useNativeDriver: false,
+        }).start();
         scrubNavigationControllerRef.current.cancel();
         pendingReleasedScrubPageRef.current = null;
         setScrubPreviewPage(null);
@@ -299,7 +327,18 @@ export function ProgressPill({
           });
         }}
       >
-        <View style={[styles.track, isDark && styles.trackDark]} />
+        <Animated.View
+          style={[
+            styles.track,
+            isDark && styles.trackDark,
+            {
+              transformOrigin: [0, trackOriginY, 0],
+              opacity: trackReveal,
+              transform: [{ scaleY: trackReveal }],
+              elevation: 6,
+            },
+          ]}
+        />
         <Animated.View style={[styles.thumb, { top: thumbTopRef.current }]}>
           <View
             style={[
@@ -347,7 +386,7 @@ const styles = StyleSheet.create({
   track: {
     position: "absolute",
     top: 0,
-    right: 30,
+    right: 0,
     bottom: 0,
     width: 3,
     borderRadius: 2,
