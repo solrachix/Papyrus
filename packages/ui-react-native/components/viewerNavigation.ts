@@ -5,6 +5,15 @@ export type ViewerScrollTarget = {
   listIndex: number;
 };
 
+export const resolveViewerScrollRequest = (
+  target: ViewerScrollTarget,
+  animated: boolean
+) => ({
+  index: target.listIndex,
+  animated,
+  viewPosition: 0,
+});
+
 export const resolveViewerScrollTarget = (
   pageIndex: number,
   isDouble: boolean

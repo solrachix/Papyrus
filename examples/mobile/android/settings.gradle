@@ -23,24 +23,24 @@ project(':papyrus_engine_native').projectDir =
 
 include ':react-native-svg'
 project(':react-native-svg').projectDir =
-    new File(rootProject.projectDir, "../../../node_modules/react-native-svg/android")
+    new File(rootProject.projectDir, "../node_modules/react-native-svg/android")
 
 include ':react-native-gesture-handler'
 project(':react-native-gesture-handler').projectDir =
-    new File(rootProject.projectDir, "../../../node_modules/react-native-gesture-handler/android")
+    new File(rootProject.projectDir, "../node_modules/react-native-gesture-handler/android")
 
 include ':react-native-webview'
 project(':react-native-webview').projectDir =
-    new File(rootProject.projectDir, "../../../node_modules/react-native-webview/android")
+    new File(rootProject.projectDir, "../node_modules/react-native-webview/android")
 
 include ':react-native-document-picker'
 project(':react-native-document-picker').projectDir =
-    new File(rootProject.projectDir, "../../../node_modules/@react-native-documents/picker/android")
+    new File(rootProject.projectDir, "../node_modules/@react-native-documents/picker/android")
 
 include ':react-native-clipboard_clipboard'
 project(':react-native-clipboard_clipboard').projectDir =
-    new File(rootProject.projectDir, "../../../node_modules/@react-native-clipboard/clipboard/android")
+    new File(rootProject.projectDir, "../node_modules/@react-native-clipboard/clipboard/android")
 
 include ':react-native-safe-area-context'
 project(':react-native-safe-area-context').projectDir =
-    new File(rootProject.projectDir, "../../../node_modules/react-native-safe-area-context/android")
+    new File(rootProject.projectDir, "../node_modules/react-native-safe-area-context/android")

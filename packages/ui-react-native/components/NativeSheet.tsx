@@ -1,5 +1,6 @@
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
+  Animated,
   FlatList,
   Modal,
   Pressable,
@@ -11,6 +12,7 @@ import {
   type ScrollViewProps,
   type StyleProp,
   type ViewStyle,
+  useWindowDimensions,
 } from "react-native";
 import { IconClose } from "../icons";
 import { getNativeSheetSizeStyle } from "./nativeSheetLayout";
@@ -42,21 +44,77 @@ export function NativeSheet({
 }: NativeSheetProps) {
   const insets = usePapyrusSafeAreaInsets();
   const palette = getNativeSheetPalette(Boolean(isDark));
+  const { height: windowHeight } = useWindowDimensions();
+  const [rendered, setRendered] = useState(visible);
+  const renderedRef = useRef(visible);
+  const motion = useRef(new Animated.Value(visible ? 0 : 1)).current;
+  const backdropOpacity = useRef(new Animated.Value(visible ? 1 : 0)).current;
+
+  useEffect(() => {
+    motion.stopAnimation();
+    backdropOpacity.stopAnimation();
+
+    if (visible) {
+      renderedRef.current = true;
+      setRendered(true);
+      motion.setValue(1);
+      backdropOpacity.setValue(0);
+      Animated.parallel([
+        Animated.spring(motion, {
+          toValue: 0,
+          damping: 22,
+          stiffness: 220,
+          mass: 0.8,
+          useNativeDriver: true,
+        }),
+        Animated.timing(backdropOpacity, {
+          toValue: 1,
+          duration: 180,
+          useNativeDriver: true,
+        }),
+      ]).start();
+      return;
+    }
+
+    if (!renderedRef.current) return;
+
+    Animated.parallel([
+      Animated.timing(motion, {
+        toValue: 1,
+        duration: 180,
+        useNativeDriver: true,
+      }),
+      Animated.timing(backdropOpacity, {
+        toValue: 0,
+        duration: 140,
+        useNativeDriver: true,
+      }),
+    ]).start(({ finished }) => {
+      if (!finished) return;
+      renderedRef.current = false;
+      setRendered(false);
+    });
+  }, [backdropOpacity, motion, visible]);
+
+  if (!rendered) return null;
+
   return (
     <Modal
-      animationType="fade"
+      animationType="none"
       transparent
-      visible={visible}
+      visible={rendered}
       onRequestClose={onClose}
     >
       <View style={styles.root}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={closeAccessibilityLabel}
-          style={styles.backdrop}
-          onPress={onClose}
-        />
-        <View
+        <Animated.View style={[styles.backdrop, { opacity: backdropOpacity }]}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={closeAccessibilityLabel}
+            style={StyleSheet.absoluteFill}
+            onPress={onClose}
+          />
+        </Animated.View>
+        <Animated.View
           style={[
             styles.sheet,
             isDark && styles.sheetDark,
@@ -67,6 +125,16 @@ export function NativeSheet({
               borderTopColor: palette.borderColor,
             },
             sheetStyle,
+            {
+              transform: [
+                {
+                  translateY: motion.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0, windowHeight],
+                  }),
+                },
+              ],
+            },
           ]}
         >
           {showHeader ? (
@@ -92,7 +160,7 @@ export function NativeSheet({
             </View>
           ) : null}
           {children}
-        </View>
+        </Animated.View>
       </View>
     </Modal>
   );

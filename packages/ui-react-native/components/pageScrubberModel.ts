@@ -35,12 +35,19 @@ export type PageScrubberTouchPolicy = {
 };
 
 export const resolvePageScrubberTouchPolicy = (): PageScrubberTouchPolicy => ({
-  responderTarget: "pill",
+  responderTarget: "track",
   claimOnStart: true,
   captureOnStart: true,
   captureOnMove: true,
   childConsumesTouch: false,
 });
+
+export const resolvePageScrubberOverlayStyle = () => ({
+  zIndex: 30,
+  elevation: 30,
+});
+
+export const resolvePageScrubberPointerEvents = () => "box-only" as const;
 
 type PageScrubberThumbTopInput = {
   currentPage: number;
@@ -143,4 +150,41 @@ export const resolvePageScrubberPage = ({
     1,
     Math.min(pageCount, Math.round(ratio * (pageCount - 1)) + 1)
   );
+};
+
+export const isPageScrubberTrackYTrusted = (
+  trackY: number,
+  windowHeight: number,
+): boolean =>
+  Number.isFinite(trackY) &&
+  Number.isFinite(windowHeight) &&
+  trackY >= 0 &&
+  trackY <= windowHeight;
+
+type PageScrubberGesturePositionInput = {
+  moveY: number;
+  dy: number;
+  trackY: number;
+  windowHeight: number;
+  trackHeight: number;
+  thumbHeight: number;
+  startThumbTop: number;
+};
+
+export const resolvePageScrubberGesturePosition = ({
+  moveY,
+  dy,
+  trackY,
+  windowHeight,
+  trackHeight,
+  thumbHeight,
+  startThumbTop,
+}: PageScrubberGesturePositionInput): number => {
+  if (isPageScrubberTrackYTrusted(trackY, windowHeight)) {
+    return moveY - trackY;
+  }
+
+  const travel = Math.max(0, trackHeight - thumbHeight);
+  const nextThumbTop = Math.max(0, Math.min(travel, startThumbTop + dy));
+  return nextThumbTop + thumbHeight / 2;
 };

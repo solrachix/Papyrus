@@ -18,3 +18,4 @@ export { ProgressPill } from "./components/ProgressPill";
 export { SearchOverlay } from "./components/SearchOverlay";
 export { SearchResultsSheet } from "./components/SearchResultsSheet";
 export { MOBILE_CHROME_METRICS } from "./components/mobileChromeMetrics";
+export { IconPageNav } from "./icons";

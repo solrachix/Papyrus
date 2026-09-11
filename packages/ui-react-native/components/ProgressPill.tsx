@@ -14,7 +14,10 @@ import { resolveMobileChromeOffsets } from "./mobileChromeMetrics";
 import { usePapyrusSafeAreaInsets } from "./PapyrusSafeArea";
 import {
   createPageScrubberNavigationController,
+  resolvePageScrubberGesturePosition,
+  resolvePageScrubberOverlayStyle,
   resolvePageScrubberPage,
+  resolvePageScrubberPointerEvents,
   resolvePageScrubberReleaseAction,
   resolvePageScrubberTouchPolicy,
   resolvePageScrubberThumbTop,
@@ -51,6 +54,8 @@ export function ProgressPill({
   const isDark = uiTheme === "dark";
   const offsets = resolveMobileChromeOffsets(usePapyrusSafeAreaInsets());
   const { height: windowHeight } = useWindowDimensions();
+  const windowHeightRef = useRef(windowHeight);
+  windowHeightRef.current = windowHeight;
   const trackHeight = Math.max(
     180,
     Math.min(520, windowHeight - offsets.progress - offsets.bottom - 132)
@@ -105,6 +110,7 @@ export function ProgressPill({
   const thumbTopRef = useRef(new Animated.Value(thumbTop));
   const thumbTopSnapshotRef = useRef(thumbTop);
   thumbTopSnapshotRef.current = thumbTop;
+  const scrubStartThumbTopRef = useRef(0);
   const scrubberMetricsRef = useRef({ trackHeight, thumbHeight, pageCount });
   scrubberMetricsRef.current = { trackHeight, thumbHeight, pageCount };
 
@@ -183,6 +189,7 @@ export function ProgressPill({
         onScrubbingChangeRef.current?.(true);
         hasMovedRef.current = false;
         longPressTriggeredRef.current = false;
+        scrubStartThumbTopRef.current = thumbTopSnapshotRef.current;
         scrubNavigationControllerRef.current.begin();
         pendingReleasedScrubPageRef.current = null;
         setScrubPreviewPage(currentPageRef.current);
@@ -206,7 +213,18 @@ export function ProgressPill({
           clearTimeout(longPressTimerRef.current);
           longPressTimerRef.current = null;
         }
-        scrubToPositionRef.current(gestureState.moveY - trackYRef.current);
+        const { trackHeight, thumbHeight } = scrubberMetricsRef.current;
+        scrubToPositionRef.current(
+          resolvePageScrubberGesturePosition({
+            moveY: gestureState.moveY,
+            dy: gestureState.dy,
+            trackY: trackYRef.current,
+            windowHeight: windowHeightRef.current,
+            trackHeight,
+            thumbHeight,
+            startThumbTop: scrubStartThumbTopRef.current,
+          }),
+        );
       },
       onPanResponderRelease: () => {
         if (longPressTimerRef.current !== null) {
@@ -263,6 +281,7 @@ export function ProgressPill({
       pointerEvents="box-none"
       style={[
         styles.frame,
+        resolvePageScrubberOverlayStyle(),
         {
           top: offsets.progress,
           right: offsets.right,
@@ -271,6 +290,7 @@ export function ProgressPill({
     >
       <View
         ref={scrubberRef}
+        pointerEvents={resolvePageScrubberPointerEvents()}
         style={[styles.scrubber, { height: trackHeight }]}
         {...scrubberPanHandlers}
         onLayout={() => {

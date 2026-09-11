@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   pageContainsScrollTarget,
   resolveViewerScrollTarget,
+  resolveViewerScrollRequest,
 } from "./viewerNavigation";
 
 describe("viewer navigation targets", () => {
@@ -30,5 +31,14 @@ describe("viewer navigation targets", () => {
     expect(target.listIndex).toBe(4);
     expect(pageContainsScrollTarget({ left: 8, right: 9 }, target.pageIndex)).toBe(true);
     expect(pageContainsScrollTarget({ left: 4, right: 5 }, target.pageIndex)).toBe(false);
+  });
+
+  it("uses an indexed request for programmatic list navigation", () => {
+    expect(
+      resolveViewerScrollRequest(
+        { pageIndex: 102, listIndex: 102 },
+        true
+      )
+    ).toEqual({ index: 102, animated: true, viewPosition: 0 });
   });
 });

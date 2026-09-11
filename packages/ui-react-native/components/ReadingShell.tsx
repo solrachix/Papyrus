@@ -183,7 +183,11 @@ export function ReadingShell({
           setSearchResultsOpen(false);
           closeMobileDestination();
         }}
-        onOpenResults={() => setSearchResultsOpen(true)}
+        onOpenResults={() => {
+          Keyboard.dismiss();
+          setSearchResultsOpen(true);
+          closeMobileDestination();
+        }}
       />
       <SearchResultsSheet
         documentType={documentType}
