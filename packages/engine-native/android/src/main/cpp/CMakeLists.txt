@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.18.1)
 project(papyrus_text)
 
 option(PAPYRUS_OUTLINE_HOST_TESTS "Build host tests for the outline loader" OFF)
+# Alias geral para todos os testes C++ puros (inclui o outline loader).
+option(PAPYRUS_CPP_HOST_TESTS "Build all pure C++ host tests" OFF)
 
 function(papyrus_set_cxx17 target_name)
   set_target_properties(${target_name} PROPERTIES
@@ -15,6 +17,7 @@ if(ANDROID)
     papyrus_text_search.cpp
     papyrus_outline.cpp
     papyrus_outline_loader.cpp
+    papyrus_text_word.cpp
   )
 
   papyrus_set_cxx17(papyrus_text)
@@ -32,7 +35,7 @@ if(ANDROID)
   )
 endif()
 
-if(PAPYRUS_OUTLINE_HOST_TESTS)
+if(PAPYRUS_OUTLINE_HOST_TESTS OR PAPYRUS_CPP_HOST_TESTS)
   enable_testing()
 
   add_executable(papyrus_outline_loader_test
@@ -42,4 +45,12 @@ if(PAPYRUS_OUTLINE_HOST_TESTS)
 
   papyrus_set_cxx17(papyrus_outline_loader_test)
   add_test(NAME papyrus_outline_loader_test COMMAND papyrus_outline_loader_test)
+
+  add_executable(papyrus_text_word_test
+    papyrus_text_word.cpp
+    papyrus_text_word_test.cpp
+  )
+
+  papyrus_set_cxx17(papyrus_text_word_test)
+  add_test(NAME papyrus_text_word_test COMMAND papyrus_text_word_test)
 endif()
