@@ -17,10 +17,17 @@ import {
   type LayoutChangeEvent,
   type GestureResponderEvent,
 } from "react-native";
+import Clipboard from "@react-native-clipboard/clipboard";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Svg, { Path as SvgPath } from "react-native-svg";
 import { createRenderGeneration, useViewerStore } from "@papyrus-sdk/core";
-import { Annotation, DocumentEngine, RenderPageResult, TextSelection } from "@papyrus-sdk/types";
+import {
+  Annotation,
+  DocumentEngine,
+  RenderPageResult,
+  TextSelection,
+  TextSelectionEndpoints,
+} from "@papyrus-sdk/types";
 import {
   PapyrusPageView,
   type PapyrusPageViewProps,
@@ -29,10 +36,20 @@ import { isMobilePerfEnabled, logPerfEvent, perfNow } from "../perf/mobilePerf";
 import { useMobilePerf } from "../perf/MobilePerfContext";
 import { createRenderLifecycle } from "../perf/renderLifecycle";
 import { invokeRenderPage } from "../perf/renderInvocation";
+import { copySelectionText } from "./clipboard";
+import {
+  IconCopy,
+  IconMessageSquareQuote,
+  IconPencilLine,
+  IconUnderline,
+} from "../icons";
 import {
   shouldSuppressPressAfterPinch,
 } from "../gesture/pinchZoom";
-import { shouldEnableSelectionDrag } from "../gesture/selectionInteraction";
+import {
+  resolveSelectionDragRect,
+  shouldEnableSelectionDrag,
+} from "../gesture/selectionInteraction";
 import { resolvePdfCenteredInset } from "../viewport/pdfViewportController";
 import { buildCommentTapGestureDeps } from "./PageRenderer.gesture";
 import { resolvePdfBasePageWidth } from "./pdfPageMetrics";
@@ -89,6 +106,7 @@ const withAlpha = (hex: string, alpha: number) => {
 };
 
 const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
+const SELECTION_LINE_CROSSING_THRESHOLD_RATIO = 0.015;
 
 const getRectKey = (rect: NormalizedRect) =>
   `${Math.round(rect.x * 10000)}-${Math.round(rect.y * 10000)}-${Math.round(
@@ -394,6 +412,9 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     width: number;
     height: number;
   } | null>(null);
+  const selectionEndpointsRef = useRef<TextSelectionEndpoints | null>(null);
+  const selectionHandleEndpointsStart = useRef<TextSelectionEndpoints | null>(null);
+  const selectionRequestIdRef = useRef(0);
   const [isInkDrawing, setIsInkDrawing] = useState(false);
   const [inkPoints, setInkPoints] = useState<Array<{ x: number; y: number }>>(
     []
@@ -714,6 +735,9 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     setIsSelecting(false);
     selectionStart.current = null;
     selectionBoundsStart.current = null;
+    selectionEndpointsRef.current = null;
+    selectionHandleEndpointsStart.current = null;
+    selectionRequestIdRef.current += 1;
     setSelectionActive(false);
   }, [setSelectionActive, setSelectionDragState, stopSelectionAutoscroll]);
 
@@ -795,8 +819,13 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     y: number;
     width: number;
     height: number;
-  }) => {
-    const selection = await engine.selectText?.(pageIndex, bounds);
+  }, endpoints?: TextSelectionEndpoints) => {
+    const requestId = ++selectionRequestIdRef.current;
+    const selection = await engine.selectText?.(pageIndex, bounds, endpoints);
+    if (requestId !== selectionRequestIdRef.current) return;
+    if (selection && endpoints) {
+      selectionEndpointsRef.current = endpoints;
+    }
     applySelectionResult(selection ?? null);
   };
 
@@ -812,7 +841,11 @@ const PageRenderer: React.FC<PageRendererProps> = ({
       width: size / layout.width,
       height: size / layout.height,
     };
-    await selectFromBounds(bounds);
+    const point = {
+      x: clamp01(x / layout.width),
+      y: clamp01(y / layout.height),
+    };
+    await selectFromBounds(bounds, { start: point, end: { ...point } });
   };
 
   const cancelSelectionDrag = useCallback(() => {
@@ -829,16 +862,16 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     (x: number, y: number) => {
       const start = selectionStart.current;
       if (!start || !layout.width || !layout.height) return;
-      const left = Math.max(0, Math.min(start.x, x));
-      const top = Math.max(0, Math.min(start.y, y));
-      const right = Math.min(layout.width, Math.max(start.x, x));
-      const bottom = Math.min(layout.height, Math.max(start.y, y));
-      const rect = {
-        x: left,
-        y: top,
-        width: right - left,
-        height: bottom - top,
-      };
+      const rect = resolveSelectionDragRect({
+        start,
+        end: { x, y },
+        width: layout.width,
+        height: layout.height,
+        lineThreshold: Math.max(
+          8,
+          layout.height * SELECTION_LINE_CROSSING_THRESHOLD_RATIO
+        ),
+      });
       selectionRectRef.current = rect;
       setSelectionRect(rect);
     },
@@ -940,10 +973,12 @@ const PageRenderer: React.FC<PageRendererProps> = ({
 
   const finishSelectionDrag = useCallback(async () => {
     stopSelectionAutoscroll();
+    const point = selectionDragPointRef.current;
     selectionDragPointRef.current = null;
     setSelectionDragState(false);
 
     const rect = selectionRectRef.current;
+    const start = selectionStart.current;
     if (!selectionEnabled || !rect || !layout.width || !layout.height) {
       setIsSelecting(false);
       selectionStart.current = null;
@@ -965,7 +1000,20 @@ const PageRenderer: React.FC<PageRendererProps> = ({
       height: rect.height / layout.height,
     };
 
-    await selectFromBounds(normalized);
+    const endpoints =
+      start && point && layout.width && layout.height
+        ? {
+            start: {
+              x: clamp01(start.x / layout.width),
+              y: clamp01(start.y / layout.height),
+            },
+            end: {
+              x: clamp01(point.x / layout.width),
+              y: clamp01(point.y / layout.height),
+            },
+          }
+        : undefined;
+    await selectFromBounds(normalized, endpoints);
     setSelectionRect(null);
   }, [
     clearSelection,
@@ -981,18 +1029,17 @@ const PageRenderer: React.FC<PageRendererProps> = ({
       if (shouldSuppressPressAfterPinch(lastPinchEndedAt)) {
         return;
       }
-      if (
-        !isNative ||
-        activeTool !== "select" ||
-        selectionRects.length > 0 ||
-        selectionBounds
-      ) {
+      if (!isNative || activeTool !== "select") {
         return;
+      }
+      if (selectionRects.length > 0 || selectionBounds) {
+        clearSelection();
       }
       void selectAtPoint(x, y);
     },
     [
       activeTool,
+      clearSelection,
       isNative,
       lastPinchEndedAt,
       selectionBounds,
@@ -1314,6 +1361,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({
       onMoveShouldSetPanResponder: () => true,
       onPanResponderGrant: () => {
         selectionBoundsStart.current = selectionBoundsRef.current;
+        selectionHandleEndpointsStart.current = selectionEndpointsRef.current;
       },
       onPanResponderMove: (_, gestureState) => {
         const start = selectionBoundsStart.current;
@@ -1322,6 +1370,15 @@ const PageRenderer: React.FC<PageRendererProps> = ({
         const dy = gestureState.dy / layout.height;
         const minSize = 0.01;
         let next = { ...start };
+        const initialEndpoints =
+          selectionHandleEndpointsStart.current ?? {
+            start: { x: start.x, y: start.y },
+            end: { x: start.x + start.width, y: start.y + start.height },
+          };
+        const endpoints = {
+          start: { ...initialEndpoints.start },
+          end: { ...initialEndpoints.end },
+        };
 
         if (handle === "start") {
           const newX = clamp(start.x + dx, 0, start.x + start.width - minSize);
@@ -1332,6 +1389,10 @@ const PageRenderer: React.FC<PageRendererProps> = ({
             width: start.x + start.width - newX,
             height: start.y + start.height - newY,
           };
+          endpoints.start = {
+            x: clamp01(initialEndpoints.start.x + dx),
+            y: clamp01(initialEndpoints.start.y + dy),
+          };
         } else {
           const maxX = clamp(start.x + start.width + dx, start.x + minSize, 1);
           const maxY = clamp(start.y + start.height + dy, start.y + minSize, 1);
@@ -1341,16 +1402,23 @@ const PageRenderer: React.FC<PageRendererProps> = ({
             width: maxX - start.x,
             height: maxY - start.y,
           };
+          endpoints.end = {
+            x: clamp01(initialEndpoints.end.x + dx),
+            y: clamp01(initialEndpoints.end.y + dy),
+          };
         }
 
+        selectionEndpointsRef.current = endpoints;
         selectionBoundsRef.current = next;
         setSelectionBounds(next);
       },
       onPanResponderRelease: async () => {
         const next = selectionBoundsRef.current;
+        const endpoints = selectionEndpointsRef.current ?? undefined;
         selectionBoundsStart.current = null;
+        selectionHandleEndpointsStart.current = null;
         if (!next) return;
-        await selectFromBounds(next);
+        await selectFromBounds(next, endpoints);
       },
       onPanResponderTerminate: () => {
         selectionBoundsStart.current = null;
@@ -1805,11 +1873,26 @@ const PageRenderer: React.FC<PageRendererProps> = ({
               <Pressable
                 onPress={(event) => {
                   stopPressPropagation(event);
+                  void copySelectionText(selectionText, Clipboard);
+                }}
+                style={styles.selectionAction}
+                accessibilityRole="button"
+                accessibilityLabel="Copy selected text"
+              >
+                <IconCopy size={18} color={annotationColor} strokeWidth={2} />
+              </Pressable>
+              <Pressable
+                onPress={(event) => {
+                  stopPressPropagation(event);
                   applySelection("comment");
                 }}
                 style={styles.selectionAction}
               >
-                <View style={styles.selectionActionDot} />
+                <IconMessageSquareQuote
+                  size={18}
+                  color={annotationColor}
+                  strokeWidth={2}
+                />
               </Pressable>
               <Pressable
                 onPress={(event) => {
@@ -1818,11 +1901,10 @@ const PageRenderer: React.FC<PageRendererProps> = ({
                 }}
                 style={styles.selectionAction}
               >
-                <View
-                  style={[
-                    styles.selectionSwatch,
-                    { backgroundColor: annotationColor },
-                  ]}
+                <IconPencilLine
+                  size={18}
+                  color={annotationColor}
+                  strokeWidth={2}
                 />
               </Pressable>
               <Pressable
@@ -1832,11 +1914,10 @@ const PageRenderer: React.FC<PageRendererProps> = ({
                 }}
                 style={styles.selectionAction}
               >
-                <View
-                  style={[
-                    styles.selectionUnderline,
-                    { backgroundColor: annotationColor },
-                  ]}
+                <IconUnderline
+                  size={18}
+                  color={annotationColor}
+                  strokeWidth={2}
                 />
               </Pressable>
               <Pressable
