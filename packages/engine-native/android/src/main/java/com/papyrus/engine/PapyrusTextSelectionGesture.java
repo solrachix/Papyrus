@@ -62,12 +62,4 @@ final class PapyrusTextSelectionGesture {
     if (crossedLine) return isStartHandle ? 0f : 1f;
     return resolveSelectionEndpoint(normalizedX);
   }
-
-  /**
-   * Mantido nesta tarefa porque PapyrusPdfViewerView ainda chama este método;
-   * será removido na Task 2.2, quando o touch handler for substituído.
-   */
-  static boolean shouldContinueAfterSelectionTouch(boolean hitHandle) {
-    return !hitHandle;
-  }
 }

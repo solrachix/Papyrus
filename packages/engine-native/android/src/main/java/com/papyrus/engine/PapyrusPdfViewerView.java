@@ -19,6 +19,7 @@ import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 import android.view.VelocityTracker;
 import android.view.View;
+import android.view.ViewConfiguration;
 import android.view.ViewParent;
 import android.widget.OverScroller;
 
@@ -135,9 +136,11 @@ public class PapyrusPdfViewerView extends View {
   private long lastTapTime = 0;
   private float lastTapX = 0;
   private float lastTapY = 0;
-  private static final long DOUBLE_TAP_MAX_DELTA_MS = 250;
   private static final float DOUBLE_TAP_MAX_DISTANCE_DP = 20;
+  private final long doubleTapTimeoutMs;
   private Runnable pendingSingleTap;
+  private boolean suppressPageTapForGesture = false;
+  private boolean insideSelectionAtDown = false;
 
   // Selection handles
   private static final float HANDLE_RADIUS_DP = 10;
@@ -209,6 +212,7 @@ public class PapyrusPdfViewerView extends View {
     super(context);
     this.reactContext = context;
     scaleDetector = createScaleDetector(context);
+    doubleTapTimeoutMs = ViewConfiguration.get(context).getDoubleTapTimeout();
     flingScroller = new OverScroller(context);
   }
 
@@ -216,6 +220,7 @@ public class PapyrusPdfViewerView extends View {
     super(context, attrs);
     this.reactContext = context;
     scaleDetector = createScaleDetector(context);
+    doubleTapTimeoutMs = ViewConfiguration.get(context).getDoubleTapTimeout();
     flingScroller = new OverScroller(context);
   }
 
@@ -546,7 +551,7 @@ public class PapyrusPdfViewerView extends View {
   private boolean handleSelectTouch(MotionEvent event) {
     float density = getResources().getDisplayMetrics().density;
     switch (event.getActionMasked()) {
-      case MotionEvent.ACTION_DOWN:
+      case MotionEvent.ACTION_DOWN: {
         if (event.getPointerCount() > 1) {
           return true; // Multi-touch: ignore, let pinch zoom handle it
         }
@@ -554,9 +559,14 @@ public class PapyrusPdfViewerView extends View {
         touchDownX = event.getX();
         touchDownY = event.getY();
         draggedHandle = 0;
+        insideSelectionAtDown = false;
 
-        // Check if touching a selection handle
-        if (isSelectingText && selectPageIndex >= 0 && !selectedRects.isEmpty()) {
+        boolean hasSelection =
+          isSelectingText && selectPageIndex >= 0 && !selectedRects.isEmpty();
+        suppressPageTapForGesture =
+          PapyrusTextSelectionGesture.shouldSuppressPageTap(hasSelection);
+
+        if (hasSelection) {
           int handleHit = hitTestHandle(event.getX(), event.getY(), density);
           if (handleHit != 0) {
             draggedHandle = handleHit;
@@ -566,15 +576,14 @@ public class PapyrusPdfViewerView extends View {
             }
             return true;
           }
-          // Any new touch that is not on a selection handle starts normal
-          // scrolling. Keeping the selection body "active" here made a
-          // regular finger drag look like a stuck scroll after double-tap.
-          if (PapyrusTextSelectionGesture.shouldContinueAfterSelectionTouch(handleHit != 0)) {
-            isSelectingText = false;
-            selectPageIndex = -1;
-            selectedRects.clear();
-            selectedText = "";
+          boolean insideSelection =
+            isPointInsideSelection(event.getX(), event.getY(), density);
+          if (PapyrusTextSelectionGesture.shouldDismissSelectionOnTouch(
+              true, false, insideSelection)) {
+            clearSelectionState();
             emitSelectionCleared();
+          } else {
+            insideSelectionAtDown = insideSelection;
           }
         }
 
@@ -588,24 +597,24 @@ public class PapyrusPdfViewerView extends View {
         removeCallbacks(flingRunnable);
         lastTouchX = event.getX();
         lastTouchY = event.getY();
-
         return true;
+      }
 
-      case MotionEvent.ACTION_MOVE:
+      case MotionEvent.ACTION_MOVE: {
+        if (velocityTracker != null) {
+          velocityTracker.addMovement(event);
+        }
+
+        float moveDx = event.getX() - touchDownX;
+        float moveDy = event.getY() - touchDownY;
+        float moveDistance = (float) Math.hypot(moveDx, moveDy);
+
         if (draggedHandle != 0 && isSelectingText && selectPageIndex >= 0) {
           ensureLayout();
-          float moveDocX = event.getX() + offsetX;
-          float moveDocY = event.getY() + offsetY;
-          PageFrame moveFrame = null;
-          for (PageFrame f : pageFrames) {
-            if (f.index == selectPageIndex) {
-              moveFrame = f;
-              break;
-            }
-          }
+          PageFrame moveFrame = findSelectFrame();
           if (moveFrame != null) {
-            float nx = clamp01((moveDocX - moveFrame.left) / moveFrame.width);
-            float ny = clamp01((moveDocY - moveFrame.top) / moveFrame.height);
+            float nx = clamp01((event.getX() + offsetX - moveFrame.left) / moveFrame.width);
+            float ny = clamp01((event.getY() + offsetY - moveFrame.top) / moveFrame.height);
             if (draggedHandle < 0) {
               selectStartX = nx;
               selectStartY = ny;
@@ -615,15 +624,23 @@ public class PapyrusPdfViewerView extends View {
             }
             performTextSelection(false);
           }
+          lastTouchX = event.getX();
+          lastTouchY = event.getY();
           return true;
         }
 
-        if (velocityTracker != null) {
-          velocityTracker.addMovement(event);
+        if (isSelectingText && selectPageIndex >= 0 && insideSelectionAtDown) {
+          if (!PapyrusTextSelectionGesture.shouldStartScrollFromSelection(
+              true, moveDistance, TAP_MAX_DISTANCE_DP * density)) {
+            lastTouchX = event.getX();
+            lastTouchY = event.getY();
+            return true;
+          }
+          clearSelectionState();
+          emitSelectionCleared();
+          insideSelectionAtDown = false;
         }
-        float moveDx = event.getX() - touchDownX;
-        float moveDy = event.getY() - touchDownY;
-        float moveDistance = (float) Math.hypot(moveDx, moveDy);
+
         if (!isSelectingText && moveDistance > TAP_MAX_DISTANCE_DP * density) {
           if (!scaleDetector.isInProgress() && event.getPointerCount() == 1) {
             offsetX += lastTouchX - event.getX();
@@ -632,36 +649,27 @@ public class PapyrusPdfViewerView extends View {
             emitScrollEvent(offsetY);
             invalidate();
           }
-          lastTouchX = event.getX();
-          lastTouchY = event.getY();
-          return true;
-        }
-        if (isSelectingText && selectPageIndex >= 0) {
-          ensureLayout();
-          float moveDocX = event.getX() + offsetX;
-          float moveDocY = event.getY() + offsetY;
-          PageFrame moveFrame = null;
-          for (PageFrame f : pageFrames) {
-            if (f.index == selectPageIndex) {
-              moveFrame = f;
-              break;
-            }
-          }
-          if (moveFrame != null) {
-            float nx = clamp01((moveDocX - moveFrame.left) / moveFrame.width);
-            float ny = clamp01((moveDocY - moveFrame.top) / moveFrame.height);
-            selectEndX = nx;
-            selectEndY = ny;
-            performTextSelection(false);
-          }
         }
         lastTouchX = event.getX();
         lastTouchY = event.getY();
         return true;
+      }
 
       case MotionEvent.ACTION_UP:
-      case MotionEvent.ACTION_CANCEL:
+      case MotionEvent.ACTION_CANCEL: {
+        boolean wasHandleDrag = draggedHandle != 0;
         draggedHandle = 0;
+        insideSelectionAtDown = false;
+
+        if (event.getActionMasked() == MotionEvent.ACTION_CANCEL) {
+          suppressPageTapForGesture = false;
+          return true;
+        }
+
+        if (wasHandleDrag && selectPageIndex >= 0) {
+          performTextSelection(true);
+          return true;
+        }
 
         if (!scaleDetector.isInProgress() && velocityTracker != null) {
           velocityTracker.addMovement(event);
@@ -706,19 +714,19 @@ public class PapyrusPdfViewerView extends View {
         float upDy = event.getY() - touchDownY;
         float upDistance = (float) Math.hypot(upDx, upDy);
 
-
         if (duration > TAP_MAX_DURATION_MS || upDistance > TAP_MAX_DISTANCE_DP * density) {
-          if (isSelectingText) {
-            emitTextSelected();
-          }
           return true;
         }
 
         long now = System.currentTimeMillis();
-        float tapDx = event.getX() - lastTapX;
-        float tapDy = event.getY() - lastTapY;
-        float tapDistance = (float) Math.hypot(tapDx, tapDy);
-        boolean isDoubleTap = (now - lastTapTime) < DOUBLE_TAP_MAX_DELTA_MS && tapDistance < DOUBLE_TAP_MAX_DISTANCE_DP * density;
+        boolean isDoubleTap = PapyrusTextSelectionGesture.resolveDoubleTap(
+          now,
+          lastTapTime,
+          event.getX() - lastTapX,
+          event.getY() - lastTapY,
+          doubleTapTimeoutMs,
+          DOUBLE_TAP_MAX_DISTANCE_DP * density
+        );
 
         if (pendingSingleTap != null) {
           mainHandler.removeCallbacks(pendingSingleTap);
@@ -731,15 +739,10 @@ public class PapyrusPdfViewerView extends View {
           lastTapY = event.getY();
           final float tapX = event.getX();
           final float tapY = event.getY();
+          final boolean allowPageTap = !suppressPageTapForGesture;
+          suppressPageTapForGesture = false;
           pendingSingleTap = () -> {
             pendingSingleTap = null;
-            if (isSelectingText) {
-              isSelectingText = false;
-              selectPageIndex = -1;
-              selectedRects.clear();
-              selectedText = "";
-              invalidate();
-            }
             ensureLayout();
             float docX = tapX + offsetX;
             float docY = tapY + offsetY;
@@ -750,49 +753,88 @@ public class PapyrusPdfViewerView extends View {
             float ny = (docY - frame.top) / frame.height;
             Annotation hit = findAnnotationAt(pageIdx, nx, ny);
             if (hit != null) {
+              // O tap de anotação continua funcionando mesmo ao desselecionar.
               emitAnnotationTap(hit);
-            } else {
+            } else if (allowPageTap) {
               emitTap(pageIdx, clamp01(nx), clamp01(ny));
             }
           };
-          mainHandler.postDelayed(pendingSingleTap, DOUBLE_TAP_MAX_DELTA_MS + 50);
+          mainHandler.postDelayed(pendingSingleTap, doubleTapTimeoutMs + 50);
         } else {
           lastTapTime = 0;
-          ensureLayout();
-          float docX = event.getX() + offsetX;
-          float docY = event.getY() + offsetY;
-          int pageIdx = findPageIndexAt(docX, docY);
-          if (pageIdx >= 0) {
-            PageFrame frame = pageFrames.get(pageIdx);
-            float nx = clamp01((docX - frame.left) / frame.width);
-            float ny = clamp01((docY - frame.top) / frame.height);
-            isSelectingText = true;
-            selectPageIndex = pageIdx;
-            selectStartX = nx;
-            selectStartY = ny;
-            selectEndX = nx;
-            selectEndY = ny;
-            performTextSelection(true);
-          }
+          suppressPageTapForGesture = false;
+          beginWordSelection(event.getX(), event.getY());
         }
         return true;
+      }
+
       default:
         return true;
     }
   }
 
-  private int hitTestHandle(float screenX, float screenY, float density) {
-    if (selectedRects.isEmpty() || selectPageIndex < 0) return 0;
-    PageFrame frame = null;
-    for (PageFrame f : pageFrames) {
-      if (f.index == selectPageIndex) {
-        frame = f;
-        break;
+  private PageFrame findSelectFrame() {
+    if (selectPageIndex < 0) return null;
+    for (PageFrame frame : pageFrames) {
+      if (frame.index == selectPageIndex) return frame;
+    }
+    return null;
+  }
+
+  private void clearSelectionState() {
+    isSelectingText = false;
+    selectPageIndex = -1;
+    selectedRects.clear();
+    selectedText = "";
+    draggedHandle = 0;
+    invalidate();
+  }
+
+  private boolean isPointInsideSelection(float screenX, float screenY, float density) {
+    if (selectedRects.isEmpty()) return false;
+    PageFrame frame = findSelectFrame();
+    if (frame == null) return false;
+    float padding = 8f * density;
+    for (NormalizedRect rect : selectedRects) {
+      float left = frame.left - offsetX + rect.x * frame.width;
+      float top = frame.top - offsetY + rect.y * frame.height;
+      float right = left + rect.width * frame.width;
+      float bottom = top + rect.height * frame.height;
+      if (screenX >= left - padding && screenX <= right + padding &&
+          screenY >= top - padding && screenY <= bottom + padding) {
+        return true;
       }
     }
+    return false;
+  }
+
+  private void beginWordSelection(float screenX, float screenY) {
+    if (!PapyrusTextSelect.AVAILABLE) return;
+    PapyrusEngineStore.EngineState state = PapyrusEngineStore.getEngine(engineId);
+    if (state == null || state.document == null) return;
+    ensureLayout();
+    float docX = screenX + offsetX;
+    float docY = screenY + offsetY;
+    int pageIdx = findPageIndexAt(docX, docY);
+    if (pageIdx < 0) return;
+    PageFrame frame = pageFrames.get(pageIdx);
+    float nx = clamp01((docX - frame.left) / frame.width);
+    float ny = clamp01((docY - frame.top) / frame.height);
+    isSelectingText = true;
+    selectPageIndex = pageIdx;
+    selectStartX = nx;
+    selectStartY = ny;
+    selectEndX = nx;
+    selectEndY = ny;
+    performTextSelection(true);
+  }
+
+  private int hitTestHandle(float screenX, float screenY, float density) {
+    if (selectedRects.isEmpty() || selectPageIndex < 0) return 0;
+    PageFrame frame = findSelectFrame();
     if (frame == null) return 0;
 
-    float radius = HANDLE_RADIUS_DP * density * 1.8f;
+    float radius = HANDLE_TOUCH_RADIUS_DP * density;
 
     // Start handle: top-left of first rect
     NormalizedRect first = selectedRects.get(0);
