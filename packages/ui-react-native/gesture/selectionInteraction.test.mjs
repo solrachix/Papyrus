@@ -147,3 +147,30 @@ test("getSelectionEdgeAutoscroll clamps to the maximum step near corners", () =>
     { dx: -24, dy: -24 }
   );
 });
+
+test("selection crossing into the next line completes the line from the start point", () => {
+  assert.deepEqual(
+    selectionInteraction.resolveSelectionDragRect({
+      start: { x: 0.2, y: 0.1 },
+      end: { x: 0.4, y: 0.2 },
+      width: 1,
+      height: 1,
+      lineThreshold: 0.015,
+    }),
+    { x: 0.2, y: 0.1, width: 0.8, height: 0.1 }
+  );
+});
+
+test("selection staying on one line keeps the exact drag rectangle", () => {
+  const rect = selectionInteraction.resolveSelectionDragRect({
+    start: { x: 0.2, y: 0.1 },
+    end: { x: 0.4, y: 0.105 },
+    width: 1,
+    height: 1,
+    lineThreshold: 0.015,
+  });
+  assert.equal(rect.x, 0.2);
+  assert.equal(rect.y, 0.1);
+  assert.equal(rect.width, 0.2);
+  assert.ok(Math.abs(rect.height - 0.005) < 0.000001);
+});

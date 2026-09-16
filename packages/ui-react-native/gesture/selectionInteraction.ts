@@ -42,6 +42,19 @@ export type SelectionEdgeAutoscroll = {
   dy: number;
 };
 
+export type SelectionDragPoint = {
+  x: number;
+  y: number;
+};
+
+export type SelectionDragRectInput = {
+  start: SelectionDragPoint;
+  end: SelectionDragPoint;
+  width: number;
+  height: number;
+  lineThreshold: number;
+};
+
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
 
@@ -116,3 +129,32 @@ export const getSelectionEdgeAutoscroll = ({
   dx: resolveAxisAutoscroll(x, width, threshold, maxStep),
   dy: resolveAxisAutoscroll(y, height, threshold, maxStep),
 });
+
+export const resolveSelectionDragRect = ({
+  start,
+  end,
+  width,
+  height,
+  lineThreshold,
+}: SelectionDragRectInput) => {
+  const top = Math.max(0, Math.min(start.y, end.y));
+  const bottom = Math.min(height, Math.max(start.y, end.y));
+  const crossesLine = Math.abs(end.y - start.y) > lineThreshold;
+
+  if (!crossesLine) {
+    const left = Math.max(0, Math.min(start.x, end.x));
+    const right = Math.min(width, Math.max(start.x, end.x));
+    return { x: left, y: top, width: right - left, height: bottom - top };
+  }
+
+  const left = end.y >= start.y ? start.x : 0;
+  const right = end.y >= start.y ? width : start.x;
+  const clampedLeft = Math.max(0, Math.min(width, left));
+  const clampedRight = Math.max(clampedLeft, Math.min(width, right));
+  return {
+    x: clampedLeft,
+    y: top,
+    width: clampedRight - clampedLeft,
+    height: bottom - top,
+  };
+};
