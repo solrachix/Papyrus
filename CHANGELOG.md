@@ -1,5 +1,25 @@
 # Changelog
 
+## 2026-09-16
+
+### Changed
+
+- O duplo toque seleciona a palavra inteira sob o dedo (acentos e hífen inclusos) e mostra a barra de ações imediatamente, no Android e no iOS.
+- Tocar fora da seleção apenas desseleciona: não abre mais a folha Páginas nem alterna o chrome do leitor.
+- Arrastar as alças estende a seleção respeitando os limites de cada linha; arrastar fora limpa a seleção e rola normalmente.
+- O scroll com seleção ativa voltou a funcionar e a extração de texto do PDFium passou a ser coalescida (último pedido vence), removendo o travamento ao arrastar.
+- A barra de ações da seleção usa os ícones Lucide (`PencilLine`, `Copy`, `Underline`, `MessageSquareQuote`) e a aba de notas apresenta o conteúdo com aspas decorativas.
+- O tool dock respeita o safe area e a altura da barra inferior ao posicionar os controles.
+
+### Published packages
+
+| Package | Version |
+| --- | --- |
+| `@papyrus-sdk/types` | `0.2.15` |
+| `@papyrus-sdk/core` | `0.2.22` |
+| `@papyrus-sdk/engine-native` | `0.2.21` |
+| `@papyrus-sdk/ui-react-native` | `0.2.32` |
+
 ## 2026-09-11
 
 ### Changed
