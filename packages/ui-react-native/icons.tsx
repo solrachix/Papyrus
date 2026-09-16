@@ -607,15 +607,37 @@ export const IconCopy: React.FC<IconProps> = ({
   strokeWidth = 2,
 }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <Path
-      d="M8 4v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2h-8a2 2 0 0 0-2 2Z"
+    <Rect
+      width="14"
+      height="14"
+      x="8"
+      y="8"
+      rx="2"
       stroke={color}
       strokeWidth={strokeWidth}
       strokeLinecap="round"
       strokeLinejoin="round"
     />
     <Path
-      d="M16 20H6a2 2 0 0 1-2-2V8"
+      d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
+export const IconPencilLine: React.FC<IconProps> = ({
+  size = 20,
+  color = defaultColor,
+  strokeWidth = 2,
+}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <Path d="M13 21h8" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+    <Path d="m15 5 4 4" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+    <Path
+      d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"
       stroke={color}
       strokeWidth={strokeWidth}
       strokeLinecap="round"
@@ -670,21 +692,77 @@ export const IconHighlight: React.FC<IconProps> = ({
 export const IconUnderline: React.FC<IconProps> = ({
   size = 24,
   color = "#60a5fa",
+  strokeWidth = 2,
 }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
     <Path
-      d="M6 4v7a6 6 0 0 0 12 0V4"
+      d="M6 4v6a6 6 0 0 0 12 0V4"
       stroke={color}
-      strokeWidth="3"
+      strokeWidth={strokeWidth}
       strokeLinecap="round"
       strokeLinejoin="round"
-      fill="none"
+    />
+    <Line
+      x1="4"
+      x2="20"
+      y1="20"
+      y2="20"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+    />
+  </Svg>
+);
+
+export const IconMessageSquareQuote: React.FC<IconProps> = ({
+  size = 24,
+  color = defaultColor,
+  strokeWidth = 2,
+}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <Path
+      d="M14 14a2 2 0 0 0 2-2V8h-2"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
     />
     <Path
-      d="M4 20.5h16"
+      d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"
       stroke={color}
-      strokeWidth="4"
+      strokeWidth={strokeWidth}
       strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Path
+      d="M8 14a2 2 0 0 0 2-2V8H8"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
+export const IconQuote: React.FC<IconProps> = ({
+  size = 20,
+  color = defaultColor,
+  strokeWidth = 2,
+}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <Path
+      d="M16 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Path
+      d="M5 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
     />
   </Svg>
 );

@@ -4,7 +4,12 @@ import Clipboard from "@react-native-clipboard/clipboard";
 import { useViewerStore } from "@papyrus-sdk/core";
 import { DocumentEngine } from "@papyrus-sdk/types";
 import { PapyrusPdfDocumentView } from "@papyrus-sdk/engine-native";
-import { IconCopy, IconHighlight, IconUnderline, IconCommentBubble } from "../icons";
+import {
+  IconCopy,
+  IconMessageSquareQuote,
+  IconPencilLine,
+  IconUnderline,
+} from "../icons";
 import { copySelectionText } from "./clipboard";
 import { resolvePageTapChromeVisibility } from "./mobileChromeInteraction";
 import { shouldDismissSelectionOnContentInteraction } from "./selectionContentInteraction";
@@ -310,7 +315,7 @@ export default function DedicatedAndroidPdfViewer({
                 }}
                 style={styles.toolbarButton}
               >
-                <IconHighlight size={22} color="#fbbf24" />
+                <IconPencilLine size={22} color="#fbbf24" />
               </Pressable>
               <Pressable
                 onPress={() => {
@@ -326,7 +331,7 @@ export default function DedicatedAndroidPdfViewer({
                 }}
                 style={styles.toolbarButton}
               >
-                <IconCommentBubble size={22} color="#fff" />
+                <IconMessageSquareQuote size={22} color="#fff" />
               </Pressable>
             </View>
           </View>
