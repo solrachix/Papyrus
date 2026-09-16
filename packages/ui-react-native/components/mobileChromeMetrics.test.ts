@@ -37,7 +37,15 @@ describe("MOBILE_CHROME_METRICS", () => {
   it.each([
     [
       { top: 0, bottom: 0, left: 0, right: 0 },
-      { topbar: 0, progress: 74, bottom: 14, search: 20, left: 16, right: 16 },
+      {
+        topbar: 0,
+        progress: 74,
+        bottom: 14,
+        toolDock: 78,
+        search: 20,
+        left: 16,
+        right: 16,
+      },
     ],
     [
       { top: 47, bottom: 34, left: 0, right: 0 },
@@ -45,6 +53,7 @@ describe("MOBILE_CHROME_METRICS", () => {
         topbar: 47,
         progress: 121,
         bottom: 48,
+        toolDock: 112,
         search: 54,
         left: 16,
         right: 16,
@@ -52,7 +61,15 @@ describe("MOBILE_CHROME_METRICS", () => {
     ],
     [
       { top: 0, bottom: 24, left: 24, right: 12 },
-      { topbar: 0, progress: 74, bottom: 38, search: 44, left: 40, right: 28 },
+      {
+        topbar: 0,
+        progress: 74,
+        bottom: 38,
+        toolDock: 102,
+        search: 44,
+        left: 40,
+        right: 28,
+      },
     ],
   ])("computes chrome offsets from safe-area insets", (insets, expected) => {
     expect(resolveMobileChromeOffsets(insets)).toEqual(expected);

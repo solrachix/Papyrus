@@ -13,6 +13,8 @@ export const MOBILE_CHROME_METRICS = {
   topbarPageButtonSize: 30,
   bottomBarItemPaddingHorizontal: 5,
   bottomBarItemPaddingVertical: 3,
+  bottomBarVisualHeight: 52,
+  toolDockGap: 12,
   topbarHeight: 56,
   progressGap: 18,
   progressHorizontalOffset: 10,
@@ -32,6 +34,11 @@ export const resolveMobileChromeOffsets = (insets: MobileSafeAreaInsets) => ({
     MOBILE_CHROME_METRICS.topbarHeight +
     MOBILE_CHROME_METRICS.progressGap,
   bottom: Math.max(0, insets.bottom) + 14,
+  toolDock:
+    Math.max(0, insets.bottom) +
+    14 +
+    MOBILE_CHROME_METRICS.bottomBarVisualHeight +
+    MOBILE_CHROME_METRICS.toolDockGap,
   search: Math.max(0, insets.bottom) + 20,
   left: MOBILE_CHROME_METRICS.screenPadding + Math.max(0, insets.left),
   right: MOBILE_CHROME_METRICS.screenPadding + Math.max(0, insets.right),

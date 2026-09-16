@@ -33,7 +33,11 @@ import {
   resolveToolDockIconColor,
   shouldUseScrollablePrimaryToolsRow,
 } from "./ToolDock.layout";
-import { MOBILE_CHROME_METRICS } from "./mobileChromeMetrics";
+import {
+  MOBILE_CHROME_METRICS,
+  resolveMobileChromeOffsets,
+} from "./mobileChromeMetrics";
+import { usePapyrusSafeAreaInsets } from "./PapyrusSafeArea";
 
 const COLOR_SWATCHES = [
   "#fbbf24",
@@ -240,6 +244,7 @@ const OpacitySlider = React.memo(function OpacitySlider({
 });
 
 const ToolDock: React.FC = () => {
+  const chromeOffsets = resolveMobileChromeOffsets(usePapyrusSafeAreaInsets());
   const {
     uiTheme,
     locale,
@@ -397,7 +402,10 @@ const ToolDock: React.FC = () => {
   };
 
   return (
-    <View pointerEvents="box-none" style={styles.root}>
+    <View
+      pointerEvents="box-none"
+      style={[styles.root, { paddingBottom: chromeOffsets.toolDock }]}
+    >
       {toolDockOpen ? (
         <View style={styles.stack}>
           {paletteExpanded ? (
@@ -781,6 +789,7 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
     paddingHorizontal: MOBILE_CHROME_METRICS.screenPadding,
     paddingBottom: 72,
+    zIndex: 30,
   },
   stack: {
     width: "100%",
