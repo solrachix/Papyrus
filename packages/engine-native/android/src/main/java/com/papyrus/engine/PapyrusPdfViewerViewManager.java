@@ -93,14 +93,16 @@ public class PapyrusPdfViewerViewManager extends SimpleViewManager<PapyrusPdfVie
           com.facebook.react.common.MapBuilder.of("bubbled", "onTextSelected")
         )
       )
-      .put(
-        "onScroll",
-        com.facebook.react.common.MapBuilder.of(
-          "phasedRegistrationNames",
-          com.facebook.react.common.MapBuilder.of("bubbled", "onScroll")
-        )
-      )
       .build();
+  }
+
+  @Nullable
+  @Override
+  public Map<String, Object> getExportedCustomDirectEventTypeConstants() {
+    return com.facebook.react.common.MapBuilder.of(
+      "topScroll",
+      com.facebook.react.common.MapBuilder.of("registrationName", "onScroll")
+    );
   }
 
   @ReactProp(name = "engineId")
