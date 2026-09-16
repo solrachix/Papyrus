@@ -333,7 +333,7 @@ class PapyrusNativeEngineModule : Module() {
       }
     }
 
-    AsyncFunction("selectText") { engineId: String, pageIndex: Int, x: Double, y: Double, width: Double, height: Double, promise: Promise ->
+    AsyncFunction("selectText") { engineId: String, pageIndex: Int, x: Double, y: Double, width: Double, height: Double, startX: Double, startY: Double, endX: Double, endY: Double, promise: Promise ->
       executor.execute {
         val state = PapyrusEngineStore.getEngine(engineId)
         if (state == null || state.document == null || pageIndex < 0) {
@@ -356,7 +356,11 @@ class PapyrusNativeEngineModule : Module() {
                 x.toFloat(),
                 y.toFloat(),
                 width.toFloat(),
-                height.toFloat()
+                height.toFloat(),
+                startX.toFloat(),
+                startY.toFloat(),
+                endX.toFloat(),
+                endY.toFloat()
               )
             }
           } else {
@@ -369,7 +373,11 @@ class PapyrusNativeEngineModule : Module() {
                   x.toFloat(),
                   y.toFloat(),
                   width.toFloat(),
-                  height.toFloat()
+                  height.toFloat(),
+                  startX.toFloat(),
+                  startY.toFloat(),
+                  endX.toFloat(),
+                  endY.toFloat()
                 )
               }
             }

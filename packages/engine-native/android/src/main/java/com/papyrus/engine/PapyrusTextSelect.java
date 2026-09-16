@@ -14,7 +14,7 @@ final class PapyrusTextSelect {
     AVAILABLE = available;
   }
 
-  static native PapyrusTextSelection nativeSelectText(long docPtr, int pageIndex, float x, float y, float width, float height);
+  static native PapyrusTextSelection nativeSelectText(long docPtr, int pageIndex, float x, float y, float width, float height, float startX, float startY, float endX, float endY);
 
-  static native PapyrusTextSelection nativeSelectTextFile(String filePath, int pageIndex, float x, float y, float width, float height);
+  static native PapyrusTextSelection nativeSelectTextFile(String filePath, int pageIndex, float x, float y, float width, float height, float startX, float startY, float endX, float endY);
 }

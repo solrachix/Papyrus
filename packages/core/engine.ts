@@ -1,5 +1,5 @@
 
-import { DocumentEngine, TextItem, OutlineItem, DocumentLoadInput, TextSelection, PageDestination, RenderPageResult, RenderPageTelemetryContext } from '@papyrus-sdk/types';
+import { DocumentEngine, TextItem, OutlineItem, DocumentLoadInput, TextSelection, TextSelectionEndpoints, PageDestination, RenderPageResult, RenderPageTelemetryContext } from '@papyrus-sdk/types';
 
 export abstract class BaseDocumentEngine implements DocumentEngine {
   abstract load(source: DocumentLoadInput): Promise<void>;
@@ -14,7 +14,7 @@ export abstract class BaseDocumentEngine implements DocumentEngine {
   abstract renderTextLayer(pageIndex: number, container: any, scale: number): Promise<void>;
   abstract getTextContent(pageIndex: number): Promise<TextItem[]>;
   abstract getPageDimensions(pageIndex: number): Promise<{ width: number, height: number }>;
-  abstract selectText(pageIndex: number, rect: { x: number; y: number; width: number; height: number }): Promise<TextSelection | null>;
+  abstract selectText(pageIndex: number, rect: { x: number; y: number; width: number; height: number }, endpoints?: TextSelectionEndpoints): Promise<TextSelection | null>;
   abstract getOutline(): Promise<OutlineItem[]>;
   abstract getPageIndex(dest: PageDestination): Promise<number | null>;
   abstract destroy(): void;

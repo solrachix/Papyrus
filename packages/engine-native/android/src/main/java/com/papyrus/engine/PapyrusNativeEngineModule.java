@@ -426,7 +426,7 @@ public class PapyrusNativeEngineModule extends ReactContextBaseJavaModule {
   }
 
   @ReactMethod
-  public void selectText(String engineId, int pageIndex, double x, double y, double width, double height, Promise promise) {
+  public void selectText(String engineId, int pageIndex, double x, double y, double width, double height, double startX, double startY, double endX, double endY, Promise promise) {
     executor.execute(() -> {
       PapyrusEngineStore.EngineState state = PapyrusEngineStore.getEngine(engineId);
       if (state == null || state.document == null || pageIndex < 0) {
@@ -443,7 +443,7 @@ public class PapyrusNativeEngineModule extends ReactContextBaseJavaModule {
       try {
         if (state.sourcePath != null && !state.sourcePath.isEmpty()) {
           synchronized (state.pdfiumLock) {
-            selection = PapyrusTextSelect.nativeSelectTextFile(state.sourcePath, pageIndex, (float) x, (float) y, (float) width, (float) height);
+            selection = PapyrusTextSelect.nativeSelectTextFile(state.sourcePath, pageIndex, (float) x, (float) y, (float) width, (float) height, (float) startX, (float) startY, (float) endX, (float) endY);
           }
         } else {
           long docPtr;
@@ -452,7 +452,7 @@ public class PapyrusNativeEngineModule extends ReactContextBaseJavaModule {
           }
           if (docPtr != 0) {
             synchronized (state.pdfiumLock) {
-              selection = PapyrusTextSelect.nativeSelectText(docPtr, pageIndex, (float) x, (float) y, (float) width, (float) height);
+              selection = PapyrusTextSelect.nativeSelectText(docPtr, pageIndex, (float) x, (float) y, (float) width, (float) height, (float) startX, (float) startY, (float) endX, (float) endY);
             }
           }
         }

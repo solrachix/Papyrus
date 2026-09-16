@@ -23,6 +23,7 @@ import {
   FileLike,
   SearchResult,
   TextSelection,
+  TextSelectionEndpoints,
   RenderPageResult,
   RenderPageTelemetryContext,
   PageTheme,
@@ -231,7 +232,11 @@ type NativeEngineModule = {
     x: number,
     y: number,
     width: number,
-    height: number
+    height: number,
+    startX: number,
+    startY: number,
+    endX: number,
+    endY: number
   ) => Promise<TextSelection | null>;
   getOutline?: (engineId: string) => Promise<OutlineItem[]>;
   getPageIndex?: (
@@ -477,7 +482,8 @@ export class NativeDocumentEngine extends BaseDocumentEngine {
 
   async selectText(
     pageIndex: number,
-    rect: { x: number; y: number; width: number; height: number }
+    rect: { x: number; y: number; width: number; height: number },
+    endpoints?: TextSelectionEndpoints
   ): Promise<TextSelection | null> {
     const native = this.assertNativeModule();
     if (!native.selectText) return null;
@@ -487,7 +493,11 @@ export class NativeDocumentEngine extends BaseDocumentEngine {
       rect.x,
       rect.y,
       rect.width,
-      rect.height
+      rect.height,
+      endpoints?.start.x ?? -1,
+      endpoints?.start.y ?? -1,
+      endpoints?.end.x ?? -1,
+      endpoints?.end.y ?? -1
     );
   }
 
@@ -1012,11 +1022,13 @@ export class WebViewDocumentEngine extends BaseDocumentEngine {
 
   async selectText(
     pageIndex: number,
-    rect: { x: number; y: number; width: number; height: number }
+    rect: { x: number; y: number; width: number; height: number },
+    endpoints?: TextSelectionEndpoints
   ): Promise<TextSelection | null> {
     return await this.request<TextSelection | null>("select-text", {
       pageIndex,
       rect,
+      endpoints,
     });
   }
 
@@ -1390,10 +1402,11 @@ export class MobileDocumentEngine extends BaseDocumentEngine {
 
   async selectText(
     pageIndex: number,
-    rect: { x: number; y: number; width: number; height: number }
+    rect: { x: number; y: number; width: number; height: number },
+    endpoints?: TextSelectionEndpoints
   ): Promise<TextSelection | null> {
     if (typeof this.activeEngine.selectText === "function") {
-      return await this.activeEngine.selectText(pageIndex, rect);
+      return await this.activeEngine.selectText(pageIndex, rect, endpoints);
     }
     return null;
   }

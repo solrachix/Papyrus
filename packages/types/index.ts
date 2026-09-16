@@ -131,6 +131,17 @@ export interface TextSelection {
   rects: { x: number; y: number; width: number; height: number }[];
 }
 
+export interface TextSelectionPoint {
+  /** Normalized page coordinate, with origin at the top-left. */
+  x: number;
+  y: number;
+}
+
+export interface TextSelectionEndpoints {
+  start: TextSelectionPoint;
+  end: TextSelectionPoint;
+}
+
 export interface RenderPageTelemetryContext {
   enabled?: boolean;
   renderRequestId?: string;
@@ -279,7 +290,8 @@ export interface DocumentEngine {
   searchText?(query: string): Promise<SearchResult[]>;
   selectText?(
     pageIndex: number,
-    rect: { x: number; y: number; width: number; height: number }
+    rect: { x: number; y: number; width: number; height: number },
+    endpoints?: TextSelectionEndpoints
   ): Promise<TextSelection | null>;
   getOutline(): Promise<OutlineItem[]>;
   getPageIndex(dest: PageDestination): Promise<number | null>;
