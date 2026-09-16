@@ -3,9 +3,23 @@
 #import <React/RCTBridgeModule.h>
 #import <React/RCTUIManager.h>
 #import <PDFKit/PDFKit.h>
+#include <math.h>
 
 #import "PapyrusEngineStore.h"
 #import "PapyrusPageView.h"
+
+static BOOL PapyrusIsWordCharacter(unichar value) {
+  if (value >= '0' && value <= '9') return YES;
+  if (value >= 'A' && value <= 'Z') return YES;
+  if (value >= 'a' && value <= 'z') return YES;
+  if (value == '\'' || value == 0x2019) return YES;
+  if (value == '-') return YES;
+  if (value >= 0x00C0 && value <= 0x00D6) return YES;
+  if (value >= 0x00D8 && value <= 0x00F6) return YES;
+  if (value >= 0x00F8 && value <= 0x00FF) return YES;
+  if (value >= 0x0100 && value <= 0x017F) return YES;
+  return NO;
+}
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -378,6 +392,10 @@ RCT_EXPORT_METHOD(selectText:(NSString *)engineId
                   y:(CGFloat)y
                   width:(CGFloat)width
                   height:(CGFloat)height
+                  startX:(CGFloat)startX
+                  startY:(CGFloat)startY
+                  endX:(CGFloat)endX
+                  endY:(CGFloat)endY
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject) {
   PDFDocument *document = [[PapyrusEngineStore shared] documentForEngine:engineId];
@@ -436,6 +454,172 @@ RCT_EXPORT_METHOD(selectText:(NSString *)engineId
     CGFloat rectTop = y * pageHeight;
     CGFloat rectY = pageOriginY + (pageHeight - rectTop - rectH);
     selectionRect = CGRectMake(rectX, rectY, rectW, rectH);
+  }
+
+  BOOL hasEndpoints = isfinite(startX) && isfinite(startY) && isfinite(endX) && isfinite(endY) &&
+    startX >= 0 && startY >= 0 && endX >= 0 && endY >= 0;
+  if (hasEndpoints) {
+    // Use the complete page to discover both endpoint lines. The gesture
+    // rectangle may not cover the final line when the finger moves left.
+    CGRect fullPageRect = CGRectMake(pageOriginX, pageOriginY, pageWidth, pageHeight);
+    PDFSelection *broadSelection = [page selectionForRect:fullPageRect];
+    NSArray<PDFSelection *> *broadLines = [broadSelection selectionsByLine];
+    if (!broadSelection || !broadLines || broadLines.count == 0) {
+      resolve([NSNull null]);
+      return;
+    }
+
+    CGPoint (^pagePointForNormalized)(CGFloat, CGFloat) = ^CGPoint(CGFloat normalizedX, CGFloat normalizedY) {
+      if (pageView && viewSize.width > 0 && viewSize.height > 0) {
+        CGRect viewPoint = CGRectMake(normalizedX * viewSize.width, normalizedY * viewSize.height, 1, 1);
+        CGRect pagePoint = [pageView convertRectToPage:viewPoint page:page];
+        return CGPointMake(CGRectGetMidX(pagePoint), CGRectGetMidY(pagePoint));
+      }
+      return CGPointMake(pageOriginX + normalizedX * pageWidth,
+                         pageOriginY + pageHeight - normalizedY * pageHeight);
+    };
+
+    CGPoint startPoint = pagePointForNormalized(startX, startY);
+    CGPoint endPoint = pagePointForNormalized(endX, endY);
+    BOOL isPointSelection = fabs(startX - endX) < 1e-9 && fabs(startY - endY) < 1e-9;
+    if (isPointSelection) {
+      NSString *pageString = page.string ?: @"";
+      NSUInteger charIndex = [page characterIndexAtPoint:startPoint];
+      if (charIndex != NSNotFound && charIndex < pageString.length &&
+          PapyrusIsWordCharacter([pageString characterAtIndex:charIndex])) {
+        NSUInteger wordStart = charIndex;
+        while (wordStart > 0 &&
+               PapyrusIsWordCharacter([pageString characterAtIndex:wordStart - 1])) {
+          wordStart -= 1;
+        }
+        NSUInteger wordEnd = charIndex + 1;
+        while (wordEnd < pageString.length &&
+               PapyrusIsWordCharacter([pageString characterAtIndex:wordEnd])) {
+          wordEnd += 1;
+        }
+        PDFSelection *wordSelection =
+          [page selectionForRange:NSMakeRange(wordStart, wordEnd - wordStart)];
+        if (wordSelection && wordSelection.string.length > 0) {
+          CGRect wordBounds = [wordSelection boundsForPage:page];
+          if (!CGRectIsEmpty(wordBounds)) {
+            NSDictionary *rect = nil;
+            if (pageView && viewSize.width > 0 && viewSize.height > 0) {
+              CGRect viewBounds = [pageView convertRectFromPage:wordBounds page:page];
+              rect = @{
+                @"x": @(viewBounds.origin.x / viewSize.width),
+                @"y": @(viewBounds.origin.y / viewSize.height),
+                @"width": @(viewBounds.size.width / viewSize.width),
+                @"height": @(viewBounds.size.height / viewSize.height)
+              };
+            } else {
+              CGFloat topLeftY =
+                (pageOriginY + pageHeight) - (wordBounds.origin.y + wordBounds.size.height);
+              rect = @{
+                @"x": @((wordBounds.origin.x - pageOriginX) / pageWidth),
+                @"y": @(topLeftY / pageHeight),
+                @"width": @(wordBounds.size.width / pageWidth),
+                @"height": @(wordBounds.size.height / pageHeight)
+              };
+            }
+            resolve(@{
+              @"text": wordSelection.string,
+              @"rects": @[rect]
+            });
+            return;
+          }
+        }
+      }
+      resolve([NSNull null]);
+      return;
+    }
+    NSUInteger startLine = 0;
+    NSUInteger endLine = 0;
+    CGFloat startDistance = CGFLOAT_MAX;
+    CGFloat endDistance = CGFLOAT_MAX;
+    for (NSUInteger index = 0; index < broadLines.count; index++) {
+      CGRect lineBounds = [broadLines[index] boundsForPage:page];
+      CGFloat startLineDistance = startPoint.y > CGRectGetMaxY(lineBounds)
+        ? startPoint.y - CGRectGetMaxY(lineBounds)
+        : (startPoint.y < CGRectGetMinY(lineBounds) ? CGRectGetMinY(lineBounds) - startPoint.y : 0);
+      CGFloat endLineDistance = endPoint.y > CGRectGetMaxY(lineBounds)
+        ? endPoint.y - CGRectGetMaxY(lineBounds)
+        : (endPoint.y < CGRectGetMinY(lineBounds) ? CGRectGetMinY(lineBounds) - endPoint.y : 0);
+      if (startLineDistance < startDistance) {
+        startDistance = startLineDistance;
+        startLine = index;
+      }
+      if (endLineDistance < endDistance) {
+        endDistance = endLineDistance;
+        endLine = index;
+      }
+    }
+
+    BOOL forward = startLine < endLine || (startLine == endLine && startPoint.x <= endPoint.x);
+    NSUInteger firstLine = MIN(startLine, endLine);
+    NSUInteger lastLine = MAX(startLine, endLine);
+    NSMutableString *selectedString = [NSMutableString string];
+    NSMutableArray *endpointRects = [NSMutableArray arrayWithCapacity:lastLine - firstLine + 1];
+    for (NSUInteger index = firstLine; index <= lastLine; index++) {
+      CGRect broadLineBounds = [broadLines[index] boundsForPage:page];
+      CGRect fullLineRect = CGRectMake(pageOriginX,
+                                       broadLineBounds.origin.y - 1,
+                                       pageWidth,
+                                       broadLineBounds.size.height + 2);
+      PDFSelection *fullLine = [page selectionForRect:fullLineRect];
+      CGRect lineBounds = fullLine ? [fullLine boundsForPage:page] : broadLineBounds;
+      CGFloat left = CGRectGetMinX(lineBounds);
+      CGFloat right = CGRectGetMaxX(lineBounds);
+      if (startLine == endLine) {
+        left = MIN(startPoint.x, endPoint.x);
+        right = MAX(startPoint.x, endPoint.x);
+      } else if (forward) {
+        if (index == startLine) left = startPoint.x;
+        if (index == endLine) right = endPoint.x;
+      } else {
+        if (index == startLine) right = startPoint.x;
+        if (index == endLine) left = endPoint.x;
+      }
+      if (right <= left) continue;
+
+      CGRect segmentRect = CGRectMake(left,
+                                     CGRectGetMinY(lineBounds),
+                                     right - left,
+                                     CGRectGetHeight(lineBounds));
+      PDFSelection *segment = [page selectionForRect:segmentRect];
+      if (!segment || segment.string.length == 0) continue;
+      [selectedString appendString:segment.string];
+      CGRect bounds = [segment boundsForPage:page];
+      if (CGRectIsEmpty(bounds)) continue;
+      NSDictionary *rect = nil;
+      if (pageView && viewSize.width > 0 && viewSize.height > 0) {
+        CGRect viewBounds = [pageView convertRectFromPage:bounds page:page];
+        rect = @{
+          @"x": @(viewBounds.origin.x / viewSize.width),
+          @"y": @(viewBounds.origin.y / viewSize.height),
+          @"width": @(viewBounds.size.width / viewSize.width),
+          @"height": @(viewBounds.size.height / viewSize.height)
+        };
+      } else {
+        CGFloat topLeftY = (pageOriginY + pageHeight) - (bounds.origin.y + bounds.size.height);
+        rect = @{
+          @"x": @((bounds.origin.x - pageOriginX) / pageWidth),
+          @"y": @(topLeftY / pageHeight),
+          @"width": @(bounds.size.width / pageWidth),
+          @"height": @(bounds.size.height / pageHeight)
+        };
+      }
+      [endpointRects addObject:rect];
+    }
+
+    if (endpointRects.count == 0) {
+      resolve([NSNull null]);
+      return;
+    }
+    resolve(@{
+      @"text": selectedString,
+      @"rects": endpointRects
+    });
+    return;
   }
 
   PDFSelection *selection = [page selectionForRect:selectionRect];
