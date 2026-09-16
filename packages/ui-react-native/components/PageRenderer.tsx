@@ -53,6 +53,7 @@ import {
 import { resolvePdfCenteredInset } from "../viewport/pdfViewportController";
 import { buildCommentTapGestureDeps } from "./PageRenderer.gesture";
 import { resolvePdfBasePageWidth } from "./pdfPageMetrics";
+import { isPointInsideSelectionUi } from "./selectionContentInteraction";
 
 type PageViewComponentType = React.ComponentType<
   PapyrusPageViewProps & React.RefAttributes<any>
@@ -415,6 +416,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   const selectionEndpointsRef = useRef<TextSelectionEndpoints | null>(null);
   const selectionHandleEndpointsStart = useRef<TextSelectionEndpoints | null>(null);
   const selectionRequestIdRef = useRef(0);
+  const selectionPreviewAtRef = useRef(0);
   const [isInkDrawing, setIsInkDrawing] = useState(false);
   const [inkPoints, setInkPoints] = useState<Array<{ x: number; y: number }>>(
     []
@@ -873,6 +875,9 @@ const PageRenderer: React.FC<PageRendererProps> = ({
         ),
       });
       selectionRectRef.current = rect;
+      const now = Date.now();
+      if (now - selectionPreviewAtRef.current < 32) return;
+      selectionPreviewAtRef.current = now;
       setSelectionRect(rect);
     },
     [layout.height, layout.width]
@@ -1068,13 +1073,22 @@ const PageRenderer: React.FC<PageRendererProps> = ({
           selectionPx.y + selectionPx.height + 8 > layout.height - 56
             ? Math.max(8, selectionPx.y - 52)
             : selectionPx.y + selectionPx.height + 8;
-        const withinSelectionUi =
-          locationX >= selectionPx.x - 24 &&
-          locationX <= selectionPx.x + Math.max(220, selectionPx.width) + 24 &&
-          locationY >= Math.min(selectionPx.y, toolbarTop) - 24 &&
-          locationY <=
-            Math.max(selectionPx.y + selectionPx.height, toolbarTop + 56) + 24;
-        if (withinSelectionUi) {
+        const hitRects = [
+          selectionPx,
+          {
+            x: selectionPx.x,
+            y: toolbarTop,
+            width: Math.max(220, selectionPx.width),
+            height: 56,
+          },
+        ];
+        if (
+          isPointInsideSelectionUi({
+            point: { x: locationX, y: locationY },
+            hitRects,
+            padding: 12,
+          })
+        ) {
           return;
         }
       }
