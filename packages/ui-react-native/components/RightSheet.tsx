@@ -21,7 +21,7 @@ import {
 import { useViewerStore } from "@papyrus-sdk/core";
 import { DocumentEngine, DocumentType, OutlineItem } from "@papyrus-sdk/types";
 import { PapyrusPageView } from "@papyrus-sdk/engine-native";
-import { IconClose } from "../icons";
+import { IconClose, IconQuote } from "../icons";
 import { getStrings } from "../mobileStrings";
 import {
   resolveRightSheetHeight,
@@ -37,6 +37,7 @@ import {
   getReaderSheetPalette,
 } from "./readerSheetPresentation";
 import { shouldRemoveThumbnailClipping } from "./thumbnailClipping";
+import { resolveNoteQuoteParts } from "./noteQuoteLayout";
 
 export interface RightSheetProps {
   engine: DocumentEngine;
@@ -762,16 +763,38 @@ const RightSheet: React.FC<RightSheetProps> = ({
                     <Text style={[styles.noteType, { color: accentColor }]}>
                       {getAnnotationKindLabel(ann.type, locale)}
                     </Text>
-                    {ann.content ? (
-                      <Text
-                        style={[
-                          styles.noteContent,
-                          { color: palette.mutedText },
-                        ]}
-                      >
-                        {ann.content}
-                      </Text>
-                    ) : null}
+                    {ann.content
+                      ? (() => {
+                          const parts = resolveNoteQuoteParts(ann.content ?? "");
+                          return (
+                            <View style={styles.noteQuoteRow}>
+                              <View
+                                accessible={false}
+                                importantForAccessibility="no"
+                                style={styles.noteQuoteIconStart}
+                              >
+                                <IconQuote size={18} color={accentColor} />
+                              </View>
+                              <Text
+                                style={[
+                                  styles.noteContent,
+                                  styles.noteQuoteText,
+                                  { color: palette.mutedText },
+                                ]}
+                              >
+                                {parts.before} {parts.content} {parts.after}
+                              </Text>
+                              <View
+                                accessible={false}
+                                importantForAccessibility="no"
+                                style={styles.noteQuoteIconEnd}
+                              >
+                                <IconQuote size={18} color={accentColor} />
+                              </View>
+                            </View>
+                          );
+                        })()
+                      : null}
                   </Pressable>
                 ))}
               </View>
@@ -1010,9 +1033,25 @@ const styles = StyleSheet.create({
     color: "#60a5fa",
   },
   noteContent: {
-    marginTop: 6,
     fontSize: 11,
     color: "#4b5563",
+  },
+  noteQuoteRow: {
+    marginTop: 6,
+    flexDirection: "row",
+    alignItems: "flex-start",
+  },
+  noteQuoteIconStart: {
+    marginTop: 1,
+    marginRight: 4,
+    transform: [{ scaleX: -1 }],
+  },
+  noteQuoteIconEnd: {
+    marginTop: 1,
+    marginLeft: 4,
+  },
+  noteQuoteText: {
+    flex: 1,
   },
   noteContentDark: {
     color: "#9ca3af",
