@@ -141,8 +141,27 @@ public class PapyrusPdfViewerView extends View {
 
   // Selection handles
   private static final float HANDLE_RADIUS_DP = 10;
+  private static final float HANDLE_TOUCH_RADIUS_DP = 24;
   private static final int HANDLE_COLOR = Color.parseColor("#4285F4");
   private int draggedHandle = 0; // 0 = none, -1 = start handle, 1 = end handle
+
+  // Coalesced text selection requests ("latest request wins")
+  private final Object selectionLock = new Object();
+  private boolean selectionRequestInFlight = false;
+  private boolean selectionRequestPending = false;
+  private boolean selectionRequestEmit = false;
+  private long selectionRequestVersion = 0;
+  private long selectionRequestQueuedVersion = 0;
+  private String selectionRequestEngineId = null;
+  private int selectionRequestPage = -1;
+  private float selectionRequestRectX = 0f;
+  private float selectionRequestRectY = 0f;
+  private float selectionRequestRectW = 0f;
+  private float selectionRequestRectH = 0f;
+  private float selectionRequestStartX = 0f;
+  private float selectionRequestStartY = 0f;
+  private float selectionRequestEndX = 0f;
+  private float selectionRequestEndY = 0f;
 
   private final ReactContext reactContext;
   private final Handler eventThrottleHandler = new Handler(Looper.getMainLooper());
@@ -555,6 +574,7 @@ public class PapyrusPdfViewerView extends View {
             selectPageIndex = -1;
             selectedRects.clear();
             selectedText = "";
+            emitSelectionCleared();
           }
         }
 
@@ -587,16 +607,13 @@ public class PapyrusPdfViewerView extends View {
             float nx = clamp01((moveDocX - moveFrame.left) / moveFrame.width);
             float ny = clamp01((moveDocY - moveFrame.top) / moveFrame.height);
             if (draggedHandle < 0) {
-              // Preserve the actual horizontal position instead of expanding
-              // the selection to the whole line when crossing line breaks.
-              selectStartX = PapyrusTextSelectionGesture.resolveSelectionEndpoint(nx);
+              selectStartX = nx;
               selectStartY = ny;
             } else {
-              // Preserve the actual horizontal position for the end handle too.
-              selectEndX = PapyrusTextSelectionGesture.resolveSelectionEndpoint(nx);
+              selectEndX = nx;
               selectEndY = ny;
             }
-            performTextSelection();
+            performTextSelection(false);
           }
           return true;
         }
@@ -633,10 +650,9 @@ public class PapyrusPdfViewerView extends View {
           if (moveFrame != null) {
             float nx = clamp01((moveDocX - moveFrame.left) / moveFrame.width);
             float ny = clamp01((moveDocY - moveFrame.top) / moveFrame.height);
-            // Keep the endpoint under the finger while dragging across lines.
-            selectEndX = PapyrusTextSelectionGesture.resolveSelectionEndpoint(nx);
+            selectEndX = nx;
             selectEndY = ny;
-            performTextSelection();
+            performTextSelection(false);
           }
         }
         lastTouchX = event.getX();
@@ -689,6 +705,7 @@ public class PapyrusPdfViewerView extends View {
         float upDx = event.getX() - touchDownX;
         float upDy = event.getY() - touchDownY;
         float upDistance = (float) Math.hypot(upDx, upDy);
+
 
         if (duration > TAP_MAX_DURATION_MS || upDistance > TAP_MAX_DISTANCE_DP * density) {
           if (isSelectingText) {
@@ -755,7 +772,7 @@ public class PapyrusPdfViewerView extends View {
             selectStartY = ny;
             selectEndX = nx;
             selectEndY = ny;
-            performTextSelection();
+            performTextSelection(true);
           }
         }
         return true;
@@ -792,32 +809,76 @@ public class PapyrusPdfViewerView extends View {
     return 0;
   }
 
-  private void performTextSelection() {
+  private void performTextSelection(boolean emitWhenReady) {
     if (selectPageIndex < 0) return;
     PapyrusEngineStore.EngineState state = PapyrusEngineStore.getEngine(engineId);
     if (state == null || state.document == null) return;
     if (!PapyrusTextSelect.AVAILABLE) return;
 
-    float minX = Math.min(selectStartX, selectEndX);
-    float minY = Math.min(selectStartY, selectEndY);
-    float maxX = Math.max(selectStartX, selectEndX);
-    float maxY = Math.max(selectStartY, selectEndY);
-    float width = Math.max(0.001f, maxX - minX);
-    float height = Math.max(0.001f, maxY - minY);
+    synchronized (selectionLock) {
+      selectionRequestVersion += 1;
+      selectionRequestQueuedVersion = selectionRequestVersion;
+      selectionRequestEngineId = engineId;
+      selectionRequestPage = selectPageIndex;
+      selectionRequestRectX = Math.min(selectStartX, selectEndX);
+      selectionRequestRectY = Math.min(selectStartY, selectEndY);
+      selectionRequestRectW = Math.max(0.001f, Math.abs(selectEndX - selectStartX));
+      selectionRequestRectH = Math.max(0.001f, Math.abs(selectEndY - selectStartY));
+      selectionRequestStartX = selectStartX;
+      selectionRequestStartY = selectStartY;
+      selectionRequestEndX = selectEndX;
+      selectionRequestEndY = selectEndY;
+      selectionRequestEmit = selectionRequestEmit || emitWhenReady;
+      selectionRequestPending = true;
+      if (selectionRequestInFlight) return;
+      selectionRequestInFlight = true;
+    }
 
-    final int pageIdx = selectPageIndex;
-    final float selX = minX;
-    final float selY = minY;
-    final float selW = width;
-    final float selH = height;
-
+    final PapyrusEngineStore.EngineState requestState = state;
     final String sourcePath = state.sourcePath;
-    SELECT_EXECUTOR.execute(() -> {
+    SELECT_EXECUTOR.execute(() -> drainTextSelection(requestState, sourcePath));
+  }
+
+  private void drainTextSelection(PapyrusEngineStore.EngineState state, String sourcePath) {
+    while (true) {
+      int pageIdx;
+      float x;
+      float y;
+      float w;
+      float h;
+      float startX;
+      float startY;
+      float endX;
+      float endY;
+      boolean emit;
+      long version;
+      String requestEngineId;
+      synchronized (selectionLock) {
+        if (!selectionRequestPending) {
+          selectionRequestInFlight = false;
+          return;
+        }
+        selectionRequestPending = false;
+        pageIdx = selectionRequestPage;
+        x = selectionRequestRectX;
+        y = selectionRequestRectY;
+        w = selectionRequestRectW;
+        h = selectionRequestRectH;
+        startX = selectionRequestStartX;
+        startY = selectionRequestStartY;
+        endX = selectionRequestEndX;
+        endY = selectionRequestEndY;
+        emit = selectionRequestEmit;
+        selectionRequestEmit = false;
+        version = selectionRequestQueuedVersion;
+        requestEngineId = selectionRequestEngineId;
+      }
+
       PapyrusTextSelection selection = null;
       try {
         if (sourcePath != null && !sourcePath.isEmpty()) {
           synchronized (state.pdfiumLock) {
-            selection = PapyrusTextSelect.nativeSelectTextFile(sourcePath, pageIdx, selX, selY, selW, selH);
+            selection = PapyrusTextSelect.nativeSelectTextFile(sourcePath, pageIdx, x, y, w, h, startX, startY, endX, endY);
           }
         } else {
           long docPtr;
@@ -826,7 +887,7 @@ public class PapyrusPdfViewerView extends View {
           }
           if (docPtr != 0) {
             synchronized (state.pdfiumLock) {
-              selection = PapyrusTextSelect.nativeSelectText(docPtr, pageIdx, selX, selY, selW, selH);
+              selection = PapyrusTextSelect.nativeSelectText(docPtr, pageIdx, x, y, w, h, startX, startY, endX, endY);
             }
           }
         }
@@ -834,30 +895,56 @@ public class PapyrusPdfViewerView extends View {
       }
 
       final PapyrusTextSelection finalSelection = selection;
-      mainHandler.post(() -> {
-        if (!isSelectingText && selectPageIndex != pageIdx) return;
-        selectedRects.clear();
-        if (finalSelection != null && finalSelection.rects != null && finalSelection.rects.length >= 4) {
-          selectedText = finalSelection.text != null ? finalSelection.text : "";
-          for (int i = 0; i + 3 < finalSelection.rects.length; i += 4) {
-            selectedRects.add(new NormalizedRect(
-              finalSelection.rects[i],
-              finalSelection.rects[i + 1],
-              finalSelection.rects[i + 2],
-              finalSelection.rects[i + 3]
-            ));
-          }
-        } else {
-          selectedText = "";
-        }
-        invalidate();
-      });
-    });
+      final long finalVersion = version;
+      final String finalEngineId = requestEngineId;
+      final int finalPage = pageIdx;
+      final boolean finalEmit = emit;
+      mainHandler.post(() -> applyTextSelection(
+        finalVersion, finalEngineId, finalPage, finalSelection, finalEmit));
+    }
+  }
+
+  private void applyTextSelection(
+    long version,
+    String requestEngineId,
+    int pageIdx,
+    PapyrusTextSelection selection,
+    boolean emit
+  ) {
+    synchronized (selectionLock) {
+      if (version != selectionRequestVersion) return;
+    }
+    if (requestEngineId == null || !requestEngineId.equals(engineId)) return;
+    if (!isSelectingText || selectPageIndex != pageIdx) return;
+
+    selectedRects.clear();
+    if (selection != null && selection.rects != null && selection.rects.length >= 4) {
+      selectedText = selection.text != null ? selection.text : "";
+      for (int i = 0; i + 3 < selection.rects.length; i += 4) {
+        selectedRects.add(new NormalizedRect(
+          selection.rects[i],
+          selection.rects[i + 1],
+          selection.rects[i + 2],
+          selection.rects[i + 3]
+        ));
+      }
+    } else {
+      selectedText = "";
+      // Movimentos de alça (emit == false) mantêm o gesto vivo para o UP
+      // pedir a extração final e emitir o estado vazio.
+      if (emit) {
+        isSelectingText = false;
+        selectPageIndex = -1;
+      }
+    }
+    invalidate();
+    if (emit) {
+      emitTextSelected();
+    }
   }
 
   private void emitTextSelected() {
     try {
-      if (selectedRects.isEmpty()) return;
       WritableMap event = Arguments.createMap();
       event.putString("text", selectedText);
       event.putInt("pageIndex", selectPageIndex);
@@ -871,6 +958,18 @@ public class PapyrusPdfViewerView extends View {
         rects.pushMap(r);
       }
       event.putArray("rects", rects);
+      reactContext.getJSModule(RCTEventEmitter.class)
+        .receiveEvent(getId(), "onTextSelected", event);
+    } catch (Throwable ignored) {
+    }
+  }
+
+  private void emitSelectionCleared() {
+    try {
+      WritableMap event = Arguments.createMap();
+      event.putString("text", "");
+      event.putInt("pageIndex", -1);
+      event.putArray("rects", Arguments.createArray());
       reactContext.getJSModule(RCTEventEmitter.class)
         .receiveEvent(getId(), "onTextSelected", event);
     } catch (Throwable ignored) {
@@ -1533,7 +1632,7 @@ public class PapyrusPdfViewerView extends View {
         WritableMap event = Arguments.createMap();
         event.putDouble("offsetY", offsetYValue);
         reactContext.getJSModule(RCTEventEmitter.class)
-          .receiveEvent(getId(), "onScroll", event);
+          .receiveEvent(getId(), "topScroll", event);
         emitVisiblePagesChanged();
         pendingScrollEvent = null;
       };
