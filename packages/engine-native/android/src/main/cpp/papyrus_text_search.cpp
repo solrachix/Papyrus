@@ -4,8 +4,11 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <string>
 #include <vector>
+
+#include "papyrus_text_word.h"
 
 #define LOG_TAG "PapyrusText"
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
@@ -212,7 +215,8 @@ static jobjectArray SearchDocument(JNIEnv *env, FPDF_DOCUMENT doc, int pageCount
   return result;
 }
 
-static jobject BuildSelection(JNIEnv *env, FPDF_DOCUMENT doc, int pageIndex, double normX, double normY, double normW, double normH) {
+static jobject BuildSelection(JNIEnv *env, FPDF_DOCUMENT doc, int pageIndex, double normX, double normY, double normW, double normH,
+                              double startNormX, double startNormY, double endNormX, double endNormY) {
   if (!doc || pageIndex < 0 || normW <= 0 || normH <= 0) return nullptr;
 
   jclass selectionClass = env->FindClass("com/papyrus/engine/PapyrusTextSelection");
@@ -241,11 +245,23 @@ static jobject BuildSelection(JNIEnv *env, FPDF_DOCUMENT doc, int pageIndex, dou
   double rectRight = rectLeft + (normW * pageWidth);
   double rectBottom = rectTop - (normH * pageHeight);
 
+  std::vector<char16_t> pageChars;
+
+  struct CharBox {
+    int index;
+    double left;
+    double right;
+    double top;
+    double bottom;
+    unsigned short value;
+  };
+
   struct LineRect {
     double left;
     double right;
     double top;
     double bottom;
+    std::vector<int> chars;
   };
 
   std::vector<LineRect> lines;
@@ -258,8 +274,8 @@ static jobject BuildSelection(JNIEnv *env, FPDF_DOCUMENT doc, int pageIndex, dou
     return nullptr;
   }
 
-  const double lineTolerance = 2.5;
   std::vector<unsigned short> charBuffer(2, 0);
+  std::vector<CharBox> chars;
 
   for (int i = 0; i < charCount; i++) {
     double cLeft = 0;
@@ -268,33 +284,155 @@ static jobject BuildSelection(JNIEnv *env, FPDF_DOCUMENT doc, int pageIndex, dou
     double cBottom = 0;
     if (!g_fns.textGetCharBox(textPage, i, &cLeft, &cRight, &cBottom, &cTop)) continue;
 
-    bool intersects = !(cRight < rectLeft || cLeft > rectRight || cTop < rectBottom || cBottom > rectTop);
-    if (!intersects) continue;
-
     int written = g_fns.textGetText(textPage, i, 1, charBuffer.data());
-    if (written > 0 && charBuffer[0] != 0) {
-      selectedText.push_back(static_cast<char16_t>(charBuffer[0]));
-    }
+    if (written <= 0 || charBuffer[0] == 0) continue;
 
-    bool added = false;
-    for (auto &line : lines) {
-      if (std::abs(line.top - cTop) <= lineTolerance || std::abs(line.bottom - cBottom) <= lineTolerance) {
-        line.left = std::min(line.left, cLeft);
-        line.right = std::max(line.right, cRight);
-        line.top = std::max(line.top, cTop);
-        line.bottom = std::min(line.bottom, cBottom);
-        added = true;
+    chars.push_back({i, cLeft, cRight, cTop, cBottom, charBuffer[0]});
+    pageChars.push_back(static_cast<char16_t>(charBuffer[0]));
+    int lineIndex = -1;
+    const double charHeight = std::max(0.001, cTop - cBottom);
+    for (int line = 0; line < static_cast<int>(lines.size()); line++) {
+      const auto &candidate = lines[line];
+      const double overlap = std::min(candidate.top, cTop) - std::max(candidate.bottom, cBottom);
+      const double candidateHeight = std::max(0.001, candidate.top - candidate.bottom);
+      const double minHeight = std::min(charHeight, candidateHeight);
+      const double centerDistance = std::abs((candidate.top + candidate.bottom) / 2.0 - (cTop + cBottom) / 2.0);
+      if (overlap >= minHeight * 0.2 || centerDistance <= minHeight * 0.5) {
+        lineIndex = line;
         break;
       }
     }
-    if (!added) {
-      lines.push_back({cLeft, cRight, cTop, cBottom});
+    if (lineIndex < 0) {
+      lines.push_back({cLeft, cRight, cTop, cBottom, {}});
+      lineIndex = static_cast<int>(lines.size()) - 1;
+    }
+    lines[lineIndex].left = std::min(lines[lineIndex].left, cLeft);
+    lines[lineIndex].right = std::max(lines[lineIndex].right, cRight);
+    lines[lineIndex].top = std::max(lines[lineIndex].top, cTop);
+    lines[lineIndex].bottom = std::min(lines[lineIndex].bottom, cBottom);
+    lines[lineIndex].chars.push_back(static_cast<int>(chars.size()) - 1);
+  }
+
+  std::sort(lines.begin(), lines.end(), [](const LineRect &a, const LineRect &b) {
+    if (a.top != b.top) return a.top > b.top;
+    return a.left < b.left;
+  });
+
+  const bool hasEndpoints = std::isfinite(startNormX) && std::isfinite(startNormY) &&
+                            std::isfinite(endNormX) && std::isfinite(endNormY) &&
+                            startNormX >= 0 && startNormY >= 0 && endNormX >= 0 && endNormY >= 0;
+  std::vector<bool> selected(chars.size(), false);
+  if (hasEndpoints && !lines.empty()) {
+    const double startX = std::max(0.0, std::min(1.0, startNormX)) * pageWidth;
+    const double endX = std::max(0.0, std::min(1.0, endNormX)) * pageWidth;
+    const double startY = std::max(0.0, std::min(1.0, startNormY)) * pageHeight;
+    const double endY = std::max(0.0, std::min(1.0, endNormY)) * pageHeight;
+
+    const bool isPointSelection =
+        startNormX == endNormX && startNormY == endNormY;
+    if (isPointSelection) {
+      const double pointX = startX;
+      const double pointY = pageHeight - startY;
+      int pointChar = -1;
+      double bestDistance = std::numeric_limits<double>::max();
+      for (int i = 0; i < static_cast<int>(chars.size()); i++) {
+        const auto &character = chars[i];
+        const bool inside = pointX >= character.left && pointX <= character.right &&
+                            pointY >= character.bottom && pointY <= character.top;
+        if (inside) {
+          pointChar = i;
+          break;
+        }
+        const double dx = std::max({character.left - pointX, pointX - character.right, 0.0});
+        const double dy = std::max({character.bottom - pointY, pointY - character.top, 0.0});
+        const double distance = dx * dx + dy * dy;
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          pointChar = i;
+        }
+      }
+      if (pointChar >= 0) {
+        const auto wordRange = papyrus::ResolveWordRange(pageChars, pointChar);
+        for (int i = wordRange.first; i < wordRange.second; i++) {
+          selected[i] = true;
+        }
+      }
+    } else {
+      auto findLine = [&](double pdfY) {        int best = 0;
+        double bestDistance = std::numeric_limits<double>::max();
+        for (int i = 0; i < static_cast<int>(lines.size()); i++) {
+          const auto &line = lines[i];
+          double distance = 0.0;
+          if (pdfY > line.top) distance = pdfY - line.top;
+          else if (pdfY < line.bottom) distance = line.bottom - pdfY;
+          if (distance < bestDistance) {
+            best = i;
+            bestDistance = distance;
+          }
+        }
+        return best;
+      };
+
+      const int startLine = findLine(pageHeight - startY);
+      const int endLine = findLine(pageHeight - endY);
+      const bool forward = startLine < endLine || (startLine == endLine && startX <= endX);
+      const int firstLine = std::min(startLine, endLine);
+      const int lastLine = std::max(startLine, endLine);
+
+      for (int lineIndex = firstLine; lineIndex <= lastLine; lineIndex++) {
+        const auto &line = lines[lineIndex];
+        for (int charIndex : line.chars) {
+          const auto &character = chars[charIndex];
+          bool include = true;
+          if (startLine == endLine) {
+            const double left = std::min(startX, endX);
+            const double right = std::max(startX, endX);
+            include = character.right >= left && character.left <= right;
+          } else if (forward) {
+            if (lineIndex == startLine) include = character.right >= startX;
+            else if (lineIndex == endLine) include = character.left <= endX;
+          } else {
+            if (lineIndex == startLine) include = character.left <= startX;
+            else if (lineIndex == endLine) include = character.right >= endX;
+          }
+          selected[charIndex] = include;
+        }
+      }
+    }
+  } else {
+    for (int charIndex = 0; charIndex < static_cast<int>(chars.size()); charIndex++) {
+      const auto &character = chars[charIndex];
+      selected[charIndex] = !(character.right < rectLeft || character.left > rectRight ||
+                              character.top < rectBottom || character.bottom > rectTop);
     }
   }
 
-  std::vector<jfloat> rects;
-  rects.reserve(lines.size() * 4);
+  std::vector<LineRect> selectedLines;
   for (const auto &line : lines) {
+    LineRect selectedLine = {0, 0, 0, 0, {}};
+    for (int charIndex : line.chars) {
+      if (!selected[charIndex]) continue;
+      const auto &character = chars[charIndex];
+      if (selectedLine.chars.empty()) {
+        selectedLine.left = character.left;
+        selectedLine.right = character.right;
+        selectedLine.top = character.top;
+        selectedLine.bottom = character.bottom;
+      } else {
+        selectedLine.left = std::min(selectedLine.left, character.left);
+        selectedLine.right = std::max(selectedLine.right, character.right);
+        selectedLine.top = std::max(selectedLine.top, character.top);
+        selectedLine.bottom = std::min(selectedLine.bottom, character.bottom);
+      }
+      selectedLine.chars.push_back(charIndex);
+      selectedText.push_back(static_cast<char16_t>(character.value));
+    }
+    if (!selectedLine.chars.empty()) selectedLines.push_back(selectedLine);
+  }
+
+  std::vector<jfloat> rects;
+  rects.reserve(selectedLines.size() * 4);
+  for (const auto &line : selectedLines) {
     float x = static_cast<float>(line.left / pageWidth);
     float y = static_cast<float>((pageHeight - line.top) / pageHeight);
     float w = static_cast<float>((line.right - line.left) / pageWidth);
@@ -382,16 +520,16 @@ Java_com_papyrus_engine_PapyrusTextSearch_nativeSearchFile(JNIEnv *env, jclass, 
 }
 
 extern "C" JNIEXPORT jobject JNICALL
-Java_com_papyrus_engine_PapyrusTextSelect_nativeSelectText(JNIEnv *env, jclass, jlong docPtr, jint pageIndex, jfloat x, jfloat y, jfloat width, jfloat height) {
+Java_com_papyrus_engine_PapyrusTextSelect_nativeSelectText(JNIEnv *env, jclass, jlong docPtr, jint pageIndex, jfloat x, jfloat y, jfloat width, jfloat height, jfloat startX, jfloat startY, jfloat endX, jfloat endY) {
   if (!LoadPdfium()) return nullptr;
   if (!docPtr) return nullptr;
 
   FPDF_DOCUMENT doc = reinterpret_cast<FPDF_DOCUMENT>(docPtr);
-  return BuildSelection(env, doc, pageIndex, x, y, width, height);
+  return BuildSelection(env, doc, pageIndex, x, y, width, height, startX, startY, endX, endY);
 }
 
 extern "C" JNIEXPORT jobject JNICALL
-Java_com_papyrus_engine_PapyrusTextSelect_nativeSelectTextFile(JNIEnv *env, jclass, jstring filePath, jint pageIndex, jfloat x, jfloat y, jfloat width, jfloat height) {
+Java_com_papyrus_engine_PapyrusTextSelect_nativeSelectTextFile(JNIEnv *env, jclass, jstring filePath, jint pageIndex, jfloat x, jfloat y, jfloat width, jfloat height, jfloat startX, jfloat startY, jfloat endX, jfloat endY) {
   if (!LoadPdfium()) return nullptr;
   if (!filePath) return nullptr;
 
@@ -402,7 +540,7 @@ Java_com_papyrus_engine_PapyrusTextSelect_nativeSelectTextFile(JNIEnv *env, jcla
   env->ReleaseStringUTFChars(filePath, path);
   if (!doc) return nullptr;
 
-  jobject selection = BuildSelection(env, doc, pageIndex, x, y, width, height);
+  jobject selection = BuildSelection(env, doc, pageIndex, x, y, width, height, startX, startY, endX, endY);
   g_fns.closeDocument(doc);
   return selection;
 }
