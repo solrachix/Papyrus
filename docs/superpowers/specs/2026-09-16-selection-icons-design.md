@@ -20,9 +20,16 @@ aos pontos exatos do gesto.
 
 O cálculo será orientado por linhas e produzirá segmentos independentes. O
 retângulo envolvente único não será usado como fonte da seleção final, pois ele
-inclui texto indevido nas linhas inicial e final. Android nativo e o
-`PageRenderer` compartilhado pelo iOS deverão seguir o mesmo contrato de
-seleção.
+inclui texto indevido nas linhas inicial e final.
+
+O contrato entre a interface e o engine continuará aceitando o retângulo
+normalizado por compatibilidade, mas receberá opcionalmente os dois pontos
+normalizados do gesto (`start` e `end`, em coordenadas top-left). Engines
+nativos usarão esses pontos para agrupar glifos nas linhas reais e retornarão
+os retângulos em ordem de leitura. Implementações sem suporte a pontos
+continuarão usando o retângulo legado. Android nativo e o `PageRenderer`
+compartilhado pelo iOS deverão seguir esse contrato; o `DedicatedAndroidPdfViewer`
+deverá encaminhar os mesmos pontos ao bridge nativo.
 
 ## Ícones
 
@@ -51,12 +58,16 @@ armazenado da anotação.
 ## Validação
 
 - testes unitários para seleção na mesma linha, descida, subida e movimento
-  das alças;
+  das alças, incluindo texto retornado e ausência de caracteres fora dos
+  segmentos;
 - teste de renderização/estrutura para os novos componentes de ícone e para a
   composição da nota;
 - build do pacote React Native;
 - testes unitários Android;
-- smoke test no emulador Android quando o ADB estiver operacional.
+- smoke test no emulador Android quando o ADB estiver operacional, cobrindo os
+  fluxos `PageRenderer` e `DedicatedAndroidPdfViewer`; a verificação iOS ficará
+  coberta pelo build/bridge e pelos testes do contrato compartilhado quando não
+  houver simulador disponível.
 
 ## Escopo
 
