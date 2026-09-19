@@ -15,7 +15,10 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { IconClose } from "../icons";
-import { getNativeSheetSizeStyle } from "./nativeSheetLayout";
+import {
+  getNativeSheetLayoutStyles,
+  getNativeSheetSizeStyle,
+} from "./nativeSheetLayout";
 import { usePapyrusSafeAreaInsets } from "./PapyrusSafeArea";
 import { getNativeSheetPalette } from "./readerSheetPresentation";
 
@@ -44,7 +47,8 @@ export function NativeSheet({
 }: NativeSheetProps) {
   const insets = usePapyrusSafeAreaInsets();
   const palette = getNativeSheetPalette(Boolean(isDark));
-  const { height: windowHeight } = useWindowDimensions();
+  const { height: windowHeight, width: windowWidth } = useWindowDimensions();
+  const tabletLayout = getNativeSheetLayoutStyles(windowWidth);
   const [rendered, setRendered] = useState(visible);
   const renderedRef = useRef(visible);
   const motion = useRef(new Animated.Value(visible ? 0 : 1)).current;
@@ -105,7 +109,7 @@ export function NativeSheet({
       visible={rendered}
       onRequestClose={onClose}
     >
-      <View style={styles.root}>
+      <View style={[styles.root, tabletLayout?.root]}>
         <Animated.View style={[styles.backdrop, { opacity: backdropOpacity }]}>
           <Pressable
             accessibilityRole="button"
@@ -117,6 +121,7 @@ export function NativeSheet({
         <Animated.View
           style={[
             styles.sheet,
+            tabletLayout?.sheet,
             isDark && styles.sheetDark,
             getNativeSheetSizeStyle(maxHeight),
             { paddingBottom: insets.bottom },
@@ -181,6 +186,7 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     justifyContent: "flex-end",
+    alignItems: "center",
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
@@ -193,6 +199,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
     borderTopWidth: 1,
     borderTopColor: "#e5e7eb",
+    borderBottomColor: "#e5e7eb",
     backgroundColor: "#ffffff",
   },
   sheetDark: {

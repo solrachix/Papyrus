@@ -13,6 +13,7 @@ import {
 import { copySelectionText } from "./clipboard";
 import { resolvePageTapChromeVisibility } from "./mobileChromeInteraction";
 import { shouldDismissSelectionOnContentInteraction } from "./selectionContentInteraction";
+import { resolveMaxPageWidth } from "./pdfPageMetrics";
 
 const TEXT_MARKUP_TOOLS = new Set(["highlight", "underline", "squiggly", "strikeout"]);
 
@@ -27,6 +28,7 @@ type NativeEngineBackdoor = {
 
 type DedicatedAndroidPdfViewerProps = {
   engine: DocumentEngine;
+  maxPageWidth?: number;
 };
 
 export const getDedicatedAndroidPdfEngineId = (
@@ -45,6 +47,7 @@ type SelectionState = {
 
 export default function DedicatedAndroidPdfViewer({
   engine,
+  maxPageWidth,
 }: DedicatedAndroidPdfViewerProps) {
   const pageTheme = useViewerStore((state) => state.pageTheme);
   const zoom = useViewerStore((state) => state.zoom);
@@ -67,6 +70,14 @@ export default function DedicatedAndroidPdfViewer({
   const addAnnotation = useViewerStore((state) => state.addAnnotation);
   const setSelectedAnnotation = useViewerStore((state) => state.setSelectedAnnotation);
   const engineId = getDedicatedAndroidPdfEngineId(engine);
+  const resolvedMaxPageWidth = resolveMaxPageWidth(maxPageWidth);
+  const cappedViewerStyle = resolvedMaxPageWidth
+    ? {
+        width: "100%" as const,
+        maxWidth: resolvedMaxPageWidth,
+        alignSelf: "center" as const,
+      }
+    : undefined;
 
   const [selection, setSelection] = useState<SelectionState>(null);
   const selectionRef = useRef<SelectionState>(null);
@@ -190,7 +201,7 @@ export default function DedicatedAndroidPdfViewer({
   return (
     <View style={styles.container}>
       <PapyrusPdfDocumentView
-        style={styles.viewer}
+        style={[styles.viewer, cappedViewerStyle]}
         engineId={engineId}
         pageTheme={pageTheme}
         zoom={zoom}

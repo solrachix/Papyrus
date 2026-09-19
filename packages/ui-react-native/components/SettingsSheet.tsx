@@ -1,10 +1,17 @@
 import React from "react";
-import { Dimensions, View, Text, Pressable, StyleSheet } from "react-native";
+import {
+  View,
+  Text,
+  Pressable,
+  StyleSheet,
+  useWindowDimensions,
+} from "react-native";
 import { useViewerStore } from "@papyrus-sdk/core";
 import { DocumentEngine, PageTheme } from "@papyrus-sdk/types";
 import { getStrings } from "../mobileStrings";
 import { IconZoomIn, IconZoomOut } from "../icons";
 import { NativeSheet, NativeSheetScrollView } from "./NativeSheet";
+import { getSettingsSheetMaxHeight } from "./settingsSheetLayout";
 
 interface SettingsSheetProps {
   engine: DocumentEngine;
@@ -12,12 +19,13 @@ interface SettingsSheetProps {
   onClose: () => void;
 }
 
-const PAGE_THEME_OPTIONS: Array<{ value: PageTheme; labelKey: ThemeLabelKey }> = [
-  { value: "normal", labelKey: "themeOriginal" },
-  { value: "sepia", labelKey: "themeSepia" },
-  { value: "dark", labelKey: "themeDark" },
-  { value: "high-contrast", labelKey: "themeContrast" },
-];
+const PAGE_THEME_OPTIONS: Array<{ value: PageTheme; labelKey: ThemeLabelKey }> =
+  [
+    { value: "normal", labelKey: "themeOriginal" },
+    { value: "sepia", labelKey: "themeSepia" },
+    { value: "dark", labelKey: "themeDark" },
+    { value: "high-contrast", labelKey: "themeContrast" },
+  ];
 
 type ThemeLabelKey =
   | "themeOriginal"
@@ -65,7 +73,8 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
   const isPaged = viewMode === "single";
   const isDouble = viewMode === "double";
   const t = getStrings(locale);
-  const sheetMaxHeight = Math.min(640, Dimensions.get("window").height * 0.72);
+  const { height: windowHeight } = useWindowDimensions();
+  const sheetMaxHeight = getSettingsSheetMaxHeight(windowHeight);
 
   const handleTransition = (mode: "continuous" | "paged") => {
     if (mode === "paged") {
@@ -106,296 +115,296 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
       title={locale === "pt-BR" ? "Exibicao" : "Display"}
       closeAccessibilityLabel="Close settings"
     >
-        <NativeSheetScrollView
-          style={styles.sheet}
-          contentContainerStyle={styles.sheetContent}
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={styles.section}>
-            <Text
-              style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}
+      <NativeSheetScrollView
+        style={styles.sheet}
+        contentContainerStyle={styles.sheetContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.section}>
+          <Text
+            style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}
+          >
+            {t.appearance}
+          </Text>
+          <View style={styles.optionRow}>
+            <Pressable
+              onPress={() => setDocumentState({ uiTheme: "light" })}
+              style={[
+                styles.optionButton,
+                isDark && styles.optionButtonDark,
+                uiTheme === "light" && styles.optionButtonActive,
+                uiTheme === "light" && { backgroundColor: accentColor },
+              ]}
             >
-              {t.appearance}
-            </Text>
-            <View style={styles.optionRow}>
-              <Pressable
-                onPress={() => setDocumentState({ uiTheme: "light" })}
+              <Text
                 style={[
-                  styles.optionButton,
-                  isDark && styles.optionButtonDark,
-                  uiTheme === "light" && styles.optionButtonActive,
-                  uiTheme === "light" && { backgroundColor: accentColor },
+                  styles.optionText,
+                  isDark && styles.optionTextDark,
+                  uiTheme === "light" && styles.optionTextActive,
                 ]}
               >
-                <Text
-                  style={[
-                    styles.optionText,
-                    isDark && styles.optionTextDark,
-                    uiTheme === "light" && styles.optionTextActive,
-                  ]}
-                >
-                  {t.light}
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={() => setDocumentState({ uiTheme: "dark" })}
+                {t.light}
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setDocumentState({ uiTheme: "dark" })}
+              style={[
+                styles.optionButton,
+                isDark && styles.optionButtonDark,
+                uiTheme === "dark" && styles.optionButtonActive,
+                uiTheme === "dark" && { backgroundColor: accentColor },
+              ]}
+            >
+              <Text
                 style={[
-                  styles.optionButton,
-                  isDark && styles.optionButtonDark,
-                  uiTheme === "dark" && styles.optionButtonActive,
-                  uiTheme === "dark" && { backgroundColor: accentColor },
+                  styles.optionText,
+                  isDark && styles.optionTextDark,
+                  uiTheme === "dark" && styles.optionTextActive,
                 ]}
               >
-                <Text
-                  style={[
-                    styles.optionText,
-                    isDark && styles.optionTextDark,
-                    uiTheme === "dark" && styles.optionTextActive,
-                  ]}
-                >
-                  {t.dark}
-                </Text>
-              </Pressable>
-            </View>
+                {t.dark}
+              </Text>
+            </Pressable>
           </View>
+        </View>
 
-          <View style={styles.section}>
-            <Text
-              style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}
-            >
-              {t.pageTheme}
-            </Text>
-            <View style={styles.themeOptionRow}>
-              {PAGE_THEME_OPTIONS.map((option) => {
-                const active = pageTheme === option.value;
-                return (
-                  <Pressable
-                    key={option.value}
-                    onPress={() => setDocumentState({ pageTheme: option.value })}
+        <View style={styles.section}>
+          <Text
+            style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}
+          >
+            {t.pageTheme}
+          </Text>
+          <View style={styles.themeOptionRow}>
+            {PAGE_THEME_OPTIONS.map((option) => {
+              const active = pageTheme === option.value;
+              return (
+                <Pressable
+                  key={option.value}
+                  onPress={() => setDocumentState({ pageTheme: option.value })}
+                  style={[
+                    styles.themeOptionButton,
+                    isDark && styles.themeOptionButtonDark,
+                    active && styles.themeOptionButtonActive,
+                    active && { borderColor: accentColor },
+                  ]}
+                >
+                  <ThemeSwatch value={option.value} />
+                  <Text
                     style={[
-                      styles.themeOptionButton,
-                      isDark && styles.themeOptionButtonDark,
-                      active && styles.themeOptionButtonActive,
-                      active && { borderColor: accentColor },
+                      styles.themeOptionLabel,
+                      isDark && styles.themeOptionLabelDark,
+                      active && { color: accentColor },
                     ]}
                   >
-                    <ThemeSwatch value={option.value} />
-                    <Text
-                      style={[
-                        styles.themeOptionLabel,
-                        isDark && styles.themeOptionLabelDark,
-                        active && { color: accentColor },
-                      ]}
-                    >
-                      {t[option.labelKey]}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+                    {t[option.labelKey]}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
+        </View>
 
-          <View style={styles.section}>
-            <Text
-              style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}
+        <View style={styles.section}>
+          <Text
+            style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}
+          >
+            {t.pageTransition}
+          </Text>
+          <View style={styles.optionRow}>
+            <Pressable
+              onPress={() => handleTransition("continuous")}
+              style={[
+                styles.optionButton,
+                isDark && styles.optionButtonDark,
+                (!isPaged || isDouble) && styles.optionButtonActive,
+                (!isPaged || isDouble) && { backgroundColor: accentColor },
+              ]}
             >
-              {t.pageTransition}
-            </Text>
-            <View style={styles.optionRow}>
-              <Pressable
-                onPress={() => handleTransition("continuous")}
+              <Text
                 style={[
-                  styles.optionButton,
-                  isDark && styles.optionButtonDark,
-                  (!isPaged || isDouble) && styles.optionButtonActive,
-                  (!isPaged || isDouble) && { backgroundColor: accentColor },
+                  styles.optionText,
+                  isDark && styles.optionTextDark,
+                  (!isPaged || isDouble) && styles.optionTextActive,
                 ]}
               >
-                <Text
-                  style={[
-                    styles.optionText,
-                    isDark && styles.optionTextDark,
-                    (!isPaged || isDouble) && styles.optionTextActive,
-                  ]}
-                >
-                  {t.continuous}
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={() => handleTransition("paged")}
+                {t.continuous}
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => handleTransition("paged")}
+              style={[
+                styles.optionButton,
+                isDark && styles.optionButtonDark,
+                isPaged && styles.optionButtonActive,
+                isPaged && { backgroundColor: accentColor },
+              ]}
+            >
+              <Text
                 style={[
-                  styles.optionButton,
-                  isDark && styles.optionButtonDark,
-                  isPaged && styles.optionButtonActive,
-                  isPaged && { backgroundColor: accentColor },
+                  styles.optionText,
+                  isDark && styles.optionTextDark,
+                  isPaged && styles.optionTextActive,
                 ]}
               >
-                <Text
-                  style={[
-                    styles.optionText,
-                    isDark && styles.optionTextDark,
-                    isPaged && styles.optionTextActive,
-                  ]}
-                >
-                  {t.pageByPage}
-                </Text>
-              </Pressable>
-            </View>
+                {t.pageByPage}
+              </Text>
+            </Pressable>
           </View>
+        </View>
 
-          <View style={styles.section}>
-            <Text
-              style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}
+        <View style={styles.section}>
+          <Text
+            style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}
+          >
+            {t.layout}
+          </Text>
+          <View style={styles.optionRow}>
+            <Pressable
+              onPress={() => handleLayout("single")}
+              style={[
+                styles.optionButton,
+                isDark && styles.optionButtonDark,
+                !isDouble && styles.optionButtonActive,
+                !isDouble && { backgroundColor: accentColor },
+              ]}
             >
-              {t.layout}
-            </Text>
-            <View style={styles.optionRow}>
-              <Pressable
-                onPress={() => handleLayout("single")}
+              <Text
                 style={[
-                  styles.optionButton,
-                  isDark && styles.optionButtonDark,
-                  !isDouble && styles.optionButtonActive,
-                  !isDouble && { backgroundColor: accentColor },
+                  styles.optionText,
+                  isDark && styles.optionTextDark,
+                  !isDouble && styles.optionTextActive,
                 ]}
               >
-                <Text
-                  style={[
-                    styles.optionText,
-                    isDark && styles.optionTextDark,
-                    !isDouble && styles.optionTextActive,
-                  ]}
-                >
-                  {t.singlePage}
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={() => handleLayout("double")}
+                {t.singlePage}
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => handleLayout("double")}
+              style={[
+                styles.optionButton,
+                isDark && styles.optionButtonDark,
+                isDouble && styles.optionButtonActive,
+                isDouble && { backgroundColor: accentColor },
+              ]}
+            >
+              <Text
                 style={[
-                  styles.optionButton,
-                  isDark && styles.optionButtonDark,
-                  isDouble && styles.optionButtonActive,
-                  isDouble && { backgroundColor: accentColor },
+                  styles.optionText,
+                  isDark && styles.optionTextDark,
+                  isDouble && styles.optionTextActive,
                 ]}
               >
-                <Text
-                  style={[
-                    styles.optionText,
-                    isDark && styles.optionTextDark,
-                    isDouble && styles.optionTextActive,
-                  ]}
-                >
-                  {t.doublePage}
-                </Text>
-              </Pressable>
-            </View>
+                {t.doublePage}
+              </Text>
+            </Pressable>
           </View>
+        </View>
 
-          <View style={styles.section}>
-            <Text
-              style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}
+        <View style={styles.section}>
+          <Text
+            style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}
+          >
+            {t.rotate}
+          </Text>
+          <View style={styles.optionRow}>
+            <Pressable
+              onPress={() => handleRotate("counterclockwise")}
+              style={[styles.optionButton, isDark && styles.optionButtonDark]}
             >
-              {t.rotate}
-            </Text>
-            <View style={styles.optionRow}>
-              <Pressable
-                onPress={() => handleRotate("counterclockwise")}
-                style={[styles.optionButton, isDark && styles.optionButtonDark]}
+              <Text
+                style={[styles.optionText, isDark && styles.optionTextDark]}
               >
-                <Text
-                  style={[styles.optionText, isDark && styles.optionTextDark]}
-                >
-                  {t.counterclockwise}
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={() => handleRotate("clockwise")}
-                style={[styles.optionButton, isDark && styles.optionButtonDark]}
+                {t.counterclockwise}
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => handleRotate("clockwise")}
+              style={[styles.optionButton, isDark && styles.optionButtonDark]}
+            >
+              <Text
+                style={[styles.optionText, isDark && styles.optionTextDark]}
               >
-                <Text
-                  style={[styles.optionText, isDark && styles.optionTextDark]}
-                >
-                  {t.clockwise}
-                </Text>
-              </Pressable>
-            </View>
+                {t.clockwise}
+              </Text>
+            </Pressable>
           </View>
+        </View>
 
-          <View style={styles.section}>
-            <Text
-              style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}
+        <View style={styles.section}>
+          <Text
+            style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}
+          >
+            {t.zoom}
+          </Text>
+          <View style={styles.optionRow}>
+            <Pressable
+              onPress={() => handleZoom(-0.1)}
+              style={[styles.optionButton, isDark && styles.optionButtonDark]}
             >
-              {t.zoom}
-            </Text>
-            <View style={styles.optionRow}>
-              <Pressable
-                onPress={() => handleZoom(-0.1)}
-                style={[styles.optionButton, isDark && styles.optionButtonDark]}
-              >
-                <IconZoomOut size={16} color={isDark ? "#e5e7eb" : "#111827"} />
-              </Pressable>
-              <View style={styles.zoomValue}>
-                <Text style={[styles.zoomText, isDark && styles.zoomTextDark]}>
-                  {Math.round(zoom * 100)}%
-                </Text>
-              </View>
-              <Pressable
-                onPress={() => handleZoom(0.1)}
-                style={[styles.optionButton, isDark && styles.optionButtonDark]}
-              >
-                <IconZoomIn size={16} color={isDark ? "#e5e7eb" : "#111827"} />
-              </Pressable>
+              <IconZoomOut size={16} color={isDark ? "#e5e7eb" : "#111827"} />
+            </Pressable>
+            <View style={styles.zoomValue}>
+              <Text style={[styles.zoomText, isDark && styles.zoomTextDark]}>
+                {Math.round(zoom * 100)}%
+              </Text>
             </View>
-          </View>
-
-          <View style={styles.section}>
-            <Text
-              style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}
+            <Pressable
+              onPress={() => handleZoom(0.1)}
+              style={[styles.optionButton, isDark && styles.optionButtonDark]}
             >
-              {t.language}
-            </Text>
-            <View style={styles.optionRow}>
-              <Pressable
-                onPress={() => setDocumentState({ locale: "en" })}
+              <IconZoomIn size={16} color={isDark ? "#e5e7eb" : "#111827"} />
+            </Pressable>
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text
+            style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}
+          >
+            {t.language}
+          </Text>
+          <View style={styles.optionRow}>
+            <Pressable
+              onPress={() => setDocumentState({ locale: "en" })}
+              style={[
+                styles.optionButton,
+                isDark && styles.optionButtonDark,
+                locale === "en" && styles.optionButtonActive,
+                locale === "en" && { backgroundColor: accentColor },
+              ]}
+            >
+              <Text
                 style={[
-                  styles.optionButton,
-                  isDark && styles.optionButtonDark,
-                  locale === "en" && styles.optionButtonActive,
-                  locale === "en" && { backgroundColor: accentColor },
+                  styles.optionText,
+                  isDark && styles.optionTextDark,
+                  locale === "en" && styles.optionTextActive,
                 ]}
               >
-                <Text
-                  style={[
-                    styles.optionText,
-                    isDark && styles.optionTextDark,
-                    locale === "en" && styles.optionTextActive,
-                  ]}
-                >
-                  {t.english}
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={() => setDocumentState({ locale: "pt-BR" })}
+                {t.english}
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setDocumentState({ locale: "pt-BR" })}
+              style={[
+                styles.optionButton,
+                isDark && styles.optionButtonDark,
+                locale === "pt-BR" && styles.optionButtonActive,
+                locale === "pt-BR" && { backgroundColor: accentColor },
+              ]}
+            >
+              <Text
                 style={[
-                  styles.optionButton,
-                  isDark && styles.optionButtonDark,
-                  locale === "pt-BR" && styles.optionButtonActive,
-                  locale === "pt-BR" && { backgroundColor: accentColor },
+                  styles.optionText,
+                  isDark && styles.optionTextDark,
+                  locale === "pt-BR" && styles.optionTextActive,
                 ]}
               >
-                <Text
-                  style={[
-                    styles.optionText,
-                    isDark && styles.optionTextDark,
-                    locale === "pt-BR" && styles.optionTextActive,
-                  ]}
-                >
-                  {t.portuguese}
-                </Text>
-              </Pressable>
-            </View>
+                {t.portuguese}
+              </Text>
+            </Pressable>
           </View>
-        </NativeSheetScrollView>
+        </View>
+      </NativeSheetScrollView>
     </NativeSheet>
   );
 };

@@ -264,8 +264,8 @@ importers:
   packages/core:
     dependencies:
       '@papyrus-sdk/types':
-        specifier: 0.2.12
-        version: 0.2.12
+        specifier: 0.2.15
+        version: link:../types
       zustand:
         specifier: ^5.0.0
         version: 5.0.12(@types/react@19.2.14)(react@19.1.0)
@@ -314,10 +314,10 @@ importers:
   packages/engine-cbz-rust:
     dependencies:
       '@papyrus-sdk/engine-cbz':
-        specifier: workspace:*
+        specifier: 0.1.2
         version: link:../engine-cbz
       '@papyrus-sdk/engine-comic-core':
-        specifier: workspace:*
+        specifier: 0.1.0
         version: link:../engine-comic-core
     devDependencies:
       '@papyrus-sdk/core':
@@ -353,7 +353,7 @@ importers:
     devDependencies:
       '@papyrus-sdk/core':
         specifier: 0.2.19
-        version: link:../core
+        version: 0.2.19(@types/react@19.2.14)(react@19.1.0)
       '@papyrus-sdk/types':
         specifier: 0.2.12
         version: 0.2.12
@@ -421,14 +421,14 @@ importers:
         version: 13.16.1(react-native@0.81.0(@babel/core@7.29.0)(@react-native-community/cli@20.0.0(typescript@5.9.3))(@react-native/metro-config@0.81.0(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.1.0))(react@19.1.0)
     devDependencies:
       '@papyrus-sdk/core':
-        specifier: 0.2.19
+        specifier: workspace:*
         version: link:../core
       '@papyrus-sdk/engine-native':
         specifier: workspace:*
         version: link:../engine-native
       '@papyrus-sdk/types':
-        specifier: 0.2.12
-        version: 0.2.12
+        specifier: workspace:*
+        version: link:../types
       '@react-native-clipboard/clipboard':
         specifier: ^1.16.3
         version: 1.16.3(react-native@0.81.0(@babel/core@7.29.0)(@react-native-community/cli@20.0.0(typescript@5.9.3))(@react-native/metro-config@0.81.0(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.1.0))(react@19.1.0)
@@ -1766,6 +1766,9 @@ packages:
   '@npmcli/fs@3.1.1':
     resolution: {integrity: sha512-q9CRWjpHCMIh5sVyefoD1cA7PkvILqCZsnSOEUUivORLjxCO/Irmue2DprETiNgEqktDBZaM1Bi+jrarx1XdCg==}
     engines: {node: ^14.17.0 || ^16.13.0 || >=18.0.0}
+
+  '@papyrus-sdk/core@0.2.19':
+    resolution: {integrity: sha512-IjLw6U0uqWM/pGVlM2IvCBC0k5oCrI5KD3hLJwsEGKxV4aSnugz1haVHfLF2QlNC2yprUgTJa4jSonSwB7eF+A==}
 
   '@papyrus-sdk/types@0.2.12':
     resolution: {integrity: sha512-rBjDX92YbYoTFW+RcaG7oUkb91Vn7cFjxgYSKDYS/u8Y3ZGzVBUGImHkkPTUrhwEHrXaGCzqDNcC6C6Tl1TNsw==}
@@ -8783,6 +8786,16 @@ snapshots:
   '@npmcli/fs@3.1.1':
     dependencies:
       semver: 7.7.4
+
+  '@papyrus-sdk/core@0.2.19(@types/react@19.2.14)(react@19.1.0)':
+    dependencies:
+      '@papyrus-sdk/types': 0.2.12
+      zustand: 5.0.12(@types/react@19.2.14)(react@19.1.0)
+    transitivePeerDependencies:
+      - '@types/react'
+      - immer
+      - react
+      - use-sync-external-store
 
   '@papyrus-sdk/types@0.2.12': {}
 

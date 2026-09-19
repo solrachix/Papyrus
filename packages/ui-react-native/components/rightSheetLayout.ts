@@ -5,6 +5,18 @@ type ResolveRightSheetHeightInput = {
   showingNotes: boolean;
 };
 
+export const getRightSheetThumbnailLayout = (sheetWidth: number) => {
+  const availableWidth = Number.isFinite(sheetWidth)
+    ? Math.max(0, sheetWidth - 32)
+    : 0;
+  const cardWidth = Math.max(0, (availableWidth - 12) / 2);
+
+  return {
+    cardWidth,
+    frameWidth: Math.max(0, cardWidth - 16),
+  };
+};
+
 export const resolveRightSheetHeight = ({
   windowHeight,
   showingNotes,

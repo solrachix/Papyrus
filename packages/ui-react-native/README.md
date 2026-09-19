@@ -88,6 +88,7 @@ Performance tuning props are available on `Viewer` and `RightSheet`:
 ```tsx
 <Viewer
   engine={engine}
+  maxPageWidth={760}
   virtualWindowSize={8}
   maxToRenderPerBatch={6}
   removeClippedSubviews
@@ -97,6 +98,7 @@ Performance tuning props are available on `Viewer` and `RightSheet`:
 ```
 
 - `virtualWindowSize` (`Viewer`): FlatList window size. Default: `8`.
+- `maxPageWidth` (`Viewer`): optional fit-zoom width limit in React Native points. A narrower page is centered in the viewport; pinch zoom may enlarge it. Omitted by default.
 - `maxToRenderPerBatch` (`Viewer`): max items per render batch. Default: `6`.
 - `removeClippedSubviews` (`Viewer`): detach offscreen rows. Default: `false`
   for Android `viewerMode="compat"` and `true` otherwise. An explicit value is

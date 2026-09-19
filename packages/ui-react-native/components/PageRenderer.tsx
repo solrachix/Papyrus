@@ -66,6 +66,7 @@ interface PageRendererProps {
   pageAspectRatio?: number;
   PageViewComponent?: PageViewComponentType;
   availableWidth?: number;
+  maxPageWidth?: number;
   pageViewportWidth?: number;
   horizontalPadding?: number;
   spacing?: number;
@@ -180,6 +181,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   pageAspectRatio,
   PageViewComponent = PapyrusPageView as PageViewComponentType,
   availableWidth,
+  maxPageWidth,
   pageViewportWidth: providedPageViewportWidth,
   horizontalPadding = 16,
   spacing = 24,
@@ -1504,6 +1506,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   const baseWidth = resolvePdfBasePageWidth({
     viewportWidth: containerWidth,
     horizontalPadding,
+    maxPageWidth,
   });
   const pageWidth = isNative ? baseWidth * zoom : baseWidth;
   const pageHeight = pageWidth / aspectRatio;
@@ -2214,6 +2217,7 @@ const arePageRendererPropsEqual = (
   previous.scale === next.scale &&
   previous.PageViewComponent === next.PageViewComponent &&
   previous.availableWidth === next.availableWidth &&
+  previous.maxPageWidth === next.maxPageWidth &&
   previous.pageViewportWidth === next.pageViewportWidth &&
   previous.horizontalPadding === next.horizontalPadding &&
   previous.spacing === next.spacing &&

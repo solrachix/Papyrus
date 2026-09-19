@@ -6,7 +6,6 @@ import React, {
   useState,
 } from "react";
 import {
-  Dimensions,
   Image,
   Platform,
   Pressable,
@@ -17,6 +16,7 @@ import {
   findNodeHandle,
   type LayoutChangeEvent,
   type ViewToken,
+  useWindowDimensions,
 } from "react-native";
 import { useViewerStore } from "@papyrus-sdk/core";
 import { DocumentEngine, DocumentType, OutlineItem } from "@papyrus-sdk/types";
@@ -24,9 +24,11 @@ import { PapyrusPageView } from "@papyrus-sdk/engine-native";
 import { IconClose, IconQuote } from "../icons";
 import { getStrings } from "../mobileStrings";
 import {
+  getRightSheetThumbnailLayout,
   resolveRightSheetHeight,
   supportsPageThumbnails,
 } from "./rightSheetLayout";
+import { getNativeSheetWidth } from "./nativeSheetLayout";
 import {
   NativeSheet,
   NativeSheetFlatList,
@@ -65,7 +67,7 @@ const resolvePositiveInt = (
   value: number | undefined,
   fallback: number,
   min: number,
-  max: number
+  max: number,
 ) => {
   if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
   const rounded = Math.round(value);
@@ -264,16 +266,17 @@ const RightSheet: React.FC<RightSheetProps> = ({
     locale,
     accentColor,
   } = useViewerStore();
+  const { height: windowHeight, width: windowWidth } = useWindowDimensions();
   const [pagesMode, setPagesMode] = useState<"thumbnails" | "summary">(
     documentType === "pdf" || documentType === "comic"
       ? "thumbnails"
-      : "summary"
+      : "summary",
   );
   useEffect(() => {
     setPagesMode(
       documentType === "pdf" || documentType === "comic"
         ? "thumbnails"
-        : "summary"
+        : "summary",
     );
   }, [documentType]);
   const isDark = uiTheme === "dark";
@@ -281,17 +284,14 @@ const RightSheet: React.FC<RightSheetProps> = ({
   const t = getStrings(locale);
   const showingNotes = sidebarRightTab === "annotations";
   const sheetHeight = resolveRightSheetHeight({
-    windowHeight: Dimensions.get("window").height,
+    windowHeight,
     showingNotes,
   });
-  const windowWidth = Dimensions.get("window").width;
-  const gridGutter = 12;
-  const gridPadding = 16;
-  const cardWidth = (windowWidth - gridPadding * 2 - gridGutter) / 2;
-  const frameWidth = cardWidth - 16;
+  const sheetWidth = getNativeSheetWidth(windowWidth);
+  const { cardWidth, frameWidth } = getRightSheetThumbnailLayout(sheetWidth);
   const renderTarget = engine.getRenderTargetType?.();
   const hasNativePageView = Boolean(
-    UIManager.getViewManagerConfig?.("PapyrusPageView")
+    UIManager.getViewManagerConfig?.("PapyrusPageView"),
   );
   const useNativePreview = renderTarget !== "webview" && hasNativePageView;
   const useImagePreview =
@@ -315,9 +315,9 @@ const RightSheet: React.FC<RightSheetProps> = ({
         thumbsInitialCount,
         THUMBNAILS_INITIAL_NUM_TO_RENDER,
         2,
-        24
+        24,
       ),
-    [thumbsInitialCount]
+    [thumbsInitialCount],
   );
   const resolvedThumbsPrewarmCount =
     thumbsInitialCount === undefined
@@ -325,7 +325,7 @@ const RightSheet: React.FC<RightSheetProps> = ({
       : Math.max(resolvedThumbsInitialCount, resolvedThumbsInitialCount * 2);
   const normalizedThumbsInitialCount = Math.min(
     resolvedThumbsInitialCount,
-    resolvedThumbsPrewarmCount
+    resolvedThumbsPrewarmCount,
   );
   const showingProgress =
     documentType === "text" || activeMobileDestination === "progress";
@@ -333,8 +333,8 @@ const RightSheet: React.FC<RightSheetProps> = ({
   const navigationTitle = showingProgress
     ? t.progress
     : documentType === "epub" || activeMobileDestination === "contents"
-    ? t.contents
-    : t.pages;
+      ? t.contents
+      : t.pages;
   const summaryLabel = documentType === "epub" ? t.contents : t.summaryTab;
   const thumbnailLabel = documentType === "epub" ? t.pages : t.pagesTab;
 
@@ -349,7 +349,7 @@ const RightSheet: React.FC<RightSheetProps> = ({
       triggerScrollToPage(pageIndex);
       closeSheet();
     },
-    [closeSheet, engine, setDocumentState, triggerScrollToPage]
+    [closeSheet, engine, setDocumentState, triggerScrollToPage],
   );
 
   const scheduleThumbnailLayoutRefresh = useCallback(() => {
@@ -381,7 +381,7 @@ const RightSheet: React.FC<RightSheetProps> = ({
           thumbnailDimensionsPendingRef.current.delete(pageIndex);
         });
     },
-    [engine, pageCount, scheduleThumbnailLayoutRefresh]
+    [engine, pageCount, scheduleThumbnailLayoutRefresh],
   );
 
   const getThumbnailFrameHeight = useCallback(
@@ -394,10 +394,10 @@ const RightSheet: React.FC<RightSheetProps> = ({
       const estimatedHeight = frameWidth * ratio;
       return Math.max(
         frameWidth * 0.9,
-        Math.min(frameWidth * 1.7, estimatedHeight)
+        Math.min(frameWidth * 1.7, estimatedHeight),
       );
     },
-    [frameWidth, thumbnailLayoutRevision]
+    [frameWidth, thumbnailLayoutRevision],
   );
 
   useEffect(
@@ -406,7 +406,7 @@ const RightSheet: React.FC<RightSheetProps> = ({
         clearTimeout(thumbnailRefreshTimeoutRef.current);
       }
     },
-    []
+    [],
   );
 
   useEffect(() => {
@@ -444,7 +444,7 @@ const RightSheet: React.FC<RightSheetProps> = ({
     }
 
     setVisibleThumbnailPages((previous) =>
-      previous.size === 0 ? initialVisible : previous
+      previous.size === 0 ? initialVisible : previous,
     );
   }, [
     currentPage,
@@ -459,7 +459,7 @@ const RightSheet: React.FC<RightSheetProps> = ({
 
   const pages = useMemo(
     () => Array.from({ length: pageCount }, (_, i) => i),
-    [pageCount]
+    [pageCount],
   );
   const progressEntries = useMemo(
     () =>
@@ -470,7 +470,7 @@ const RightSheet: React.FC<RightSheetProps> = ({
             ? 100
             : Math.round(((pageIndex + 1) / pageCount) * 100),
       })),
-    [pageCount, pages]
+    [pageCount, pages],
   );
 
   const onThumbnailsViewableItemsChanged = useCallback(
@@ -486,10 +486,10 @@ const RightSheet: React.FC<RightSheetProps> = ({
       });
 
       setVisibleThumbnailPages((previous) =>
-        areNumberSetsEqual(previous, nextVisible) ? previous : nextVisible
+        areNumberSetsEqual(previous, nextVisible) ? previous : nextVisible,
       );
     },
-    [ensureThumbnailDimensions]
+    [ensureThumbnailDimensions],
   );
 
   const renderThumbnailItem = useCallback(
@@ -531,7 +531,7 @@ const RightSheet: React.FC<RightSheetProps> = ({
       useImagePreview,
       visibleThumbnailPages,
       zoom,
-    ]
+    ],
   );
 
   if (!sidebarRightOpen) return null;
@@ -567,7 +567,7 @@ const RightSheet: React.FC<RightSheetProps> = ({
               >
                 {showingProgress
                   ? `${Math.round(
-                      (currentPage / Math.max(pageCount, 1)) * 100
+                      (currentPage / Math.max(pageCount, 1)) * 100,
                     )}%`
                   : `${currentPage}/${pageCount}`}
               </Text>
@@ -765,7 +765,9 @@ const RightSheet: React.FC<RightSheetProps> = ({
                     </Text>
                     {ann.content
                       ? (() => {
-                          const parts = resolveNoteQuoteParts(ann.content ?? "");
+                          const parts = resolveNoteQuoteParts(
+                            ann.content ?? "",
+                          );
                           return (
                             <View style={styles.noteQuoteRow}>
                               <View
