@@ -22,7 +22,23 @@ describe("getNativeSheetSizeStyle", () => {
 describe("getNativeSheetLayoutStyles", () => {
   it("preserves the full-width bottom sheet on compact screens", () => {
     expect(getNativeSheetLayoutStyles(390)).toBeNull();
-    expect(getNativeSheetLayoutStyles(767)).toBeNull();
+    expect(getNativeSheetLayoutStyles(599)).toBeNull();
+  });
+
+  it("centers a width-constrained sheet in narrow iPad Split View", () => {
+    expect(getNativeSheetLayoutStyles(600)).toEqual({
+      root: {
+        justifyContent: "center",
+        paddingHorizontal: 32,
+        paddingVertical: 24,
+      },
+      sheet: {
+        width: 536,
+        alignSelf: "center",
+        borderRadius: 24,
+        borderBottomWidth: 1,
+      },
+    });
   });
 
   it("centers a capped floating sheet on tablet widths", () => {
@@ -58,6 +74,6 @@ describe("getNativeSheetWidth", () => {
 
   it("uses the available width when a tablet window is narrower than the cap", () => {
     expect(getNativeSheetWidth(800)).toBe(640);
-    expect(getNativeSheetWidth(700)).toBe(700);
+    expect(getNativeSheetWidth(700)).toBe(636);
   });
 });
