@@ -83,12 +83,13 @@ await engine.load({ type: 'pdf', source: { uri: 'https://example.com/book.pdf' }
 
 ## Mobile Tuning Flags
 
-Performance tuning props are available on `Viewer` and `RightSheet`:
+Layout and performance options are available on `Viewer` and `RightSheet`:
 
 ```tsx
 <Viewer
   engine={engine}
   maxPageWidth={760}
+  fitPageToViewportHeight
   virtualWindowSize={8}
   maxToRenderPerBatch={6}
   removeClippedSubviews
@@ -99,6 +100,7 @@ Performance tuning props are available on `Viewer` and `RightSheet`:
 
 - `virtualWindowSize` (`Viewer`): FlatList window size. Default: `8`.
 - `maxPageWidth` (`Viewer`): optional fit-zoom width limit in React Native points. A narrower page is centered in the viewport; pinch zoom may enlarge it. Omitted by default.
+- `fitPageToViewportHeight` (`Viewer`): opt-in page fitting to the measured viewer height while preserving each page's aspect ratio; pinch zoom may enlarge it. Defaults to `false`.
 - `maxToRenderPerBatch` (`Viewer`): max items per render batch. Default: `6`.
 - `removeClippedSubviews` (`Viewer`): detach offscreen rows. Default: `false`
   for Android `viewerMode="compat"` and `true` otherwise. An explicit value is

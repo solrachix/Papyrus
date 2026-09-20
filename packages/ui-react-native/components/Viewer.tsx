@@ -14,6 +14,7 @@ import {
   View,
   PixelRatio,
   useWindowDimensions,
+  type LayoutChangeEvent,
   type ViewToken,
 } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
@@ -31,7 +32,10 @@ import NativePdfDocumentViewer, {
   getNativePdfEngineId,
 } from "./NativePdfDocumentViewer";
 import { shouldUseNativePdfViewer } from "./nativePdfViewerMode";
-import { resolvePdfBasePageWidth } from "./pdfPageMetrics";
+import {
+  resolvePdfBasePageWidth,
+  resolvePdfFitPageHeight,
+} from "./pdfPageMetrics";
 import {
   createBurstMonitor,
   createRenderCounter,
@@ -78,6 +82,8 @@ export interface ViewerProps {
   engine: DocumentEngine;
   /** Maximum page width at fit zoom, in React Native points; pinch zoom may enlarge it. */
   maxPageWidth?: number;
+  /** Fit each page's aspect ratio within the measured viewer height at fit zoom. */
+  fitPageToViewportHeight?: boolean;
   virtualWindowSize?: number;
   maxToRenderPerBatch?: number;
   removeClippedSubviews?: boolean;
@@ -160,6 +166,7 @@ const scrollViewerListToOffset = (
 const Viewer: React.FC<ViewerProps> = ({
   engine,
   maxPageWidth,
+  fitPageToViewportHeight = false,
   virtualWindowSize,
   maxToRenderPerBatch,
   removeClippedSubviews,
@@ -276,6 +283,7 @@ const Viewer: React.FC<ViewerProps> = ({
   const committedPinchGestureIdRef = useRef<string | null>(null);
   const pinchAnchorRestoreFrameRef = useRef<number | null>(null);
   const viewerFrameRef = useRef({ y: 0, height: 0 });
+  const [viewerViewportHeight, setViewerViewportHeight] = useState(0);
   const viewerContentHeightRef = useRef(0);
   const listLayoutMetricsRef = useRef<BasePageLayoutMetrics | null>(null);
   const resolvedWindowSize = useMemo(
@@ -611,6 +619,9 @@ const Viewer: React.FC<ViewerProps> = ({
   const columnWidth = isDouble
     ? (windowWidth - horizontalPadding * 2 - columnGap) / 2
     : windowWidth;
+  const pageFitHeight = fitPageToViewportHeight
+    ? resolvePdfFitPageHeight(viewerViewportHeight, LIST_TOP_PADDING)
+    : undefined;
 
   const getPageWidthForZoom = useCallback(
     (pageIndex: number, zoomValue: number) => {
@@ -619,10 +630,19 @@ const Viewer: React.FC<ViewerProps> = ({
         viewportWidth: isDouble ? columnWidth : windowWidth,
         horizontalPadding: isDouble ? 8 : 16,
         maxPageWidth,
+        maxPageHeight: pageFitHeight,
+        pageAspectRatio: getPageAspectRatio(pageIndex),
       });
       return baseWidth * safeZoom;
     },
-    [columnWidth, isDouble, maxPageWidth, windowWidth]
+    [
+      columnWidth,
+      getPageAspectRatio,
+      isDouble,
+      maxPageWidth,
+      pageFitHeight,
+      windowWidth,
+    ]
   );
 
   const getPageHeightForZoom = useCallback(
@@ -673,6 +693,7 @@ const Viewer: React.FC<ViewerProps> = ({
     getPageWidthForZoom,
     horizontalPadding,
     isDouble,
+    layoutRevision,
     windowWidth,
     zoom,
   ]);
@@ -1074,6 +1095,8 @@ const Viewer: React.FC<ViewerProps> = ({
         viewportWidth: pageViewportWidth,
         horizontalPadding: pageHorizontalPadding,
         maxPageWidth,
+        maxPageHeight: pageFitHeight,
+        pageAspectRatio: getPageAspectRatio(anchorPageIndex),
       });
       const startPageWidth = getPageWidthForZoom(anchorPageIndex, startZoom);
       const pageViewportContentWidth = Math.max(
@@ -1143,6 +1166,8 @@ const Viewer: React.FC<ViewerProps> = ({
     handleGestureScrollLockChange,
     isDouble,
     maxPageWidth,
+    pageFitHeight,
+    getPageAspectRatio,
     perfEnabled,
     pinchPerfMachine,
     resetViewerPinchPreview,
@@ -1412,6 +1437,8 @@ const Viewer: React.FC<ViewerProps> = ({
           viewportWidth: columnWidth,
           horizontalPadding: 8,
           maxPageWidth,
+          maxPageHeight: pageFitHeight,
+          pageAspectRatio: DEFAULT_PAGE_ASPECT_RATIO,
         });
       return createPageLayoutMetrics({
         itemCount: rows.length,
@@ -1422,23 +1449,45 @@ const Viewer: React.FC<ViewerProps> = ({
           pageWidth / DEFAULT_PAGE_ASPECT_RATIO + DOUBLE_PAGE_SPACING,
         getBaseItemLength: (index) => {
           const row = rows[index];
-          if (!row) return pageWidth / DEFAULT_PAGE_ASPECT_RATIO + DOUBLE_PAGE_SPACING;
-          const leftHeight = pageWidth / getPageAspectRatio(row.left);
-          const rightHeight =
+          if (!row) {
+            return pageWidth / DEFAULT_PAGE_ASPECT_RATIO + DOUBLE_PAGE_SPACING;
+          }
+          const leftAspectRatio = getPageAspectRatio(row.left);
+          const leftPageWidth = resolvePdfBasePageWidth({
+            viewportWidth: columnWidth,
+            horizontalPadding: 8,
+            maxPageWidth,
+            maxPageHeight: pageFitHeight,
+            pageAspectRatio: leftAspectRatio,
+          });
+          const leftHeight = leftPageWidth / leftAspectRatio;
+          const rightAspectRatio =
             row.right === null
-              ? leftHeight
-              : pageWidth / getPageAspectRatio(row.right);
+              ? leftAspectRatio
+              : getPageAspectRatio(row.right);
+          const rightPageWidth =
+            row.right === null
+              ? leftPageWidth
+              : resolvePdfBasePageWidth({
+                  viewportWidth: columnWidth,
+                  horizontalPadding: 8,
+                  maxPageWidth,
+                  maxPageHeight: pageFitHeight,
+                  pageAspectRatio: rightAspectRatio,
+                });
+          const rightHeight = rightPageWidth / rightAspectRatio;
           return Math.max(leftHeight, rightHeight) + DOUBLE_PAGE_SPACING;
         },
       });
     }
 
-    const pageWidth =
-      resolvePdfBasePageWidth({
-        viewportWidth: windowWidth,
-        horizontalPadding: 16,
-        maxPageWidth,
-      });
+    const pageWidth = resolvePdfBasePageWidth({
+      viewportWidth: windowWidth,
+      horizontalPadding: 16,
+      maxPageWidth,
+      maxPageHeight: pageFitHeight,
+      pageAspectRatio: DEFAULT_PAGE_ASPECT_RATIO,
+    });
     return createPageLayoutMetrics({
       itemCount: pageCount,
       itemSpacing: CONTINUOUS_PAGE_SPACING,
@@ -1446,8 +1495,17 @@ const Viewer: React.FC<ViewerProps> = ({
       bottomPadding: LIST_BOTTOM_PADDING,
       estimatedLength:
         pageWidth / DEFAULT_PAGE_ASPECT_RATIO + CONTINUOUS_PAGE_SPACING,
-      getBaseItemLength: (index) =>
-        pageWidth / getPageAspectRatio(index) + CONTINUOUS_PAGE_SPACING,
+      getBaseItemLength: (index) => {
+        const aspectRatio = getPageAspectRatio(index);
+        const fittedPageWidth = resolvePdfBasePageWidth({
+          viewportWidth: windowWidth,
+          horizontalPadding: 16,
+          maxPageWidth,
+          maxPageHeight: pageFitHeight,
+          pageAspectRatio: aspectRatio,
+        });
+        return fittedPageWidth / aspectRatio + CONTINUOUS_PAGE_SPACING;
+      },
     });
   }, [
     columnWidth,
@@ -1455,6 +1513,7 @@ const Viewer: React.FC<ViewerProps> = ({
     isDouble,
     layoutRevision,
     maxPageWidth,
+    pageFitHeight,
     pageCount,
     rows,
     windowWidth,
@@ -1823,6 +1882,7 @@ const Viewer: React.FC<ViewerProps> = ({
                 pageAspectRatio={getPageAspectRatio(row.left)}
                 availableWidth={columnWidth}
                 maxPageWidth={maxPageWidth}
+                maxPageHeight={pageFitHeight}
                 horizontalPadding={8}
                 pageViewportWidth={columnWidth}
                 spacing={DOUBLE_PAGE_SPACING}
@@ -1846,6 +1906,7 @@ const Viewer: React.FC<ViewerProps> = ({
                   pageAspectRatio={getPageAspectRatio(row.right)}
                   availableWidth={columnWidth}
                   maxPageWidth={maxPageWidth}
+                  maxPageHeight={pageFitHeight}
                   horizontalPadding={8}
                   pageViewportWidth={columnWidth}
                   spacing={DOUBLE_PAGE_SPACING}
@@ -1853,12 +1914,12 @@ const Viewer: React.FC<ViewerProps> = ({
                   onPageTap={handlePageTap}
                   gestureScrollLockActive={gestureScrollLockActive}
                   lastPinchEndedAt={lastPinchEndedAt}
-                requestSelectionVerticalAutoscroll={
-                  handleSelectionVerticalAutoscroll
-                }
-                onRenderReady={handlePinchRenderReady}
-                surfaceId={`page-${row.right}`}
-                gestureId={committedPinchGestureIdRef.current ?? undefined}
+                  requestSelectionVerticalAutoscroll={
+                    handleSelectionVerticalAutoscroll
+                  }
+                  onRenderReady={handlePinchRenderReady}
+                  surfaceId={`page-${row.right}`}
+                  gestureId={committedPinchGestureIdRef.current ?? undefined}
                 />
               </View>
             ) : (
@@ -1875,6 +1936,7 @@ const Viewer: React.FC<ViewerProps> = ({
           pageAspectRatio={getPageAspectRatio(item as number)}
           availableWidth={windowWidth}
           maxPageWidth={maxPageWidth}
+          maxPageHeight={pageFitHeight}
           pageViewportWidth={documentSurfaceWidth}
           spacing={CONTINUOUS_PAGE_SPACING}
           onSelectionDragActiveChange={setSelectionDragActive}
@@ -1901,6 +1963,7 @@ const Viewer: React.FC<ViewerProps> = ({
       isDouble,
       lastPinchEndedAt,
       maxPageWidth,
+      pageFitHeight,
       windowWidth,
     ]
   );
@@ -1925,7 +1988,13 @@ const Viewer: React.FC<ViewerProps> = ({
       scrollEnabled={
         pageScrubResolvedScrollEnabled || programmaticScrollActive
       }
-      onLayout={() => {
+      onLayout={(event: LayoutChangeEvent) => {
+        const nextHeight = event.nativeEvent.layout.height;
+        if (fitPageToViewportHeight) {
+          setViewerViewportHeight((currentHeight) =>
+            currentHeight === nextHeight ? currentHeight : nextHeight
+          );
+        }
         captureViewerFrame(listRef.current);
         restoreOrientationScrollOffset();
         scrollToPendingTarget(false);
@@ -2077,9 +2146,15 @@ const Viewer: React.FC<ViewerProps> = ({
                 contentContainerStyle={styles.singleContent}
                 showsVerticalScrollIndicator={false}
                 scrollEnabled={pageScrubResolvedScrollEnabled}
-                onLayout={() =>
-                  captureViewerFrame(listRef.current as unknown as ScrollView)
-                }
+                onLayout={(event: LayoutChangeEvent) => {
+                  const nextHeight = event.nativeEvent.layout.height;
+                  if (fitPageToViewportHeight) {
+                    setViewerViewportHeight((currentHeight) =>
+                      currentHeight === nextHeight ? currentHeight : nextHeight
+                    );
+                  }
+                  captureViewerFrame(listRef.current as unknown as ScrollView);
+                }}
                 onContentSizeChange={(_, height) => {
                   viewerContentHeightRef.current = height;
                 }}
@@ -2128,6 +2203,7 @@ const Viewer: React.FC<ViewerProps> = ({
                   )}
                   availableWidth={windowWidth}
                   maxPageWidth={maxPageWidth}
+                  maxPageHeight={pageFitHeight}
                   pageViewportWidth={documentSurfaceWidth}
                   spacing={32}
                   onSelectionDragActiveChange={setSelectionDragActive}

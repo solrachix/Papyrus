@@ -82,6 +82,17 @@ describe("RN Viewer pinch contract", () => {
     );
   });
 
+  it("can fit opt-in pages to the measured document viewport height", () => {
+    expect(viewerSource).toContain("fitPageToViewportHeight?: boolean");
+    expect(viewerSource).toContain(
+      "const [viewerViewportHeight, setViewerViewportHeight]"
+    );
+    expect(viewerSource).toContain("event.nativeEvent.layout.height");
+    expect(viewerSource).toContain("maxPageHeight={pageFitHeight}");
+    expect(pageRendererSource).toContain("maxPageHeight?: number");
+    expect(pageRendererSource).toContain("maxPageHeight,");
+  });
+
   it("uses the same capped width for list scroll and layout estimates", () => {
     const metricsStart = viewerSource.indexOf(
       "const listLayoutMetrics = useMemo"
@@ -92,7 +103,10 @@ describe("RN Viewer pinch contract", () => {
     );
     const metricsSource = viewerSource.slice(metricsStart, metricsEnd);
 
-    expect(metricsSource.match(/maxPageWidth/g) ?? []).toHaveLength(3);
+    expect(metricsSource.match(/resolvePdfBasePageWidth\(\{/g) ?? []).toHaveLength(5);
+    expect(
+      metricsSource.match(/maxPageHeight: pageFitHeight/g) ?? []
+    ).toHaveLength(5);
   });
 
   it("uses the Android-only native PDF surface only on Android", () => {
