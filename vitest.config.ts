@@ -42,14 +42,17 @@ export default defineConfig({
         __dirname,
         "packages/engine-cbz-rust/index.ts"
       ),
-      react: path.resolve(__dirname, "node_modules/react"),
+      react: path.resolve(
+        __dirname,
+        "packages/ui-react-native/node_modules/react"
+      ),
       "react/jsx-runtime": path.resolve(
         __dirname,
-        "node_modules/react/jsx-runtime"
+        "packages/ui-react-native/node_modules/react/jsx-runtime"
       ),
       "react/jsx-dev-runtime": path.resolve(
         __dirname,
-        "node_modules/react/jsx-dev-runtime"
+        "packages/ui-react-native/node_modules/react/jsx-dev-runtime"
       ),
       "react-dom": path.resolve(__dirname, "node_modules/react-dom"),
       "react-dom/client": path.resolve(
