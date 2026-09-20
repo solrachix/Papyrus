@@ -34,6 +34,7 @@ import NativePdfDocumentViewer, {
 import { shouldUseNativePdfViewer } from "./nativePdfViewerMode";
 import {
   resolvePdfBasePageWidth,
+  resolvePdfDoublePageContentWidth,
   resolvePdfFitPageHeight,
 } from "./pdfPageMetrics";
 import {
@@ -74,6 +75,7 @@ import {
 } from "./viewerNavigation";
 import { resolvePageTapChromeVisibility } from "./mobileChromeInteraction";
 import {
+  hasViewerViewportGeometryChanged,
   resolveOrientationScrollOffset,
   resolveRemoveClippedSubviews,
 } from "./viewerPerformance";
@@ -82,7 +84,11 @@ export interface ViewerProps {
   engine: DocumentEngine;
   /** Maximum page width at fit zoom, in React Native points; pinch zoom may enlarge it. */
   maxPageWidth?: number;
-  /** Fit each page's aspect ratio within the measured viewer height at fit zoom. */
+  /**
+   * Fit each page's aspect ratio within the measured viewer height at fit zoom.
+   * Supported by the React Native compatibility renderer; not applied by the
+   * WebView or dedicated Android PDF renderer.
+   */
   fitPageToViewportHeight?: boolean;
   virtualWindowSize?: number;
   maxToRenderPerBatch?: number;
@@ -232,8 +238,11 @@ const Viewer: React.FC<ViewerProps> = ({
     Map<number, { width: number; height: number }>
   >(new Map());
   const dimensionsPendingRef = useRef<Set<number>>(new Set());
-  const previousWindowWidthRef = useRef<number | null>(null);
-  const pendingOrientationRestoreWidthRef = useRef<number | null>(null);
+  const previousViewportGeometryRef = useRef<{
+    width: number;
+    pageFitHeight?: number;
+  } | null>(null);
+  const pendingOrientationRestoreRef = useRef(false);
   const layoutRefreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null
   );
@@ -673,8 +682,13 @@ const Viewer: React.FC<ViewerProps> = ({
 
   const documentSurfaceWidth = useMemo(() => {
     if (isDouble) {
-      const leftPageWidth = getPageWidthForZoom(0, zoom);
-      const doubleContentWidth = leftPageWidth * 2 + columnGap;
+      const doubleContentWidth = resolvePdfDoublePageContentWidth({
+        currentPage,
+        pageCount,
+        columnGap,
+        getPageWidthForZoom: (pageIndex) =>
+          getPageWidthForZoom(pageIndex, zoom),
+      });
       return resolvePdfSurfaceWidth({
         viewportWidth: windowWidth,
         contentWidth: doubleContentWidth,
@@ -694,6 +708,7 @@ const Viewer: React.FC<ViewerProps> = ({
     horizontalPadding,
     isDouble,
     layoutRevision,
+    pageCount,
     windowWidth,
     zoom,
   ]);
@@ -1555,7 +1570,8 @@ const Viewer: React.FC<ViewerProps> = ({
 
   const restoreOrientationScrollOffset = useCallback(() => {
     if (
-      pendingOrientationRestoreWidthRef.current !== windowWidth ||
+      !pendingOrientationRestoreRef.current ||
+      (fitPageToViewportHeight && pageFitHeight === undefined) ||
       pageCount <= 0 ||
       isSingle ||
       isWebView
@@ -1571,28 +1587,33 @@ const Viewer: React.FC<ViewerProps> = ({
     });
     listRef.current?.scrollToOffset({ offset, animated: false });
     lastScrollOffsetYRef.current = offset;
-    pendingOrientationRestoreWidthRef.current = null;
+    pendingOrientationRestoreRef.current = false;
   }, [
     currentPage,
+    fitPageToViewportHeight,
     isDouble,
     isSingle,
     isWebView,
     pageCount,
+    pageFitHeight,
     scaledListLayoutMetrics,
     windowWidth,
   ]);
 
   useEffect(() => {
-    const previousWindowWidth = previousWindowWidthRef.current;
-    previousWindowWidthRef.current = windowWidth;
+    const nextGeometry = { width: windowWidth, pageFitHeight };
+    const previousGeometry = previousViewportGeometryRef.current;
+    previousViewportGeometryRef.current = nextGeometry;
     if (
-      previousWindowWidth !== null &&
-      previousWindowWidth !== windowWidth
+      hasViewerViewportGeometryChanged({
+        previous: previousGeometry,
+        next: nextGeometry,
+      })
     ) {
-      pendingOrientationRestoreWidthRef.current = windowWidth;
+      pendingOrientationRestoreRef.current = true;
     }
     restoreOrientationScrollOffset();
-  }, [restoreOrientationScrollOffset, windowWidth]);
+  }, [pageFitHeight, restoreOrientationScrollOffset, windowWidth]);
 
   useEffect(() => {
     if (pendingScrollTargetRef.current !== null) {

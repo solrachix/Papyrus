@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   resolveMaxPageWidth,
+  resolvePdfDoublePageContentWidth,
   resolvePdfFitPageHeight,
   resolvePdfBasePageWidth,
 } from "./pdfPageMetrics";
@@ -14,6 +15,33 @@ describe("resolvePdfFitPageHeight", () => {
   it("ignores a missing or invalid measured height", () => {
     expect(resolvePdfFitPageHeight(0, 18)).toBeUndefined();
     expect(resolvePdfFitPageHeight(Number.NaN, 18)).toBeUndefined();
+  });
+});
+
+describe("resolvePdfDoublePageContentWidth", () => {
+  it("sizes the double surface for the active mixed-orientation spread at zoom", () => {
+    const zoom = 1.6;
+    const aspectRatioByPage = [0.7, 1.5, 1.5, 1.5];
+    const visitedPageIndexes: number[] = [];
+    expect(
+      resolvePdfDoublePageContentWidth({
+        currentPage: 3,
+        pageCount: aspectRatioByPage.length,
+        columnGap: 12,
+        getPageWidthForZoom: (pageIndex) => {
+          visitedPageIndexes.push(pageIndex);
+          return (
+            resolvePdfBasePageWidth({
+              viewportWidth: 600,
+              horizontalPadding: 8,
+              maxPageHeight: 500,
+              pageAspectRatio: aspectRatioByPage[pageIndex],
+            }) * zoom
+          );
+        },
+      })
+    ).toBe(2 * 584 * zoom + 12);
+    expect(visitedPageIndexes).toEqual([2, 3]);
   });
 });
 

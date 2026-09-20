@@ -128,6 +128,7 @@ export function NativeSheet({
             {
               backgroundColor: palette.backgroundColor,
               borderTopColor: palette.borderColor,
+              borderBottomColor: palette.borderColor,
             },
             sheetStyle,
             {

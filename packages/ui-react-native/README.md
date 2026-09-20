@@ -100,7 +100,11 @@ Layout and performance options are available on `Viewer` and `RightSheet`:
 
 - `virtualWindowSize` (`Viewer`): FlatList window size. Default: `8`.
 - `maxPageWidth` (`Viewer`): optional fit-zoom width limit in React Native points. A narrower page is centered in the viewport; pinch zoom may enlarge it. Omitted by default.
-- `fitPageToViewportHeight` (`Viewer`): opt-in page fitting to the measured viewer height while preserving each page's aspect ratio; pinch zoom may enlarge it. Defaults to `false`.
+- `fitPageToViewportHeight` (`Viewer`): opt-in page fitting to the measured
+  viewer height while preserving each page's aspect ratio; pinch zoom may
+  enlarge it. Defaults to `false`. This option is only supported by the React
+  Native compatibility renderer; it is not applied by the WebView or dedicated
+  Android PDF renderer.
 - `maxToRenderPerBatch` (`Viewer`): max items per render batch. Default: `6`.
 - `removeClippedSubviews` (`Viewer`): detach offscreen rows. Default: `false`
   for Android `viewerMode="compat"` and `true` otherwise. An explicit value is

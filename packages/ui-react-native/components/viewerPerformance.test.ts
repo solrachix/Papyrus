@@ -1,8 +1,43 @@
 import { describe, expect, it } from "vitest";
 import {
+  hasViewerViewportGeometryChanged,
   resolveOrientationScrollOffset,
   resolveRemoveClippedSubviews,
 } from "./viewerPerformance";
+
+describe("hasViewerViewportGeometryChanged", () => {
+  it("detects vertical-only resizes when height-fit changes page geometry", () => {
+    expect(
+      hasViewerViewportGeometryChanged({
+        previous: { width: 1180, pageFitHeight: 784 },
+        next: { width: 1180, pageFitHeight: 664 },
+      })
+    ).toBe(true);
+    expect(
+      hasViewerViewportGeometryChanged({
+        previous: { width: 820, pageFitHeight: 784 },
+        next: { width: 1180, pageFitHeight: 784 },
+      })
+    ).toBe(true);
+    expect(
+      hasViewerViewportGeometryChanged({
+        previous: { width: 1180 },
+        next: { width: 1180, pageFitHeight: 784 },
+      })
+    ).toBe(false);
+  });
+
+  it("computes a fresh vertical offset for page 50 after the resize", () => {
+    expect(
+      resolveOrientationScrollOffset({
+        currentPage: 50,
+        pageCount: 1000,
+        isDouble: false,
+        getItemOffset: (index) => index * 1700 + 18,
+      })
+    ).toBe(49 * 1700 + 18);
+  });
+});
 
 describe("resolveOrientationScrollOffset", () => {
   it("uses the new layout offset for the current page after rotation", () => {

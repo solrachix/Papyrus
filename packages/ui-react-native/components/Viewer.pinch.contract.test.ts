@@ -27,6 +27,14 @@ const dedicatedPdfViewerSource = readFileSync(
   ),
   "utf8"
 );
+const nativeSheetSource = readFileSync(
+  resolve(process.cwd(), "packages/ui-react-native/components/NativeSheet.tsx"),
+  "utf8"
+);
+const viewerReadme = readFileSync(
+  resolve(process.cwd(), "packages/ui-react-native/README.md"),
+  "utf8"
+);
 
 describe("RN Viewer pinch contract", () => {
   it("uses the incremental Animated preview without Reanimated", () => {
@@ -91,6 +99,22 @@ describe("RN Viewer pinch contract", () => {
     expect(viewerSource).toContain("maxPageHeight={pageFitHeight}");
     expect(pageRendererSource).toContain("maxPageHeight?: number");
     expect(pageRendererSource).toContain("maxPageHeight,");
+  });
+
+  it("documents which renderers support height-fit page sizing", () => {
+    const normalizedReadme = viewerReadme.replace(/\s+/g, " ");
+    expect(normalizedReadme).toContain(
+      "only supported by the React Native compatibility renderer"
+    );
+    expect(normalizedReadme).toContain(
+      "not applied by the WebView or dedicated Android PDF renderer"
+    );
+  });
+
+  it("uses the active theme color for the floating sheet bottom border", () => {
+    expect(nativeSheetSource).toContain(
+      "borderBottomColor: palette.borderColor"
+    );
   });
 
   it("uses the same capped width for list scroll and layout estimates", () => {
