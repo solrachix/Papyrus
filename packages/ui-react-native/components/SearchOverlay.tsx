@@ -6,12 +6,14 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from "react-native";
 import { SearchService, useViewerStore } from "@papyrus-sdk/core";
 import { DocumentEngine, DocumentType } from "@papyrus-sdk/types";
 import { IconChevronLeft, IconChevronRight, IconSearch } from "../icons";
 import { getStrings } from "../mobileStrings";
 import { resolveMobileChromeOffsets } from "./mobileChromeMetrics";
+import { getSearchOverlayLayout } from "./searchOverlayLayout";
 import { usePapyrusSafeAreaInsets } from "./PapyrusSafeArea";
 
 type SearchOverlayProps = {
@@ -46,6 +48,8 @@ export function SearchOverlay({
   const [isSearching, setIsSearching] = useState(false);
   const searchRequestIdRef = React.useRef(0);
   const isDark = uiTheme === "dark";
+  const { width: windowWidth } = useWindowDimensions();
+  const overlayLayout = getSearchOverlayLayout(windowWidth);
   const offsets = resolveMobileChromeOffsets(usePapyrusSafeAreaInsets());
   const t = getStrings(locale);
   const searchService = useMemo(() => new SearchService(engine), [engine]);
@@ -97,9 +101,20 @@ export function SearchOverlay({
   if (!visible) return null;
 
   return (
-    <View pointerEvents="box-none" style={[styles.frame, { bottom: offsets.search, paddingLeft: offsets.left, paddingRight: offsets.right }]}>
+    <View
+      pointerEvents="box-none"
+      style={[
+        styles.frame,
+        overlayLayout.frame,
+        {
+          bottom: offsets.search,
+          paddingLeft: Math.max(overlayLayout.frame.paddingHorizontal, offsets.left),
+          paddingRight: Math.max(overlayLayout.frame.paddingHorizontal, offsets.right),
+        },
+      ]}
+    >
       <View
-        style={[styles.card, isDark && styles.cardDark]}
+        style={[styles.card, overlayLayout.card, isDark && styles.cardDark]}
         testID="papyrus-search-overlay"
       >
         <View style={styles.inputRow}>

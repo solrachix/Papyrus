@@ -6,6 +6,7 @@ import WebView, {
 } from "react-native-webview";
 import { useViewerStore } from "@papyrus-sdk/core";
 import { DocumentEngine } from "@papyrus-sdk/types";
+import { resolveMaxPageWidth } from "./pdfPageMetrics";
 import {
   parseWebViewInteraction,
   parseWebViewState,
@@ -49,12 +50,14 @@ type WebViewBridgeEngine = DocumentEngine & {
 
 interface WebViewViewerProps {
   engine: DocumentEngine;
+  maxPageWidth?: number;
   onScrollOffset?: (offsetY: number) => void;
   onTap?: () => void;
 }
 
 const WebViewViewer: React.FC<WebViewViewerProps> = ({
   engine,
+  maxPageWidth,
   onScrollOffset,
   onTap,
 }) => {
@@ -196,6 +199,14 @@ const WebViewViewer: React.FC<WebViewViewerProps> = ({
     }
     return undefined;
   }, []);
+  const resolvedMaxPageWidth = resolveMaxPageWidth(maxPageWidth);
+  const cappedWebViewStyle = resolvedMaxPageWidth
+    ? {
+        width: "100%" as const,
+        maxWidth: resolvedMaxPageWidth,
+        alignSelf: "center" as const,
+      }
+    : undefined;
 
   return (
     <View style={styles.container}>
@@ -216,7 +227,7 @@ const WebViewViewer: React.FC<WebViewViewerProps> = ({
         allowFileAccessFromFileURLs
         allowUniversalAccessFromFileURLs
         allowingReadAccessToURL={allowingReadAccessToURL}
-        style={styles.webview}
+        style={[styles.webview, cappedWebViewStyle]}
       />
       <View
         pointerEvents="none"

@@ -1,6 +1,7 @@
 import type { PdfViewerMode } from "@papyrus-sdk/types";
 
 export type NativePdfViewerModeInput = {
+  platform: string;
   viewerMode: PdfViewerMode;
   pageCount: number;
   isWebView: boolean;
@@ -8,9 +9,14 @@ export type NativePdfViewerModeInput = {
 };
 
 export const shouldUseNativePdfViewer = ({
+  platform,
   viewerMode,
   pageCount,
   isWebView,
   nativeEngineId,
 }: NativePdfViewerModeInput) =>
-  viewerMode === "native" && pageCount > 0 && !isWebView && !!nativeEngineId;
+  platform === "android" &&
+  viewerMode === "native" &&
+  pageCount > 0 &&
+  !isWebView &&
+  !!nativeEngineId;

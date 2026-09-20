@@ -1,5 +1,21 @@
 export type ViewerPlatform = "android" | "ios" | "web";
 
+export const hasViewerViewportGeometryChanged = ({
+  previous,
+  next,
+}: {
+  previous: { width: number; pageFitHeight?: number } | null;
+  next: { width: number; pageFitHeight?: number };
+}): boolean => {
+  if (!previous) return false;
+  if (previous.width !== next.width) return true;
+  return (
+    typeof previous.pageFitHeight === "number" &&
+    typeof next.pageFitHeight === "number" &&
+    previous.pageFitHeight !== next.pageFitHeight
+  );
+};
+
 export const resolveOrientationScrollOffset = ({
   currentPage,
   pageCount,

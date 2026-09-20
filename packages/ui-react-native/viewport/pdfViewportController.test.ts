@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   resolvePdfAnchoredScrollX,
+  resolvePdfPageAnchoredScrollX,
   resolvePdfAnchoredScrollY,
   resolvePdfCenteredInset,
   resolvePdfSurfaceWidth,
@@ -85,5 +86,56 @@ describe("pdfViewportController", () => {
         contentLength: 320,
       })
     ).toBe(40);
+  });
+
+  it("keeps a pinch focal point anchored on a centered page narrower than the iPad viewport", () => {
+    expect(
+      resolvePdfPageAnchoredScrollX({
+        focalViewportX: 316,
+        startSurfaceScrollX: 0,
+        viewportWidth: 1100,
+        endSurfaceWidth: 1552,
+        startPageOffsetX: 0,
+        endPageOffsetX: 0,
+        startPageFrameWidth: 1100,
+        endPageFrameWidth: 1552,
+        startPageWidth: 760,
+        endPageWidth: 1520,
+      })
+    ).toBe(0);
+
+    const nextScrollX = resolvePdfPageAnchoredScrollX({
+      focalViewportX: 500,
+      startSurfaceScrollX: 0,
+      viewportWidth: 1100,
+      endSurfaceWidth: 1552,
+      startPageOffsetX: 0,
+      endPageOffsetX: 0,
+      startPageFrameWidth: 1100,
+      endPageFrameWidth: 1552,
+      startPageWidth: 760,
+      endPageWidth: 1520,
+    });
+
+    expect(nextScrollX).toBe(176);
+    expect(16 + (500 + 0 - 170) * 2 - nextScrollX).toBe(500);
+  });
+
+  it("keeps the pinch focal point anchored for an uncapped phone page", () => {
+    const nextScrollX = resolvePdfPageAnchoredScrollX({
+      focalViewportX: 220,
+      startSurfaceScrollX: 0,
+      viewportWidth: 400,
+      endSurfaceWidth: 768,
+      startPageOffsetX: 0,
+      endPageOffsetX: 0,
+      startPageFrameWidth: 400,
+      endPageFrameWidth: 768,
+      startPageWidth: 368,
+      endPageWidth: 736,
+    });
+
+    expect(nextScrollX).toBe(204);
+    expect(16 + (220 - 16) * 2 - nextScrollX).toBe(220);
   });
 });

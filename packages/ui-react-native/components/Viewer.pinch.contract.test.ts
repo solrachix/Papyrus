@@ -6,6 +6,35 @@ const viewerSource = readFileSync(
   resolve(process.cwd(), "packages/ui-react-native/components/Viewer.tsx"),
   "utf8"
 );
+const pageRendererSource = readFileSync(
+  resolve(
+    process.cwd(),
+    "packages/ui-react-native/components/PageRenderer.tsx"
+  ),
+  "utf8"
+);
+const webViewViewerSource = readFileSync(
+  resolve(
+    process.cwd(),
+    "packages/ui-react-native/components/WebViewViewer.tsx"
+  ),
+  "utf8"
+);
+const dedicatedPdfViewerSource = readFileSync(
+  resolve(
+    process.cwd(),
+    "packages/ui-react-native/components/DedicatedAndroidPdfViewer.tsx"
+  ),
+  "utf8"
+);
+const nativeSheetSource = readFileSync(
+  resolve(process.cwd(), "packages/ui-react-native/components/NativeSheet.tsx"),
+  "utf8"
+);
+const viewerReadme = readFileSync(
+  resolve(process.cwd(), "packages/ui-react-native/README.md"),
+  "utf8"
+);
 
 describe("RN Viewer pinch contract", () => {
   it("uses the incremental Animated preview without Reanimated", () => {
@@ -46,5 +75,73 @@ describe("RN Viewer pinch contract", () => {
     expect(renderSource).not.toContain("Topbar");
     expect(renderSource).not.toContain("BottomBar");
     expect(renderSource).not.toContain("ToolDock");
+  });
+
+  it("forwards the optional page-width cap to every render surface", () => {
+    expect(viewerSource).toContain("maxPageWidth?: number");
+    expect(viewerSource).toContain("maxPageWidth={maxPageWidth}");
+    expect(viewerSource).toContain(
+      "NativePdfDocumentViewer engine={engine} maxPageWidth={maxPageWidth}"
+    );
+    expect(pageRendererSource).toContain("maxPageWidth,");
+    expect(webViewViewerSource).toContain("maxWidth: resolvedMaxPageWidth");
+    expect(dedicatedPdfViewerSource).toContain(
+      "maxWidth: resolvedMaxPageWidth"
+    );
+  });
+
+  it("can fit opt-in pages to the measured document viewport height", () => {
+    expect(viewerSource).toContain("fitPageToViewportHeight?: boolean");
+    expect(viewerSource).toContain(
+      "const [viewerViewportHeight, setViewerViewportHeight]"
+    );
+    expect(viewerSource).toContain("event.nativeEvent.layout.height");
+    expect(viewerSource).toContain("maxPageHeight={pageFitHeight}");
+    expect(pageRendererSource).toContain("maxPageHeight?: number");
+    expect(pageRendererSource).toContain("maxPageHeight,");
+  });
+
+  it("documents which renderers support height-fit page sizing", () => {
+    const normalizedReadme = viewerReadme.replace(/\s+/g, " ");
+    expect(normalizedReadme).toContain(
+      "only supported by the React Native compatibility renderer"
+    );
+    expect(normalizedReadme).toContain(
+      "not applied by the WebView or dedicated Android PDF renderer"
+    );
+  });
+
+  it("uses the active theme color for the floating sheet bottom border", () => {
+    expect(nativeSheetSource).toContain(
+      "borderBottomColor: palette.borderColor"
+    );
+  });
+
+  it("uses the same capped width for list scroll and layout estimates", () => {
+    const metricsStart = viewerSource.indexOf(
+      "const listLayoutMetrics = useMemo"
+    );
+    const metricsEnd = viewerSource.indexOf(
+      "listLayoutMetricsRef.current = listLayoutMetrics",
+      metricsStart
+    );
+    const metricsSource = viewerSource.slice(metricsStart, metricsEnd);
+
+    expect(metricsSource.match(/resolvePdfBasePageWidth\(\{/g) ?? []).toHaveLength(5);
+    expect(
+      metricsSource.match(/maxPageHeight: pageFitHeight/g) ?? []
+    ).toHaveLength(5);
+  });
+
+  it("uses the Android-only native PDF surface only on Android", () => {
+    expect(viewerSource).toContain("platform: Platform.OS");
+    const nativeModeSource = readFileSync(
+      resolve(
+        process.cwd(),
+        "packages/ui-react-native/components/nativePdfViewerMode.ts"
+      ),
+      "utf8"
+    );
+    expect(nativeModeSource).toContain('platform === "android"');
   });
 });

@@ -3,6 +3,7 @@ import {
   resolveAnchoredHorizontalSurfaceOffset,
   resolveAnchoredViewportOffset,
   resolveCenteredContentInset,
+  resolveClampedScrollOffset,
   resolveDocumentSurfaceWidth,
   resolveGlobalHorizontalOffset,
 } from "../gesture/pinchZoom";
@@ -35,6 +36,19 @@ export type PdfResolveScrollXInput = {
   startSurfaceWidth: number;
   endSurfaceWidth: number;
   viewportWidth: number;
+};
+
+export type PdfPageAnchoredScrollXInput = {
+  focalViewportX: number;
+  startSurfaceScrollX: number;
+  viewportWidth: number;
+  endSurfaceWidth: number;
+  startPageOffsetX: number;
+  endPageOffsetX: number;
+  startPageFrameWidth: number;
+  endPageFrameWidth: number;
+  startPageWidth: number;
+  endPageWidth: number;
 };
 
 export type PdfSurfaceWidthInput = {
@@ -104,6 +118,53 @@ export const resolvePdfAnchoredScrollY = ({
 export const resolvePdfAnchoredScrollX = (
   input: PdfResolveScrollXInput
 ): number => resolveAnchoredHorizontalSurfaceOffset(input);
+
+export const resolvePdfPageAnchoredScrollX = ({
+  focalViewportX,
+  startSurfaceScrollX,
+  viewportWidth,
+  endSurfaceWidth,
+  startPageOffsetX,
+  endPageOffsetX,
+  startPageFrameWidth,
+  endPageFrameWidth,
+  startPageWidth,
+  endPageWidth,
+}: PdfPageAnchoredScrollXInput): number => {
+  const safeStartPageWidth =
+    Number.isFinite(startPageWidth) && startPageWidth > 0 ? startPageWidth : 0;
+  const safeEndPageWidth =
+    Number.isFinite(endPageWidth) && endPageWidth > 0 ? endPageWidth : 0;
+  if (safeStartPageWidth === 0 || safeEndPageWidth === 0) return 0;
+
+  const safeFocalX = Number.isFinite(focalViewportX) ? focalViewportX : 0;
+  const safeStartScrollX = Number.isFinite(startSurfaceScrollX)
+    ? startSurfaceScrollX
+    : 0;
+  const safeStartOffsetX = Number.isFinite(startPageOffsetX)
+    ? startPageOffsetX
+    : 0;
+  const safeEndOffsetX = Number.isFinite(endPageOffsetX) ? endPageOffsetX : 0;
+  const startInset = resolveCenteredContentInset({
+    viewportLength: startPageFrameWidth,
+    contentLength: safeStartPageWidth,
+  });
+  const endInset = resolveCenteredContentInset({
+    viewportLength: endPageFrameWidth,
+    contentLength: safeEndPageWidth,
+  });
+  const startPageContentX =
+    safeFocalX + safeStartScrollX - safeStartOffsetX - startInset;
+  const scaledPageContentX =
+    (startPageContentX / safeStartPageWidth) * safeEndPageWidth;
+  const targetContentX = safeEndOffsetX + endInset + scaledPageContentX;
+
+  return resolveClampedScrollOffset(
+    targetContentX - safeFocalX,
+    endSurfaceWidth,
+    viewportWidth
+  );
+};
 
 export const resolvePdfSurfaceWidth = (input: PdfSurfaceWidthInput): number =>
   resolveDocumentSurfaceWidth(input);
