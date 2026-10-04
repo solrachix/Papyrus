@@ -22,6 +22,7 @@ static void *PapyrusPdfScrollObservationContext = &PapyrusPdfScrollObservationCo
 @property (nonatomic, assign) CGFloat lastEmittedZoom;
 @property (nonatomic, copy) NSString *lastVisiblePagesSignature;
 @property (nonatomic, assign) BOOL zoomEventScheduled;
+@property (nonatomic, assign) BOOL suppressScaleSynchronization;
 @property (nonatomic, assign) BOOL scrollEventScheduled;
 @property (nonatomic, assign) CGFloat pendingScrollOffsetY;
 @property (nonatomic, assign) CFTimeInterval lastScrollEventTime;
@@ -119,17 +120,24 @@ static void *PapyrusPdfScrollObservationContext = &PapyrusPdfScrollObservationCo
 - (void)setViewMode:(NSString *)viewMode {
   NSString *normalized = [viewMode isEqualToString:@"single"] ? @"single" : @"continuous";
   if ([_viewMode isEqualToString:normalized]) return;
+  CGFloat desiredZoom = [self clampedZoom:self.zoom];
+  BOOL wasSuppressingScaleSynchronization = self.suppressScaleSynchronization;
+  self.suppressScaleSynchronization = YES;
   PDFPage *currentPage = self.pdfView.currentPage;
   _viewMode = normalized;
   self.pdfView.displayMode = [normalized isEqualToString:@"single"]
       ? kPDFDisplaySinglePage
       : kPDFDisplaySinglePageContinuous;
+  _zoom = desiredZoom;
   [self updateFitScalePreservingViewport];
   if (currentPage) {
     [self.pdfView goToPage:currentPage];
   } else {
     [self applyCurrentPage];
   }
+  _zoom = desiredZoom;
+  [self applyNormalizedZoom];
+  self.suppressScaleSynchronization = wasSuppressingScaleSynchronization;
 }
 
 - (void)setCurrentPage:(NSInteger)currentPage {
@@ -172,11 +180,16 @@ static void *PapyrusPdfScrollObservationContext = &PapyrusPdfScrollObservationCo
     return;
   }
 
+  CGFloat desiredZoom = [self clampedZoom:self.zoom];
+  BOOL wasSuppressingScaleSynchronization = self.suppressScaleSynchronization;
+  self.suppressScaleSynchronization = YES;
   self.lastVisiblePagesSignature = nil;
   self.lastEmittedPage = NSNotFound;
   self.pdfView.document = document;
   if (!document) {
     self.lastEmittedZoom = NAN;
+    _zoom = desiredZoom;
+    self.suppressScaleSynchronization = wasSuppressingScaleSynchronization;
     return;
   }
 
@@ -185,10 +198,14 @@ static void *PapyrusPdfScrollObservationContext = &PapyrusPdfScrollObservationCo
   [self.pdfView layoutDocumentView];
   [self updateScaleLimitsForFitScale:self.pdfView.scaleFactorForSizeToFit];
   self.pdfView.autoScales = NO;
+  _zoom = desiredZoom;
   [self applyNormalizedZoom];
   [self applyCurrentPage];
+  _zoom = desiredZoom;
+  [self applyNormalizedZoom];
   [self refreshScrollViewObservation];
   [self emitVisiblePagesIfNeeded];
+  self.suppressScaleSynchronization = wasSuppressingScaleSynchronization;
 }
 
 - (void)configureDisplayMode {
@@ -203,11 +220,15 @@ static void *PapyrusPdfScrollObservationContext = &PapyrusPdfScrollObservationCo
 - (void)updateFitScalePreservingViewport {
   if (!self.pdfView.document || CGRectGetWidth(self.bounds) <= 0 || CGRectGetHeight(self.bounds) <= 0) return;
 
+  CGFloat desiredZoom = [self clampedZoom:self.zoom];
+  BOOL wasSuppressingScaleSynchronization = self.suppressScaleSynchronization;
+  self.suppressScaleSynchronization = YES;
   PDFPage *currentPage = self.pdfView.currentPage;
   self.pdfView.autoScales = YES;
   [self.pdfView layoutDocumentView];
   [self updateScaleLimitsForFitScale:self.pdfView.scaleFactorForSizeToFit];
   self.pdfView.autoScales = NO;
+  _zoom = desiredZoom;
   [self applyNormalizedZoom];
 
   if (currentPage) {
@@ -215,6 +236,9 @@ static void *PapyrusPdfScrollObservationContext = &PapyrusPdfScrollObservationCo
   } else {
     [self applyCurrentPage];
   }
+  _zoom = desiredZoom;
+  [self applyNormalizedZoom];
+  self.suppressScaleSynchronization = wasSuppressingScaleSynchronization;
 }
 
 - (void)updateScaleLimitsForFitScale:(CGFloat)fitScale {
@@ -280,6 +304,7 @@ static void *PapyrusPdfScrollObservationContext = &PapyrusPdfScrollObservationCo
 
 - (void)handlePdfScaleChanged:(NSNotification *)notification {
   if (notification.object != self.pdfView) return;
+  if (self.suppressScaleSynchronization) return;
   CGFloat normalized = [self normalizedZoomForPdfView];
   if (normalized <= 0) return;
   _zoom = normalized;

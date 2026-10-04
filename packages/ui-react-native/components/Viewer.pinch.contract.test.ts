@@ -135,6 +135,12 @@ describe("RN Viewer pinch contract", () => {
 
   it("routes the opt-in native PDF viewer through the platform capability", () => {
     expect(viewerSource).toContain("platform: Platform.OS");
+    const eligibilitySource = viewerSource.slice(
+      viewerSource.indexOf("const isNativePdfViewer"),
+      viewerSource.indexOf("const warnedNativePdfFallbackRef")
+    );
+    expect(eligibilitySource).toContain("viewMode,");
+    expect(eligibilitySource).toContain("rotation,");
     const nativeModeSource = readFileSync(
       resolve(
         process.cwd(),

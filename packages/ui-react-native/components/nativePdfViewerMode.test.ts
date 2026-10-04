@@ -32,6 +32,39 @@ describe("shouldUseNativePdfViewer", () => {
     ).toBe(true);
   });
 
+  it("falls back to compat for double-page mode on iOS", () => {
+    expect(
+      shouldUseNativePdfViewer({
+        ...input,
+        platform: "ios",
+        viewMode: "double",
+        nativePdfDocumentViewAvailable: true,
+      })
+    ).toBe(false);
+  });
+
+  it("falls back to compat when the document has a non-zero rotation on iOS", () => {
+    expect(
+      shouldUseNativePdfViewer({
+        ...input,
+        platform: "ios",
+        rotation: 90,
+        nativePdfDocumentViewAvailable: true,
+      })
+    ).toBe(false);
+  });
+
+  it("does not change Android native viewer eligibility for double or rotation", () => {
+    expect(
+      shouldUseNativePdfViewer({
+        ...input,
+        platform: "android",
+        viewMode: "double",
+        rotation: 90,
+      })
+    ).toBe(true);
+  });
+
   it("falls back when the iOS native view manager is missing", () => {
     expect(shouldUseNativePdfViewer({ ...input, platform: "ios" })).toBe(false);
   });

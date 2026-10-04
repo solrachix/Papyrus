@@ -198,6 +198,7 @@ const Viewer: React.FC<ViewerProps> = ({
   const uiTheme = useViewerStore((state) => state.uiTheme);
   const pageTheme = useViewerStore((state) => state.pageTheme);
   const viewMode = useViewerStore((state) => state.viewMode);
+  const rotation = useViewerStore((state) => state.rotation);
   const zoom = useViewerStore((state) => state.zoom);
   const storeViewerMode = useViewerStore((state) => state.viewerMode);
   const listRef = useRef<FlatList<any> & ViewerListHandle>(null);
@@ -234,6 +235,8 @@ const Viewer: React.FC<ViewerProps> = ({
     nativeEngineId,
     nativePdfDocumentViewAvailable,
     pageTheme,
+    viewMode,
+    rotation,
   });
   const warnedNativePdfFallbackRef = useRef("");
 
@@ -248,24 +251,26 @@ const Viewer: React.FC<ViewerProps> = ({
       return;
     }
 
-    const reason = !nativePdfDocumentViewAvailable
-      ? "manager-unavailable"
-      : pageTheme !== "normal"
-        ? "unsupported-page-theme"
-        : !nativeEngineId
-          ? "engine-unavailable"
-          : "";
+    const reason = (() => {
+      if (!nativePdfDocumentViewAvailable) return "manager-unavailable";
+      if (!nativeEngineId) return "engine-unavailable";
+      if (pageTheme !== "normal") return "unsupported-page-theme";
+      if (viewMode === "double") return "unsupported-view-mode";
+      if (rotation !== 0) return "unsupported-rotation";
+      return "";
+    })();
     if (!reason || warnedNativePdfFallbackRef.current === reason) return;
 
     warnedNativePdfFallbackRef.current = reason;
-    const detail =
-      reason === "manager-unavailable"
-        ? "the PapyrusPdfDocumentView manager is not registered"
-        : reason === "unsupported-page-theme"
-          ? `pageTheme '${pageTheme}' is not supported by the native viewport`
-          : "the native PDF engine id is unavailable";
+    const detailByReason: Record<string, string> = {
+      "manager-unavailable": "the PapyrusPdfDocumentView manager is not registered",
+      "engine-unavailable": "the native PDF engine id is unavailable",
+      "unsupported-page-theme": `pageTheme '${pageTheme}' is not supported by the native viewport`,
+      "unsupported-view-mode": "double-page mode is not supported by the native viewport",
+      "unsupported-rotation": "document rotation is not supported by the native viewport",
+    };
     console.warn(
-      `[Papyrus] viewerMode="native" is using the compatibility PDF viewer because ${detail}.`
+      `[Papyrus] viewerMode="native" is using the compatibility PDF viewer because ${detailByReason[reason]}.`
     );
   }, [
     isWebView,
@@ -273,7 +278,9 @@ const Viewer: React.FC<ViewerProps> = ({
     nativePdfDocumentViewAvailable,
     pageCount,
     pageTheme,
+    rotation,
     resolvedViewerMode,
+    viewMode,
   ]);
   const perfEnabled = isMobilePerfEnabled();
   const mountedAtRef = useRef(perfNow());
