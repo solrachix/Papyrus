@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   resolveEffectivePdfViewerMode,
   resolveNativePdfViewerImplementation,
+  resolveViewerModeTelemetry,
   shouldUseNativePdfViewer,
 } from "./nativePdfViewerMode";
 
@@ -154,5 +155,37 @@ describe("resolveEffectivePdfViewerMode", () => {
         storeViewerMode: "compat",
       })
     ).toBe("native");
+  });
+});
+
+describe("resolveViewerModeTelemetry", () => {
+  it("records compat as active when native was requested but fell back", () => {
+    expect(
+      resolveViewerModeTelemetry({
+        requestedMode: "native",
+        isNativePdfViewer: false,
+        isWebView: false,
+      })
+    ).toEqual({ mode: "compat", requestedMode: "native" });
+  });
+
+  it("records the WebView renderer instead of labeling it compatibility", () => {
+    expect(
+      resolveViewerModeTelemetry({
+        requestedMode: "native",
+        isNativePdfViewer: false,
+        isWebView: true,
+      })
+    ).toEqual({ mode: "webview", requestedMode: "native" });
+  });
+
+  it("records native when the dedicated native viewer is active", () => {
+    expect(
+      resolveViewerModeTelemetry({
+        requestedMode: "native",
+        isNativePdfViewer: true,
+        isWebView: false,
+      })
+    ).toEqual({ mode: "native", requestedMode: "native" });
   });
 });

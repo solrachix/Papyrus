@@ -1,6 +1,20 @@
 import type { PdfViewerMode } from "@papyrus-sdk/types";
 
 export type NativePdfViewerImplementation = "android" | "ios" | null;
+export type ActiveViewerTelemetryMode = "native" | "compat" | "webview";
+
+export const resolveViewerModeTelemetry = ({
+  requestedMode,
+  isNativePdfViewer,
+  isWebView,
+}: {
+  requestedMode: PdfViewerMode;
+  isNativePdfViewer: boolean;
+  isWebView: boolean;
+}): { mode: ActiveViewerTelemetryMode; requestedMode: PdfViewerMode } => ({
+  mode: isNativePdfViewer ? "native" : isWebView ? "webview" : "compat",
+  requestedMode,
+});
 
 export const resolveNativePdfViewerImplementation = (
   platform: string

@@ -33,6 +33,7 @@ import NativePdfDocumentViewer, {
 } from "./NativePdfDocumentViewer";
 import {
   resolveEffectivePdfViewerMode,
+  resolveViewerModeTelemetry,
   shouldUseNativePdfViewer,
 } from "./nativePdfViewerMode";
 import { isPapyrusPdfDocumentViewAvailable } from "@papyrus-sdk/engine-native";
@@ -221,9 +222,6 @@ const Viewer: React.FC<ViewerProps> = ({
     [mobilePerf]
   );
 
-  useEffect(() => {
-    mobilePerf.emit("viewer.mode", { mode: resolvedViewerMode });
-  }, [mobilePerf, resolvedViewerMode]);
   const nativeEngineId = getNativePdfEngineId(engine);
   const nativePdfDocumentViewAvailable =
     Platform.OS === "ios" && isPapyrusPdfDocumentViewAvailable();
@@ -238,6 +236,16 @@ const Viewer: React.FC<ViewerProps> = ({
     viewMode,
     rotation,
   });
+  useEffect(() => {
+    mobilePerf.emit(
+      "viewer.mode",
+      resolveViewerModeTelemetry({
+        requestedMode: resolvedViewerMode,
+        isNativePdfViewer,
+        isWebView,
+      })
+    );
+  }, [isNativePdfViewer, isWebView, mobilePerf, resolvedViewerMode]);
   const warnedNativePdfFallbackRef = useRef("");
 
   useEffect(() => {

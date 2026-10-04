@@ -154,4 +154,13 @@ describe("RN Viewer pinch contract", () => {
     expect(viewerSource).toContain("isPapyrusPdfDocumentViewAvailable()");
     expect(viewerSource).toContain('"scrollToPageSignal.nativeIOS"');
   });
+
+  it("records the requested viewer mode separately from the active renderer", () => {
+    expect(viewerSource).toMatch(
+      /mobilePerf\.emit\(\s*"viewer\.mode",\s*resolveViewerModeTelemetry\(\{/m
+    );
+    expect(viewerSource).toContain("requestedMode: resolvedViewerMode");
+    expect(viewerSource).toContain("isNativePdfViewer,");
+    expect(viewerSource).toContain("isWebView,");
+  });
 });
