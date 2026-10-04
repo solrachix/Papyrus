@@ -107,8 +107,8 @@ describe("PapyrusPdfDocumentView native text selection", () => {
     const inactiveBody = methodBody("setSelectionActive:");
 
     expect(tapBody).toContain("selectionContainsViewPoint:viewPoint");
-    expect(tapBody).toContain("clearCurrentSelection");
-    expect(inactiveBody).toContain("if (wasSelectionActive && !selectionActive)");
+    expect(tapBody).toMatch(/\[self clearCurrentSelection\];\s*return;/);
+    expect(inactiveBody).toContain("if (!selectionActive)");
     expect(inactiveBody).toContain("clearCurrentSelection");
     expect(manager).toContain("RCT_EXPORT_VIEW_PROPERTY(selectionActive, BOOL)");
   });

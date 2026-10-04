@@ -137,9 +137,8 @@ static NSDictionary *PapyrusNormalizedSelectionRect(CGRect rect, CGRect pageBoun
 }
 
 - (void)setSelectionActive:(BOOL)selectionActive {
-  BOOL wasSelectionActive = _selectionActive;
   _selectionActive = selectionActive;
-  if (wasSelectionActive && !selectionActive) {
+  if (!selectionActive) {
     [self clearCurrentSelection];
   }
 }
@@ -599,6 +598,7 @@ static NSDictionary *PapyrusNormalizedSelectionRect(CGRect rect, CGRect pageBoun
   CGPoint viewPoint = [recognizer locationInView:self.pdfView];
   if (self.pdfView.currentSelection && ![self selectionContainsViewPoint:viewPoint]) {
     [self clearCurrentSelection];
+    return;
   }
   PDFPage *page = [self.pdfView pageForPoint:viewPoint nearest:YES];
   if (!page) return;
