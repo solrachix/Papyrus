@@ -61,6 +61,8 @@ type Strings = {
   info: string;
   more: string;
   close: string;
+  copy: string;
+  define: string;
 };
 
 const STRINGS: Record<Locale, Strings> = {
@@ -125,6 +127,8 @@ const STRINGS: Record<Locale, Strings> = {
     info: "Info",
     more: "More",
     close: "Close",
+    copy: "Copy",
+    define: "Define",
   },
   "pt-BR": {
     pages: "Paginas",
@@ -187,6 +191,8 @@ const STRINGS: Record<Locale, Strings> = {
     info: "Info",
     more: "Mais",
     close: "Fechar",
+    copy: "Copiar",
+    define: "Definir",
   },
 };
 

@@ -5,6 +5,7 @@ import { useViewerStore } from "@papyrus-sdk/core";
 import type { DocumentEngine } from "@papyrus-sdk/types";
 import { PapyrusPdfDocumentView } from "@papyrus-sdk/engine-native";
 import { IconCopy } from "../icons";
+import { getStrings } from "../mobileStrings";
 import { copySelectionText } from "./clipboard";
 import { resolvePageTapChromeVisibility } from "./mobileChromeInteraction";
 import { getDedicatedAndroidPdfEngineId } from "./DedicatedAndroidPdfViewer";
@@ -35,6 +36,8 @@ export default function DedicatedIosPdfViewer({
   onTextSelected,
   onDefineSelection,
 }: DedicatedIosPdfViewerProps) {
+  const locale = useViewerStore((state) => state.locale);
+  const t = getStrings(locale);
   const pageCount = useViewerStore((state) => state.pageCount);
   const pageTheme = useViewerStore((state) => state.pageTheme);
   const zoom = useViewerStore((state) => state.zoom);
@@ -268,19 +271,19 @@ export default function DedicatedIosPdfViewer({
               onPress={() => void copySelection()}
               style={styles.toolbarButton}
               accessibilityRole="button"
-              accessibilityLabel="Copy selected text"
+              accessibilityLabel={t.copy}
             >
               <IconCopy size={18} color="#fff" strokeWidth={2} />
-              <Text style={styles.toolbarButtonText}>Copy</Text>
+              <Text style={styles.toolbarButtonText}>{t.copy}</Text>
             </Pressable>
             {onDefineSelection && (
               <Pressable
                 onPress={defineSelection}
                 style={styles.toolbarButton}
                 accessibilityRole="button"
-                accessibilityLabel="Define selected text"
+                accessibilityLabel={t.define}
               >
-                <Text style={styles.toolbarButtonText}>Define</Text>
+                <Text style={styles.toolbarButtonText}>{t.define}</Text>
               </Pressable>
             )}
           </View>
