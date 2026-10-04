@@ -133,7 +133,7 @@ describe("RN Viewer pinch contract", () => {
     ).toHaveLength(5);
   });
 
-  it("uses the Android-only native PDF surface only on Android", () => {
+  it("routes the opt-in native PDF viewer through the platform capability", () => {
     expect(viewerSource).toContain("platform: Platform.OS");
     const nativeModeSource = readFileSync(
       resolve(
@@ -143,5 +143,9 @@ describe("RN Viewer pinch contract", () => {
       "utf8"
     );
     expect(nativeModeSource).toContain('platform === "android"');
+    expect(nativeModeSource).toContain('platform === "ios"');
+    expect(nativeModeSource).toContain("nativePdfDocumentViewAvailable");
+    expect(viewerSource).toContain("isPapyrusPdfDocumentViewAvailable()");
+    expect(viewerSource).toContain('"scrollToPageSignal.nativeIOS"');
   });
 });

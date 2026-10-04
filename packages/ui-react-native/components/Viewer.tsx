@@ -31,7 +31,11 @@ import WebViewViewer from "./WebViewViewer";
 import NativePdfDocumentViewer, {
   getNativePdfEngineId,
 } from "./NativePdfDocumentViewer";
-import { shouldUseNativePdfViewer } from "./nativePdfViewerMode";
+import {
+  resolveEffectivePdfViewerMode,
+  shouldUseNativePdfViewer,
+} from "./nativePdfViewerMode";
+import { isPapyrusPdfDocumentViewAvailable } from "@papyrus-sdk/engine-native";
 import {
   resolvePdfBasePageWidth,
   resolvePdfDoublePageContentWidth,
@@ -192,6 +196,7 @@ const Viewer: React.FC<ViewerProps> = ({
   const selectionActive = useViewerStore((state) => state.selectionActive);
   const activeTool = useViewerStore((state) => state.activeTool);
   const uiTheme = useViewerStore((state) => state.uiTheme);
+  const pageTheme = useViewerStore((state) => state.pageTheme);
   const viewMode = useViewerStore((state) => state.viewMode);
   const zoom = useViewerStore((state) => state.zoom);
   const storeViewerMode = useViewerStore((state) => state.viewerMode);
@@ -203,8 +208,12 @@ const Viewer: React.FC<ViewerProps> = ({
   const isSingle = viewMode === "single";
   const renderTargetType = engine.getRenderTargetType?.() ?? "canvas";
   const isWebView = renderTargetType === "webview";
-  const resolvedViewerMode =
-    viewerMode ?? (useDedicatedAndroidPdfViewer ? "native" : storeViewerMode);
+  const resolvedViewerMode = resolveEffectivePdfViewerMode({
+    platform: Platform.OS,
+    viewerMode,
+    useDedicatedAndroidPdfViewer,
+    storeViewerMode,
+  });
   const mobilePerf = useMobilePerf();
   const pinchPerfMachine = useMemo(
     () => createPinchPerfMachine(mobilePerf),
@@ -215,13 +224,57 @@ const Viewer: React.FC<ViewerProps> = ({
     mobilePerf.emit("viewer.mode", { mode: resolvedViewerMode });
   }, [mobilePerf, resolvedViewerMode]);
   const nativeEngineId = getNativePdfEngineId(engine);
+  const nativePdfDocumentViewAvailable =
+    Platform.OS === "ios" && isPapyrusPdfDocumentViewAvailable();
   const isNativePdfViewer = shouldUseNativePdfViewer({
     platform: Platform.OS,
     viewerMode: resolvedViewerMode,
     pageCount,
     isWebView,
     nativeEngineId,
+    nativePdfDocumentViewAvailable,
+    pageTheme,
   });
+  const warnedNativePdfFallbackRef = useRef("");
+
+  useEffect(() => {
+    if (
+      !__DEV__ ||
+      Platform.OS !== "ios" ||
+      resolvedViewerMode !== "native" ||
+      isWebView ||
+      pageCount <= 0
+    ) {
+      return;
+    }
+
+    const reason = !nativePdfDocumentViewAvailable
+      ? "manager-unavailable"
+      : pageTheme !== "normal"
+        ? "unsupported-page-theme"
+        : !nativeEngineId
+          ? "engine-unavailable"
+          : "";
+    if (!reason || warnedNativePdfFallbackRef.current === reason) return;
+
+    warnedNativePdfFallbackRef.current = reason;
+    const detail =
+      reason === "manager-unavailable"
+        ? "the PapyrusPdfDocumentView manager is not registered"
+        : reason === "unsupported-page-theme"
+          ? `pageTheme '${pageTheme}' is not supported by the native viewport`
+          : "the native PDF engine id is unavailable";
+    console.warn(
+      `[Papyrus] viewerMode="native" is using the compatibility PDF viewer because ${detail}.`
+    );
+  }, [
+    isWebView,
+    nativeEngineId,
+    nativePdfDocumentViewAvailable,
+    pageCount,
+    pageTheme,
+    resolvedViewerMode,
+  ]);
   const perfEnabled = isMobilePerfEnabled();
   const mountedAtRef = useRef(perfNow());
   const readyLoggedRef = useRef(false);
@@ -1655,6 +1708,22 @@ const Viewer: React.FC<ViewerProps> = ({
   );
 
   useEffect(() => {
+    if (Platform.OS === "ios" && isNativePdfViewer) {
+      clearPendingScrollTarget();
+      if (scrollToPageSignal === null) return;
+      if (pageCount === 0) return;
+      if (scrollToPageSignal < 0 || scrollToPageSignal >= pageCount) return;
+      engine.goToPage(scrollToPageSignal + 1);
+      setDocumentStateTracked(
+        {
+          currentPage: scrollToPageSignal + 1,
+          scrollToPageSignal: null,
+        },
+        "scrollToPageSignal.nativeIOS"
+      );
+      return;
+    }
+
     if (isWebView) {
       clearPendingScrollTarget();
       if (scrollToPageSignal === null) return;
@@ -1712,6 +1781,7 @@ const Viewer: React.FC<ViewerProps> = ({
     isDouble,
     isSingle,
     isWebView,
+    isNativePdfViewer,
     engine,
   ]);
 

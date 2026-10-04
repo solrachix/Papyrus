@@ -2,6 +2,7 @@ import type { ComponentType, RefAttributes } from "react";
 import {
   NativeModules,
   Platform,
+  UIManager,
   TurboModuleRegistry,
   requireNativeComponent,
   View,
@@ -32,6 +33,7 @@ import {
 } from "@papyrus-sdk/types";
 import { inferDocumentType, resolveComicFormat } from "./documentType";
 import { resolvePapyrusNativeModule } from "./nativeModuleResolution";
+import { isNativeViewManagerRegistered } from "./nativeViewAvailability";
 
 const MODULE_NAME = "PapyrusNativeEngine";
 
@@ -305,20 +307,46 @@ const resolvePapyrusPageView = (): PapyrusPageViewComponent => {
   }
 };
 
-const resolvePapyrusPdfViewerView = (): PapyrusPdfViewerViewComponent => {
-  const componentName =
-    Platform.OS === "ios" ? "PapyrusPdfDocumentView" : "PapyrusPdfViewerView";
+const PAPYRUS_PDF_DOCUMENT_VIEW_NAME = "PapyrusPdfDocumentView";
+
+const hasPapyrusPdfDocumentViewManager = (): boolean =>
+  Platform.OS === "ios" &&
+  isNativeViewManagerRegistered(UIManager, PAPYRUS_PDF_DOCUMENT_VIEW_NAME);
+
+const unavailablePapyrusPdfDocumentView: PapyrusPdfViewerViewComponent = () =>
+  null;
+
+const resolvePapyrusPdfDocumentView = (): PapyrusPdfViewerViewComponent | null => {
+  if (!hasPapyrusPdfDocumentViewManager()) return null;
   try {
     return requireNativeComponent<PapyrusPdfViewerViewProps>(
-      componentName
+      PAPYRUS_PDF_DOCUMENT_VIEW_NAME
+    ) as unknown as PapyrusPdfViewerViewComponent;
+  } catch {
+    return null;
+  }
+};
+
+const resolvePapyrusAndroidPdfViewerView = (): PapyrusPdfViewerViewComponent => {
+  try {
+    return requireNativeComponent<PapyrusPdfViewerViewProps>(
+      "PapyrusPdfViewerView"
     ) as unknown as PapyrusPdfViewerViewComponent;
   } catch {
     return View as unknown as PapyrusPdfViewerViewComponent;
   }
 };
 
+const papyrusPdfDocumentView = resolvePapyrusPdfDocumentView();
+
+export const isPapyrusPdfDocumentViewAvailable = (): boolean =>
+  papyrusPdfDocumentView !== null && hasPapyrusPdfDocumentViewManager();
+
 export const PapyrusPageView = resolvePapyrusPageView();
-export const PapyrusPdfViewerView = resolvePapyrusPdfViewerView();
+export const PapyrusPdfViewerView =
+  Platform.OS === "ios"
+    ? papyrusPdfDocumentView ?? unavailablePapyrusPdfDocumentView
+    : resolvePapyrusAndroidPdfViewerView();
 export const PapyrusPdfDocumentView = PapyrusPdfViewerView;
 
 export class NativeDocumentEngine extends BaseDocumentEngine {
