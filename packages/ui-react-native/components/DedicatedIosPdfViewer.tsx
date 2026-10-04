@@ -1,14 +1,19 @@
-import React, { useCallback, useEffect, useRef } from "react";
-import { StyleSheet, View } from "react-native";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import Clipboard from "@react-native-clipboard/clipboard";
 import { useViewerStore } from "@papyrus-sdk/core";
 import type { DocumentEngine } from "@papyrus-sdk/types";
 import { PapyrusPdfDocumentView } from "@papyrus-sdk/engine-native";
+import { IconCopy } from "../icons";
+import { copySelectionText } from "./clipboard";
 import { resolvePageTapChromeVisibility } from "./mobileChromeInteraction";
 import { getDedicatedAndroidPdfEngineId } from "./DedicatedAndroidPdfViewer";
 import {
   resolveNativePdfPageChange,
+  resolveNativePdfTextSelection,
   resolveNativePdfVisiblePages,
   resolveNativePdfZoomChange,
+  type NativePdfTextSelection,
 } from "./nativePdfViewerEvents";
 
 const MOBILE_CHROME_HIDE_DELTA = 28;
@@ -20,11 +25,15 @@ const MIN_VISIBLE_PAGE_RATIO = 0.03;
 type DedicatedIosPdfViewerProps = {
   engine: DocumentEngine;
   maxPageWidth?: number;
+  onTextSelected?: (payload: { text: string; pageIndex: number }) => void;
+  onDefineSelection?: (payload: { text: string; pageIndex: number }) => void;
 };
 
 export default function DedicatedIosPdfViewer({
   engine,
   maxPageWidth,
+  onTextSelected,
+  onDefineSelection,
 }: DedicatedIosPdfViewerProps) {
   const pageCount = useViewerStore((state) => state.pageCount);
   const pageTheme = useViewerStore((state) => state.pageTheme);
@@ -55,6 +64,8 @@ export default function DedicatedIosPdfViewer({
   > | null>(null);
   const lastZoomChangedAtRef = useRef<number | null>(null);
   const lastVisiblePagesKeyRef = useRef("");
+  const [selection, setSelection] = useState<NativePdfTextSelection | null>(null);
+  const selectionRef = useRef<NativePdfTextSelection | null>(null);
 
   useEffect(() => {
     chromeVisibleRef.current = mobileChromeVisible;
@@ -74,6 +85,49 @@ export default function DedicatedIosPdfViewer({
     },
     [setDocumentState]
   );
+
+  const updateSelection = useCallback(
+    (nextSelection: NativePdfTextSelection | null) => {
+      selectionRef.current = nextSelection;
+      setSelection(nextSelection);
+    },
+    []
+  );
+
+  const handleTextSelectionChange = useCallback(
+    (event: {
+      nativeEvent?: {
+        text?: string;
+        pageIndex?: number;
+        rects?: { x: number; y: number; width: number; height: number }[];
+      };
+    }) => {
+      const nextSelection = resolveNativePdfTextSelection(event.nativeEvent);
+      updateSelection(nextSelection);
+      if (nextSelection) {
+        const { text, pageIndex } = nextSelection;
+        onTextSelected?.({ text, pageIndex });
+      }
+    },
+    [onTextSelected, updateSelection]
+  );
+
+  const copySelection = useCallback(async () => {
+    const selection = selectionRef.current;
+    if (!selection) return;
+    const copied = await copySelectionText(selection.text, Clipboard);
+    if (copied) updateSelection(null);
+  }, [updateSelection]);
+
+  const defineSelection = useCallback(() => {
+    const currentSelection = selectionRef.current;
+    if (!currentSelection) return;
+    onDefineSelection?.({
+      text: currentSelection.text,
+      pageIndex: currentSelection.pageIndex,
+    });
+    updateSelection(null);
+  }, [onDefineSelection, updateSelection]);
 
   const trackMobileChromeByOffset = useCallback(
     (offsetY: number) => {
@@ -158,7 +212,7 @@ export default function DedicatedIosPdfViewer({
   const handleTap = useCallback(() => {
     const nextVisible = resolvePageTapChromeVisibility({
       chromeVisible: chromeVisibleRef.current,
-      selectionActive,
+      selectionActive: selectionActive || selectionRef.current !== null,
       pinchActive:
         lastZoomChangedAtRef.current !== null &&
         Date.now() - lastZoomChangedAtRef.current < 400,
@@ -184,6 +238,7 @@ export default function DedicatedIosPdfViewer({
         zoom={zoom}
         currentPage={currentPage}
         viewMode={nativeViewMode}
+        selectionActive={selection !== null}
         onPageChange={(event) => {
           const update = resolveNativePdfPageChange(
             event.nativeEvent.page,
@@ -204,7 +259,33 @@ export default function DedicatedIosPdfViewer({
         onVisiblePagesChange={handleVisiblePagesChange}
         onScroll={handleScroll}
         onTap={handleTap}
+        onTextSelected={handleTextSelectionChange}
       />
+      {selection && (
+        <View style={styles.selectionToolbar} pointerEvents="box-none">
+          <View style={styles.toolbarContent}>
+            <Pressable
+              onPress={() => void copySelection()}
+              style={styles.toolbarButton}
+              accessibilityRole="button"
+              accessibilityLabel="Copy selected text"
+            >
+              <IconCopy size={18} color="#fff" strokeWidth={2} />
+              <Text style={styles.toolbarButtonText}>Copy</Text>
+            </Pressable>
+            {onDefineSelection && (
+              <Pressable
+                onPress={defineSelection}
+                style={styles.toolbarButton}
+                accessibilityRole="button"
+                accessibilityLabel="Define selected text"
+              >
+                <Text style={styles.toolbarButtonText}>Define</Text>
+              </Pressable>
+            )}
+          </View>
+        </View>
+      )}
     </View>
   );
 }
@@ -212,4 +293,42 @@ export default function DedicatedIosPdfViewer({
 const styles = StyleSheet.create({
   container: { flex: 1, alignItems: "stretch" },
   viewer: { flex: 1, width: "100%" },
+  selectionToolbar: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 120,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 50,
+  },
+  toolbarContent: {
+    flexDirection: "row",
+    backgroundColor: "rgba(30, 30, 30, 0.92)",
+    borderRadius: 16,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    gap: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 10,
+  },
+  toolbarButton: {
+    minWidth: 76,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: "rgba(255,255,255,0.1)",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+  },
+  toolbarButtonText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "700",
+  },
 });

@@ -101,6 +101,10 @@ export interface ViewerProps {
   useDedicatedAndroidPdfViewer?: boolean;
   viewerMode?: PdfViewerMode;
   pageScrubActive?: boolean;
+  /** Called when the native iOS PDF viewer selects non-empty text. */
+  onTextSelected?: (payload: { text: string; pageIndex: number }) => void;
+  /** Called when the reader's Define action is pressed for the current selection. */
+  onDefineSelection?: (payload: { text: string; pageIndex: number }) => void;
 }
 
 const LIST_TOP_PADDING = 18;
@@ -184,6 +188,8 @@ const Viewer: React.FC<ViewerProps> = ({
   useDedicatedAndroidPdfViewer,
   viewerMode,
   pageScrubActive = false,
+  onTextSelected,
+  onDefineSelection,
 }) => {
   const pageCount = useViewerStore((state) => state.pageCount);
   const currentPage = useViewerStore((state) => state.currentPage);
@@ -2204,7 +2210,10 @@ const Viewer: React.FC<ViewerProps> = ({
   if (isNativePdfViewer) {
     return (
       <View style={[styles.container, isDark && styles.containerDark]}>
-        <NativePdfDocumentViewer engine={engine} maxPageWidth={maxPageWidth} />
+        <NativePdfDocumentViewer engine={engine} maxPageWidth={maxPageWidth}
+          onTextSelected={onTextSelected}
+          onDefineSelection={onDefineSelection}
+        />
       </View>
     );
   }

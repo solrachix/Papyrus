@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   resolveNativePdfPageChange,
+  resolveNativePdfTextSelection,
   resolveNativePdfVisiblePages,
   resolveNativePdfZoomChange,
 } from "./nativePdfViewerEvents";
@@ -27,5 +28,29 @@ describe("native iOS PDF viewer events", () => {
         { pageIndex: 4, visibleRatio: 0 },
       ])
     ).toEqual([{ pageIndex: 0, visibleRatio: 0.75 }]);
+  });
+
+  it("preserves selected text, its primary page, and normalized line bounds", () => {
+    expect(
+      resolveNativePdfTextSelection({
+        text: "The word",
+        pageIndex: 0,
+        rects: [{ x: 0.1, y: 0.2, width: 0.3, height: 0.04 }],
+      })
+    ).toEqual({
+      text: "The word",
+      pageIndex: 0,
+      rects: [{ x: 0.1, y: 0.2, width: 0.3, height: 0.04 }],
+    });
+  });
+
+  it("treats an empty native selection as a clear event", () => {
+    expect(
+      resolveNativePdfTextSelection({
+        text: "  ",
+        pageIndex: 0,
+        rects: [],
+      })
+    ).toBeNull();
   });
 });

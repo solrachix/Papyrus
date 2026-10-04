@@ -12,11 +12,15 @@ export {
 type NativePdfDocumentViewerProps = {
   engine: DocumentEngine;
   maxPageWidth?: number;
+  onTextSelected?: (payload: { text: string; pageIndex: number }) => void;
+  onDefineSelection?: (payload: { text: string; pageIndex: number }) => void;
 };
 
 export default function NativePdfDocumentViewer({
   engine,
   maxPageWidth,
+  onTextSelected,
+  onDefineSelection,
 }: NativePdfDocumentViewerProps) {
   const implementation = resolveNativePdfViewerImplementation(
     Platform.OS
@@ -32,7 +36,14 @@ export default function NativePdfDocumentViewer({
   }
 
   if (implementation === "ios") {
-    return <DedicatedIosPdfViewer engine={engine} maxPageWidth={maxPageWidth} />;
+    return (
+      <DedicatedIosPdfViewer
+        engine={engine}
+        maxPageWidth={maxPageWidth}
+        onTextSelected={onTextSelected}
+        onDefineSelection={onDefineSelection}
+      />
+    );
   }
 
   return null;

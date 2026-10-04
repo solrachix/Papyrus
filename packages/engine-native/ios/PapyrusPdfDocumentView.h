@@ -11,9 +11,11 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, assign) CGFloat zoom;
 @property (nonatomic, assign) NSInteger currentPage;
 @property (nonatomic, copy) NSString *viewMode;
+@property (nonatomic, assign) BOOL selectionActive;
 @property (nonatomic, copy, nullable) RCTBubblingEventBlock onPageChange;
 @property (nonatomic, copy, nullable) RCTBubblingEventBlock onZoomChange;
 @property (nonatomic, copy, nullable) RCTBubblingEventBlock onVisiblePagesChange;
+@property (nonatomic, copy, nullable) RCTBubblingEventBlock onTextSelected;
 @property (nonatomic, copy, nullable) RCTDirectEventBlock onScroll;
 @property (nonatomic, copy, nullable) RCTBubblingEventBlock onTap;
 

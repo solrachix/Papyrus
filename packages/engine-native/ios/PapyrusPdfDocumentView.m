@@ -13,10 +13,37 @@ static const NSTimeInterval PapyrusPdfZoomEventInterval = 0.10;
 static const NSTimeInterval PapyrusPdfScrollEventInterval = 0.08;
 static void *PapyrusPdfScrollObservationContext = &PapyrusPdfScrollObservationContext;
 
+static NSDictionary *PapyrusNormalizedSelectionRect(CGRect rect, CGRect pageBounds) {
+  if (CGRectIsNull(rect) || CGRectIsEmpty(rect)) return nil;
+  rect = CGRectIntersection(rect, pageBounds);
+  if (CGRectIsNull(rect) || CGRectIsEmpty(rect)) return nil;
+
+  CGFloat pageWidth = CGRectGetWidth(pageBounds);
+  CGFloat pageHeight = CGRectGetHeight(pageBounds);
+  if (!isfinite(pageWidth) || !isfinite(pageHeight) || pageWidth <= 0 || pageHeight <= 0) {
+    return nil;
+  }
+
+  CGFloat x = (CGRectGetMinX(rect) - CGRectGetMinX(pageBounds)) / pageWidth;
+  CGFloat y = 1.0 - ((CGRectGetMaxY(rect) - CGRectGetMinY(pageBounds)) / pageHeight);
+  CGFloat width = CGRectGetWidth(rect) / pageWidth;
+  CGFloat height = CGRectGetHeight(rect) / pageHeight;
+  if (!isfinite(x) || !isfinite(y) || !isfinite(width) || !isfinite(height)) return nil;
+
+  x = MIN(1.0, MAX(0.0, x));
+  y = MIN(1.0, MAX(0.0, y));
+  width = MIN(1.0 - x, MAX(0.0, width));
+  height = MIN(1.0 - y, MAX(0.0, height));
+  if (width <= 0 || height <= 0) return nil;
+
+  return @{@"x" : @(x), @"y" : @(y), @"width" : @(width), @"height" : @(height)};
+}
+
 @interface PapyrusPdfDocumentView ()
 @property (nonatomic, strong) PDFView *pdfView;
 @property (nonatomic, weak) UIScrollView *observedScrollView;
 @property (nonatomic, strong) UITapGestureRecognizer *tapRecognizer;
+@property (nonatomic, strong) UITapGestureRecognizer *doubleTapRecognizer;
 @property (nonatomic, assign) CGSize lastLayoutSize;
 @property (nonatomic, assign) NSInteger lastEmittedPage;
 @property (nonatomic, assign) CGFloat lastEmittedZoom;
@@ -26,6 +53,9 @@ static void *PapyrusPdfScrollObservationContext = &PapyrusPdfScrollObservationCo
 @property (nonatomic, assign) BOOL scrollEventScheduled;
 @property (nonatomic, assign) CGFloat pendingScrollOffsetY;
 @property (nonatomic, assign) CFTimeInterval lastScrollEventTime;
+@property (nonatomic, copy) NSString *lastSelectionSignature;
+@property (nonatomic, assign) NSInteger lastSelectionPageIndex;
+@property (nonatomic, assign) BOOL lastSelectionWasActive;
 @end
 
 @implementation PapyrusPdfDocumentView
@@ -39,6 +69,7 @@ static void *PapyrusPdfScrollObservationContext = &PapyrusPdfScrollObservationCo
   _zoom = 1.0;
   _currentPage = 1;
   _lastEmittedPage = NSNotFound;
+  _lastSelectionPageIndex = NSNotFound;
   _lastEmittedZoom = NAN;
   _lastLayoutSize = CGSizeZero;
   self.clipsToBounds = YES;
@@ -63,6 +94,16 @@ static void *PapyrusPdfScrollObservationContext = &PapyrusPdfScrollObservationCo
   _tapRecognizer.delaysTouchesBegan = NO;
   [_pdfView addGestureRecognizer:_tapRecognizer];
 
+  _doubleTapRecognizer = [[UITapGestureRecognizer alloc]
+      initWithTarget:self
+              action:@selector(handleDocumentDoubleTap:)];
+  _doubleTapRecognizer.numberOfTapsRequired = 2;
+  _doubleTapRecognizer.delegate = self;
+  _doubleTapRecognizer.cancelsTouchesInView = NO;
+  _doubleTapRecognizer.delaysTouchesBegan = NO;
+  [_pdfView addGestureRecognizer:_doubleTapRecognizer];
+  [_tapRecognizer requireGestureRecognizerToFail:_doubleTapRecognizer];
+
   NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
   [center addObserver:self
              selector:@selector(handlePdfPageChanged:)
@@ -77,6 +118,10 @@ static void *PapyrusPdfScrollObservationContext = &PapyrusPdfScrollObservationCo
                  name:PDFViewVisiblePagesChangedNotification
                object:_pdfView];
   [center addObserver:self
+             selector:@selector(handlePdfSelectionChanged:)
+                 name:PDFViewSelectionChangedNotification
+               object:_pdfView];
+  [center addObserver:self
              selector:@selector(handleStoredDocumentChanged:)
                  name:PapyrusEngineStoreDocumentDidChangeNotification
                object:[PapyrusEngineStore shared]];
@@ -88,6 +133,15 @@ static void *PapyrusPdfScrollObservationContext = &PapyrusPdfScrollObservationCo
   [self stopObservingScrollView];
   [[NSNotificationCenter defaultCenter] removeObserver:self];
   self.tapRecognizer.delegate = nil;
+  self.doubleTapRecognizer.delegate = nil;
+}
+
+- (void)setSelectionActive:(BOOL)selectionActive {
+  BOOL wasSelectionActive = _selectionActive;
+  _selectionActive = selectionActive;
+  if (wasSelectionActive && !selectionActive) {
+    [self clearCurrentSelection];
+  }
 }
 
 - (void)layoutSubviews {
@@ -185,6 +239,7 @@ static void *PapyrusPdfScrollObservationContext = &PapyrusPdfScrollObservationCo
   self.suppressScaleSynchronization = YES;
   self.lastVisiblePagesSignature = nil;
   self.lastEmittedPage = NSNotFound;
+  [self clearCurrentSelection];
   self.pdfView.document = document;
   if (!document) {
     self.lastEmittedZoom = NAN;
@@ -342,6 +397,71 @@ static void *PapyrusPdfScrollObservationContext = &PapyrusPdfScrollObservationCo
   [self emitVisiblePagesIfNeeded];
 }
 
+- (void)handlePdfSelectionChanged:(NSNotification *)notification {
+  if (notification.object != self.pdfView) return;
+  [self emitCurrentSelectionIfNeeded];
+}
+
+- (void)emitCurrentSelectionIfNeeded {
+  PDFSelection *selection = self.pdfView.currentSelection;
+  NSString *text = selection.string ?: @"";
+  PDFDocument *document = self.pdfView.document;
+  PDFPage *page = selection.pages.firstObject;
+  NSInteger pageIndex = document && page ? [document indexForPage:page] : NSNotFound;
+  if (!document || !page || pageIndex == NSNotFound || text.length == 0 ||
+      [text stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet].length == 0) {
+    [self emitSelectionClearedIfNeeded];
+    return;
+  }
+
+  CGRect pageBounds = [page boundsForBox:kPDFDisplayBoxCropBox];
+  if (CGRectIsEmpty(pageBounds)) {
+    [self emitSelectionClearedIfNeeded];
+    return;
+  }
+
+  NSMutableArray<NSDictionary *> *rects = [NSMutableArray array];
+  for (PDFSelection *line in selection.selectionsByLine) {
+    NSDictionary *normalizedRect = PapyrusNormalizedSelectionRect(
+        [line boundsForPage:page], pageBounds);
+    if (normalizedRect) [rects addObject:normalizedRect];
+  }
+
+  if (rects.count == 0) {
+    NSDictionary *normalizedRect = PapyrusNormalizedSelectionRect(
+        [selection boundsForPage:page], pageBounds);
+    if (normalizedRect) [rects addObject:normalizedRect];
+  }
+
+  NSString *signature = [NSString stringWithFormat:@"%ld|%@|%@", (long)pageIndex, text, rects];
+  if (self.lastSelectionWasActive && [signature isEqualToString:self.lastSelectionSignature]) return;
+  self.lastSelectionWasActive = YES;
+  self.lastSelectionPageIndex = pageIndex;
+  self.lastSelectionSignature = signature;
+  if (self.onTextSelected) {
+    self.onTextSelected(@{@"text" : text, @"pageIndex" : @(pageIndex), @"rects" : rects});
+  }
+}
+
+- (void)emitSelectionClearedIfNeeded {
+  if (!self.lastSelectionWasActive) return;
+  NSInteger pageIndex = self.lastSelectionPageIndex;
+  if (pageIndex == NSNotFound) pageIndex = MAX(0, self.currentPage - 1);
+  self.lastSelectionWasActive = NO;
+  self.lastSelectionSignature = nil;
+  self.lastSelectionPageIndex = NSNotFound;
+  if (self.onTextSelected) {
+    self.onTextSelected(@{@"text" : @"", @"pageIndex" : @(pageIndex), @"rects" : @[]});
+  }
+}
+
+- (void)clearCurrentSelection {
+  if (self.pdfView.currentSelection) {
+    self.pdfView.currentSelection = nil;
+  }
+  [self emitSelectionClearedIfNeeded];
+}
+
 - (void)emitVisiblePagesIfNeeded {
   PDFDocument *document = self.pdfView.document;
   if (!document || self.pdfView.bounds.size.width <= 0 || self.pdfView.bounds.size.height <= 0) return;
@@ -477,6 +597,9 @@ static void *PapyrusPdfScrollObservationContext = &PapyrusPdfScrollObservationCo
   if (!document) return;
 
   CGPoint viewPoint = [recognizer locationInView:self.pdfView];
+  if (self.pdfView.currentSelection && ![self selectionContainsViewPoint:viewPoint]) {
+    [self clearCurrentSelection];
+  }
   PDFPage *page = [self.pdfView pageForPoint:viewPoint nearest:YES];
   if (!page) return;
   CGRect pageBounds = [page boundsForBox:kPDFDisplayBoxCropBox];
@@ -494,6 +617,37 @@ static void *PapyrusPdfScrollObservationContext = &PapyrusPdfScrollObservationCo
       @"y" : @(MIN(1.0, MAX(0.0, y)))
     });
   }
+}
+
+- (void)handleDocumentDoubleTap:(UITapGestureRecognizer *)recognizer {
+  if (recognizer.state != UIGestureRecognizerStateEnded) return;
+  PDFDocument *document = self.pdfView.document;
+  if (!document) return;
+
+  CGPoint viewPoint = [recognizer locationInView:self.pdfView];
+  PDFPage *page = [self.pdfView pageForPoint:viewPoint nearest:YES];
+  if (!page) return;
+  CGPoint pagePoint = [self.pdfView convertPoint:viewPoint toPage:page];
+  PDFSelection *selection = [page selectionForWordAtPoint:pagePoint];
+  self.pdfView.currentSelection = selection;
+  [self emitCurrentSelectionIfNeeded];
+}
+
+- (BOOL)selectionContainsViewPoint:(CGPoint)viewPoint {
+  PDFSelection *selection = self.pdfView.currentSelection;
+  if (!selection) return NO;
+
+  NSArray<PDFSelection *> *lines = selection.selectionsByLine;
+  if (lines.count == 0) lines = @[selection];
+  for (PDFPage *page in selection.pages) {
+    for (PDFSelection *line in lines) {
+      CGRect pageRect = [line boundsForPage:page];
+      if (CGRectIsNull(pageRect) || CGRectIsEmpty(pageRect)) continue;
+      CGRect viewRect = [self.pdfView convertRect:pageRect fromPage:page];
+      if (CGRectContainsPoint(CGRectInset(viewRect, -6, -6), viewPoint)) return YES;
+    }
+  }
+  return NO;
 }
 
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer

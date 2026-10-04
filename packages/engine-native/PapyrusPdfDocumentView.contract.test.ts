@@ -6,6 +6,17 @@ const source = readFileSync(
   resolve(process.cwd(), "packages/engine-native/ios/PapyrusPdfDocumentView.m"),
   "utf8"
 );
+const header = readFileSync(
+  resolve(process.cwd(), "packages/engine-native/ios/PapyrusPdfDocumentView.h"),
+  "utf8"
+);
+const manager = readFileSync(
+  resolve(
+    process.cwd(),
+    "packages/engine-native/ios/PapyrusPdfDocumentViewManager.m"
+  ),
+  "utf8"
+);
 
 const methodBody = (selector: string): string => {
   const signatureIndex = source.indexOf(`\n- (void)${selector}`);
@@ -60,5 +71,45 @@ describe("PapyrusPdfDocumentView programmatic zoom synchronization", () => {
     expect(suppressIndex).toBeLessThan(restoreZoomIndex);
     expect(restoreZoomIndex).toBeLessThan(applyZoomIndex);
     expect(applyZoomIndex).toBeLessThan(releaseIndex);
+  });
+});
+
+describe("PapyrusPdfDocumentView native text selection", () => {
+  it("observes PDFKit selection changes and exports the native event", () => {
+    expect(source).toContain("PDFViewSelectionChangedNotification");
+    expect(source).toContain("handlePdfSelectionChanged:");
+    expect(header).toContain("RCTBubblingEventBlock onTextSelected");
+    expect(manager).toContain(
+      "RCT_EXPORT_VIEW_PROPERTY(onTextSelected, RCTBubblingEventBlock)"
+    );
+  });
+
+  it("emits selected text with the first page and per-line bounds", () => {
+    const body = methodBody("emitCurrentSelectionIfNeeded");
+
+    expect(body).toContain("self.pdfView.currentSelection");
+    expect(body).toContain("selection.pages.firstObject");
+    expect(body).toContain("selection.selectionsByLine");
+    expect(body).toContain('@"text" : text');
+    expect(body).toContain('@"pageIndex" : @(pageIndex)');
+    expect(body).toContain('@"rects" : rects');
+  });
+
+  it("selects a whole PDFKit word on double tap", () => {
+    const body = methodBody("handleDocumentDoubleTap:");
+
+    expect(body).toContain("selectionForWordAtPoint:");
+    expect(body).toContain("self.pdfView.currentSelection = selection;");
+  });
+
+  it("clears native selection after a tap outside it or an inactive prop", () => {
+    const tapBody = methodBody("handleDocumentTap:");
+    const inactiveBody = methodBody("setSelectionActive:");
+
+    expect(tapBody).toContain("selectionContainsViewPoint:viewPoint");
+    expect(tapBody).toContain("clearCurrentSelection");
+    expect(inactiveBody).toContain("if (wasSelectionActive && !selectionActive)");
+    expect(inactiveBody).toContain("clearCurrentSelection");
+    expect(manager).toContain("RCT_EXPORT_VIEW_PROPERTY(selectionActive, BOOL)");
   });
 });
