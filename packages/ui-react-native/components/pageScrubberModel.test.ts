@@ -283,12 +283,22 @@ describe("resolvePageScrubberReleaseAction", () => {
       resolvePageScrubberReleaseAction({ hasMoved: true, pendingPage: null }),
     ).toEqual({ kind: "open" });
   });
+
+  it("does not open the page selector again after a long press", () => {
+    expect(
+      resolvePageScrubberReleaseAction({
+        hasMoved: false,
+        pendingPage: null,
+        longPressTriggered: true,
+      }),
+    ).toEqual({ kind: "none" });
+  });
 });
 
 describe("resolvePageScrubberTouchPolicy", () => {
-  it("captures the gesture from the full track before the document", () => {
+  it("attaches start and move capture to the pill", () => {
     expect(resolvePageScrubberTouchPolicy()).toEqual({
-      responderTarget: "track",
+      responderTarget: "pill",
       claimOnStart: true,
       captureOnStart: true,
       captureOnMove: true,
@@ -307,8 +317,8 @@ describe("resolvePageScrubberOverlayStyle", () => {
 });
 
 describe("resolvePageScrubberPointerEvents", () => {
-  it("keeps the whole scrubber as the touch target", () => {
-    expect(resolvePageScrubberPointerEvents()).toBe("box-only");
+  it("lets touches pass through the full-height track container", () => {
+    expect(resolvePageScrubberPointerEvents()).toBe("box-none");
   });
 });
 
