@@ -106,7 +106,7 @@ describe("PapyrusPdfDocumentView programmatic zoom synchronization", () => {
   });
 });
 
-describe("PapyrusPdfDocumentView native text selection", () => {
+describe("PapyrusPdfDocumentView native text selection and search highlights", () => {
   it("observes PDFKit selection changes and exports the native event", () => {
     expect(source).toContain("PDFViewSelectionChangedNotification");
     expect(source).toContain("handlePdfSelectionChanged:");
@@ -193,7 +193,9 @@ describe("PapyrusPdfDocumentView native text selection", () => {
       "setActiveSearchIndex:(NSInteger)activeSearchIndex {"
     );
     const rebuildBody = bodyAfterSignature("rebuildSearchHighlights {");
-    const colorBody = bodyAfterSignature("updateSearchHighlightColors {");
+    const colorBody = bodyAfterSignature(
+      "updateSearchHighlightColorsFromResultIndex:(NSInteger)previousSearchIndex {"
+    );
     const reloadBody = methodBody("reloadDocumentFromStore");
 
     expect(iosViewer).toContain("const searchResults = useViewerStore");
@@ -214,14 +216,67 @@ describe("PapyrusPdfDocumentView native text selection", () => {
     expect(rebuildBody).toContain("selectionForRect:");
     expect(rebuildBody).toContain("highlightedSelections = nil");
     expect(rebuildBody).toContain("self.pdfView.highlightedSelections =");
-    expect(rebuildBody).toContain("searchSelectionResultIndices");
+    expect(rebuildBody).toContain("selectionsByResultIndex[@(resultIndex)] = match");
+    expect(rebuildBody).toContain("self.searchSelectionsByResultIndex =");
+    expect(rebuildBody).toContain(
+      "scheduleNavigationToSearchResultAtIndex:self.activeSearchIndex"
+    );
     expect(rebuildBody).toContain("[pageIndexValue isKindOfClass:NSNumber.class]");
     expect(rebuildBody).toContain("floor(pageIndexNumber) != pageIndexNumber");
     expect(rebuildBody).toContain("isfinite(pageIndexNumber)");
     expect(rebuildBody).not.toContain("currentSelection");
     expect(colorBody).toContain("self.activeSearchIndex");
-    expect(colorBody).toContain("searchSelectionResultIndices[index]");
-    expect(colorBody).toContain("selection.color");
+    expect(colorBody).toContain(
+      "self.searchSelectionsByResultIndex[@(self.activeSearchIndex)]"
+    );
+    expect(colorBody).toContain("previousSelection.color");
+    expect(colorBody).toContain("activeSelection.color");
+    expect(colorBody).not.toContain("currentSelection");
+  });
+
+  it("navigates to the active match after React Native applies the prop batch", () => {
+    const activeIndexSetter = bodyAfterSignature(
+      "setActiveSearchIndex:(NSInteger)activeSearchIndex {"
+    );
+    const navigationBody = bodyAfterSignature(
+      "scheduleNavigationToSearchResultAtIndex:(NSInteger)activeSearchIndex {"
+    );
+
+    expect(activeIndexSetter).toContain(
+      "NSInteger previousSearchIndex = _activeSearchIndex;"
+    );
+    expect(activeIndexSetter).toContain(
+      "updateSearchHighlightColorsFromResultIndex:previousSearchIndex"
+    );
+    expect(activeIndexSetter).toContain(
+      "scheduleNavigationToSearchResultAtIndex:activeSearchIndex"
+    );
+    expect(navigationBody).toContain("dispatch_async(dispatch_get_main_queue()");
+    expect(navigationBody).toContain(
+      "self.searchNavigationGeneration != generation"
+    );
+    expect(navigationBody).toContain(
+      "self.activeSearchIndex != activeSearchIndex"
+    );
+    expect(navigationBody).toContain(
+      "self.searchSelectionsByResultIndex[@(activeSearchIndex)]"
+    );
+    expect(navigationBody).toContain("[self.pdfView goToSelection:selection]");
+    expect(navigationBody).not.toContain("currentSelection");
+  });
+
+  it("recolors only the previously active and newly active matches", () => {
+    const colorBody = bodyAfterSignature(
+      "updateSearchHighlightColorsFromResultIndex:(NSInteger)previousSearchIndex {"
+    );
+
+    expect(colorBody).toContain(
+      "self.searchSelectionsByResultIndex[@(previousSearchIndex)]"
+    );
+    expect(colorBody).toContain(
+      "self.searchSelectionsByResultIndex[@(self.activeSearchIndex)]"
+    );
+    expect(colorBody).not.toContain("enumerateObjectsUsingBlock");
     expect(colorBody).not.toContain("currentSelection");
   });
 });

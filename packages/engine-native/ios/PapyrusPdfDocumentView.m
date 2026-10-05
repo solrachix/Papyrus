@@ -43,7 +43,8 @@ static NSDictionary *PapyrusNormalizedSelectionRect(CGRect rect, CGRect pageBoun
 @property (nonatomic, strong) PDFView *pdfView;
 @property (nonatomic, strong) UIEditMenuInteraction *editMenuInteraction;
 @property (nonatomic, copy) NSArray<PDFSelection *> *searchSelections;
-@property (nonatomic, copy) NSArray<NSNumber *> *searchSelectionResultIndices;
+@property (nonatomic, copy) NSDictionary<NSNumber *, PDFSelection *> *searchSelectionsByResultIndex;
+@property (nonatomic, assign) NSUInteger searchNavigationGeneration;
 @property (nonatomic, weak) UIScrollView *observedScrollView;
 @property (nonatomic, strong) UITapGestureRecognizer *tapRecognizer;
 @property (nonatomic, strong) UITapGestureRecognizer *doubleTapRecognizer;
@@ -65,7 +66,8 @@ static NSDictionary *PapyrusNormalizedSelectionRect(CGRect rect, CGRect pageBoun
 - (BOOL)hasActiveGestureInView:(UIView *)view;
 - (void)emitDefineSelection;
 - (void)rebuildSearchHighlights;
-- (void)updateSearchHighlightColors;
+- (void)updateSearchHighlightColorsFromResultIndex:(NSInteger)previousSearchIndex;
+- (void)scheduleNavigationToSearchResultAtIndex:(NSInteger)activeSearchIndex;
 - (UIColor *)searchHighlightColorForActive:(BOOL)isActive;
 @end
 
@@ -82,7 +84,8 @@ static NSDictionary *PapyrusNormalizedSelectionRect(CGRect rect, CGRect pageBoun
   _searchResults = @[];
   _activeSearchIndex = -1;
   _searchSelections = @[];
-  _searchSelectionResultIndices = @[];
+  _searchSelectionsByResultIndex = @{};
+  _searchNavigationGeneration = 0;
   _lastEmittedPage = NSNotFound;
   _lastSelectionPageIndex = NSNotFound;
   _lastEmittedZoom = NAN;
@@ -292,8 +295,10 @@ static NSDictionary *PapyrusNormalizedSelectionRect(CGRect rect, CGRect pageBoun
 }
 
 - (void)setActiveSearchIndex:(NSInteger)activeSearchIndex {
+  NSInteger previousSearchIndex = _activeSearchIndex;
   _activeSearchIndex = activeSearchIndex;
-  [self updateSearchHighlightColors];
+  [self updateSearchHighlightColorsFromResultIndex:previousSearchIndex];
+  [self scheduleNavigationToSearchResultAtIndex:activeSearchIndex];
 }
 
 - (UIColor *)searchHighlightColorForActive:(BOOL)isActive {
@@ -306,15 +311,16 @@ static NSDictionary *PapyrusNormalizedSelectionRect(CGRect rect, CGRect pageBoun
   PDFDocument *document = self.pdfView.document;
   if (!document || self.searchResults.count == 0) {
     self.searchSelections = @[];
-    self.searchSelectionResultIndices = @[];
+    self.searchSelectionsByResultIndex = @{};
     self.pdfView.highlightedSelections = nil;
+    [self scheduleNavigationToSearchResultAtIndex:self.activeSearchIndex];
     return;
   }
 
   NSMutableArray<PDFSelection *> *selections =
       [NSMutableArray arrayWithCapacity:self.searchResults.count];
-  NSMutableArray<NSNumber *> *resultIndices =
-      [NSMutableArray arrayWithCapacity:self.searchResults.count];
+  NSMutableDictionary<NSNumber *, PDFSelection *> *selectionsByResultIndex =
+      [NSMutableDictionary dictionaryWithCapacity:self.searchResults.count];
   for (NSUInteger resultIndex = 0; resultIndex < self.searchResults.count; resultIndex += 1) {
     id resultValue = self.searchResults[resultIndex];
     if (![resultValue isKindOfClass:NSDictionary.class]) continue;
@@ -386,29 +392,46 @@ static NSDictionary *PapyrusNormalizedSelectionRect(CGRect rect, CGRect pageBoun
     match.color = [self searchHighlightColorForActive:
         ((NSInteger)resultIndex == self.activeSearchIndex)];
     [selections addObject:match];
-    [resultIndices addObject:@(resultIndex)];
+    selectionsByResultIndex[@(resultIndex)] = match;
   }
 
   self.searchSelections = [selections copy];
-  self.searchSelectionResultIndices = [resultIndices copy];
+  self.searchSelectionsByResultIndex = [selectionsByResultIndex copy];
   self.pdfView.highlightedSelections =
       self.searchSelections.count > 0 ? self.searchSelections : nil;
+  [self scheduleNavigationToSearchResultAtIndex:self.activeSearchIndex];
 }
 
-- (void)updateSearchHighlightColors {
-  if (self.searchSelections.count == 0) {
-    self.pdfView.highlightedSelections = nil;
-    return;
-  }
+- (void)updateSearchHighlightColorsFromResultIndex:(NSInteger)previousSearchIndex {
+  if (previousSearchIndex == self.activeSearchIndex) return;
 
-  [self.searchSelections enumerateObjectsUsingBlock:^(PDFSelection *selection,
-                                                       NSUInteger index,
-                                                       BOOL *stop) {
-    NSInteger resultIndex = self.searchSelectionResultIndices[index].integerValue;
-    selection.color = [self searchHighlightColorForActive:
-        (resultIndex == self.activeSearchIndex)];
-  }];
-  self.pdfView.highlightedSelections = self.searchSelections;
+  PDFSelection *previousSelection =
+      self.searchSelectionsByResultIndex[@(previousSearchIndex)];
+  PDFSelection *activeSelection =
+      self.searchSelectionsByResultIndex[@(self.activeSearchIndex)];
+  if (previousSelection) {
+    previousSelection.color = [self searchHighlightColorForActive:NO];
+  }
+  if (activeSelection) {
+    activeSelection.color = [self searchHighlightColorForActive:YES];
+  }
+  if (previousSelection || activeSelection) {
+    self.pdfView.highlightedSelections = self.searchSelections;
+  }
+}
+
+- (void)scheduleNavigationToSearchResultAtIndex:(NSInteger)activeSearchIndex {
+  NSUInteger generation = ++self.searchNavigationGeneration;
+  dispatch_async(dispatch_get_main_queue(), ^{
+    if (self.searchNavigationGeneration != generation ||
+        self.activeSearchIndex != activeSearchIndex) {
+      return;
+    }
+    PDFSelection *selection =
+        self.searchSelectionsByResultIndex[@(activeSearchIndex)];
+    if (!selection) return;
+    [self.pdfView goToSelection:selection];
+  });
 }
 
 - (void)configureDisplayMode {
