@@ -59,6 +59,28 @@ describe("native PDF PencilKit overlay contract", () => {
     expect(source).not.toContain("writeToURL:");
   });
 
+  it("derives a transformed median stroke width from PencilKit path points", () => {
+    const payloadMethod = source.match(
+      /- \(NSArray<NSDictionary \*> \*\)inkDrawingPayloadForCanvas:\(PapyrusPdfPageInkCanvasView \*\)canvas \{[\s\S]*?\n\}/
+    )?.[0];
+
+    expect(payloadMethod).toContain("strokePoint.size.width");
+    expect(payloadMethod).toContain("stroke.transform");
+    expect(payloadMethod).toContain("sqrt(fabs(");
+    expect(payloadMethod).toContain("sortedArrayUsingSelector");
+    expect(payloadMethod).not.toContain("stroke.ink.width");
+  });
+
+  it("round-trips PencilKit marker strokes through the universal opacity convention", () => {
+    const payloadMethod = source.match(
+      /- \(NSArray<NSDictionary \*> \*\)inkDrawingPayloadForCanvas:\(PapyrusPdfPageInkCanvasView \*\)canvas \{[\s\S]*?\n\}/
+    )?.[0];
+
+    expect(payloadMethod).toContain("stroke.ink.inkType");
+    expect(payloadMethod).toContain("PKInkTypeMarker");
+    expect(payloadMethod).toContain("MIN(opacity, 0.28)");
+  });
+
   it("sends empty drawing batches so erasing a whole page removes its strokes", () => {
     const commitMethod = source.match(
       /- \(void\)commitInkDrawingForCanvas:\(PapyrusPdfPageInkCanvasView \*\)canvas \{[\s\S]*?\n\}/

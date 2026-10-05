@@ -953,20 +953,50 @@ static NSString *PapyrusHexColorFromUIColor(UIColor *color, CGFloat *opacity) {
     if (stroke.mask != nil) continue;
     PKStrokePath *path = stroke.path;
     NSMutableArray<NSDictionary *> *points = [NSMutableArray array];
+    NSMutableArray<NSNumber *> *strokeWidthSamples = [NSMutableArray array];
+    CGAffineTransform strokeTransform = stroke.transform;
+    CGFloat transformDeterminant =
+        strokeTransform.a * strokeTransform.d - strokeTransform.b * strokeTransform.c;
+    CGFloat strokeWidthScale = sqrt(fabs(transformDeterminant));
+    if (!isfinite(strokeWidthScale) || strokeWidthScale <= 0) strokeWidthScale = 1.0;
     for (NSUInteger index = 0; index < path.count; index += 1) {
       PKStrokePoint *strokePoint = [path pointAtIndex:index];
-      CGPoint location = CGPointApplyAffineTransform(strokePoint.location, stroke.transform);
+      CGPoint location = CGPointApplyAffineTransform(strokePoint.location, strokeTransform);
       CGFloat x = MIN(1.0, MAX(0.0, location.x / width));
       CGFloat y = MIN(1.0, MAX(0.0, location.y / height));
       if (!isfinite(x) || !isfinite(y)) continue;
       [points addObject:@{@"x" : @(x), @"y" : @(y)}];
+
+      CGFloat pointWidth = strokePoint.size.width * strokeWidthScale;
+      if (isfinite(pointWidth) && pointWidth > 0) {
+        [strokeWidthSamples addObject:@(pointWidth)];
+      }
     }
     if (points.count == 0) continue;
     if (points.count == 1) [points addObject:points.firstObject];
 
     CGFloat opacity = 1.0;
     NSString *color = PapyrusHexColorFromUIColor(stroke.ink.color, &opacity);
-    CGFloat normalizedWidth = stroke.ink.width / width;
+    if ([stroke.ink.inkType isEqualToString:PKInkTypeMarker]) {
+      // The universal Papyrus ink contract uses opacity <= 0.35 to restore a marker.
+      opacity = MIN(opacity, 0.28);
+    }
+
+    CGFloat representativeWidth = width * 0.006;
+    if (strokeWidthSamples.count > 0) {
+      NSArray<NSNumber *> *sortedWidthSamples =
+          [strokeWidthSamples sortedArrayUsingSelector:@selector(compare:)];
+      NSUInteger middleIndex = sortedWidthSamples.count / 2;
+      if (sortedWidthSamples.count % 2 == 0) {
+        representativeWidth =
+            (sortedWidthSamples[middleIndex - 1].doubleValue +
+             sortedWidthSamples[middleIndex].doubleValue) / 2.0;
+      } else {
+        representativeWidth = sortedWidthSamples[middleIndex].doubleValue;
+      }
+    }
+
+    CGFloat normalizedWidth = representativeWidth / width;
     if (!isfinite(normalizedWidth) || normalizedWidth <= 0) normalizedWidth = 0.006;
     [payload addObject:@{
       @"path" : points,
