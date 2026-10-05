@@ -39,11 +39,153 @@ static NSDictionary *PapyrusNormalizedSelectionRect(CGRect rect, CGRect pageBoun
   return @{@"x" : @(x), @"y" : @(y), @"width" : @(width), @"height" : @(height)};
 }
 
+static CGRect PapyrusPdfRectFromNormalizedRect(NSDictionary *normalizedRect, CGRect pageBounds) {
+  if (![normalizedRect isKindOfClass:NSDictionary.class] ||
+      CGRectIsNull(pageBounds) || CGRectIsEmpty(pageBounds)) {
+    return CGRectNull;
+  }
+
+  id xValue = normalizedRect[@"x"];
+  id yValue = normalizedRect[@"y"];
+  id widthValue = normalizedRect[@"width"];
+  id heightValue = normalizedRect[@"height"];
+  if (![xValue respondsToSelector:@selector(doubleValue)] ||
+      ![yValue respondsToSelector:@selector(doubleValue)] ||
+      ![widthValue respondsToSelector:@selector(doubleValue)] ||
+      ![heightValue respondsToSelector:@selector(doubleValue)]) {
+    return CGRectNull;
+  }
+
+  CGFloat x = [xValue doubleValue];
+  CGFloat y = [yValue doubleValue];
+  CGFloat width = [widthValue doubleValue];
+  CGFloat height = [heightValue doubleValue];
+  if (!isfinite(x) || !isfinite(y) || !isfinite(width) || !isfinite(height) ||
+      width <= 0 || height <= 0) {
+    return CGRectNull;
+  }
+
+  CGFloat normalizedX = MIN(1.0, MAX(0.0, x));
+  CGFloat normalizedY = MIN(1.0, MAX(0.0, y));
+  CGFloat normalizedRight = MIN(1.0, MAX(normalizedX, x + width));
+  CGFloat normalizedBottom = MIN(1.0, MAX(normalizedY, y + height));
+  CGFloat normalizedWidth = normalizedRight - normalizedX;
+  CGFloat normalizedHeight = normalizedBottom - normalizedY;
+  if (normalizedWidth <= 0 || normalizedHeight <= 0) return CGRectNull;
+
+  return CGRectMake(
+      CGRectGetMinX(pageBounds) + normalizedX * CGRectGetWidth(pageBounds),
+      CGRectGetMinY(pageBounds) +
+          (1.0 - normalizedY - normalizedHeight) * CGRectGetHeight(pageBounds),
+      normalizedWidth * CGRectGetWidth(pageBounds),
+      normalizedHeight * CGRectGetHeight(pageBounds));
+}
+
+static UIColor *PapyrusAnnotationColor(NSString *hexColor, CGFloat opacity) {
+  NSString *source = [hexColor isKindOfClass:NSString.class] ? hexColor : @"#fbbf24";
+  NSString *hex = [[source stringByTrimmingCharactersInSet:
+      NSCharacterSet.whitespaceAndNewlineCharacterSet] uppercaseString];
+  if ([hex hasPrefix:@"#"]) hex = [hex substringFromIndex:1];
+  if (hex.length == 3) {
+    NSMutableString *expanded = [NSMutableString string];
+    for (NSUInteger index = 0; index < hex.length; index += 1) {
+      unichar digit = [hex characterAtIndex:index];
+      [expanded appendFormat:@"%C%C", digit, digit];
+    }
+    hex = expanded;
+  }
+
+  unsigned int rgb = 0;
+  NSScanner *scanner = [NSScanner scannerWithString:hex];
+  UIColor *baseColor = [scanner scanHexInt:&rgb] && scanner.isAtEnd && hex.length == 6
+      ? [UIColor colorWithRed:((rgb >> 16) & 0xff) / 255.0
+                        green:((rgb >> 8) & 0xff) / 255.0
+                         blue:(rgb & 0xff) / 255.0
+                        alpha:1.0]
+      : [UIColor colorWithRed:1.0 green:0.75 blue:0.1 alpha:1.0];
+  return [baseColor colorWithAlphaComponent:MIN(1.0, MAX(0.0, opacity))];
+}
+
+@interface PapyrusSquigglyPdfAnnotation : PDFAnnotation
+@end
+
+@implementation PapyrusSquigglyPdfAnnotation
+- (void)drawWithBox:(PDFDisplayBox)box inContext:(CGContextRef)context {
+  (void)box;
+  CGRect bounds = self.bounds;
+  if (CGRectIsNull(bounds) || CGRectIsEmpty(bounds) || !context) return;
+
+  CGFloat height = CGRectGetHeight(bounds);
+  CGFloat wavelength = MAX(2.0, height * 0.7);
+  CGFloat amplitude = MAX(0.6, height * 0.16);
+  CGFloat centerY = CGRectGetMidY(bounds);
+  CGContextSaveGState(context);
+  CGContextSetStrokeColorWithColor(context, self.color.CGColor);
+  CGContextSetLineWidth(context, MAX(0.65, height * 0.08));
+  CGMutablePathRef path = CGPathCreateMutable();
+  CGFloat minX = CGRectGetMinX(bounds);
+  CGFloat maxX = CGRectGetMaxX(bounds);
+  BOOL first = YES;
+  for (CGFloat x = minX; x <= maxX; x += 1.5) {
+    CGFloat y = centerY + sin((x - minX) * M_PI * 2.0 / wavelength) * amplitude;
+    if (first) {
+      CGPathMoveToPoint(path, NULL, x, y);
+      first = NO;
+    } else {
+      CGPathAddLineToPoint(path, NULL, x, y);
+    }
+  }
+  CGPathAddLineToPoint(path, NULL, maxX, centerY);
+  CGContextAddPath(context, path);
+  CGContextStrokePath(context);
+  CGPathRelease(path);
+  CGContextRestoreGState(context);
+}
+@end
+
+@interface PapyrusCommentPdfAnnotation : PDFAnnotation
+@end
+
+@implementation PapyrusCommentPdfAnnotation
+- (void)drawWithBox:(PDFDisplayBox)box inContext:(CGContextRef)context {
+  (void)box;
+  CGRect bounds = self.bounds;
+  if (CGRectIsNull(bounds) || CGRectIsEmpty(bounds) || !context) return;
+
+  CGFloat inset = MAX(1.0, CGRectGetHeight(bounds) * 0.08);
+  CGRect noteRect = CGRectInset(bounds, inset, inset);
+  CGFloat fold = MIN(CGRectGetWidth(noteRect), CGRectGetHeight(noteRect)) * 0.24;
+  CGFloat radius = MIN(CGRectGetHeight(noteRect) * 0.12, 4.0);
+  CGPathRef notePath = CGPathCreateWithRoundedRect(noteRect, radius, radius, NULL);
+  CGContextSaveGState(context);
+  CGContextAddPath(context, notePath);
+  CGContextSetFillColorWithColor(context, self.color.CGColor);
+  CGContextFillPath(context);
+  CGPathRelease(notePath);
+
+  CGContextSetStrokeColorWithColor(context, UIColor.whiteColor.CGColor);
+  CGContextSetLineWidth(context, MAX(0.7, CGRectGetHeight(noteRect) * 0.045));
+  CGFloat left = CGRectGetMinX(noteRect) + inset;
+  CGFloat right = CGRectGetMaxX(noteRect) - fold - inset;
+  CGFloat firstY = CGRectGetMinY(noteRect) + CGRectGetHeight(noteRect) * 0.38;
+  CGFloat secondY = CGRectGetMinY(noteRect) + CGRectGetHeight(noteRect) * 0.62;
+  CGContextMoveToPoint(context, left, firstY);
+  CGContextAddLineToPoint(context, right, firstY);
+  CGContextMoveToPoint(context, left, secondY);
+  CGContextAddLineToPoint(context, right, secondY);
+  CGContextStrokePath(context);
+  CGContextRestoreGState(context);
+}
+@end
+
 @interface PapyrusPdfDocumentView () <UIEditMenuInteractionDelegate>
 @property (nonatomic, strong) PDFView *pdfView;
 @property (nonatomic, strong) UIEditMenuInteraction *editMenuInteraction;
 @property (nonatomic, copy) NSArray<PDFSelection *> *searchSelections;
 @property (nonatomic, copy) NSDictionary<NSNumber *, PDFSelection *> *searchSelectionsByResultIndex;
+@property (nonatomic, strong) NSMutableDictionary<NSString *, NSArray<PDFAnnotation *> *> *papyrusAnnotationsById;
+@property (nonatomic, strong) NSMutableDictionary<NSString *, NSString *> *papyrusAnnotationSignaturesById;
+@property (nonatomic, strong) NSMapTable<PDFAnnotation *, NSString *> *papyrusAnnotationIdsByObject;
 @property (nonatomic, assign) NSUInteger searchNavigationGeneration;
 @property (nonatomic, weak) UIScrollView *observedScrollView;
 @property (nonatomic, strong) UITapGestureRecognizer *tapRecognizer;
@@ -69,9 +211,20 @@ static NSDictionary *PapyrusNormalizedSelectionRect(CGRect rect, CGRect pageBoun
 - (void)updateSearchHighlightColorsFromResultIndex:(NSInteger)previousSearchIndex;
 - (void)scheduleNavigationToSearchResultAtIndex:(NSInteger)activeSearchIndex;
 - (UIColor *)searchHighlightColorForActive:(BOOL)isActive;
+- (void)reconcilePapyrusAnnotations;
+- (void)removePapyrusAnnotationWithId:(NSString *)annotationId;
+- (void)clearPapyrusAnnotationsForDocument:(nullable PDFDocument *)document;
+- (NSArray<PDFAnnotation *> *)createPdfAnnotationsForPapyrusAnnotation:(NSDictionary *)annotation;
+- (NSString *)annotationSignature:(NSDictionary *)annotation;
+- (void)emitAnnotationFromCurrentSelectionWithType:(NSString *)type;
+- (void)emitCommentAtPage:(PDFPage *)page pageIndex:(NSInteger)pageIndex normalizedPoint:(CGPoint)point;
 @end
 
 @implementation PapyrusPdfDocumentView
+
+- (void)dealloc {
+  [self clearPapyrusAnnotationsForDocument:self.pdfView.document];
+}
 
 - (instancetype)initWithFrame:(CGRect)frame {
   self = [super initWithFrame:frame];
@@ -85,12 +238,25 @@ static NSDictionary *PapyrusNormalizedSelectionRect(CGRect rect, CGRect pageBoun
   _activeSearchIndex = -1;
   _searchSelections = @[];
   _searchSelectionsByResultIndex = @{};
+  _annotations = @[];
+  _activeTool = @"select";
+  _annotationColor = @"#fbbf24";
+  _annotationOpacity = 1.0;
+  _papyrusAnnotationsById = [NSMutableDictionary dictionary];
+  _papyrusAnnotationSignaturesById = [NSMutableDictionary dictionary];
+  _papyrusAnnotationIdsByObject = [NSMapTable strongToStrongObjectsMapTable];
   _searchNavigationGeneration = 0;
   _lastEmittedPage = NSNotFound;
   _lastSelectionPageIndex = NSNotFound;
   _lastEmittedZoom = NAN;
   _lastLayoutSize = CGSizeZero;
   _defineLabel = NSLocalizedString(@"Define", nil);
+  _annotateLabel = NSLocalizedString(@"Annotate", nil);
+  _annotationHighlightLabel = NSLocalizedString(@"Highlight", nil);
+  _annotationUnderlineLabel = NSLocalizedString(@"Underline", nil);
+  _annotationStrikeoutLabel = NSLocalizedString(@"Strikeout", nil);
+  _annotationSquigglyLabel = NSLocalizedString(@"Squiggly", nil);
+  _annotationNoteLabel = NSLocalizedString(@"Note", nil);
   self.clipsToBounds = YES;
   self.backgroundColor = UIColor.whiteColor;
 
@@ -255,6 +421,7 @@ static NSDictionary *PapyrusNormalizedSelectionRect(CGRect rect, CGRect pageBoun
   if (self.pdfView.document == document) {
     [self applyCurrentPage];
     [self rebuildSearchHighlights];
+    [self reconcilePapyrusAnnotations];
     return;
   }
 
@@ -263,10 +430,12 @@ static NSDictionary *PapyrusNormalizedSelectionRect(CGRect rect, CGRect pageBoun
   self.suppressScaleSynchronization = YES;
   self.lastVisiblePagesSignature = nil;
   self.lastEmittedPage = NSNotFound;
+  [self clearPapyrusAnnotationsForDocument:self.pdfView.document];
   [self clearCurrentSelection];
   self.pdfView.document = document;
   if (!document) {
     [self rebuildSearchHighlights];
+    [self reconcilePapyrusAnnotations];
     self.lastEmittedZoom = NAN;
     _zoom = desiredZoom;
     self.suppressScaleSynchronization = wasSuppressingScaleSynchronization;
@@ -286,6 +455,7 @@ static NSDictionary *PapyrusNormalizedSelectionRect(CGRect rect, CGRect pageBoun
   [self refreshScrollViewObservation];
   [self emitVisiblePagesIfNeeded];
   [self rebuildSearchHighlights];
+  [self reconcilePapyrusAnnotations];
   self.suppressScaleSynchronization = wasSuppressingScaleSynchronization;
 }
 
@@ -299,6 +469,269 @@ static NSDictionary *PapyrusNormalizedSelectionRect(CGRect rect, CGRect pageBoun
   _activeSearchIndex = activeSearchIndex;
   [self updateSearchHighlightColorsFromResultIndex:previousSearchIndex];
   [self scheduleNavigationToSearchResultAtIndex:activeSearchIndex];
+}
+
+- (void)setAnnotations:(NSArray<NSDictionary *> *)annotations {
+  _annotations = [annotations copy] ?: @[];
+  [self reconcilePapyrusAnnotations];
+}
+
+- (NSString *)annotationSignature:(NSDictionary *)annotation {
+  NSArray<NSString *> *signatureKeys = @[
+    @"id", @"type", @"pageIndex", @"rect", @"rects", @"color", @"opacity", @"content"
+  ];
+  NSMutableDictionary *signatureFields = [NSMutableDictionary dictionary];
+  for (NSString *key in signatureKeys) {
+    id value = annotation[key];
+    if (value) signatureFields[key] = value;
+  }
+  if (![NSJSONSerialization isValidJSONObject:signatureFields]) {
+    return signatureFields.description ?: @"";
+  }
+  NSError *error = nil;
+  NSData *data = [NSJSONSerialization dataWithJSONObject:signatureFields
+                                                options:NSJSONWritingSortedKeys
+                                                  error:&error];
+  if (!data || error) return annotation.description ?: @"";
+  return [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] ?: @"";
+}
+
+- (void)removePapyrusAnnotationWithId:(NSString *)annotationId {
+  NSArray<PDFAnnotation *> *representations = self.papyrusAnnotationsById[annotationId] ?: @[];
+  for (PDFAnnotation *annotation in representations) {
+    NSString *registeredId = [self.papyrusAnnotationIdsByObject objectForKey:annotation];
+    if (![registeredId isEqualToString:annotationId]) continue;
+    PDFPage *page = annotation.page;
+    if (page) [page removeAnnotation:annotation];
+    [self.papyrusAnnotationIdsByObject removeObjectForKey:annotation];
+  }
+  [self.papyrusAnnotationsById removeObjectForKey:annotationId];
+  [self.papyrusAnnotationSignaturesById removeObjectForKey:annotationId];
+}
+
+- (void)clearPapyrusAnnotationsForDocument:(PDFDocument *)document {
+  (void)document;
+  NSArray<NSString *> *annotationIds = self.papyrusAnnotationsById.allKeys.copy;
+  for (NSString *annotationId in annotationIds) {
+    NSArray<PDFAnnotation *> *representations = self.papyrusAnnotationsById[annotationId] ?: @[];
+    for (PDFAnnotation *annotation in representations) {
+      NSString *registeredId = [self.papyrusAnnotationIdsByObject objectForKey:annotation];
+      if ([registeredId isEqualToString:annotationId] && annotation.page) {
+        [annotation.page removeAnnotation:annotation];
+      }
+      [self.papyrusAnnotationIdsByObject removeObjectForKey:annotation];
+    }
+  }
+  [self.papyrusAnnotationsById removeAllObjects];
+  [self.papyrusAnnotationSignaturesById removeAllObjects];
+  [self.papyrusAnnotationIdsByObject removeAllObjects];
+}
+
+- (NSArray<PDFAnnotation *> *)createPdfAnnotationsForPapyrusAnnotation:(NSDictionary *)annotation {
+  PDFDocument *document = self.pdfView.document;
+  if (!document || ![annotation isKindOfClass:NSDictionary.class]) return @[];
+  id pageIndexValue = annotation[@"pageIndex"];
+  if (![pageIndexValue isKindOfClass:NSNumber.class]) return @[];
+  double pageIndexNumber = [pageIndexValue doubleValue];
+  if (!isfinite(pageIndexNumber) || floor(pageIndexNumber) != pageIndexNumber ||
+      pageIndexNumber < 0 || pageIndexNumber >= (double)document.pageCount) {
+    return @[];
+  }
+
+  NSString *type = [annotation[@"type"] isKindOfClass:NSString.class]
+      ? annotation[@"type"] : @"";
+  NSString *subtype = nil;
+  if ([type isEqualToString:@"highlight"]) subtype = @"Highlight";
+  else if ([type isEqualToString:@"underline"]) subtype = @"Underline";
+  else if ([type isEqualToString:@"strikeout"]) subtype = @"StrikeOut";
+  else if ([type isEqualToString:@"squiggly"]) subtype = @"Squiggly";
+  else if ([type isEqualToString:@"comment"] || [type isEqualToString:@"text"]) subtype = @"PapyrusComment";
+  if (!subtype) return @[];
+
+  PDFPage *page = [document pageAtIndex:(NSUInteger)pageIndexNumber];
+  if (!page) return @[];
+  CGRect pageBounds = [page boundsForBox:kPDFDisplayBoxCropBox];
+  if (CGRectIsNull(pageBounds) || CGRectIsEmpty(pageBounds)) return @[];
+
+  NSArray *rects = [annotation[@"rects"] isKindOfClass:NSArray.class]
+      ? annotation[@"rects"] : @[];
+  if ([type isEqualToString:@"comment"] || [type isEqualToString:@"text"]) {
+    NSDictionary *rect = [annotation[@"rect"] isKindOfClass:NSDictionary.class]
+        ? annotation[@"rect"] : (rects.firstObject ?: @{});
+    rects = rect.count > 0 ? @[rect] : @[];
+  } else if (rects.count == 0 && [annotation[@"rect"] isKindOfClass:NSDictionary.class]) {
+    rects = @[annotation[@"rect"]];
+  }
+  if (rects.count == 0) return @[];
+
+  CGFloat defaultOpacity = [type isEqualToString:@"highlight"] ? 0.38 : 1.0;
+  CGFloat opacity = [annotation[@"opacity"] respondsToSelector:@selector(doubleValue)]
+      ? [annotation[@"opacity"] doubleValue] : defaultOpacity;
+  if (!isfinite(opacity)) opacity = 1.0;
+  NSString *hexColor = [annotation[@"color"] isKindOfClass:NSString.class]
+      ? annotation[@"color"] : self.annotationColor;
+  UIColor *color = PapyrusAnnotationColor(hexColor, opacity);
+  NSString *content = [annotation[@"content"] isKindOfClass:NSString.class]
+      ? annotation[@"content"] : @"";
+  NSMutableArray<PDFAnnotation *> *representations = [NSMutableArray array];
+
+  for (id rectValue in rects) {
+    if (![rectValue isKindOfClass:NSDictionary.class]) continue;
+    CGRect pageRect = PapyrusPdfRectFromNormalizedRect(rectValue, pageBounds);
+    if (CGRectIsNull(pageRect) || CGRectIsEmpty(pageRect)) continue;
+
+    PDFAnnotation *representation = nil;
+    if ([type isEqualToString:@"squiggly"]) {
+      representation = [[PapyrusSquigglyPdfAnnotation alloc]
+          initWithBounds:pageRect forType:subtype withProperties:nil];
+    } else if ([type isEqualToString:@"comment"] || [type isEqualToString:@"text"]) {
+      representation = [[PapyrusCommentPdfAnnotation alloc]
+          initWithBounds:pageRect forType:subtype withProperties:nil];
+    } else {
+      representation = [[PDFAnnotation alloc]
+          initWithBounds:pageRect forType:subtype withProperties:nil];
+    }
+    representation.color = color;
+    representation.contents = content;
+    representation.shouldDisplay = YES;
+
+    if ([type isEqualToString:@"highlight"] || [type isEqualToString:@"underline"] ||
+        [type isEqualToString:@"strikeout"]) {
+      CGFloat width = CGRectGetWidth(pageRect);
+      CGFloat height = CGRectGetHeight(pageRect);
+      representation.quadrilateralPoints = @[
+        [NSValue valueWithCGPoint:CGPointMake(0, height)],
+        [NSValue valueWithCGPoint:CGPointMake(width, height)],
+        [NSValue valueWithCGPoint:CGPointMake(0, 0)],
+        [NSValue valueWithCGPoint:CGPointMake(width, 0)]
+      ];
+    }
+
+    [page addAnnotation:representation];
+    [representations addObject:representation];
+  }
+  return [representations copy];
+}
+
+- (void)reconcilePapyrusAnnotations {
+  PDFDocument *document = self.pdfView.document;
+  if (!document) return;
+  BOOL didChangeRepresentations = NO;
+
+  NSMutableDictionary<NSString *, NSDictionary *> *incomingById = [NSMutableDictionary dictionary];
+  for (id value in self.annotations) {
+    if (![value isKindOfClass:NSDictionary.class]) continue;
+    NSDictionary *annotation = (NSDictionary *)value;
+    NSString *annotationId = [annotation[@"id"] isKindOfClass:NSString.class]
+        ? annotation[@"id"] : @"";
+    if (annotationId.length == 0) continue;
+    incomingById[annotationId] = annotation;
+  }
+
+  for (NSString *existingId in self.papyrusAnnotationsById.allKeys.copy) {
+    NSDictionary *updated = incomingById[existingId];
+    NSString *nextSignature = updated ? [self annotationSignature:updated] : nil;
+    if (!updated || ![nextSignature isEqualToString:self.papyrusAnnotationSignaturesById[existingId]]) {
+      [self removePapyrusAnnotationWithId:existingId];
+      didChangeRepresentations = YES;
+    }
+  }
+
+  for (NSString *annotationId in incomingById) {
+    if (self.papyrusAnnotationSignaturesById[annotationId]) continue;
+    NSDictionary *annotation = incomingById[annotationId];
+    NSArray<PDFAnnotation *> *representations =
+        [self createPdfAnnotationsForPapyrusAnnotation:annotation];
+    for (PDFAnnotation *representation in representations) {
+      [self.papyrusAnnotationIdsByObject setObject:annotationId forKey:representation];
+    }
+    self.papyrusAnnotationsById[annotationId] = representations;
+    self.papyrusAnnotationSignaturesById[annotationId] =
+        [self annotationSignature:annotation];
+    didChangeRepresentations = YES;
+  }
+  if (didChangeRepresentations) [self.pdfView setNeedsDisplay];
+}
+
+- (void)emitAnnotationFromCurrentSelectionWithType:(NSString *)type {
+  if (!self.onAnnotationCreated) return;
+  PDFSelection *selection = self.pdfView.currentSelection;
+  NSString *text = selection.string ?: @"";
+  PDFDocument *document = self.pdfView.document;
+  PDFPage *page = selection.pages.firstObject;
+  NSInteger pageIndex = document && page ? [document indexForPage:page] : NSNotFound;
+  if (!document || !page || pageIndex == NSNotFound || text.length == 0) return;
+
+  CGRect pageBounds = [page boundsForBox:kPDFDisplayBoxCropBox];
+  if (CGRectIsNull(pageBounds) || CGRectIsEmpty(pageBounds)) return;
+  NSMutableArray<NSDictionary *> *rects = [NSMutableArray array];
+  for (PDFSelection *line in selection.selectionsByLine) {
+    if (![line.pages containsObject:page]) continue;
+    NSDictionary *normalizedRect = PapyrusNormalizedSelectionRect(
+        [line boundsForPage:page], pageBounds);
+    if (normalizedRect) [rects addObject:normalizedRect];
+  }
+  if (rects.count == 0) {
+    NSDictionary *normalizedRect = PapyrusNormalizedSelectionRect(
+        [selection boundsForPage:page], pageBounds);
+    if (normalizedRect) [rects addObject:normalizedRect];
+  }
+  if (rects.count == 0) return;
+
+  CGFloat minX = 1.0, minY = 1.0, maxX = 0.0, maxY = 0.0;
+  for (NSDictionary *rect in rects) {
+    CGFloat x = [rect[@"x"] doubleValue];
+    CGFloat y = [rect[@"y"] doubleValue];
+    minX = MIN(minX, x);
+    minY = MIN(minY, y);
+    maxX = MAX(maxX, x + [rect[@"width"] doubleValue]);
+    maxY = MAX(maxY, y + [rect[@"height"] doubleValue]);
+  }
+
+  CGFloat opacity = MIN(1.0, MAX(0.0, self.annotationOpacity));
+  NSDictionary *annotationRect = nil;
+  if ([type isEqualToString:@"comment"] || [type isEqualToString:@"text"]) {
+    NSDictionary *firstRect = rects.firstObject;
+    CGFloat width = MIN(1.0, MAX(0.08, [firstRect[@"width"] doubleValue]));
+    CGFloat height = MIN(1.0, MAX(0.06, [firstRect[@"height"] doubleValue]));
+    CGFloat x = MIN(1.0 - width, MAX(0.0, [firstRect[@"x"] doubleValue]));
+    CGFloat y = MIN(1.0 - height, MAX(0.0, [firstRect[@"y"] doubleValue]));
+    annotationRect = @{@"x" : @(x), @"y" : @(y), @"width" : @(width), @"height" : @(height)};
+  } else {
+    annotationRect = @{@"x" : @(minX), @"y" : @(minY), @"width" : @(maxX - minX), @"height" : @(maxY - minY)};
+  }
+
+  NSDictionary *annotation = @{
+    @"id" : [[NSUUID UUID] UUIDString],
+    @"pageIndex" : @(pageIndex),
+    @"type" : type,
+    @"rect" : annotationRect,
+    @"rects" : rects,
+    @"color" : self.annotationColor ?: @"#fbbf24",
+    @"opacity" : @(opacity),
+    @"content" : text,
+    @"createdAt" : @((long long)([[NSDate date] timeIntervalSince1970] * 1000.0))
+  };
+  self.onAnnotationCreated(annotation);
+}
+
+- (void)emitCommentAtPage:(PDFPage *)page pageIndex:(NSInteger)pageIndex normalizedPoint:(CGPoint)point {
+  if (!self.onAnnotationCreated || !page || pageIndex < 0) return;
+  CGFloat x = MIN(0.92, MAX(0.0, point.x - 0.02));
+  CGFloat y = MIN(0.94, MAX(0.0, point.y - 0.02));
+  NSDictionary *rect = @{@"x" : @(x), @"y" : @(y), @"width" : @0.08, @"height" : @0.06};
+  NSDictionary *annotation = @{
+    @"id" : [[NSUUID UUID] UUIDString],
+    @"pageIndex" : @(pageIndex),
+    @"type" : @"comment",
+    @"rect" : rect,
+    @"rects" : @[rect],
+    @"color" : self.annotationColor ?: @"#fbbf24",
+    @"opacity" : @(MIN(1.0, MAX(0.0, self.annotationOpacity))),
+    @"content" : @"",
+    @"createdAt" : @((long long)([[NSDate date] timeIntervalSince1970] * 1000.0))
+  };
+  self.onAnnotationCreated(annotation);
 }
 
 - (UIColor *)searchHighlightColorForActive:(BOOL)isActive {
@@ -346,41 +779,8 @@ static NSDictionary *PapyrusNormalizedSelectionRect(CGRect rect, CGRect pageBoun
     BOOL hasSelectedText = NO;
     for (id rectValue in rects) {
       if (![rectValue isKindOfClass:NSDictionary.class]) continue;
-      NSDictionary *rect = (NSDictionary *)rectValue;
-      id xValue = rect[@"x"];
-      id yValue = rect[@"y"];
-      id widthValue = rect[@"width"];
-      id heightValue = rect[@"height"];
-      if (![xValue respondsToSelector:@selector(doubleValue)] ||
-          ![yValue respondsToSelector:@selector(doubleValue)] ||
-          ![widthValue respondsToSelector:@selector(doubleValue)] ||
-          ![heightValue respondsToSelector:@selector(doubleValue)]) {
-        continue;
-      }
-
-      CGFloat x = [xValue doubleValue];
-      CGFloat y = [yValue doubleValue];
-      CGFloat width = [widthValue doubleValue];
-      CGFloat height = [heightValue doubleValue];
-      if (!isfinite(x) || !isfinite(y) || !isfinite(width) || !isfinite(height) ||
-          width <= 0 || height <= 0) {
-        continue;
-      }
-
-      CGFloat normalizedX = MIN(1.0, MAX(0.0, x));
-      CGFloat normalizedY = MIN(1.0, MAX(0.0, y));
-      CGFloat normalizedRight = MIN(1.0, MAX(normalizedX, x + width));
-      CGFloat normalizedBottom = MIN(1.0, MAX(normalizedY, y + height));
-      CGFloat normalizedWidth = normalizedRight - normalizedX;
-      CGFloat normalizedHeight = normalizedBottom - normalizedY;
-      if (normalizedWidth <= 0 || normalizedHeight <= 0) continue;
-
-      CGRect pageRect = CGRectMake(
-          pageBounds.origin.x + normalizedX * pageBounds.size.width,
-          pageBounds.origin.y +
-              (1.0 - normalizedY - normalizedHeight) * pageBounds.size.height,
-          normalizedWidth * pageBounds.size.width,
-          normalizedHeight * pageBounds.size.height);
+      CGRect pageRect = PapyrusPdfRectFromNormalizedRect((NSDictionary *)rectValue, pageBounds);
+      if (CGRectIsNull(pageRect) || CGRectIsEmpty(pageRect)) continue;
       PDFSelection *lineSelection = [page selectionForRect:pageRect];
       if (!lineSelection.string.length) continue;
 
@@ -666,7 +1066,8 @@ static NSDictionary *PapyrusNormalizedSelectionRect(CGRect rect, CGRect pageBoun
     UIEditMenuInteraction *interaction = self.editMenuInteraction;
     PDFSelection *selection = self.pdfView.currentSelection;
     PDFPage *page = selection.pages.firstObject;
-    if (!interaction || !selection.string.length || !page || !self.onDefineSelection) return;
+    if (!interaction || !selection.string.length || !page ||
+        (!self.onDefineSelection && !self.onAnnotationCreated)) return;
 
     CGRect selectionRect = [selection boundsForPage:page];
     CGRect viewRect = [self.pdfView convertRect:selectionRect fromPage:page];
@@ -709,6 +1110,50 @@ static NSDictionary *PapyrusNormalizedSelectionRect(CGRect rect, CGRect pageBoun
       [weakSelf emitDefineSelection];
     }];
     [actions addObject:defineAction];
+  }
+
+  if (self.onAnnotationCreated && self.annotateLabel.length > 0 &&
+      self.pdfView.currentSelection.string.length > 0) {
+    __weak typeof(self) weakSelf = self;
+    UIAction *highlightAction = [UIAction
+        actionWithTitle:self.annotationHighlightLabel
+                  image:[UIImage systemImageNamed:@"highlighter"]
+             identifier:@"com.papyrus.annotation.highlight"
+                handler:^(__kindof UIAction *action) {
+      [weakSelf emitAnnotationFromCurrentSelectionWithType:@"highlight"];
+    }];
+    UIAction *underlineAction = [UIAction
+        actionWithTitle:self.annotationUnderlineLabel
+                  image:[UIImage systemImageNamed:@"underline"]
+             identifier:@"com.papyrus.annotation.underline"
+                handler:^(__kindof UIAction *action) {
+      [weakSelf emitAnnotationFromCurrentSelectionWithType:@"underline"];
+    }];
+    UIAction *strikeoutAction = [UIAction
+        actionWithTitle:self.annotationStrikeoutLabel
+                  image:[UIImage systemImageNamed:@"strikethrough"]
+             identifier:@"com.papyrus.annotation.strikeout"
+                handler:^(__kindof UIAction *action) {
+      [weakSelf emitAnnotationFromCurrentSelectionWithType:@"strikeout"];
+    }];
+    UIAction *squigglyAction = [UIAction
+        actionWithTitle:self.annotationSquigglyLabel
+                  image:[UIImage systemImageNamed:@"scribble"]
+             identifier:@"com.papyrus.annotation.squiggly"
+                handler:^(__kindof UIAction *action) {
+      [weakSelf emitAnnotationFromCurrentSelectionWithType:@"squiggly"];
+    }];
+    UIAction *noteAction = [UIAction
+        actionWithTitle:self.annotationNoteLabel
+                  image:[UIImage systemImageNamed:@"note.text"]
+             identifier:@"com.papyrus.annotation.comment"
+                handler:^(__kindof UIAction *action) {
+      [weakSelf emitAnnotationFromCurrentSelectionWithType:@"comment"];
+    }];
+    UIMenu *annotationMenu = [UIMenu menuWithTitle:self.annotateLabel
+                                         children:@[highlightAction, underlineAction,
+                                                    strikeoutAction, squigglyAction, noteAction]];
+    [actions addObject:annotationMenu];
   }
 
   return [UIMenu menuWithChildren:actions];
@@ -879,10 +1324,6 @@ static NSDictionary *PapyrusNormalizedSelectionRect(CGRect rect, CGRect pageBoun
   if (!document) return;
 
   CGPoint viewPoint = [recognizer locationInView:self.pdfView];
-  if (self.pdfView.currentSelection && ![self selectionContainsViewPoint:viewPoint]) {
-    [self clearCurrentSelection];
-    return;
-  }
   PDFPage *page = [self.pdfView pageForPoint:viewPoint nearest:YES];
   if (!page) return;
   CGRect pageBounds = [page boundsForBox:kPDFDisplayBoxCropBox];
@@ -893,11 +1334,69 @@ static NSDictionary *PapyrusNormalizedSelectionRect(CGRect rect, CGRect pageBoun
   NSInteger pageIndex = [document indexForPage:page];
   if (pageIndex == NSNotFound) return;
 
+  PDFAnnotation *hitAnnotation = nil;
+  NSString *annotationId = nil;
+  for (id candidateValue in [self.annotations reverseObjectEnumerator]) {
+    if (![candidateValue isKindOfClass:NSDictionary.class]) continue;
+    NSDictionary *candidate = (NSDictionary *)candidateValue;
+    NSString *candidateId = [candidate[@"id"] isKindOfClass:NSString.class]
+        ? candidate[@"id"] : nil;
+    if (candidateId.length == 0) continue;
+    NSArray<PDFAnnotation *> *representations = self.papyrusAnnotationsById[candidateId] ?: @[];
+    for (PDFAnnotation *representation in [representations reverseObjectEnumerator]) {
+      if (representation.page != page ||
+          !CGRectContainsPoint(CGRectInset(representation.bounds, -4.0, -4.0), pagePoint)) {
+        continue;
+      }
+      NSString *registeredId = [self.papyrusAnnotationIdsByObject objectForKey:representation];
+      if (![registeredId isEqualToString:candidateId]) continue;
+      hitAnnotation = representation;
+      annotationId = candidateId;
+      break;
+    }
+    if (hitAnnotation) break;
+  }
+  if (annotationId.length > 0) {
+    NSDictionary *papyrusAnnotation = nil;
+    for (id value in self.annotations) {
+      if (![value isKindOfClass:NSDictionary.class]) continue;
+      NSDictionary *candidate = (NSDictionary *)value;
+      if ([candidate[@"id"] isEqual:annotationId]) {
+        papyrusAnnotation = candidate;
+        break;
+      }
+    }
+    if (self.onAnnotationTap) {
+      self.onAnnotationTap(@{
+        @"id" : annotationId,
+        @"pageIndex" : @(pageIndex),
+        @"type" : papyrusAnnotation[@"type"] ?: @"",
+        @"color" : papyrusAnnotation[@"color"] ?: @""
+      });
+    }
+    return;
+  }
+
+  if (self.pdfView.currentSelection && ![self selectionContainsViewPoint:viewPoint]) {
+    [self clearCurrentSelection];
+    return;
+  }
+
+  CGPoint normalizedPoint = CGPointMake(MIN(1.0, MAX(0.0, x)),
+                                         MIN(1.0, MAX(0.0, y)));
+  if ([self.activeTool isEqualToString:@"comment"]) {
+    CGRect pageViewBounds = [self.pdfView convertRect:pageBounds fromPage:page];
+    if (CGRectContainsPoint(pageViewBounds, viewPoint)) {
+      [self emitCommentAtPage:page pageIndex:pageIndex normalizedPoint:normalizedPoint];
+    }
+    return;
+  }
+
   if (self.onTap) {
     self.onTap(@{
       @"pageIndex" : @(pageIndex),
-      @"x" : @(MIN(1.0, MAX(0.0, x))),
-      @"y" : @(MIN(1.0, MAX(0.0, y)))
+      @"x" : @(normalizedPoint.x),
+      @"y" : @(normalizedPoint.y)
     });
   }
 }

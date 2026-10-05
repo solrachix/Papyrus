@@ -46,6 +46,16 @@ export default function DedicatedIosPdfViewer({
   const viewMode = useViewerStore((state) => state.viewMode);
   const selectionActive = useViewerStore((state) => state.selectionActive);
   const activeTool = useViewerStore((state) => state.activeTool);
+  const annotations = useViewerStore((state) => state.annotations);
+  const annotationColor = useViewerStore((state) => state.annotationColor);
+  const annotationOpacity = useViewerStore((state) => state.annotationOpacity);
+  const selectedAnnotationId = useViewerStore(
+    (state) => state.selectedAnnotationId
+  );
+  const addAnnotation = useViewerStore((state) => state.addAnnotation);
+  const setSelectedAnnotation = useViewerStore(
+    (state) => state.setSelectedAnnotation
+  );
   const mobileChromeVisible = useViewerStore(
     (state) => state.mobileChromeVisible
   );
@@ -258,6 +268,11 @@ export default function DedicatedIosPdfViewer({
         currentPage={currentPage}
         searchResults={searchResults}
         activeSearchIndex={activeSearchIndex}
+        annotations={annotations}
+        activeTool={activeTool}
+        annotationColor={annotationColor}
+        annotationOpacity={annotationOpacity}
+        selectedAnnotationId={selectedAnnotationId}
         viewMode={nativeViewMode}
         selectionActive={selection !== null}
         onPageChange={(event) => {
@@ -282,8 +297,18 @@ export default function DedicatedIosPdfViewer({
         onTap={handleTap}
         onTextSelected={handleTextSelectionChange}
         defineLabel={t.define}
+        annotateLabel={t.annotate}
+        annotationHighlightLabel={t.annotationHighlight}
+        annotationUnderlineLabel={t.annotationUnderline}
+        annotationStrikeoutLabel={t.annotationStrikeout}
+        annotationSquigglyLabel={t.annotationSquiggly}
+        annotationNoteLabel={t.annotationNote}
         onDefineSelection={
           onDefineSelection ? handleNativeDefineSelection : undefined
+        }
+        onAnnotationCreated={(event) => addAnnotation(event.nativeEvent)}
+        onAnnotationTap={(event) =>
+          setSelectedAnnotation(event.nativeEvent.id)
         }
       />
       {selection && !supportsNativeEditMenu && onDefineSelection && (
