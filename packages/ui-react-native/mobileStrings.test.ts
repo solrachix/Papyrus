@@ -14,6 +14,11 @@ describe("mobile selection toolbar strings", () => {
     });
   });
 
+  it("provides the native annotation delete label in English and Brazilian Portuguese", () => {
+    expect(getStrings("en").deleteAnnotation).toBe("Delete");
+    expect(getStrings("pt-BR").deleteAnnotation).toBe("Apagar");
+  });
+
   it("provides native annotation menu labels in English and Brazilian Portuguese", () => {
     expect(getStrings("en")).toMatchObject({
       annotate: "Annotate",

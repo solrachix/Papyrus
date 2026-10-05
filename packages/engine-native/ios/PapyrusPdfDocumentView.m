@@ -178,6 +178,26 @@ static UIColor *PapyrusAnnotationColor(NSString *hexColor, CGFloat opacity) {
 }
 @end
 
+@interface PapyrusSelectionOutlinePdfAnnotation : PDFAnnotation
+@end
+
+@implementation PapyrusSelectionOutlinePdfAnnotation
+- (void)drawWithBox:(PDFDisplayBox)box inContext:(CGContextRef)context {
+  (void)box;
+  CGRect bounds = self.bounds;
+  if (CGRectIsNull(bounds) || CGRectIsEmpty(bounds) || !context) return;
+
+  CGFloat lineWidth = 1.5;
+  CGRect outline = CGRectInset(bounds, lineWidth / 2.0, lineWidth / 2.0);
+  if (CGRectIsNull(outline) || CGRectIsEmpty(outline)) return;
+  CGContextSaveGState(context);
+  CGContextSetStrokeColorWithColor(context, self.color.CGColor);
+  CGContextSetLineWidth(context, lineWidth);
+  CGContextStrokeRect(context, outline);
+  CGContextRestoreGState(context);
+}
+@end
+
 @interface PapyrusPdfDocumentView () <UIEditMenuInteractionDelegate>
 @property (nonatomic, strong) PDFView *pdfView;
 @property (nonatomic, strong) UIEditMenuInteraction *editMenuInteraction;
@@ -186,6 +206,10 @@ static UIColor *PapyrusAnnotationColor(NSString *hexColor, CGFloat opacity) {
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSArray<PDFAnnotation *> *> *papyrusAnnotationsById;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSString *> *papyrusAnnotationSignaturesById;
 @property (nonatomic, strong) NSMapTable<PDFAnnotation *, NSString *> *papyrusAnnotationIdsByObject;
+@property (nonatomic, copy) NSArray<PDFAnnotation *> *selectedAnnotationAdornmentAnnotations;
+@property (nonatomic, copy, nullable) NSString *contextualAnnotationMenuId;
+@property (nonatomic, copy, nullable) NSString *contextualAnnotationMenuConfigurationId;
+@property (nonatomic, assign) CGPoint contextualAnnotationMenuSourcePoint;
 @property (nonatomic, assign) NSUInteger searchNavigationGeneration;
 @property (nonatomic, weak) UIScrollView *observedScrollView;
 @property (nonatomic, strong) UITapGestureRecognizer *tapRecognizer;
@@ -212,11 +236,16 @@ static UIColor *PapyrusAnnotationColor(NSString *hexColor, CGFloat opacity) {
 - (void)scheduleNavigationToSearchResultAtIndex:(NSInteger)activeSearchIndex;
 - (UIColor *)searchHighlightColorForActive:(BOOL)isActive;
 - (void)reconcilePapyrusAnnotations;
+- (void)updateSelectedAnnotationAdornment;
+- (void)removeSelectedAnnotationAdornment;
+- (void)dismissAnnotationMenuForDocumentChange;
 - (void)removePapyrusAnnotationWithId:(NSString *)annotationId;
 - (void)clearPapyrusAnnotationsForDocument:(nullable PDFDocument *)document;
 - (NSArray<PDFAnnotation *> *)createPdfAnnotationsForPapyrusAnnotation:(NSDictionary *)annotation;
 - (NSString *)annotationSignature:(NSDictionary *)annotation;
 - (void)emitAnnotationFromCurrentSelectionWithType:(NSString *)type;
+- (void)presentAnnotationEditMenuForId:(NSString *)annotationId atPoint:(CGPoint)point;
+- (void)emitAnnotationDeleteWithId:(NSString *)annotationId;
 - (void)emitCommentAtPage:(PDFPage *)page pageIndex:(NSInteger)pageIndex normalizedPoint:(CGPoint)point;
 @end
 
@@ -245,10 +274,12 @@ static UIColor *PapyrusAnnotationColor(NSString *hexColor, CGFloat opacity) {
   _annotations = @[];
   _activeTool = @"select";
   _annotationColor = @"#fbbf24";
+  _annotationSelectionColor = @"#2563eb";
   _annotationOpacity = 1.0;
   _papyrusAnnotationsById = [NSMutableDictionary dictionary];
   _papyrusAnnotationSignaturesById = [NSMutableDictionary dictionary];
   _papyrusAnnotationIdsByObject = [NSMapTable strongToStrongObjectsMapTable];
+  _selectedAnnotationAdornmentAnnotations = @[];
   _searchNavigationGeneration = 0;
   _lastEmittedPage = NSNotFound;
   _lastSelectionPageIndex = NSNotFound;
@@ -422,6 +453,7 @@ static UIColor *PapyrusAnnotationColor(NSString *hexColor, CGFloat opacity) {
     return;
   }
 
+  [self dismissAnnotationMenuForDocumentChange];
   CGFloat desiredZoom = [self clampedZoom:self.zoom];
   BOOL wasSuppressingScaleSynchronization = self.suppressScaleSynchronization;
   self.suppressScaleSynchronization = YES;
@@ -473,6 +505,23 @@ static UIColor *PapyrusAnnotationColor(NSString *hexColor, CGFloat opacity) {
   [self reconcilePapyrusAnnotations];
 }
 
+- (void)setAnnotationSelectionColor:(NSString *)annotationSelectionColor {
+  NSString *normalized = annotationSelectionColor.length > 0
+      ? [annotationSelectionColor copy] : @"#2563eb";
+  if ([_annotationSelectionColor isEqualToString:normalized]) return;
+  _annotationSelectionColor = normalized;
+  [self updateSelectedAnnotationAdornment];
+}
+
+- (void)setSelectedAnnotationId:(NSString *)selectedAnnotationId {
+  NSString *normalized = selectedAnnotationId.length > 0
+      ? [selectedAnnotationId copy] : nil;
+  if ((_selectedAnnotationId == normalized) ||
+      [_selectedAnnotationId isEqualToString:normalized]) return;
+  _selectedAnnotationId = normalized;
+  [self updateSelectedAnnotationAdornment];
+}
+
 - (NSString *)annotationSignature:(NSDictionary *)annotation {
   NSArray<NSString *> *signatureKeys = @[
     @"id", @"type", @"pageIndex", @"rect", @"rects", @"color", @"opacity", @"content"
@@ -508,6 +557,7 @@ static UIColor *PapyrusAnnotationColor(NSString *hexColor, CGFloat opacity) {
 
 - (void)clearPapyrusAnnotationsForDocument:(PDFDocument *)document {
   (void)document;
+  [self removeSelectedAnnotationAdornment];
   NSArray<NSString *> *annotationIds = self.papyrusAnnotationsById.allKeys.copy;
   for (NSString *annotationId in annotationIds) {
     NSArray<PDFAnnotation *> *representations = self.papyrusAnnotationsById[annotationId] ?: @[];
@@ -522,6 +572,42 @@ static UIColor *PapyrusAnnotationColor(NSString *hexColor, CGFloat opacity) {
   [self.papyrusAnnotationsById removeAllObjects];
   [self.papyrusAnnotationSignaturesById removeAllObjects];
   [self.papyrusAnnotationIdsByObject removeAllObjects];
+}
+
+- (void)removeSelectedAnnotationAdornment {
+  for (PDFAnnotation *annotation in self.selectedAnnotationAdornmentAnnotations ?: @[]) {
+    PDFPage *page = annotation.page;
+    if (page) [page removeAnnotation:annotation];
+  }
+  self.selectedAnnotationAdornmentAnnotations = @[];
+}
+
+- (void)updateSelectedAnnotationAdornment {
+  [self removeSelectedAnnotationAdornment];
+  NSString *annotationId = self.selectedAnnotationId;
+  NSArray<PDFAnnotation *> *representations = annotationId.length > 0
+      ? self.papyrusAnnotationsById[annotationId] : @[];
+  if (representations.count == 0) {
+    [self.pdfView setNeedsDisplay];
+    return;
+  }
+
+  UIColor *selectionColor = PapyrusAnnotationColor(self.annotationSelectionColor, 1.0);
+  NSMutableArray<PDFAnnotation *> *adornments = [NSMutableArray array];
+  for (PDFAnnotation *representation in representations) {
+    PDFPage *page = representation.page;
+    CGRect bounds = representation.bounds;
+    if (!page || CGRectIsNull(bounds) || CGRectIsEmpty(bounds)) continue;
+
+    PDFAnnotation *adornment = [[PapyrusSelectionOutlinePdfAnnotation alloc]
+        initWithBounds:bounds forType:@"Stamp" withProperties:nil];
+    adornment.color = selectionColor;
+    adornment.shouldDisplay = YES;
+    [page addAnnotation:adornment];
+    [adornments addObject:adornment];
+  }
+  self.selectedAnnotationAdornmentAnnotations = [adornments copy];
+  [self.pdfView setNeedsDisplay];
 }
 
 - (NSArray<PDFAnnotation *> *)createPdfAnnotationsForPapyrusAnnotation:(NSDictionary *)annotation {
@@ -650,7 +736,10 @@ static UIColor *PapyrusAnnotationColor(NSString *hexColor, CGFloat opacity) {
         [self annotationSignature:annotation];
     didChangeRepresentations = YES;
   }
-  if (didChangeRepresentations) [self.pdfView setNeedsDisplay];
+  if (didChangeRepresentations) {
+    [self updateSelectedAnnotationAdornment];
+    [self.pdfView setNeedsDisplay];
+  }
 }
 
 - (void)emitAnnotationFromCurrentSelectionWithType:(NSString *)type {
@@ -1072,11 +1161,40 @@ static UIColor *PapyrusAnnotationColor(NSString *hexColor, CGFloat opacity) {
     CGRect selectionRect = [selection boundsForPage:page];
     CGRect viewRect = [self.pdfView convertRect:selectionRect fromPage:page];
     if (CGRectIsNull(viewRect) || CGRectIsEmpty(viewRect)) return;
+    self.contextualAnnotationMenuId = nil;
+    self.contextualAnnotationMenuConfigurationId = nil;
     CGPoint sourcePoint = CGPointMake(CGRectGetMidX(viewRect), CGRectGetMidY(viewRect));
     UIEditMenuConfiguration *configuration =
         [[UIEditMenuConfiguration alloc] initWithIdentifier:signature sourcePoint:sourcePoint];
     [interaction presentEditMenuWithConfiguration:configuration];
   }
+}
+
+- (void)presentAnnotationEditMenuForId:(NSString *)annotationId atPoint:(CGPoint)point {
+  if (@available(iOS 16.0, *)) {
+    UIEditMenuInteraction *interaction = self.editMenuInteraction;
+    if (!interaction || !self.onAnnotationDelete ||
+        self.annotationDeleteLabel.length == 0 || annotationId.length == 0) return;
+
+    NSString *configurationId = [NSString stringWithFormat:
+        @"com.papyrus.annotation.delete.%@.%@", annotationId, [[NSUUID UUID] UUIDString]];
+    self.contextualAnnotationMenuId = [annotationId copy];
+    self.contextualAnnotationMenuConfigurationId = configurationId;
+    self.contextualAnnotationMenuSourcePoint = point;
+    UIEditMenuConfiguration *configuration = [[UIEditMenuConfiguration alloc]
+        initWithIdentifier:configurationId sourcePoint:point];
+    [interaction presentEditMenuWithConfiguration:configuration];
+  }
+}
+
+- (void)dismissAnnotationMenuForDocumentChange {
+  self.contextualAnnotationMenuId = nil;
+  self.contextualAnnotationMenuConfigurationId = nil;
+  self.contextualAnnotationMenuSourcePoint = CGPointZero;
+  if (@available(iOS 16.0, *)) {
+    [self.editMenuInteraction dismissMenu];
+  }
+  if (self.onAnnotationDeselected) self.onAnnotationDeselected(@{});
 }
 
 - (BOOL)hasActiveGestureInView:(UIView *)view {
@@ -1096,6 +1214,24 @@ static UIColor *PapyrusAnnotationColor(NSString *hexColor, CGFloat opacity) {
 - (nullable UIMenu *)editMenuInteraction:(UIEditMenuInteraction *)interaction
     menuForConfiguration:(UIEditMenuConfiguration *)configuration
           suggestedActions:(NSArray<UIMenuElement *> *)suggestedActions API_AVAILABLE(ios(16.0)) {
+  if (self.contextualAnnotationMenuId.length > 0 &&
+      [configuration.identifier isEqual:self.contextualAnnotationMenuConfigurationId]) {
+    NSString *annotationId = [self.contextualAnnotationMenuId copy];
+    if (!self.onAnnotationDelete || self.annotationDeleteLabel.length == 0) return nil;
+    PDFDocument *documentAtPresentation = self.pdfView.document;
+    __weak typeof(self) weakSelf = self;
+    UIAction *deleteAction = [UIAction
+        actionWithTitle:self.annotationDeleteLabel
+                  image:[UIImage systemImageNamed:@"trash"]
+             identifier:@"com.papyrus.annotation.delete"
+                handler:^(__kindof UIAction *action) {
+      typeof(self) strongSelf = weakSelf;
+      if (!strongSelf || strongSelf.pdfView.document != documentAtPresentation) return;
+      [strongSelf emitAnnotationDeleteWithId:annotationId];
+    }];
+    return [UIMenu menuWithChildren:@[deleteAction]];
+  }
+
   NSMutableArray<UIMenuElement *> *actions = [suggestedActions mutableCopy];
   if (!actions) actions = [NSMutableArray array];
 
@@ -1161,6 +1297,12 @@ static UIColor *PapyrusAnnotationColor(NSString *hexColor, CGFloat opacity) {
 
 - (CGRect)editMenuInteraction:(UIEditMenuInteraction *)interaction
     targetRectForConfiguration:(UIEditMenuConfiguration *)configuration API_AVAILABLE(ios(16.0)) {
+  if (self.contextualAnnotationMenuId.length > 0 &&
+      [configuration.identifier isEqual:self.contextualAnnotationMenuConfigurationId]) {
+    CGPoint point = self.contextualAnnotationMenuSourcePoint;
+    return CGRectMake(point.x, point.y, 1.0, 1.0);
+  }
+
   PDFSelection *selection = self.pdfView.currentSelection;
   PDFPage *page = selection.pages.firstObject;
   if (!selection || !page) return CGRectZero;
@@ -1168,6 +1310,18 @@ static UIColor *PapyrusAnnotationColor(NSString *hexColor, CGFloat opacity) {
   CGRect selectionRect = [selection boundsForPage:page];
   CGRect viewRect = [self.pdfView convertRect:selectionRect fromPage:page];
   return CGRectIsNull(viewRect) || CGRectIsEmpty(viewRect) ? CGRectZero : viewRect;
+}
+
+- (void)editMenuInteraction:(UIEditMenuInteraction *)interaction
+    willDismissMenuForConfiguration:(UIEditMenuConfiguration *)configuration
+                         animator:(id<UIEditMenuInteractionAnimating>)animator API_AVAILABLE(ios(16.0)) {
+  if (self.contextualAnnotationMenuId.length == 0 ||
+      ![configuration.identifier isEqual:self.contextualAnnotationMenuConfigurationId]) return;
+
+  self.contextualAnnotationMenuId = nil;
+  self.contextualAnnotationMenuConfigurationId = nil;
+  self.contextualAnnotationMenuSourcePoint = CGPointZero;
+  if (self.onAnnotationDeselected) self.onAnnotationDeselected(@{});
 }
 
 - (void)emitDefineSelection {
@@ -1180,6 +1334,12 @@ static UIColor *PapyrusAnnotationColor(NSString *hexColor, CGFloat opacity) {
   if (text.length == 0 || !document || !page || pageIndex == NSNotFound) return;
 
   self.onDefineSelection(@{@"text" : text, @"pageIndex" : @(pageIndex)});
+}
+
+- (void)emitAnnotationDeleteWithId:(NSString *)annotationId {
+  NSArray<PDFAnnotation *> *representations = self.papyrusAnnotationsById[annotationId];
+  if (annotationId.length == 0 || representations.count == 0 || !self.onAnnotationDelete) return;
+  self.onAnnotationDelete(@{@"id" : annotationId});
 }
 
 - (void)clearCurrentSelection {
@@ -1366,6 +1526,9 @@ static UIColor *PapyrusAnnotationColor(NSString *hexColor, CGFloat opacity) {
         break;
       }
     }
+    if (@available(iOS 16.0, *)) {
+      [self.editMenuInteraction dismissMenu];
+    }
     if (self.onAnnotationTap) {
       self.onAnnotationTap(@{
         @"id" : annotationId,
@@ -1373,6 +1536,12 @@ static UIColor *PapyrusAnnotationColor(NSString *hexColor, CGFloat opacity) {
         @"type" : papyrusAnnotation[@"type"] ?: @"",
         @"color" : papyrusAnnotation[@"color"] ?: @""
       });
+    }
+    NSString *annotationType = [papyrusAnnotation[@"type"] isKindOfClass:NSString.class]
+        ? papyrusAnnotation[@"type"] : @"";
+    if (![annotationType isEqualToString:@"comment"] &&
+        ![annotationType isEqualToString:@"text"]) {
+      [self presentAnnotationEditMenuForId:annotationId atPoint:viewPoint];
     }
     return;
   }

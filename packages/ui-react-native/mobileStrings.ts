@@ -69,6 +69,7 @@ type Strings = {
   annotationStrikeout: string;
   annotationSquiggly: string;
   annotationNote: string;
+  deleteAnnotation: string;
 };
 
 const STRINGS: Record<Locale, Strings> = {
@@ -141,6 +142,7 @@ const STRINGS: Record<Locale, Strings> = {
     annotationStrikeout: "Strikeout",
     annotationSquiggly: "Squiggly",
     annotationNote: "Note",
+    deleteAnnotation: "Delete",
   },
   "pt-BR": {
     pages: "Paginas",
@@ -211,6 +213,7 @@ const STRINGS: Record<Locale, Strings> = {
     annotationStrikeout: "Riscar",
     annotationSquiggly: "Ondulado",
     annotationNote: "Nota",
+    deleteAnnotation: "Apagar",
   },
 };
 
