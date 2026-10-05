@@ -1701,7 +1701,7 @@ static NSString *PapyrusHexColorFromUIColor(UIColor *color, CGFloat *opacity) {
     self.contextualAnnotationMenuConfigurationId = nil;
     CGPoint sourcePoint = CGPointMake(CGRectGetMidX(viewRect), CGRectGetMidY(viewRect));
     UIEditMenuConfiguration *configuration =
-        [[UIEditMenuConfiguration alloc] initWithIdentifier:signature sourcePoint:sourcePoint];
+        [UIEditMenuConfiguration configurationWithIdentifier:signature sourcePoint:sourcePoint];
     [interaction presentEditMenuWithConfiguration:configuration];
   }
 }
@@ -1717,8 +1717,7 @@ static NSString *PapyrusHexColorFromUIColor(UIColor *color, CGFloat *opacity) {
     self.contextualAnnotationMenuId = [annotationId copy];
     self.contextualAnnotationMenuConfigurationId = configurationId;
     self.contextualAnnotationMenuSourcePoint = point;
-    UIEditMenuConfiguration *configuration = [[UIEditMenuConfiguration alloc]
-        initWithIdentifier:configurationId sourcePoint:point];
+    UIEditMenuConfiguration *configuration = [UIEditMenuConfiguration configurationWithIdentifier:configurationId sourcePoint:point];
     [interaction presentEditMenuWithConfiguration:configuration];
   }
 }
@@ -1751,7 +1750,7 @@ static NSString *PapyrusHexColorFromUIColor(UIColor *color, CGFloat *opacity) {
     menuForConfiguration:(UIEditMenuConfiguration *)configuration
           suggestedActions:(NSArray<UIMenuElement *> *)suggestedActions API_AVAILABLE(ios(16.0)) {
   if (self.contextualAnnotationMenuId.length > 0 &&
-      [configuration.identifier isEqual:self.contextualAnnotationMenuConfigurationId]) {
+      [(NSString *)configuration.identifier isEqualToString:self.contextualAnnotationMenuConfigurationId]) {
     NSString *annotationId = [self.contextualAnnotationMenuId copy];
     if (!self.onAnnotationDelete || self.annotationDeleteLabel.length == 0) return nil;
     PDFDocument *documentAtPresentation = self.pdfView.document;
@@ -1834,7 +1833,7 @@ static NSString *PapyrusHexColorFromUIColor(UIColor *color, CGFloat *opacity) {
 - (CGRect)editMenuInteraction:(UIEditMenuInteraction *)interaction
     targetRectForConfiguration:(UIEditMenuConfiguration *)configuration API_AVAILABLE(ios(16.0)) {
   if (self.contextualAnnotationMenuId.length > 0 &&
-      [configuration.identifier isEqual:self.contextualAnnotationMenuConfigurationId]) {
+      [(NSString *)configuration.identifier isEqualToString:self.contextualAnnotationMenuConfigurationId]) {
     CGPoint point = self.contextualAnnotationMenuSourcePoint;
     return CGRectMake(point.x, point.y, 1.0, 1.0);
   }
@@ -1852,7 +1851,7 @@ static NSString *PapyrusHexColorFromUIColor(UIColor *color, CGFloat *opacity) {
     willDismissMenuForConfiguration:(UIEditMenuConfiguration *)configuration
                          animator:(id<UIEditMenuInteractionAnimating>)animator API_AVAILABLE(ios(16.0)) {
   if (self.contextualAnnotationMenuId.length == 0 ||
-      ![configuration.identifier isEqual:self.contextualAnnotationMenuConfigurationId]) return;
+      ![(NSString *)configuration.identifier isEqualToString:self.contextualAnnotationMenuConfigurationId]) return;
 
   self.contextualAnnotationMenuId = nil;
   self.contextualAnnotationMenuConfigurationId = nil;
