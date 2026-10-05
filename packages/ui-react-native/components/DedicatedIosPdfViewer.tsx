@@ -1,12 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
-import Clipboard from "@react-native-clipboard/clipboard";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { useViewerStore } from "@papyrus-sdk/core";
 import type { DocumentEngine } from "@papyrus-sdk/types";
 import { PapyrusPdfDocumentView } from "@papyrus-sdk/engine-native";
-import { IconCopy } from "../icons";
 import { getStrings } from "../mobileStrings";
-import { copySelectionText } from "./clipboard";
 import { resolvePageTapChromeVisibility } from "./mobileChromeInteraction";
 import { getDedicatedAndroidPdfEngineId } from "./DedicatedAndroidPdfViewer";
 import {
@@ -22,6 +19,8 @@ const MOBILE_CHROME_SHOW_DELTA = 22;
 const MOBILE_CHROME_SHOW_DELAY_MS = 180;
 const MOBILE_CHROME_TOP_RESET = 16;
 const MIN_VISIBLE_PAGE_RATIO = 0.03;
+const supportsNativeEditMenu =
+  Number.parseInt(String(Platform.Version), 10) >= 16;
 
 type DedicatedIosPdfViewerProps = {
   engine: DocumentEngine;
@@ -115,13 +114,6 @@ export default function DedicatedIosPdfViewer({
     [onTextSelected, updateSelection]
   );
 
-  const copySelection = useCallback(async () => {
-    const selection = selectionRef.current;
-    if (!selection) return;
-    const copied = await copySelectionText(selection.text, Clipboard);
-    if (copied) updateSelection(null);
-  }, [updateSelection]);
-
   const defineSelection = useCallback(() => {
     const currentSelection = selectionRef.current;
     if (!currentSelection) return;
@@ -131,6 +123,28 @@ export default function DedicatedIosPdfViewer({
     });
     updateSelection(null);
   }, [onDefineSelection, updateSelection]);
+
+  const handleNativeDefineSelection = useCallback(
+    (event: {
+      nativeEvent?: { text?: unknown; pageIndex?: unknown };
+    }) => {
+      const text = event.nativeEvent?.text;
+      const pageIndex = event.nativeEvent?.pageIndex;
+      if (
+        typeof text !== "string" ||
+        text.length === 0 ||
+        typeof pageIndex !== "number" ||
+        !Number.isInteger(pageIndex) ||
+        pageIndex < 0
+      ) {
+        return;
+      }
+
+      onDefineSelection?.({ text, pageIndex });
+      updateSelection(null);
+    },
+    [onDefineSelection, updateSelection]
+  );
 
   const trackMobileChromeByOffset = useCallback(
     (offsetY: number) => {
@@ -263,30 +277,21 @@ export default function DedicatedIosPdfViewer({
         onScroll={handleScroll}
         onTap={handleTap}
         onTextSelected={handleTextSelectionChange}
+        defineLabel={t.define}
+        onDefineSelection={
+          onDefineSelection ? handleNativeDefineSelection : undefined
+        }
       />
-      {selection && (
-        <View style={styles.selectionToolbar} pointerEvents="box-none">
-          <View style={styles.toolbarContent}>
-            <Pressable
-              onPress={() => void copySelection()}
-              style={styles.toolbarButton}
-              accessibilityRole="button"
-              accessibilityLabel={t.copy}
-            >
-              <IconCopy size={18} color="#fff" strokeWidth={2} />
-              <Text style={styles.toolbarButtonText}>{t.copy}</Text>
-            </Pressable>
-            {onDefineSelection && (
-              <Pressable
-                onPress={defineSelection}
-                style={styles.toolbarButton}
-                accessibilityRole="button"
-                accessibilityLabel={t.define}
-              >
-                <Text style={styles.toolbarButtonText}>{t.define}</Text>
-              </Pressable>
-            )}
-          </View>
+      {selection && !supportsNativeEditMenu && onDefineSelection && (
+        <View style={styles.selectionFallback} pointerEvents="box-none">
+          <Pressable
+            onPress={defineSelection}
+            style={styles.fallbackButton}
+            accessibilityRole="button"
+            accessibilityLabel={t.define}
+          >
+            <Text style={styles.fallbackButtonText}>{t.define}</Text>
+          </Pressable>
         </View>
       )}
     </View>
@@ -296,7 +301,7 @@ export default function DedicatedIosPdfViewer({
 const styles = StyleSheet.create({
   container: { flex: 1, alignItems: "stretch" },
   viewer: { flex: 1, width: "100%" },
-  selectionToolbar: {
+  selectionFallback: {
     position: "absolute",
     left: 0,
     right: 0,
@@ -305,31 +310,18 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     zIndex: 50,
   },
-  toolbarContent: {
-    flexDirection: "row",
+  fallbackButton: {
     backgroundColor: "rgba(30, 30, 30, 0.92)",
     borderRadius: 16,
     paddingHorizontal: 8,
     paddingVertical: 8,
-    gap: 4,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 12,
     elevation: 10,
   },
-  toolbarButton: {
-    minWidth: 76,
-    height: 40,
-    borderRadius: 10,
-    backgroundColor: "rgba(255,255,255,0.1)",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    paddingHorizontal: 10,
-  },
-  toolbarButtonText: {
+  fallbackButtonText: {
     color: "#fff",
     fontSize: 12,
     fontWeight: "700",

@@ -17,6 +17,10 @@ const manager = readFileSync(
   ),
   "utf8"
 );
+const engineIndex = readFileSync(
+  resolve(process.cwd(), "packages/engine-native/index.ts"),
+  "utf8"
+);
 
 const methodBody = (selector: string): string => {
   const signatureIndex = source.indexOf(`\n- (void)${selector}`);
@@ -32,6 +36,30 @@ const methodBody = (selector: string): string => {
     }
   }
   throw new Error(`Unterminated Objective-C method ${selector}`);
+};
+
+const bodyAfterSignature = (signature: string): string => {
+  let searchFrom = 0;
+  while (true) {
+    const signatureIndex = source.indexOf(signature, searchFrom);
+    if (signatureIndex < 0) throw new Error(`Missing Objective-C signature ${signature}`);
+
+    const bodyStart = source.indexOf("{", signatureIndex);
+    const declarationEnd = source.indexOf(";", signatureIndex);
+    if (bodyStart >= 0 && (declarationEnd < 0 || bodyStart < declarationEnd)) {
+      let depth = 0;
+      for (let index = bodyStart; index < source.length; index += 1) {
+        if (source[index] === "{") depth += 1;
+        if (source[index] === "}") {
+          depth -= 1;
+          if (depth === 0) return source.slice(bodyStart, index + 1);
+        }
+      }
+      throw new Error(`Unterminated Objective-C method ${signature}`);
+    }
+
+    searchFrom = signatureIndex + signature.length;
+  }
 };
 
 describe("PapyrusPdfDocumentView programmatic zoom synchronization", () => {
@@ -111,5 +139,45 @@ describe("PapyrusPdfDocumentView native text selection", () => {
     expect(inactiveBody).toContain("if (!selectionActive)");
     expect(inactiveBody).toContain("clearCurrentSelection");
     expect(manager).toContain("RCT_EXPORT_VIEW_PROPERTY(selectionActive, BOOL)");
+  });
+
+  it("adds Define to the iOS edit menu while preserving PDFKit actions", () => {
+    const selectionBody = methodBody("emitCurrentSelectionIfNeeded");
+    const scheduleBody = bodyAfterSignature(
+      "scheduleSelectionEditMenuForSignature:(NSString *)signature {"
+    );
+    const attemptBody = bodyAfterSignature(
+      "attemptSelectionEditMenuForSignature:(NSString *)signature generation:(NSUInteger)generation"
+    );
+    const activeGestureBody = bodyAfterSignature(
+      "hasActiveGestureInView:(UIView *)view"
+    );
+    const menuBody = bodyAfterSignature(
+      "menuForConfiguration:(UIEditMenuConfiguration *)configuration"
+    );
+
+    expect(source).toContain("<UIEditMenuInteractionDelegate>");
+    expect(source).toContain("UIEditMenuInteraction *editMenuInteraction");
+    expect(source).toContain("initWithDelegate:self");
+    expect(source).toContain("addInteraction:_editMenuInteraction");
+    expect(source).toContain("presentEditMenuWithConfiguration:");
+    expect(source).toContain("@available(iOS 16.0, *)");
+    expect(selectionBody).toContain("scheduleSelectionEditMenuForSignature:");
+    expect(scheduleBody).toContain("attemptSelectionEditMenuForSignature:");
+    expect(attemptBody).toContain("hasActiveGestureInView:self.pdfView");
+    expect(attemptBody).toContain("dispatch_after");
+    expect(activeGestureBody).toContain("UIGestureRecognizerStateBegan");
+    expect(activeGestureBody).toContain("UIGestureRecognizerStateChanged");
+    expect(menuBody).toContain("suggestedActions");
+    expect(menuBody).toContain("self.defineLabel");
+    expect(menuBody).toContain("self.onDefineSelection");
+    expect(header).toContain("RCTBubblingEventBlock onDefineSelection");
+    expect(header).toContain("NSString *defineLabel");
+    expect(engineIndex).toContain("onDefineSelection?:");
+    expect(engineIndex).toContain("defineLabel?: string");
+    expect(manager).toContain(
+      "RCT_EXPORT_VIEW_PROPERTY(onDefineSelection, RCTBubblingEventBlock)"
+    );
+    expect(manager).toContain("RCT_EXPORT_VIEW_PROPERTY(defineLabel, NSString)");
   });
 });
