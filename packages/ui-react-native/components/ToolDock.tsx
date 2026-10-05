@@ -31,6 +31,7 @@ import {
 import {
   resolveToolDockBaseIconColor,
   resolveToolDockIconColor,
+  shouldShowToolDockInkControls,
   shouldUseScrollablePrimaryToolsRow,
 } from "./ToolDock.layout";
 import {
@@ -260,6 +261,7 @@ const ToolDock: React.FC = () => {
     toolDockOpen,
     setDocumentState,
     activeDrawToolPreset,
+    nativeInkToolPickerActive,
     annotationUndoStack,
     annotationRedoStack,
     undoAnnotations,
@@ -292,10 +294,19 @@ const ToolDock: React.FC = () => {
   );
   const inkSettingsExpanded =
     activeTool === "ink" && activeDrawToolPreset === "ink";
+  const showInkDockControls = shouldShowToolDockInkControls({
+    nativeInkToolPickerActive,
+  });
   const canUndo = annotationUndoStack.length > 0;
   const canRedo = annotationRedoStack.length > 0;
   const primaryToolsRowIsScrollable =
     shouldUseScrollablePrimaryToolsRow(windowWidth);
+
+  useEffect(() => {
+    if (!nativeInkToolPickerActive) return;
+    setPaletteExpanded(false);
+    setExtrasExpanded(false);
+  }, [nativeInkToolPickerActive]);
 
   const applyTool = (toolId: (typeof ALL_TOOLS)[number]["id"]) => {
     if (toolId === "ink") {
@@ -408,7 +419,7 @@ const ToolDock: React.FC = () => {
     >
       {toolDockOpen ? (
         <View style={styles.stack}>
-          {paletteExpanded ? (
+          {paletteExpanded && showInkDockControls ? (
             <View
               style={[
                 styles.popup,
@@ -452,7 +463,7 @@ const ToolDock: React.FC = () => {
             </View>
           ) : null}
 
-          {inkSettingsExpanded ? (
+          {inkSettingsExpanded && showInkDockControls ? (
             <View
               style={[
                 styles.popup,

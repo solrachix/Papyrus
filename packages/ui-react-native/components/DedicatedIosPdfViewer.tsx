@@ -50,6 +50,10 @@ export default function DedicatedIosPdfViewer({
   const viewMode = useViewerStore((state) => state.viewMode);
   const selectionActive = useViewerStore((state) => state.selectionActive);
   const activeTool = useViewerStore((state) => state.activeTool);
+  const activeDrawToolPreset = useViewerStore(
+    (state) => state.activeDrawToolPreset
+  );
+  const inkStrokeWidth = useViewerStore((state) => state.inkStrokeWidth);
   const annotations = useViewerStore((state) => state.annotations);
   const annotationColor = useViewerStore((state) => state.annotationColor);
   const annotationSelectionColor = useViewerStore((state) => state.accentColor);
@@ -66,6 +70,9 @@ export default function DedicatedIosPdfViewer({
     (state) => state.mobileChromeVisible
   );
   const setDocumentState = useViewerStore((state) => state.setDocumentState);
+  const commitInkStrokesForPage = useViewerStore(
+    (state) => state.commitInkStrokesForPage
+  );
   const engineId = getDedicatedAndroidPdfEngineId(engine);
   const nativeViewMode = viewMode === "single" ? "single" : "continuous";
   const fallbackDeleteAnnotation = resolveMarkupAnnotationDeleteFallback(
@@ -91,6 +98,16 @@ export default function DedicatedIosPdfViewer({
   const lastVisiblePagesKeyRef = useRef("");
   const [selection, setSelection] = useState<NativePdfTextSelection | null>(null);
   const selectionRef = useRef<NativePdfTextSelection | null>(null);
+
+  useEffect(() => {
+    const pickerActive = supportsNativeEditMenu && activeTool === "ink";
+    setDocumentState({ nativeInkToolPickerActive: pickerActive });
+    return () => {
+      if (pickerActive) {
+        setDocumentState({ nativeInkToolPickerActive: false });
+      }
+    };
+  }, [activeTool, setDocumentState]);
 
   useEffect(() => {
     chromeVisibleRef.current = mobileChromeVisible;
@@ -295,6 +312,8 @@ export default function DedicatedIosPdfViewer({
         activeSearchIndex={activeSearchIndex}
         annotations={annotations}
         activeTool={activeTool}
+        activeDrawToolPreset={activeDrawToolPreset}
+        inkStrokeWidth={inkStrokeWidth}
         annotationColor={annotationColor}
         annotationSelectionColor={annotationSelectionColor}
         annotationOpacity={annotationOpacity}
@@ -341,6 +360,19 @@ export default function DedicatedIosPdfViewer({
           handleDeleteAnnotation(event.nativeEvent.id)
         }
         onAnnotationDeselected={() => setSelectedAnnotation(null)}
+        onInkDrawingCommitted={(event) => {
+          const pageIndex = event.nativeEvent?.pageIndex;
+          const strokes = event.nativeEvent?.strokes;
+          if (
+            typeof pageIndex !== "number" ||
+            !Number.isInteger(pageIndex) ||
+            pageIndex < 0 ||
+            !Array.isArray(strokes)
+          ) {
+            return;
+          }
+          commitInkStrokesForPage(pageIndex, strokes);
+        }}
       />
       {selection && !supportsNativeEditMenu && onDefineSelection && (
         <View style={styles.selectionFallback} pointerEvents="box-none">

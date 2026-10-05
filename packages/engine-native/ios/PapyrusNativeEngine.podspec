@@ -8,6 +8,7 @@ Pod::Spec.new do |s|
   s.platforms    = { :ios => '13.0' }
   s.source       = { :git => 'https://github.com/solrachix/Papyrus.git', :tag => s.version.to_s }
   s.source_files = '**/*.{h,m,mm,swift}'
+  s.frameworks = 'PDFKit', 'PencilKit'
   s.requires_arc = true
   s.swift_version = '5.0'
 

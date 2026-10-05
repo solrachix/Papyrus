@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   resolveToolDockBaseIconColor,
   resolveToolDockIconColor,
+  shouldShowToolDockInkControls,
   shouldUseScrollablePrimaryToolsRow,
 } from "./ToolDock.layout";
 
@@ -12,6 +13,17 @@ describe("shouldUseScrollablePrimaryToolsRow", () => {
 
   it("does not force horizontal scrolling on roomy screens", () => {
     expect(shouldUseScrollablePrimaryToolsRow(768)).toBe(false);
+  });
+});
+
+describe("shouldShowToolDockInkControls", () => {
+  it("hides duplicate ink settings while the native PencilKit picker is active", () => {
+    expect(
+      shouldShowToolDockInkControls({ nativeInkToolPickerActive: true })
+    ).toBe(false);
+    expect(
+      shouldShowToolDockInkControls({ nativeInkToolPickerActive: false })
+    ).toBe(true);
   });
 });
 

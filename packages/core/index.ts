@@ -1,6 +1,7 @@
 
 export * from './engine';
 export * from './store';
+export * from './inkAnnotations';
 export * from './services/search-service';
 export * from './services/event-emitter';
 export * from './renderGeneration';

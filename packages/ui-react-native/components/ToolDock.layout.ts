@@ -3,6 +3,12 @@ export const TOOL_DOCK_SCROLL_THRESHOLD = 420;
 export const shouldUseScrollablePrimaryToolsRow = (windowWidth: number) =>
   windowWidth < TOOL_DOCK_SCROLL_THRESHOLD;
 
+export const shouldShowToolDockInkControls = ({
+  nativeInkToolPickerActive,
+}: {
+  nativeInkToolPickerActive: boolean;
+}) => !nativeInkToolPickerActive;
+
 const DRAWING_TOOL_IDS = new Set(["ink", "highlight", "underline"]);
 
 export const resolveToolDockBaseIconColor = ({
