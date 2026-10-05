@@ -34,14 +34,15 @@ describe("native iOS PDF selection contract", () => {
     expect(iosViewerSource).toContain("onDefineSelection?.({");
   });
 
-  it("uses Papyrus clipboard support and offers Copy and Define actions", () => {
-    expect(iosViewerSource).toContain('import Clipboard from "@react-native-clipboard/clipboard"');
+  it("uses the native iOS edit menu for Copy and localized Define", () => {
+    expect(iosViewerSource).not.toContain("@react-native-clipboard/clipboard");
     expect(iosViewerSource).toContain('import { getStrings } from "../mobileStrings"');
-    expect(iosViewerSource).toContain("copySelectionText(selection.text, Clipboard)");
-    expect(iosViewerSource).toContain("accessibilityLabel={t.copy}");
+    expect(iosViewerSource).toContain("defineLabel={t.define}");
+    expect(iosViewerSource).toContain("onDefineSelection={");
+    expect(iosViewerSource).toContain("!supportsNativeEditMenu && onDefineSelection");
     expect(iosViewerSource).toContain("accessibilityLabel={t.define}");
-    expect(iosViewerSource).toContain("<Text style={styles.toolbarButtonText}>{t.copy}</Text>");
-    expect(iosViewerSource).toContain("<Text style={styles.toolbarButtonText}>{t.define}</Text>");
+    expect(iosViewerSource).toContain("<Text style={styles.fallbackButtonText}>{t.define}</Text>");
+    expect(iosViewerSource).not.toContain("copySelection");
   });
 
   it("clears the PDFKit selection when the selection toolbar closes", () => {

@@ -39,8 +39,9 @@ static NSDictionary *PapyrusNormalizedSelectionRect(CGRect rect, CGRect pageBoun
   return @{@"x" : @(x), @"y" : @(y), @"width" : @(width), @"height" : @(height)};
 }
 
-@interface PapyrusPdfDocumentView ()
+@interface PapyrusPdfDocumentView () <UIEditMenuInteractionDelegate>
 @property (nonatomic, strong) PDFView *pdfView;
+@property (nonatomic, strong) UIEditMenuInteraction *editMenuInteraction;
 @property (nonatomic, weak) UIScrollView *observedScrollView;
 @property (nonatomic, strong) UITapGestureRecognizer *tapRecognizer;
 @property (nonatomic, strong) UITapGestureRecognizer *doubleTapRecognizer;
@@ -56,6 +57,11 @@ static NSDictionary *PapyrusNormalizedSelectionRect(CGRect rect, CGRect pageBoun
 @property (nonatomic, copy) NSString *lastSelectionSignature;
 @property (nonatomic, assign) NSInteger lastSelectionPageIndex;
 @property (nonatomic, assign) BOOL lastSelectionWasActive;
+@property (nonatomic, assign) NSUInteger selectionMenuGeneration;
+- (void)scheduleSelectionEditMenuForSignature:(NSString *)signature;
+- (void)attemptSelectionEditMenuForSignature:(NSString *)signature generation:(NSUInteger)generation;
+- (BOOL)hasActiveGestureInView:(UIView *)view;
+- (void)emitDefineSelection;
 @end
 
 @implementation PapyrusPdfDocumentView
@@ -72,6 +78,7 @@ static NSDictionary *PapyrusNormalizedSelectionRect(CGRect rect, CGRect pageBoun
   _lastSelectionPageIndex = NSNotFound;
   _lastEmittedZoom = NAN;
   _lastLayoutSize = CGSizeZero;
+  _defineLabel = NSLocalizedString(@"Define", nil);
   self.clipsToBounds = YES;
   self.backgroundColor = UIColor.whiteColor;
 
@@ -85,6 +92,11 @@ static NSDictionary *PapyrusNormalizedSelectionRect(CGRect rect, CGRect pageBoun
   _pdfView.backgroundColor = UIColor.whiteColor;
   _pdfView.clipsToBounds = YES;
   [self addSubview:_pdfView];
+
+  if (@available(iOS 16.0, *)) {
+    _editMenuInteraction = [[UIEditMenuInteraction alloc] initWithDelegate:self];
+    [_pdfView addInteraction:_editMenuInteraction];
+  }
 
   _tapRecognizer = [[UITapGestureRecognizer alloc]
       initWithTarget:self
@@ -440,10 +452,15 @@ static NSDictionary *PapyrusNormalizedSelectionRect(CGRect rect, CGRect pageBoun
   if (self.onTextSelected) {
     self.onTextSelected(@{@"text" : text, @"pageIndex" : @(pageIndex), @"rects" : rects});
   }
+  [self scheduleSelectionEditMenuForSignature:signature];
 }
 
 - (void)emitSelectionClearedIfNeeded {
   if (!self.lastSelectionWasActive) return;
+  self.selectionMenuGeneration += 1;
+  if (@available(iOS 16.0, *)) {
+    [self.editMenuInteraction dismissMenu];
+  }
   NSInteger pageIndex = self.lastSelectionPageIndex;
   if (pageIndex == NSNotFound) pageIndex = MAX(0, self.currentPage - 1);
   self.lastSelectionWasActive = NO;
@@ -452,6 +469,112 @@ static NSDictionary *PapyrusNormalizedSelectionRect(CGRect rect, CGRect pageBoun
   if (self.onTextSelected) {
     self.onTextSelected(@{@"text" : @"", @"pageIndex" : @(pageIndex), @"rects" : @[]});
   }
+}
+
+- (void)scheduleSelectionEditMenuForSignature:(NSString *)signature {
+  if (@available(iOS 16.0, *)) {
+    UIEditMenuInteraction *interaction = self.editMenuInteraction;
+    if (!interaction || signature.length == 0) return;
+
+    NSUInteger generation = ++self.selectionMenuGeneration;
+    __weak typeof(self) weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.22 * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+      typeof(self) strongSelf = weakSelf;
+      [strongSelf attemptSelectionEditMenuForSignature:signature generation:generation];
+    });
+  }
+}
+
+- (void)attemptSelectionEditMenuForSignature:(NSString *)signature generation:(NSUInteger)generation {
+  if (@available(iOS 16.0, *)) {
+    if (generation != self.selectionMenuGeneration ||
+        ![signature isEqualToString:self.lastSelectionSignature]) {
+      return;
+    }
+
+    if ([self hasActiveGestureInView:self.pdfView]) {
+      __weak typeof(self) weakSelf = self;
+      dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.10 * NSEC_PER_SEC)),
+                     dispatch_get_main_queue(), ^{
+        typeof(self) strongSelf = weakSelf;
+        [strongSelf attemptSelectionEditMenuForSignature:signature generation:generation];
+      });
+      return;
+    }
+
+    UIEditMenuInteraction *interaction = self.editMenuInteraction;
+    PDFSelection *selection = self.pdfView.currentSelection;
+    PDFPage *page = selection.pages.firstObject;
+    if (!interaction || !selection.string.length || !page || !self.onDefineSelection) return;
+
+    CGRect selectionRect = [selection boundsForPage:page];
+    CGRect viewRect = [self.pdfView convertRect:selectionRect fromPage:page];
+    if (CGRectIsNull(viewRect) || CGRectIsEmpty(viewRect)) return;
+    CGPoint sourcePoint = CGPointMake(CGRectGetMidX(viewRect), CGRectGetMidY(viewRect));
+    UIEditMenuConfiguration *configuration =
+        [[UIEditMenuConfiguration alloc] initWithIdentifier:signature sourcePoint:sourcePoint];
+    [interaction presentEditMenuWithConfiguration:configuration];
+  }
+}
+
+- (BOOL)hasActiveGestureInView:(UIView *)view {
+  for (UIGestureRecognizer *recognizer in view.gestureRecognizers) {
+    if (recognizer.state == UIGestureRecognizerStateBegan ||
+        recognizer.state == UIGestureRecognizerStateChanged) {
+      return YES;
+    }
+  }
+
+  for (UIView *subview in view.subviews) {
+    if ([self hasActiveGestureInView:subview]) return YES;
+  }
+  return NO;
+}
+
+- (nullable UIMenu *)editMenuInteraction:(UIEditMenuInteraction *)interaction
+    menuForConfiguration:(UIEditMenuConfiguration *)configuration
+          suggestedActions:(NSArray<UIMenuElement *> *)suggestedActions API_AVAILABLE(ios(16.0)) {
+  NSMutableArray<UIMenuElement *> *actions = [suggestedActions mutableCopy];
+  if (!actions) actions = [NSMutableArray array];
+
+  if (self.onDefineSelection && self.defineLabel.length > 0 &&
+      self.pdfView.currentSelection.string.length > 0) {
+    __weak typeof(self) weakSelf = self;
+    UIAction *defineAction = [UIAction
+        actionWithTitle:self.defineLabel
+                  image:[UIImage systemImageNamed:@"text.magnifyingglass"]
+             identifier:@"com.papyrus.define-selection"
+                handler:^(__kindof UIAction *action) {
+      [weakSelf emitDefineSelection];
+    }];
+    [actions addObject:defineAction];
+  }
+
+  return [UIMenu menuWithChildren:actions];
+}
+
+- (CGRect)editMenuInteraction:(UIEditMenuInteraction *)interaction
+    targetRectForConfiguration:(UIEditMenuConfiguration *)configuration API_AVAILABLE(ios(16.0)) {
+  PDFSelection *selection = self.pdfView.currentSelection;
+  PDFPage *page = selection.pages.firstObject;
+  if (!selection || !page) return CGRectZero;
+
+  CGRect selectionRect = [selection boundsForPage:page];
+  CGRect viewRect = [self.pdfView convertRect:selectionRect fromPage:page];
+  return CGRectIsNull(viewRect) || CGRectIsEmpty(viewRect) ? CGRectZero : viewRect;
+}
+
+- (void)emitDefineSelection {
+  if (!self.onDefineSelection) return;
+  PDFSelection *selection = self.pdfView.currentSelection;
+  NSString *text = selection.string ?: @"";
+  PDFDocument *document = self.pdfView.document;
+  PDFPage *page = selection.pages.firstObject;
+  NSInteger pageIndex = document && page ? [document indexForPage:page] : NSNotFound;
+  if (text.length == 0 || !document || !page || pageIndex == NSNotFound) return;
+
+  self.onDefineSelection(@{@"text" : text, @"pageIndex" : @(pageIndex)});
 }
 
 - (void)clearCurrentSelection {
