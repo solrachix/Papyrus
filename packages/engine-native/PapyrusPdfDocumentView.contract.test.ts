@@ -166,6 +166,13 @@ describe("PapyrusPdfDocumentView native text selection and search highlights", (
     expect(source).toContain("addInteraction:_editMenuInteraction");
     expect(source).toContain("presentEditMenuWithConfiguration:");
     expect(source).toContain("@available(iOS 16.0, *)");
+    expect(source).toContain(
+      "[UIEditMenuConfiguration configurationWithIdentifier:signature sourcePoint:sourcePoint]"
+    );
+    expect(source).not.toContain("initWithIdentifier:signature sourcePoint:");
+    expect(source).toContain(
+      "[(NSString *)configuration.identifier isEqualToString:self.contextualAnnotationMenuConfigurationId]"
+    );
     expect(selectionBody).toContain("scheduleSelectionEditMenuForSignature:");
     expect(scheduleBody).toContain("attemptSelectionEditMenuForSignature:");
     expect(attemptBody).toContain("hasActiveGestureInView:self.pdfView");
