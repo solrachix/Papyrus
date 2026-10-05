@@ -223,6 +223,10 @@ static UIColor *PapyrusAnnotationColor(NSString *hexColor, CGFloat opacity) {
 @implementation PapyrusPdfDocumentView
 
 - (void)dealloc {
+  [self stopObservingScrollView];
+  [[NSNotificationCenter defaultCenter] removeObserver:self];
+  self.tapRecognizer.delegate = nil;
+  self.doubleTapRecognizer.delegate = nil;
   [self clearPapyrusAnnotationsForDocument:self.pdfView.document];
 }
 
@@ -317,13 +321,6 @@ static UIColor *PapyrusAnnotationColor(NSString *hexColor, CGFloat opacity) {
                object:[PapyrusEngineStore shared]];
 
   return self;
-}
-
-- (void)dealloc {
-  [self stopObservingScrollView];
-  [[NSNotificationCenter defaultCenter] removeObserver:self];
-  self.tapRecognizer.delegate = nil;
-  self.doubleTapRecognizer.delegate = nil;
 }
 
 - (void)setSelectionActive:(BOOL)selectionActive {
@@ -544,8 +541,11 @@ static UIColor *PapyrusAnnotationColor(NSString *hexColor, CGFloat opacity) {
   if ([type isEqualToString:@"highlight"]) subtype = @"Highlight";
   else if ([type isEqualToString:@"underline"]) subtype = @"Underline";
   else if ([type isEqualToString:@"strikeout"]) subtype = @"StrikeOut";
-  else if ([type isEqualToString:@"squiggly"]) subtype = @"Squiggly";
-  else if ([type isEqualToString:@"comment"] || [type isEqualToString:@"text"]) subtype = @"PapyrusComment";
+  else if ([type isEqualToString:@"squiggly"] ||
+           [type isEqualToString:@"comment"] || [type isEqualToString:@"text"]) {
+    // Custom drawing stays in the subclasses; Stamp is a PDFKit-supported carrier subtype.
+    subtype = @"Stamp";
+  }
   if (!subtype) return @[];
 
   PDFPage *page = [document pageAtIndex:(NSUInteger)pageIndexNumber];

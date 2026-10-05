@@ -151,8 +151,7 @@ describe("Papyrus iOS PDF annotation bridge", () => {
       '@"Highlight"',
       '@"Underline"',
       '@"StrikeOut"',
-      '@"Squiggly"',
-      '@"PapyrusComment"',
+      '@"Stamp"',
     ]) {
       expect(create).toContain(subtype);
     }
@@ -160,6 +159,30 @@ describe("Papyrus iOS PDF annotation bridge", () => {
     expect(source).toContain("PapyrusSquigglyPdfAnnotation");
     expect(source).toContain("PapyrusCommentPdfAnnotation");
     expect(source).toContain("colorWithAlphaComponent");
+  });
+
+  it("uses one dealloc to release observers and Papyrus-owned annotations", () => {
+    const deallocs = [...source.matchAll(/- \(void\)dealloc\s*\{/g)];
+    expect(deallocs).toHaveLength(1);
+    const dealloc = method("- (void)dealloc");
+    for (const cleanup of [
+      "stopObservingScrollView",
+      "removeObserver:self",
+      "self.tapRecognizer.delegate = nil",
+      "self.doubleTapRecognizer.delegate = nil",
+      "clearPapyrusAnnotationsForDocument:self.pdfView.document",
+    ]) {
+      expect(dealloc).toContain(cleanup);
+    }
+  });
+
+  it("uses a supported PDFKit carrier subtype for custom comment and squiggly drawing", () => {
+    const create = method("- (NSArray<PDFAnnotation *> *)createPdfAnnotationsForPapyrusAnnotation:");
+    expect(create).toContain("PapyrusSquigglyPdfAnnotation");
+    expect(create).toContain("PapyrusCommentPdfAnnotation");
+    expect(create).not.toContain('@"Squiggly"');
+    expect(create).not.toContain('@"PapyrusComment"');
+    expect(create).toContain('@"Stamp"');
   });
 
   it("keeps PDF annotations separate from selection and temporary search highlights", () => {
