@@ -9,6 +9,7 @@ import android.graphics.ColorMatrixColorFilter;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.Rect;
+import android.graphics.RectF;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
@@ -66,6 +67,9 @@ public class PapyrusPdfViewerView extends View {
   private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
   private final ScaleGestureDetector scaleDetector;
   private final List<PageFrame> pageFrames = new ArrayList<>();
+  private final Path pageClipPath = new Path();
+  private final RectF pageClipBounds = new RectF();
+  private final float pageCornerRadiusPx;
   private final Set<String> loadingKeys = new HashSet<>();
   private final Map<Integer, Bitmap> lastPageBitmap = new HashMap<>();
   private String engineId;
@@ -211,6 +215,7 @@ public class PapyrusPdfViewerView extends View {
   public PapyrusPdfViewerView(ReactContext context) {
     super(context);
     this.reactContext = context;
+    pageCornerRadiusPx = resolvePageCornerRadiusPx(context);
     scaleDetector = createScaleDetector(context);
     doubleTapTimeoutMs = ViewConfiguration.get(context).getDoubleTapTimeout();
     flingScroller = new OverScroller(context);
@@ -219,6 +224,7 @@ public class PapyrusPdfViewerView extends View {
   public PapyrusPdfViewerView(ReactContext context, AttributeSet attrs) {
     super(context, attrs);
     this.reactContext = context;
+    pageCornerRadiusPx = resolvePageCornerRadiusPx(context);
     scaleDetector = createScaleDetector(context);
     doubleTapTimeoutMs = ViewConfiguration.get(context).getDoubleTapTimeout();
     flingScroller = new OverScroller(context);
@@ -1074,6 +1080,17 @@ public class PapyrusPdfViewerView extends View {
       int bottom = Math.round(top + frame.height);
       if (bottom < 0 || top > getHeight()) continue;
 
+      int pageCanvasSaveCount = canvas.save();
+      pageClipBounds.set(left, top, right, bottom);
+      pageClipPath.reset();
+      pageClipPath.addRoundRect(
+        pageClipBounds,
+        pageCornerRadiusPx,
+        pageCornerRadiusPx,
+        Path.Direction.CW
+      );
+      canvas.clipPath(pageClipPath);
+
       float visibleTop = Math.max(frame.top, offsetY);
       float visibleBottom = Math.min(frame.top + frame.height, offsetY + getHeight());
       float visibleHeight = visibleBottom - visibleTop;
@@ -1130,6 +1147,7 @@ public class PapyrusPdfViewerView extends View {
       }
 
       drawOverlays(canvas, frame, left, top);
+      canvas.restoreToCount(pageCanvasSaveCount);
     }
 
     if (DEBUG_RENDER_GAP) {
@@ -1138,6 +1156,12 @@ public class PapyrusPdfViewerView extends View {
     if (isPinching) {
       canvas.restore();
     }
+  }
+
+  private static float resolvePageCornerRadiusPx(Context context) {
+    int smallestScreenWidthDp = context.getResources().getConfiguration().smallestScreenWidthDp;
+    float density = context.getResources().getDisplayMetrics().density;
+    return PapyrusRenderMath.resolvePdfPageCornerRadiusDp(smallestScreenWidthDp) * density;
   }
 
   private boolean isViewportCenterInsidePageGap() {

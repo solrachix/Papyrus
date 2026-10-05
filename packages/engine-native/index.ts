@@ -195,6 +195,7 @@ const normalizeNativeDestination = (
 
 type NativeEngineModule = {
   createEngine?: () => string;
+  isTablet?: () => boolean;
   destroyEngine?: (engineId: string) => void;
   load?: (
     engineId: string,
@@ -293,6 +294,24 @@ const resolveNativeModule = (): NativeEngineModule | null => {
     nativeModules: NativeModules as Record<string, unknown>,
     turboModuleRegistry: TurboModuleRegistry,
   });
+};
+
+let cachedAndroidTabletFormFactor: boolean | undefined;
+
+export const isPapyrusTablet = (): boolean => {
+  if (Platform.OS === "ios") return Platform.isPad;
+  if (Platform.OS !== "android") return false;
+  if (cachedAndroidTabletFormFactor !== undefined) {
+    return cachedAndroidTabletFormFactor;
+  }
+
+  try {
+    cachedAndroidTabletFormFactor = resolveNativeModule()?.isTablet?.() === true;
+  } catch {
+    cachedAndroidTabletFormFactor = false;
+  }
+
+  return cachedAndroidTabletFormFactor;
 };
 
 const resolvePapyrusPageView = (): PapyrusPageViewComponent => {

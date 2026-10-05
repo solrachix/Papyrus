@@ -1,6 +1,7 @@
 package com.papyrus.engine;
 
 import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import java.lang.reflect.Field;
@@ -9,6 +10,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.Test;
 
 public class PapyrusPageViewTest {
+  @Test
+  public void pageCornerRadiusUsesStableSmallestScreenWidthForFormFactor() {
+    assertEquals(3f, PapyrusRenderMath.resolvePdfPageCornerRadiusDp(599), 0f);
+    // smallestScreenWidthDp stays at the device form factor in compact split-screen windows.
+    assertEquals(14f, PapyrusRenderMath.resolvePdfPageCornerRadiusDp(600), 0f);
+  }
+
   @Test
   public void constrainRenderSizeKeepsSafeSizesUntouched() {
     int[] size = PapyrusRenderMath.constrainRenderSize(1200, 1600);

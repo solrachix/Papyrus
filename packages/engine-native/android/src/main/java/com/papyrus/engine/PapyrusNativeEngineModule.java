@@ -52,6 +52,12 @@ public class PapyrusNativeEngineModule extends ReactContextBaseJavaModule {
     return PapyrusEngineStore.createEngine(reactContext);
   }
 
+  @ReactMethod(isBlockingSynchronousMethod = true)
+  public boolean isTablet() {
+    return reactContext.getResources().getConfiguration().smallestScreenWidthDp
+      >= PapyrusRenderMath.TABLET_SMALLEST_WIDTH_DP;
+  }
+
   @ReactMethod
   public void destroyEngine(String engineId) {
     PapyrusEngineStore.destroyEngine(engineId);

@@ -7,13 +7,9 @@ export type PdfBasePageWidthInput = {
 };
 
 export const resolvePdfPageCornerRadius = (
-  viewportWidth: number,
-  viewportHeight: number
+  isTablet: boolean
 ) => {
-  const shortestViewportSide = Math.min(viewportWidth, viewportHeight);
-  return Number.isFinite(shortestViewportSide) && shortestViewportSide >= 600
-    ? 14
-    : 3;
+  return isTablet ? 14 : 3;
 };
 
 export const resolvePdfDoublePageContentWidth = ({

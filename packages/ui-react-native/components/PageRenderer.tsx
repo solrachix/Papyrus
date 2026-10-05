@@ -30,6 +30,7 @@ import {
 } from "@papyrus-sdk/types";
 import {
   PapyrusPageView,
+  isPapyrusTablet,
   type PapyrusPageViewProps,
 } from "@papyrus-sdk/engine-native";
 import { isMobilePerfEnabled, logPerfEvent, perfNow } from "../perf/mobilePerf";
@@ -214,10 +215,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   } | null>(null);
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const isNative = Platform.OS === "android" || Platform.OS === "ios";
-  const pageCornerRadius = resolvePdfPageCornerRadius(
-    windowWidth,
-    windowHeight
-  );
+  const pageCornerRadius = resolvePdfPageCornerRadius(isPapyrusTablet());
   const perfEnabled = isMobilePerfEnabled();
 
   useEffect(() => {

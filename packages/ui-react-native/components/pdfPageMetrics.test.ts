@@ -21,13 +21,11 @@ describe("resolvePdfFitPageHeight", () => {
 
 describe("resolvePdfPageCornerRadius", () => {
   it("keeps nearly full-width PDF pages almost square on phones in either orientation", () => {
-    expect(resolvePdfPageCornerRadius(390, 844)).toBe(3);
-    expect(resolvePdfPageCornerRadius(852, 393)).toBe(3);
+    expect(resolvePdfPageCornerRadius(false)).toBe(3);
   });
 
-  it("keeps the paper-card radius on tablet-sized viewports", () => {
-    expect(resolvePdfPageCornerRadius(1024, 768)).toBe(14);
-    expect(resolvePdfPageCornerRadius(768, 1024)).toBe(14);
+  it("keeps the tablet radius in compact split-screen windows", () => {
+    expect(resolvePdfPageCornerRadius(true)).toBe(14);
   });
 });
 

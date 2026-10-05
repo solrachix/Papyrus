@@ -3,11 +3,20 @@ package com.papyrus.engine;
 final class PapyrusRenderMath {
   static final long MAX_RENDER_PIXELS = 8L * 1024L * 1024L;
   static final int MAX_RENDER_EDGE = 4096;
+  static final int TABLET_SMALLEST_WIDTH_DP = 600;
+  static final float PDF_PAGE_PHONE_CORNER_RADIUS_DP = 3f;
+  static final float PDF_PAGE_TABLET_CORNER_RADIUS_DP = 14f;
   // Pdfium's compat surface becomes blank on the tested Android API when a
   // single page exceeds this edge during a configuration change.
   static final int COMPAT_MAX_RENDER_EDGE = 2048;
 
   private PapyrusRenderMath() {
+  }
+
+  static float resolvePdfPageCornerRadiusDp(int smallestScreenWidthDp) {
+    return smallestScreenWidthDp >= TABLET_SMALLEST_WIDTH_DP
+      ? PDF_PAGE_TABLET_CORNER_RADIUS_DP
+      : PDF_PAGE_PHONE_CORNER_RADIUS_DP;
   }
 
   static int[] constrainRenderSize(int requestedWidth, int requestedHeight) {
