@@ -267,6 +267,7 @@ export type PapyrusPdfViewerViewProps = ViewProps & {
   inkStrokeWidth?: number;
   annotationOpacity?: number;
   searchResults?: SearchResult[];
+  activeSearchIndex?: number;
   annotations?: Annotation[];
   onPageChanged?: (event: { nativeEvent: { page: number } }) => void;
   onZoomChanged?: (event: { nativeEvent: { zoom: number } }) => void;

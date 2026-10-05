@@ -41,6 +41,8 @@ export default function DedicatedIosPdfViewer({
   const pageTheme = useViewerStore((state) => state.pageTheme);
   const zoom = useViewerStore((state) => state.zoom);
   const currentPage = useViewerStore((state) => state.currentPage);
+  const searchResults = useViewerStore((state) => state.searchResults);
+  const activeSearchIndex = useViewerStore((state) => state.activeSearchIndex);
   const viewMode = useViewerStore((state) => state.viewMode);
   const selectionActive = useViewerStore((state) => state.selectionActive);
   const activeTool = useViewerStore((state) => state.activeTool);
@@ -254,6 +256,8 @@ export default function DedicatedIosPdfViewer({
         pageTheme={pageTheme}
         zoom={zoom}
         currentPage={currentPage}
+        searchResults={searchResults}
+        activeSearchIndex={activeSearchIndex}
         viewMode={nativeViewMode}
         selectionActive={selection !== null}
         onPageChange={(event) => {

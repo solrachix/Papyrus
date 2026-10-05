@@ -42,6 +42,8 @@ static NSDictionary *PapyrusNormalizedSelectionRect(CGRect rect, CGRect pageBoun
 @interface PapyrusPdfDocumentView () <UIEditMenuInteractionDelegate>
 @property (nonatomic, strong) PDFView *pdfView;
 @property (nonatomic, strong) UIEditMenuInteraction *editMenuInteraction;
+@property (nonatomic, copy) NSArray<PDFSelection *> *searchSelections;
+@property (nonatomic, copy) NSArray<NSNumber *> *searchSelectionResultIndices;
 @property (nonatomic, weak) UIScrollView *observedScrollView;
 @property (nonatomic, strong) UITapGestureRecognizer *tapRecognizer;
 @property (nonatomic, strong) UITapGestureRecognizer *doubleTapRecognizer;
@@ -62,6 +64,9 @@ static NSDictionary *PapyrusNormalizedSelectionRect(CGRect rect, CGRect pageBoun
 - (void)attemptSelectionEditMenuForSignature:(NSString *)signature generation:(NSUInteger)generation;
 - (BOOL)hasActiveGestureInView:(UIView *)view;
 - (void)emitDefineSelection;
+- (void)rebuildSearchHighlights;
+- (void)updateSearchHighlightColors;
+- (UIColor *)searchHighlightColorForActive:(BOOL)isActive;
 @end
 
 @implementation PapyrusPdfDocumentView
@@ -74,6 +79,10 @@ static NSDictionary *PapyrusNormalizedSelectionRect(CGRect rect, CGRect pageBoun
   _viewMode = @"continuous";
   _zoom = 1.0;
   _currentPage = 1;
+  _searchResults = @[];
+  _activeSearchIndex = -1;
+  _searchSelections = @[];
+  _searchSelectionResultIndices = @[];
   _lastEmittedPage = NSNotFound;
   _lastSelectionPageIndex = NSNotFound;
   _lastEmittedZoom = NAN;
@@ -242,6 +251,7 @@ static NSDictionary *PapyrusNormalizedSelectionRect(CGRect rect, CGRect pageBoun
       : nil;
   if (self.pdfView.document == document) {
     [self applyCurrentPage];
+    [self rebuildSearchHighlights];
     return;
   }
 
@@ -253,6 +263,7 @@ static NSDictionary *PapyrusNormalizedSelectionRect(CGRect rect, CGRect pageBoun
   [self clearCurrentSelection];
   self.pdfView.document = document;
   if (!document) {
+    [self rebuildSearchHighlights];
     self.lastEmittedZoom = NAN;
     _zoom = desiredZoom;
     self.suppressScaleSynchronization = wasSuppressingScaleSynchronization;
@@ -271,7 +282,133 @@ static NSDictionary *PapyrusNormalizedSelectionRect(CGRect rect, CGRect pageBoun
   [self applyNormalizedZoom];
   [self refreshScrollViewObservation];
   [self emitVisiblePagesIfNeeded];
+  [self rebuildSearchHighlights];
   self.suppressScaleSynchronization = wasSuppressingScaleSynchronization;
+}
+
+- (void)setSearchResults:(NSArray<NSDictionary *> *)searchResults {
+  _searchResults = [searchResults copy] ?: @[];
+  [self rebuildSearchHighlights];
+}
+
+- (void)setActiveSearchIndex:(NSInteger)activeSearchIndex {
+  _activeSearchIndex = activeSearchIndex;
+  [self updateSearchHighlightColors];
+}
+
+- (UIColor *)searchHighlightColorForActive:(BOOL)isActive {
+  return isActive
+      ? [UIColor colorWithRed:1.0 green:0.66 blue:0.08 alpha:0.54]
+      : [UIColor colorWithRed:1.0 green:0.82 blue:0.20 alpha:0.25];
+}
+
+- (void)rebuildSearchHighlights {
+  PDFDocument *document = self.pdfView.document;
+  if (!document || self.searchResults.count == 0) {
+    self.searchSelections = @[];
+    self.searchSelectionResultIndices = @[];
+    self.pdfView.highlightedSelections = nil;
+    return;
+  }
+
+  NSMutableArray<PDFSelection *> *selections =
+      [NSMutableArray arrayWithCapacity:self.searchResults.count];
+  NSMutableArray<NSNumber *> *resultIndices =
+      [NSMutableArray arrayWithCapacity:self.searchResults.count];
+  for (NSUInteger resultIndex = 0; resultIndex < self.searchResults.count; resultIndex += 1) {
+    id resultValue = self.searchResults[resultIndex];
+    if (![resultValue isKindOfClass:NSDictionary.class]) continue;
+    NSDictionary *result = (NSDictionary *)resultValue;
+    id pageIndexValue = result[@"pageIndex"];
+    if (![pageIndexValue isKindOfClass:NSNumber.class]) continue;
+    double pageIndexNumber = [pageIndexValue doubleValue];
+    if (!isfinite(pageIndexNumber) || floor(pageIndexNumber) != pageIndexNumber ||
+        pageIndexNumber < 0 || pageIndexNumber >= (double)document.pageCount) {
+      continue;
+    }
+    NSUInteger pageIndex = (NSUInteger)pageIndexNumber;
+
+    PDFPage *page = [document pageAtIndex:pageIndex];
+    id rectsValue = result[@"rects"];
+    NSArray *rects = [rectsValue isKindOfClass:NSArray.class] ? rectsValue : @[];
+    if (!page || rects.count == 0) continue;
+
+    CGRect pageBounds = [page boundsForBox:kPDFDisplayBoxCropBox];
+    if (pageBounds.size.width <= 0 || pageBounds.size.height <= 0) continue;
+
+    PDFSelection *match = [[PDFSelection alloc] initWithDocument:document];
+    BOOL hasSelectedText = NO;
+    for (id rectValue in rects) {
+      if (![rectValue isKindOfClass:NSDictionary.class]) continue;
+      NSDictionary *rect = (NSDictionary *)rectValue;
+      id xValue = rect[@"x"];
+      id yValue = rect[@"y"];
+      id widthValue = rect[@"width"];
+      id heightValue = rect[@"height"];
+      if (![xValue respondsToSelector:@selector(doubleValue)] ||
+          ![yValue respondsToSelector:@selector(doubleValue)] ||
+          ![widthValue respondsToSelector:@selector(doubleValue)] ||
+          ![heightValue respondsToSelector:@selector(doubleValue)]) {
+        continue;
+      }
+
+      CGFloat x = [xValue doubleValue];
+      CGFloat y = [yValue doubleValue];
+      CGFloat width = [widthValue doubleValue];
+      CGFloat height = [heightValue doubleValue];
+      if (!isfinite(x) || !isfinite(y) || !isfinite(width) || !isfinite(height) ||
+          width <= 0 || height <= 0) {
+        continue;
+      }
+
+      CGFloat normalizedX = MIN(1.0, MAX(0.0, x));
+      CGFloat normalizedY = MIN(1.0, MAX(0.0, y));
+      CGFloat normalizedRight = MIN(1.0, MAX(normalizedX, x + width));
+      CGFloat normalizedBottom = MIN(1.0, MAX(normalizedY, y + height));
+      CGFloat normalizedWidth = normalizedRight - normalizedX;
+      CGFloat normalizedHeight = normalizedBottom - normalizedY;
+      if (normalizedWidth <= 0 || normalizedHeight <= 0) continue;
+
+      CGRect pageRect = CGRectMake(
+          pageBounds.origin.x + normalizedX * pageBounds.size.width,
+          pageBounds.origin.y +
+              (1.0 - normalizedY - normalizedHeight) * pageBounds.size.height,
+          normalizedWidth * pageBounds.size.width,
+          normalizedHeight * pageBounds.size.height);
+      PDFSelection *lineSelection = [page selectionForRect:pageRect];
+      if (!lineSelection.string.length) continue;
+
+      [match addSelection:lineSelection];
+      hasSelectedText = YES;
+    }
+
+    if (!hasSelectedText) continue;
+    match.color = [self searchHighlightColorForActive:
+        ((NSInteger)resultIndex == self.activeSearchIndex)];
+    [selections addObject:match];
+    [resultIndices addObject:@(resultIndex)];
+  }
+
+  self.searchSelections = [selections copy];
+  self.searchSelectionResultIndices = [resultIndices copy];
+  self.pdfView.highlightedSelections =
+      self.searchSelections.count > 0 ? self.searchSelections : nil;
+}
+
+- (void)updateSearchHighlightColors {
+  if (self.searchSelections.count == 0) {
+    self.pdfView.highlightedSelections = nil;
+    return;
+  }
+
+  [self.searchSelections enumerateObjectsUsingBlock:^(PDFSelection *selection,
+                                                       NSUInteger index,
+                                                       BOOL *stop) {
+    NSInteger resultIndex = self.searchSelectionResultIndices[index].integerValue;
+    selection.color = [self searchHighlightColorForActive:
+        (resultIndex == self.activeSearchIndex)];
+  }];
+  self.pdfView.highlightedSelections = self.searchSelections;
 }
 
 - (void)configureDisplayMode {
