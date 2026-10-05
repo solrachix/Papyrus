@@ -4,6 +4,10 @@ import { useViewerStore } from "@papyrus-sdk/core";
 import type { DocumentEngine } from "@papyrus-sdk/types";
 import { PapyrusPdfDocumentView } from "@papyrus-sdk/engine-native";
 import { getStrings } from "../mobileStrings";
+import {
+  deleteAnnotationAndClearSelection,
+  resolveMarkupAnnotationDeleteFallback,
+} from "./annotationDeletion";
 import { resolvePageTapChromeVisibility } from "./mobileChromeInteraction";
 import { getDedicatedAndroidPdfEngineId } from "./DedicatedAndroidPdfViewer";
 import {
@@ -64,6 +68,11 @@ export default function DedicatedIosPdfViewer({
   const setDocumentState = useViewerStore((state) => state.setDocumentState);
   const engineId = getDedicatedAndroidPdfEngineId(engine);
   const nativeViewMode = viewMode === "single" ? "single" : "continuous";
+  const fallbackDeleteAnnotation = resolveMarkupAnnotationDeleteFallback(
+    annotations,
+    selectedAnnotationId,
+    supportsNativeEditMenu
+  );
   const resolvedMaxPageWidth =
     typeof maxPageWidth === "number" &&
     Number.isFinite(maxPageWidth) &&
@@ -255,6 +264,17 @@ export default function DedicatedIosPdfViewer({
     if (nextVisible !== null) setMobileChromeVisible(nextVisible);
   }, [activeTool, selectionActive, setMobileChromeVisible, setSelectedAnnotation]);
 
+  const handleDeleteAnnotation = useCallback(
+    (annotationId: string) => {
+      deleteAnnotationAndClearSelection(
+        annotationId,
+        removeAnnotation,
+        setSelectedAnnotation
+      );
+    },
+    [removeAnnotation, setSelectedAnnotation]
+  );
+
   const cappedViewerStyle = resolvedMaxPageWidth
     ? {
         width: "100%" as const,
@@ -318,7 +338,7 @@ export default function DedicatedIosPdfViewer({
           setSelectedAnnotation(event.nativeEvent.id)
         }
         onAnnotationDelete={(event) =>
-          removeAnnotation(event.nativeEvent.id)
+          handleDeleteAnnotation(event.nativeEvent.id)
         }
         onAnnotationDeselected={() => setSelectedAnnotation(null)}
       />
@@ -331,6 +351,26 @@ export default function DedicatedIosPdfViewer({
             accessibilityLabel={t.define}
           >
             <Text style={styles.fallbackButtonText}>{t.define}</Text>
+          </Pressable>
+        </View>
+      )}
+      {fallbackDeleteAnnotation && (
+        <View
+          style={styles.annotationDeleteFallback}
+          pointerEvents="box-none"
+        >
+          <Pressable
+            onPress={() =>
+              handleDeleteAnnotation(fallbackDeleteAnnotation.id)
+            }
+            style={styles.annotationDeleteButton}
+            accessibilityRole="button"
+            accessibilityLabel={t.deleteAnnotation}
+            hitSlop={8}
+          >
+            <Text style={styles.annotationDeleteButtonText}>
+              {t.deleteAnnotation}
+            </Text>
           </Pressable>
         </View>
       )}
@@ -362,6 +402,31 @@ const styles = StyleSheet.create({
     elevation: 10,
   },
   fallbackButtonText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  annotationDeleteFallback: {
+    position: "absolute",
+    left: 0,
+    right: 16,
+    bottom: 120,
+    alignItems: "flex-end",
+    justifyContent: "center",
+    zIndex: 51,
+  },
+  annotationDeleteButton: {
+    backgroundColor: "#b91c1c",
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 10,
+  },
+  annotationDeleteButtonText: {
     color: "#fff",
     fontSize: 12,
     fontWeight: "700",

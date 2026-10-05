@@ -201,7 +201,7 @@ describe("Papyrus iOS PDF annotation bridge", () => {
     expect(iosViewer).toMatch(
       /if \(nextSelection\) \{[\s\S]*?\} else \{\s*setSelectedAnnotation\(null\);/
     );
-    expect(iosViewer).toContain("removeAnnotation(event.nativeEvent.id)");
+    expect(iosViewer).toContain("handleDeleteAnnotation(event.nativeEvent.id)");
     expect(iosViewer).toContain("setSelectedAnnotation(null)");
     expect(iosViewer).toContain("onAnnotationDeselected");
   });
