@@ -105,6 +105,8 @@ export interface ViewerProps {
   onTextSelected?: (payload: { text: string; pageIndex: number }) => void;
   /** Called when the reader's Define action is pressed for the current selection. */
   onDefineSelection?: (payload: { text: string; pageIndex: number }) => void;
+  /** Controls which native PDF selections can be sent to the dictionary. */
+  defineSelectionMode?: "selection" | "single-word";
 }
 
 const LIST_TOP_PADDING = 18;
@@ -190,6 +192,7 @@ const Viewer: React.FC<ViewerProps> = ({
   pageScrubActive = false,
   onTextSelected,
   onDefineSelection,
+  defineSelectionMode = "selection",
 }) => {
   const pageCount = useViewerStore((state) => state.pageCount);
   const currentPage = useViewerStore((state) => state.currentPage);
@@ -246,6 +249,10 @@ const Viewer: React.FC<ViewerProps> = ({
     activeTool,
     nativeInkOverlayAvailable,
   });
+  useEffect(() => {
+    setDocumentState({ nativePdfViewerActive: isNativePdfViewer });
+    return () => setDocumentState({ nativePdfViewerActive: false });
+  }, [isNativePdfViewer, setDocumentState]);
   useEffect(() => {
     mobilePerf.emit(
       "viewer.mode",
@@ -2223,6 +2230,7 @@ const Viewer: React.FC<ViewerProps> = ({
         <NativePdfDocumentViewer engine={engine} maxPageWidth={maxPageWidth}
           onTextSelected={onTextSelected}
           onDefineSelection={onDefineSelection}
+          defineSelectionMode={defineSelectionMode}
         />
       </View>
     );

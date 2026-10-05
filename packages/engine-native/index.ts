@@ -286,11 +286,15 @@ export type PapyrusPdfViewerViewProps = ViewProps & {
   onInkDrawingCommitted?: (event: {
     nativeEvent: { pageIndex: number; strokes: InkStrokeCommit[] };
   }) => void;
+  onInkToolPickerVisibilityChange?: (event: {
+    nativeEvent: { visible: boolean };
+  }) => void;
   onTextSelected?: (event: { nativeEvent: { text: string; pageIndex: number; rects: { x: number; y: number; width: number; height: number }[] } }) => void;
   onDefineSelection?: (event: { nativeEvent: { text: string; pageIndex: number } }) => void;
   onScroll?: (event: { nativeEvent: { offsetY: number } }) => void;
   selectionActive?: boolean;
   defineLabel?: string;
+  defineSelectionMode?: "selection" | "single-word";
   annotateLabel?: string;
   annotationHighlightLabel?: string;
   annotationUnderlineLabel?: string;

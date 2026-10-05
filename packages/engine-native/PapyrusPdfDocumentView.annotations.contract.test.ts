@@ -296,7 +296,12 @@ describe("Papyrus iOS PDF annotation bridge", () => {
     const attempt = method("- (void)attemptSelectionEditMenuForSignature:");
     expect(menu).toContain("suggestedActions");
     expect(menu).toContain("self.onDefineSelection");
+    expect(menu).toContain("self.defineSelectionMode");
+    expect(menu).toContain("isSingleWordSelection");
     expect(menu).toContain("self.onAnnotationCreated");
+    expect(menu.indexOf("actions addObject:defineAction")).toBeLessThan(
+      menu.indexOf("addObjectsFromArray:suggestedActions")
+    );
     expect(menu).toContain("UIMenu menuWithTitle:self.annotateLabel");
     for (const title of [
       "annotationHighlightLabel",

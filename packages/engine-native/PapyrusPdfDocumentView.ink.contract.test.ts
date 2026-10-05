@@ -39,6 +39,25 @@ describe("native PDF PencilKit overlay contract", () => {
     expect(source).toContain("canvas.scrollEnabled = NO");
   });
 
+  it("enables the public UIView ancestor chain for PencilKit hit testing", () => {
+    const callback = source.match(
+      /- \(void\)pdfView:\(PDFView \*\)pdfView\s+willDisplayOverlayView:[\s\S]*?\n\}/
+    )?.[0];
+
+    expect(callback).toContain("while (ancestor && ancestor != pdfView)");
+    expect(callback).toContain("ancestor.userInteractionEnabled = YES");
+  });
+
+  it("reports native tool picker visibility so dismissal exits ink mode", () => {
+    expect(header).toContain("onInkToolPickerVisibilityChange");
+    expect(manager).toContain(
+      "RCT_EXPORT_VIEW_PROPERTY(onInkToolPickerVisibilityChange, RCTBubblingEventBlock)"
+    );
+    expect(engineIndex).toContain("onInkToolPickerVisibilityChange?:");
+    expect(source).toContain("toolPickerVisibilityDidChange:");
+    expect(source).toContain("onInkToolPickerVisibilityChange(@{");
+  });
+
   it("reconstructs page drawings from store annotations and releases offscreen overlays", () => {
     expect(source).toContain("initWithStrokes:");
     expect(source).toContain('annotation[@"path"]');

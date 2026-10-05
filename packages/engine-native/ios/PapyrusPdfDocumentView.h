@@ -23,6 +23,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, copy, nullable) NSString *selectedAnnotationId;
 @property (nonatomic, assign) BOOL selectionActive;
 @property (nonatomic, copy) NSString *defineLabel;
+@property (nonatomic, copy) NSString *defineSelectionMode;
 @property (nonatomic, copy) NSString *annotateLabel;
 @property (nonatomic, copy) NSString *annotationHighlightLabel;
 @property (nonatomic, copy) NSString *annotationUnderlineLabel;
@@ -40,6 +41,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, copy, nullable) RCTBubblingEventBlock onAnnotationDelete;
 @property (nonatomic, copy, nullable) RCTBubblingEventBlock onAnnotationDeselected;
 @property (nonatomic, copy, nullable) RCTBubblingEventBlock onInkDrawingCommitted;
+@property (nonatomic, copy, nullable) RCTBubblingEventBlock onInkToolPickerVisibilityChange;
 @property (nonatomic, copy, nullable) RCTDirectEventBlock onScroll;
 @property (nonatomic, copy, nullable) RCTBubblingEventBlock onTap;
 

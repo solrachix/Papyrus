@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Pressable, StyleSheet, useWindowDimensions } from "react-native";
+import { View, Pressable, StyleSheet, useWindowDimensions, Platform } from "react-native";
 import { useViewerStore } from "@papyrus-sdk/core";
 import { DocumentType, MobilePrimaryDestination } from "@papyrus-sdk/types";
 import { getStrings } from "../mobileStrings";
@@ -12,7 +12,10 @@ import {
 } from "../icons";
 import { buildBottomBarLayout, BottomBarSlotKey } from "./bottomBarModel";
 import { getToolDockDismissState } from "../gesture/selectionInteraction";
-import { createOpenDestinationHandler } from "./BottomBar.actions";
+import {
+  createOpenDestinationHandler,
+  resolveAnnotateButtonAction,
+} from "./BottomBar.actions";
 import { MOBILE_CHROME_METRICS } from "./mobileChromeMetrics";
 import { resolveMobileChromeOffsets } from "./mobileChromeMetrics";
 import { usePapyrusSafeAreaInsets } from "./PapyrusSafeArea";
@@ -41,6 +44,7 @@ const BottomBar: React.FC<BottomBarProps> = ({
     toolDockOpen,
     activeTool,
     interactionMode,
+    nativePdfViewerActive,
   } = useViewerStore();
   const isDark = uiTheme === "dark";
   const t = getStrings(locale);
@@ -71,7 +75,36 @@ const BottomBar: React.FC<BottomBarProps> = ({
       label: t.tools,
       icon: IconToolDockTrigger,
       onPress: () => {
-        if (toolDockOpen) {
+        const isNativeIosInkViewer =
+          Platform.OS === "ios" &&
+          Number.parseInt(String(Platform.Version), 10) >= 16 &&
+          nativePdfViewerActive;
+        const action = resolveAnnotateButtonAction({
+          isNativeIosInkViewer,
+          activeTool,
+          toolDockOpen,
+        });
+        if (action === "activate-native-ink") {
+          setDocumentState({
+            activeTool: "ink",
+            activeDrawToolPreset: "ink",
+            interactionMode: "pan",
+            toolDockOpen: false,
+            activeMobileDestination: "none",
+          });
+          return;
+        }
+        if (action === "deactivate-native-ink") {
+          setDocumentState({
+            activeTool: "select",
+            interactionMode: "pan",
+            nativeInkToolPickerActive: false,
+            toolDockOpen: false,
+            activeMobileDestination: "none",
+          });
+          return;
+        }
+        if (action === "dismiss-tool-dock") {
           setDocumentState({
             ...getToolDockDismissState({
               activeTool,

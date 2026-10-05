@@ -14,6 +14,7 @@ type NativePdfDocumentViewerProps = {
   maxPageWidth?: number;
   onTextSelected?: (payload: { text: string; pageIndex: number }) => void;
   onDefineSelection?: (payload: { text: string; pageIndex: number }) => void;
+  defineSelectionMode?: "selection" | "single-word";
 };
 
 export default function NativePdfDocumentViewer({
@@ -21,6 +22,7 @@ export default function NativePdfDocumentViewer({
   maxPageWidth,
   onTextSelected,
   onDefineSelection,
+  defineSelectionMode,
 }: NativePdfDocumentViewerProps) {
   const implementation = resolveNativePdfViewerImplementation(
     Platform.OS
@@ -42,6 +44,7 @@ export default function NativePdfDocumentViewer({
         maxPageWidth={maxPageWidth}
         onTextSelected={onTextSelected}
         onDefineSelection={onDefineSelection}
+        defineSelectionMode={defineSelectionMode}
       />
     );
   }

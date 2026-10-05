@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
   PanResponder,
+  Pressable,
   StyleSheet,
   Text,
   View,
@@ -9,6 +10,8 @@ import {
 } from "react-native";
 import { useViewerStore } from "@papyrus-sdk/core";
 import { DocumentType } from "@papyrus-sdk/types";
+import { getStrings } from "../mobileStrings";
+import { resolveProgressPillMode } from "./progressPillMode";
 import { IconPageNav } from "../icons";
 import { resolveMobileChromeOffsets } from "./mobileChromeMetrics";
 import { usePapyrusSafeAreaInsets } from "./PapyrusSafeArea";
@@ -48,11 +51,14 @@ export function ProgressPill({
   const {
     currentPage,
     pageCount,
+    viewMode,
+    locale,
     uiTheme,
     accentColor,
     mobileChromeVisible,
     mobileProgressPillVisible,
   } = useViewerStore();
+  const t = getStrings(locale);
   const isDark = uiTheme === "dark";
   const offsets = resolveMobileChromeOffsets(usePapyrusSafeAreaInsets());
   const { height: windowHeight } = useWindowDimensions();
@@ -159,6 +165,52 @@ export function ProgressPill({
     })
   ) {
     return null;
+  }
+
+  const pillMode = resolveProgressPillMode(viewMode, currentPage, pageCount);
+  if (pillMode.kind === "navigation") {
+    const previousDisabled = pillMode.previousPage === null || !onNavigateToPage;
+    const nextDisabled = pillMode.nextPage === null || !onNavigateToPage;
+    return (
+      <View
+        pointerEvents="box-none"
+        style={[styles.frame, styles.singleFrame, { top: offsets.progress, right: offsets.right }]}
+      >
+        <View style={[styles.singlePill, isDark && styles.pillDark]}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t.previousPage}
+            accessibilityState={{ disabled: previousDisabled }}
+            disabled={previousDisabled}
+            onPress={() => pillMode.previousPage !== null && onNavigateToPageRef.current?.(pillMode.previousPage)}
+            style={styles.pageArrowHit}
+            testID="papyrus-progress-page-previous"
+          >
+            <Text style={[styles.pageArrow, isDark && styles.labelDark, previousDisabled && styles.pageArrowDisabled]}>‹</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${currentPage}/${pageCount || 0}`}
+            onPress={() => onPressRef.current()}
+            style={styles.singlePageCenter}
+            testID="papyrus-progress-page-grid"
+          >
+            <Text style={[styles.label, isDark && styles.labelDark]}>{currentPage}/{pageCount || 0}</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t.nextPage}
+            accessibilityState={{ disabled: nextDisabled }}
+            disabled={nextDisabled}
+            onPress={() => pillMode.nextPage !== null && onNavigateToPageRef.current?.(pillMode.nextPage)}
+            style={styles.pageArrowHit}
+            testID="papyrus-progress-page-next"
+          >
+            <Text style={[styles.pageArrow, isDark && styles.labelDark, nextDisabled && styles.pageArrowDisabled]}>›</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
   }
 
   const scrubToPosition = (position: number) => {
@@ -382,6 +434,42 @@ const styles = StyleSheet.create({
     width: 132,
     position: "relative",
     marginRight: 4,
+  },
+  singleFrame: {
+    bottom: "auto",
+  },
+  singlePill: {
+    minWidth: 150,
+    minHeight: 44,
+    marginRight: 4,
+    paddingHorizontal: 4,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(148,163,184,0.35)",
+    backgroundColor: "rgba(255,255,255,0.9)",
+    elevation: 6,
+  },
+  pageArrowHit: {
+    width: 38,
+    height: 38,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pageArrow: {
+    fontSize: 28,
+    lineHeight: 32,
+    color: "#111827",
+  },
+  pageArrowDisabled: {
+    opacity: 0.28,
+  },
+  singlePageCenter: {
+    minWidth: 64,
+    alignItems: "center",
+    justifyContent: "center",
   },
   track: {
     position: "absolute",

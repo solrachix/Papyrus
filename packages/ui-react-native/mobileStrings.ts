@@ -70,6 +70,8 @@ type Strings = {
   annotationSquiggly: string;
   annotationNote: string;
   deleteAnnotation: string;
+  previousPage: string;
+  nextPage: string;
 };
 
 const STRINGS: Record<Locale, Strings> = {
@@ -143,6 +145,8 @@ const STRINGS: Record<Locale, Strings> = {
     annotationSquiggly: "Squiggly",
     annotationNote: "Note",
     deleteAnnotation: "Delete",
+    previousPage: "Previous page",
+    nextPage: "Next page",
   },
   "pt-BR": {
     pages: "Paginas",
@@ -214,6 +218,8 @@ const STRINGS: Record<Locale, Strings> = {
     annotationSquiggly: "Ondulado",
     annotationNote: "Nota",
     deleteAnnotation: "Apagar",
+    previousPage: "Página anterior",
+    nextPage: "Próxima página",
   },
 };
 

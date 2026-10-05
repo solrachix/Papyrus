@@ -96,6 +96,7 @@ interface ViewerState {
   mobileProgressPillVisible: boolean;
   visiblePages: PdfVisiblePage[];
   nativeViewportGestureActive: boolean;
+  nativePdfViewerActive: boolean;
   annotationUndoStack: Array<{
     annotations: Annotation[];
     selectedAnnotationId: string | null;
@@ -176,6 +177,7 @@ const getDefaultViewerState = () => ({
   activeTool: "select" as const,
   activeDrawToolPreset: "ink" as const,
   nativeInkToolPickerActive: false,
+  nativePdfViewerActive: false,
   selectedAnnotationId: null as string | null,
   interactionMode: "pan" as const,
   selectionActive: false,

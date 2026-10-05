@@ -31,6 +31,7 @@ type DedicatedIosPdfViewerProps = {
   maxPageWidth?: number;
   onTextSelected?: (payload: { text: string; pageIndex: number }) => void;
   onDefineSelection?: (payload: { text: string; pageIndex: number }) => void;
+  defineSelectionMode?: "selection" | "single-word";
 };
 
 export default function DedicatedIosPdfViewer({
@@ -38,6 +39,7 @@ export default function DedicatedIosPdfViewer({
   maxPageWidth,
   onTextSelected,
   onDefineSelection,
+  defineSelectionMode = "selection",
 }: DedicatedIosPdfViewerProps) {
   const locale = useViewerStore((state) => state.locale);
   const t = getStrings(locale);
@@ -186,6 +188,23 @@ export default function DedicatedIosPdfViewer({
       updateSelection(null);
     },
     [onDefineSelection, updateSelection]
+  );
+
+  const handleInkToolPickerVisibilityChange = useCallback(
+    (event: { nativeEvent?: { visible?: unknown } }) => {
+      const visible = event.nativeEvent?.visible === true;
+      if (!visible && activeTool === "ink") {
+        setDocumentState({
+          activeTool: "select",
+          interactionMode: "pan",
+          nativeInkToolPickerActive: false,
+          toolDockOpen: false,
+        });
+        return;
+      }
+      setDocumentState({ nativeInkToolPickerActive: visible });
+    },
+    [activeTool, setDocumentState]
   );
 
   const trackMobileChromeByOffset = useCallback(
@@ -342,6 +361,7 @@ export default function DedicatedIosPdfViewer({
         onTap={handleTap}
         onTextSelected={handleTextSelectionChange}
         defineLabel={t.define}
+        defineSelectionMode={defineSelectionMode}
         annotateLabel={t.annotate}
         annotationHighlightLabel={t.annotationHighlight}
         annotationUnderlineLabel={t.annotationUnderline}
@@ -373,6 +393,7 @@ export default function DedicatedIosPdfViewer({
           }
           commitInkStrokesForPage(pageIndex, strokes);
         }}
+        onInkToolPickerVisibilityChange={handleInkToolPickerVisibilityChange}
       />
       {selection && !supportsNativeEditMenu && onDefineSelection && (
         <View style={styles.selectionFallback} pointerEvents="box-none">

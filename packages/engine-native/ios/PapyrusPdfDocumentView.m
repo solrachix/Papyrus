@@ -288,6 +288,7 @@ static NSString *PapyrusHexColorFromUIColor(UIColor *color, CGFloat *opacity) {
 - (void)attemptSelectionEditMenuForSignature:(NSString *)signature generation:(NSUInteger)generation;
 - (BOOL)hasActiveGestureInView:(UIView *)view;
 - (void)emitDefineSelection;
+- (BOOL)isSingleWordSelection:(NSString *)text;
 - (void)rebuildSearchHighlights;
 - (void)updateSearchHighlightColorsFromResultIndex:(NSInteger)previousSearchIndex;
 - (void)scheduleNavigationToSearchResultAtIndex:(NSInteger)activeSearchIndex;
@@ -643,9 +644,13 @@ static NSString *PapyrusHexColorFromUIColor(UIColor *color, CGFloat *opacity) {
 - (void)pdfView:(PDFView *)pdfView
     willDisplayOverlayView:(UIView *)overlayView
                  forPage:(PDFPage *)page {
-  (void)pdfView;
   (void)page;
   if (![overlayView isKindOfClass:PapyrusPdfPageInkCanvasView.class]) return;
+  UIView *ancestor = overlayView.superview;
+  while (ancestor && ancestor != pdfView) {
+    ancestor.userInteractionEnabled = YES;
+    ancestor = ancestor.superview;
+  }
   PapyrusPdfPageInkCanvasView *canvas = (PapyrusPdfPageInkCanvasView *)overlayView;
   self.inkCanvasesByPageIndex[@(canvas.papyrusPageIndex)] = canvas;
   [self applyStoreInkAnnotationsToCanvas:canvas force:NO];
@@ -1016,6 +1021,13 @@ static NSString *PapyrusHexColorFromUIColor(UIColor *color, CGFloat *opacity) {
   // Papyrus stores normalized centerlines rather than PencilKit masks, so keep
   // erasing stroke-based and representable by the shared Annotation model.
   toolPicker.selectedTool = [[PKEraserTool alloc] initWithEraserType:PKEraserTypeVector];
+}
+
+- (void)toolPickerVisibilityDidChange:(PKToolPicker *)toolPicker {
+  if (toolPicker != self.activeInkToolPicker) return;
+  if (self.onInkToolPickerVisibilityChange) {
+    self.onInkToolPickerVisibilityChange(@{@"visible" : @(toolPicker.isVisible)});
+  }
 }
 
 - (void)resetInkOverlaysForDocumentChange {
@@ -1767,11 +1779,12 @@ static NSString *PapyrusHexColorFromUIColor(UIColor *color, CGFloat *opacity) {
     return [UIMenu menuWithChildren:@[deleteAction]];
   }
 
-  NSMutableArray<UIMenuElement *> *actions = [suggestedActions mutableCopy];
-  if (!actions) actions = [NSMutableArray array];
+  NSMutableArray<UIMenuElement *> *actions = [NSMutableArray array];
 
   if (self.onDefineSelection && self.defineLabel.length > 0 &&
-      self.pdfView.currentSelection.string.length > 0) {
+      self.pdfView.currentSelection.string.length > 0 &&
+      (![self.defineSelectionMode isEqualToString:@"single-word"] ||
+       [self isSingleWordSelection:self.pdfView.currentSelection.string])) {
     __weak typeof(self) weakSelf = self;
     UIAction *defineAction = [UIAction
         actionWithTitle:self.defineLabel
@@ -1827,7 +1840,18 @@ static NSString *PapyrusHexColorFromUIColor(UIColor *color, CGFloat *opacity) {
     [actions addObject:annotationMenu];
   }
 
+  [actions addObjectsFromArray:suggestedActions ?: @[]];
+
   return [UIMenu menuWithChildren:actions];
+}
+
+- (BOOL)isSingleWordSelection:(NSString *)text {
+  NSString *trimmed = [text stringByTrimmingCharactersInSet:
+      NSCharacterSet.whitespaceAndNewlineCharacterSet];
+  if (trimmed.length == 0) return NO;
+  NSArray<NSString *> *words = [trimmed componentsSeparatedByCharactersInSet:
+      NSCharacterSet.whitespaceAndNewlineCharacterSet];
+  return words.count == 1 && words.firstObject.length > 0;
 }
 
 - (CGRect)editMenuInteraction:(UIEditMenuInteraction *)interaction
