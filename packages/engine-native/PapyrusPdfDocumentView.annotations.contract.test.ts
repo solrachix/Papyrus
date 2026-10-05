@@ -40,6 +40,8 @@ describe("Papyrus iOS PDF annotation bridge", () => {
       "NSString *annotationColor",
       "CGFloat annotationOpacity",
       "NSString *selectedAnnotationId",
+      "NSString *annotationSelectionColor",
+      "NSString *annotationDeleteLabel",
       "NSString *annotateLabel",
       "NSString *annotationHighlightLabel",
       "NSString *annotationUnderlineLabel",
@@ -48,6 +50,8 @@ describe("Papyrus iOS PDF annotation bridge", () => {
       "NSString *annotationNoteLabel",
       "RCTBubblingEventBlock onAnnotationCreated",
       "RCTBubblingEventBlock onAnnotationTap",
+      "RCTBubblingEventBlock onAnnotationDelete",
+      "RCTBubblingEventBlock onAnnotationDeselected",
     ]) {
       expect(header).toContain(property);
     }
@@ -57,6 +61,8 @@ describe("Papyrus iOS PDF annotation bridge", () => {
       "annotationColor, NSString",
       "annotationOpacity, CGFloat",
       "selectedAnnotationId, NSString",
+      "annotationSelectionColor, NSString",
+      "annotationDeleteLabel, NSString",
       "annotateLabel, NSString",
       "annotationHighlightLabel, NSString",
       "annotationUnderlineLabel, NSString",
@@ -65,13 +71,19 @@ describe("Papyrus iOS PDF annotation bridge", () => {
       "annotationNoteLabel, NSString",
       "onAnnotationCreated, RCTBubblingEventBlock",
       "onAnnotationTap, RCTBubblingEventBlock",
+      "onAnnotationDelete, RCTBubblingEventBlock",
+      "onAnnotationDeselected, RCTBubblingEventBlock",
     ]) {
       expect(manager).toContain(`RCT_EXPORT_VIEW_PROPERTY(${property})`);
     }
     expect(engineIndex).toContain("annotations?: Annotation[]");
     expect(engineIndex).toContain("selectedAnnotationId?: string | null");
+    expect(engineIndex).toContain("annotationSelectionColor?: string");
+    expect(engineIndex).toContain("annotationDeleteLabel?: string");
     expect(engineIndex).toContain("onAnnotationCreated?:");
     expect(engineIndex).toContain("onAnnotationTap?:");
+    expect(engineIndex).toContain("onAnnotationDelete?:");
+    expect(engineIndex).toContain("onAnnotationDeselected?:");
   });
 
   it("passes the store annotation state and native callbacks from the iOS viewer", () => {
@@ -83,6 +95,8 @@ describe("Papyrus iOS PDF annotation bridge", () => {
       "state.selectedAnnotationId",
       "state.addAnnotation",
       "state.setSelectedAnnotation",
+      "state.removeAnnotation",
+      "state.accentColor",
     ]) {
       expect(iosViewer).toContain(selector);
     }
@@ -92,6 +106,8 @@ describe("Papyrus iOS PDF annotation bridge", () => {
       "annotationColor={annotationColor}",
       "annotationOpacity={annotationOpacity}",
       "selectedAnnotationId={selectedAnnotationId}",
+      "annotationSelectionColor={annotationSelectionColor}",
+      "annotationDeleteLabel={t.deleteAnnotation}",
       "annotateLabel={t.annotate}",
       "annotationHighlightLabel={t.annotationHighlight}",
       "annotationUnderlineLabel={t.annotationUnderline}",
@@ -100,6 +116,8 @@ describe("Papyrus iOS PDF annotation bridge", () => {
       "annotationNoteLabel={t.annotationNote}",
       "onAnnotationCreated",
       "onAnnotationTap",
+      "onAnnotationDelete",
+      "onAnnotationDeselected",
     ]) {
       expect(iosViewer).toContain(prop);
     }
@@ -132,6 +150,77 @@ describe("Papyrus iOS PDF annotation bridge", () => {
       "clearPapyrusAnnotationsForDocument:self.pdfView.document"
     );
     expect(reconcile).not.toContain("page.annotations");
+  });
+
+  it("draws selected annotation outlines as a separate temporary PDFKit layer", () => {
+    const setter = method("- (void)setSelectedAnnotationId:");
+    const update = method("- (void)updateSelectedAnnotationAdornment");
+    const clear = method("- (void)removeSelectedAnnotationAdornment");
+    expect(setter).toContain("updateSelectedAnnotationAdornment");
+    expect(update).toContain("papyrusAnnotationsById");
+    expect(update).toContain("PapyrusSelectionOutlinePdfAnnotation");
+    expect(update).toContain("annotationSelectionColor");
+    expect(update).toContain("selectedAnnotationAdornmentAnnotations");
+    expect(update).toContain("addAnnotation:");
+    expect(update).not.toContain("self.annotations =");
+    expect(update).not.toMatch(/papyrusAnnotationsById\[[^\]]+\]\s*=/);
+    expect(update).not.toContain("currentSelection =");
+    expect(update).not.toContain("highlightedSelections =");
+    expect(clear).toContain("removeAnnotation:");
+    expect(clear).toContain("selectedAnnotationAdornmentAnnotations = @[]");
+    expect(method("- (void)reconcilePapyrusAnnotations")).toContain(
+      "updateSelectedAnnotationAdornment"
+    );
+  });
+
+  it("routes native Delete through JS and clears annotation selection when its menu closes", () => {
+    const menu = method("- (nullable UIMenu *)editMenuInteraction:");
+    const emitDelete = method("- (void)emitAnnotationDeleteWithId:");
+    const dismissed = method(
+      "- (void)editMenuInteraction:(UIEditMenuInteraction *)interaction\n    willDismissMenuForConfiguration:"
+    );
+    const present = method("- (void)presentAnnotationEditMenuForId:");
+    const tap = method("- (void)handleDocumentTap:");
+    expect(menu).toContain("contextualAnnotationMenuId");
+    expect(menu).toContain("self.annotationDeleteLabel");
+    expect(menu).toContain("self.onAnnotationDelete");
+    expect(menu).toContain("emitAnnotationDeleteWithId:");
+    expect(dismissed).toContain("onAnnotationDeselected");
+    expect(present).toContain("[[NSUUID UUID] UUIDString]");
+    expect(tap).toContain("presentAnnotationEditMenuForId:");
+    expect(tap).toContain("onAnnotationTap");
+    expect(tap).toContain("return;");
+    expect(method("- (void)emitAnnotationDeleteWithId:")).toContain(
+      "self.onAnnotationDelete(@{@\"id\" : annotationId})"
+    );
+    expect(emitDelete).not.toContain("removePapyrusAnnotationWithId:");
+    expect(emitDelete).toContain("papyrusAnnotationsById[annotationId]");
+    expect(iosViewer).toMatch(
+      /const handleTap = useCallback\(\(\) => \{\s*setSelectedAnnotation\(null\);/
+    );
+    expect(iosViewer).toMatch(
+      /if \(nextSelection\) \{[\s\S]*?\} else \{\s*setSelectedAnnotation\(null\);/
+    );
+    expect(iosViewer).toContain("removeAnnotation(event.nativeEvent.id)");
+    expect(iosViewer).toContain("setSelectedAnnotation(null)");
+    expect(iosViewer).toContain("onAnnotationDeselected");
+  });
+
+  it("invalidates contextual deletion before switching the PDF document", () => {
+    const reload = method("- (void)reloadDocumentFromStore");
+    const reset = method("- (void)dismissAnnotationMenuForDocumentChange");
+    const menu = method("- (nullable UIMenu *)editMenuInteraction:");
+    const resetIndex = reload.indexOf("dismissAnnotationMenuForDocumentChange");
+    const documentSwapIndex = reload.indexOf("self.pdfView.document = document");
+    expect(resetIndex).toBeGreaterThanOrEqual(0);
+    expect(resetIndex).toBeLessThan(documentSwapIndex);
+    expect(reset).toContain("dismissMenu");
+    expect(reset).toContain("contextualAnnotationMenuId = nil");
+    expect(reset).toContain("contextualAnnotationMenuConfigurationId = nil");
+    expect(reset).toContain("onAnnotationDeselected");
+    expect(reset).not.toContain("return;");
+    expect(menu).toContain("documentAtPresentation");
+    expect(menu).toContain("strongSelf.pdfView.document != documentAtPresentation");
   });
 
   it("maps normalized crop-box coordinates once for annotations and search", () => {

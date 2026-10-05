@@ -48,11 +48,13 @@ export default function DedicatedIosPdfViewer({
   const activeTool = useViewerStore((state) => state.activeTool);
   const annotations = useViewerStore((state) => state.annotations);
   const annotationColor = useViewerStore((state) => state.annotationColor);
+  const annotationSelectionColor = useViewerStore((state) => state.accentColor);
   const annotationOpacity = useViewerStore((state) => state.annotationOpacity);
   const selectedAnnotationId = useViewerStore(
     (state) => state.selectedAnnotationId
   );
   const addAnnotation = useViewerStore((state) => state.addAnnotation);
+  const removeAnnotation = useViewerStore((state) => state.removeAnnotation);
   const setSelectedAnnotation = useViewerStore(
     (state) => state.setSelectedAnnotation
   );
@@ -121,9 +123,11 @@ export default function DedicatedIosPdfViewer({
       if (nextSelection) {
         const { text, pageIndex } = nextSelection;
         onTextSelected?.({ text, pageIndex });
+      } else {
+        setSelectedAnnotation(null);
       }
     },
-    [onTextSelected, updateSelection]
+    [onTextSelected, setSelectedAnnotation, updateSelection]
   );
 
   const defineSelection = useCallback(() => {
@@ -239,6 +243,7 @@ export default function DedicatedIosPdfViewer({
   );
 
   const handleTap = useCallback(() => {
+    setSelectedAnnotation(null);
     const nextVisible = resolvePageTapChromeVisibility({
       chromeVisible: chromeVisibleRef.current,
       selectionActive: selectionActive || selectionRef.current !== null,
@@ -248,7 +253,7 @@ export default function DedicatedIosPdfViewer({
       toolActive: activeTool !== "select",
     });
     if (nextVisible !== null) setMobileChromeVisible(nextVisible);
-  }, [activeTool, selectionActive, setMobileChromeVisible]);
+  }, [activeTool, selectionActive, setMobileChromeVisible, setSelectedAnnotation]);
 
   const cappedViewerStyle = resolvedMaxPageWidth
     ? {
@@ -271,6 +276,7 @@ export default function DedicatedIosPdfViewer({
         annotations={annotations}
         activeTool={activeTool}
         annotationColor={annotationColor}
+        annotationSelectionColor={annotationSelectionColor}
         annotationOpacity={annotationOpacity}
         selectedAnnotationId={selectedAnnotationId}
         viewMode={nativeViewMode}
@@ -303,6 +309,7 @@ export default function DedicatedIosPdfViewer({
         annotationStrikeoutLabel={t.annotationStrikeout}
         annotationSquigglyLabel={t.annotationSquiggly}
         annotationNoteLabel={t.annotationNote}
+        annotationDeleteLabel={t.deleteAnnotation}
         onDefineSelection={
           onDefineSelection ? handleNativeDefineSelection : undefined
         }
@@ -310,6 +317,10 @@ export default function DedicatedIosPdfViewer({
         onAnnotationTap={(event) =>
           setSelectedAnnotation(event.nativeEvent.id)
         }
+        onAnnotationDelete={(event) =>
+          removeAnnotation(event.nativeEvent.id)
+        }
+        onAnnotationDeselected={() => setSelectedAnnotation(null)}
       />
       {selection && !supportsNativeEditMenu && onDefineSelection && (
         <View style={styles.selectionFallback} pointerEvents="box-none">

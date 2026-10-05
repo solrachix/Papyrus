@@ -264,6 +264,7 @@ export type PapyrusPdfViewerViewProps = ViewProps & {
   currentPage?: number;
   activeTool?: string;
   annotationColor?: string;
+  annotationSelectionColor?: string;
   inkStrokeWidth?: number;
   annotationOpacity?: number;
   searchResults?: SearchResult[];
@@ -278,6 +279,8 @@ export type PapyrusPdfViewerViewProps = ViewProps & {
   onAnnotationCreated?: (event: { nativeEvent: Annotation }) => void;
   onTap?: (event: { nativeEvent: { pageIndex: number; x: number; y: number } }) => void;
   onAnnotationTap?: (event: { nativeEvent: { id: string; pageIndex: number; type: string; color: string } }) => void;
+  onAnnotationDelete?: (event: { nativeEvent: { id: string } }) => void;
+  onAnnotationDeselected?: (event: { nativeEvent: Record<string, never> }) => void;
   onTextSelected?: (event: { nativeEvent: { text: string; pageIndex: number; rects: { x: number; y: number; width: number; height: number }[] } }) => void;
   onDefineSelection?: (event: { nativeEvent: { text: string; pageIndex: number } }) => void;
   onScroll?: (event: { nativeEvent: { offsetY: number } }) => void;
@@ -289,6 +292,7 @@ export type PapyrusPdfViewerViewProps = ViewProps & {
   annotationStrikeoutLabel?: string;
   annotationSquigglyLabel?: string;
   annotationNoteLabel?: string;
+  annotationDeleteLabel?: string;
   viewMode?: "continuous" | "single";
 };
 
