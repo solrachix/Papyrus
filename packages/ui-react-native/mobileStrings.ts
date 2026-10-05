@@ -63,6 +63,12 @@ type Strings = {
   close: string;
   copy: string;
   define: string;
+  annotate: string;
+  annotationHighlight: string;
+  annotationUnderline: string;
+  annotationStrikeout: string;
+  annotationSquiggly: string;
+  annotationNote: string;
 };
 
 const STRINGS: Record<Locale, Strings> = {
@@ -129,6 +135,12 @@ const STRINGS: Record<Locale, Strings> = {
     close: "Close",
     copy: "Copy",
     define: "Define",
+    annotate: "Annotate",
+    annotationHighlight: "Highlight",
+    annotationUnderline: "Underline",
+    annotationStrikeout: "Strikeout",
+    annotationSquiggly: "Squiggly",
+    annotationNote: "Note",
   },
   "pt-BR": {
     pages: "Paginas",
@@ -193,6 +205,12 @@ const STRINGS: Record<Locale, Strings> = {
     close: "Fechar",
     copy: "Copiar",
     define: "Definir",
+    annotate: "Anotar",
+    annotationHighlight: "Destacar",
+    annotationUnderline: "Sublinhar",
+    annotationStrikeout: "Riscar",
+    annotationSquiggly: "Ondulado",
+    annotationNote: "Nota",
   },
 };
 

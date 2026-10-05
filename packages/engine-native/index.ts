@@ -269,6 +269,7 @@ export type PapyrusPdfViewerViewProps = ViewProps & {
   searchResults?: SearchResult[];
   activeSearchIndex?: number;
   annotations?: Annotation[];
+  selectedAnnotationId?: string | null;
   onPageChanged?: (event: { nativeEvent: { page: number } }) => void;
   onZoomChanged?: (event: { nativeEvent: { zoom: number } }) => void;
   onPageChange?: (event: { nativeEvent: { page: number } }) => void;
@@ -282,6 +283,12 @@ export type PapyrusPdfViewerViewProps = ViewProps & {
   onScroll?: (event: { nativeEvent: { offsetY: number } }) => void;
   selectionActive?: boolean;
   defineLabel?: string;
+  annotateLabel?: string;
+  annotationHighlightLabel?: string;
+  annotationUnderlineLabel?: string;
+  annotationStrikeoutLabel?: string;
+  annotationSquigglyLabel?: string;
+  annotationNoteLabel?: string;
   viewMode?: "continuous" | "single";
 };
 

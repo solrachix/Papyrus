@@ -13,4 +13,23 @@ describe("mobile selection toolbar strings", () => {
       define: "Definir",
     });
   });
+
+  it("provides native annotation menu labels in English and Brazilian Portuguese", () => {
+    expect(getStrings("en")).toMatchObject({
+      annotate: "Annotate",
+      annotationHighlight: "Highlight",
+      annotationUnderline: "Underline",
+      annotationStrikeout: "Strikeout",
+      annotationSquiggly: "Squiggly",
+      annotationNote: "Note",
+    });
+    expect(getStrings("pt-BR")).toMatchObject({
+      annotate: "Anotar",
+      annotationHighlight: "Destacar",
+      annotationUnderline: "Sublinhar",
+      annotationStrikeout: "Riscar",
+      annotationSquiggly: "Ondulado",
+      annotationNote: "Nota",
+    });
+  });
 });
