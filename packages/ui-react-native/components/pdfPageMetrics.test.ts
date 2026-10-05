@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   resolveMaxPageWidth,
   resolvePdfDoublePageContentWidth,
+  resolvePdfPageCornerRadius,
   resolvePdfFitPageHeight,
   resolvePdfBasePageWidth,
 } from "./pdfPageMetrics";
@@ -15,6 +16,18 @@ describe("resolvePdfFitPageHeight", () => {
   it("ignores a missing or invalid measured height", () => {
     expect(resolvePdfFitPageHeight(0, 18)).toBeUndefined();
     expect(resolvePdfFitPageHeight(Number.NaN, 18)).toBeUndefined();
+  });
+});
+
+describe("resolvePdfPageCornerRadius", () => {
+  it("keeps nearly full-width PDF pages almost square on phones in either orientation", () => {
+    expect(resolvePdfPageCornerRadius(390, 844)).toBe(3);
+    expect(resolvePdfPageCornerRadius(852, 393)).toBe(3);
+  });
+
+  it("keeps the paper-card radius on tablet-sized viewports", () => {
+    expect(resolvePdfPageCornerRadius(1024, 768)).toBe(14);
+    expect(resolvePdfPageCornerRadius(768, 1024)).toBe(14);
   });
 });
 

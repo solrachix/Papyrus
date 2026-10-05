@@ -6,6 +6,16 @@ export type PdfBasePageWidthInput = {
   pageAspectRatio?: number;
 };
 
+export const resolvePdfPageCornerRadius = (
+  viewportWidth: number,
+  viewportHeight: number
+) => {
+  const shortestViewportSide = Math.min(viewportWidth, viewportHeight);
+  return Number.isFinite(shortestViewportSide) && shortestViewportSide >= 600
+    ? 14
+    : 3;
+};
+
 export const resolvePdfDoublePageContentWidth = ({
   currentPage,
   pageCount,

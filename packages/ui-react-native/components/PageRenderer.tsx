@@ -52,7 +52,10 @@ import {
 } from "../gesture/selectionInteraction";
 import { resolvePdfCenteredInset } from "../viewport/pdfViewportController";
 import { buildCommentTapGestureDeps } from "./PageRenderer.gesture";
-import { resolvePdfBasePageWidth } from "./pdfPageMetrics";
+import {
+  resolvePdfBasePageWidth,
+  resolvePdfPageCornerRadius,
+} from "./pdfPageMetrics";
 import { isPointInsideSelectionUi } from "./selectionContentInteraction";
 
 type PageViewComponentType = React.ComponentType<
@@ -209,8 +212,12 @@ const PageRenderer: React.FC<PageRendererProps> = ({
     width: number;
     height: number;
   } | null>(null);
-  const { width: windowWidth } = useWindowDimensions();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const isNative = Platform.OS === "android" || Platform.OS === "ios";
+  const pageCornerRadius = resolvePdfPageCornerRadius(
+    windowWidth,
+    windowHeight
+  );
   const perfEnabled = isMobilePerfEnabled();
 
   useEffect(() => {
@@ -1541,6 +1548,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({
               width: pageWidth,
               height: pageHeight,
               marginBottom: spacing,
+              borderRadius: pageCornerRadius,
             },
           ]}
           onLayout={handleLayout}
@@ -1555,11 +1563,15 @@ const PageRenderer: React.FC<PageRendererProps> = ({
             ref={viewRef}
             pointerEvents="none"
             pageTheme={pageTheme}
-            style={styles.page}
+            style={[styles.page, { borderRadius: pageCornerRadius }]}
           />
           <View
             pointerEvents="none"
-            style={[styles.themeOverlay, themeOverlayStyle]}
+            style={[
+              styles.themeOverlay,
+              { borderRadius: pageCornerRadius },
+              themeOverlayStyle,
+            ]}
           />
           <View pointerEvents="box-none" style={styles.selectionLayer}>
             <View pointerEvents="none">
