@@ -21,6 +21,10 @@ const engineIndex = readFileSync(
   resolve(process.cwd(), "packages/engine-native/index.ts"),
   "utf8"
 );
+const iosViewer = readFileSync(
+  resolve(process.cwd(), "packages/ui-react-native/components/DedicatedIosPdfViewer.tsx"),
+  "utf8"
+);
 
 const methodBody = (selector: string): string => {
   const signatureIndex = source.indexOf(`\n- (void)${selector}`);
@@ -179,5 +183,45 @@ describe("PapyrusPdfDocumentView native text selection", () => {
       "RCT_EXPORT_VIEW_PROPERTY(onDefineSelection, RCTBubblingEventBlock)"
     );
     expect(manager).toContain("RCT_EXPORT_VIEW_PROPERTY(defineLabel, NSString)");
+  });
+
+  it("reconstructs temporary PDFKit highlights from normalized search rects", () => {
+    const resultsSetter = bodyAfterSignature(
+      "setSearchResults:(NSArray<NSDictionary *> *)searchResults {"
+    );
+    const activeIndexSetter = bodyAfterSignature(
+      "setActiveSearchIndex:(NSInteger)activeSearchIndex {"
+    );
+    const rebuildBody = bodyAfterSignature("rebuildSearchHighlights {");
+    const colorBody = bodyAfterSignature("updateSearchHighlightColors {");
+    const reloadBody = methodBody("reloadDocumentFromStore");
+
+    expect(iosViewer).toContain("const searchResults = useViewerStore");
+    expect(iosViewer).toContain("const activeSearchIndex = useViewerStore");
+    expect(iosViewer).toContain("searchResults={searchResults}");
+    expect(iosViewer).toContain("activeSearchIndex={activeSearchIndex}");
+    expect(engineIndex).toContain("activeSearchIndex?: number");
+    expect(header).toContain("NSArray<NSDictionary *> *searchResults");
+    expect(header).toContain("NSInteger activeSearchIndex");
+    expect(manager).toContain("RCT_EXPORT_VIEW_PROPERTY(searchResults, NSArray)");
+    expect(manager).toContain(
+      "RCT_EXPORT_VIEW_PROPERTY(activeSearchIndex, NSInteger)"
+    );
+    expect(resultsSetter).toContain("rebuildSearchHighlights");
+    expect(activeIndexSetter).toContain("updateSearchHighlightColors");
+    expect(reloadBody).toContain("rebuildSearchHighlights");
+    expect(rebuildBody).toContain("pageAtIndex:");
+    expect(rebuildBody).toContain("selectionForRect:");
+    expect(rebuildBody).toContain("highlightedSelections = nil");
+    expect(rebuildBody).toContain("self.pdfView.highlightedSelections =");
+    expect(rebuildBody).toContain("searchSelectionResultIndices");
+    expect(rebuildBody).toContain("[pageIndexValue isKindOfClass:NSNumber.class]");
+    expect(rebuildBody).toContain("floor(pageIndexNumber) != pageIndexNumber");
+    expect(rebuildBody).toContain("isfinite(pageIndexNumber)");
+    expect(rebuildBody).not.toContain("currentSelection");
+    expect(colorBody).toContain("self.activeSearchIndex");
+    expect(colorBody).toContain("searchSelectionResultIndices[index]");
+    expect(colorBody).toContain("selection.color");
+    expect(colorBody).not.toContain("currentSelection");
   });
 });

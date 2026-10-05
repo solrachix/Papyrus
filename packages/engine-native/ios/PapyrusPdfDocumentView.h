@@ -11,6 +11,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, assign) CGFloat zoom;
 @property (nonatomic, assign) NSInteger currentPage;
 @property (nonatomic, copy) NSString *viewMode;
+@property (nonatomic, copy) NSArray<NSDictionary *> *searchResults;
+@property (nonatomic, assign) NSInteger activeSearchIndex;
 @property (nonatomic, assign) BOOL selectionActive;
 @property (nonatomic, copy) NSString *defineLabel;
 @property (nonatomic, copy, nullable) RCTBubblingEventBlock onPageChange;
