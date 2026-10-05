@@ -184,6 +184,14 @@ export interface Annotation {
   replies?: AnnotationReply[];
 }
 
+/** Transient, normalized ink stroke batch emitted when a native drawing gesture ends. */
+export interface InkStrokeCommit {
+  path: { x: number; y: number }[];
+  color: string;
+  opacity: number;
+  strokeWidth: number;
+}
+
 export interface OutlineItem {
   title: string;
   pageIndex: number;

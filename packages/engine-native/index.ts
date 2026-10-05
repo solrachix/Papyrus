@@ -29,6 +29,7 @@ import {
   RenderPageTelemetryContext,
   PageTheme,
   Annotation,
+  InkStrokeCommit,
   PdfVisiblePage,
 } from "@papyrus-sdk/types";
 import { inferDocumentType, resolveComicFormat } from "./documentType";
@@ -263,9 +264,10 @@ export type PapyrusPdfViewerViewProps = ViewProps & {
   zoom?: number;
   currentPage?: number;
   activeTool?: string;
+  activeDrawToolPreset?: "ink" | "highlight" | "underline";
+  inkStrokeWidth?: number;
   annotationColor?: string;
   annotationSelectionColor?: string;
-  inkStrokeWidth?: number;
   annotationOpacity?: number;
   searchResults?: SearchResult[];
   activeSearchIndex?: number;
@@ -281,6 +283,9 @@ export type PapyrusPdfViewerViewProps = ViewProps & {
   onAnnotationTap?: (event: { nativeEvent: { id: string; pageIndex: number; type: string; color: string } }) => void;
   onAnnotationDelete?: (event: { nativeEvent: { id: string } }) => void;
   onAnnotationDeselected?: (event: { nativeEvent: Record<string, never> }) => void;
+  onInkDrawingCommitted?: (event: {
+    nativeEvent: { pageIndex: number; strokes: InkStrokeCommit[] };
+  }) => void;
   onTextSelected?: (event: { nativeEvent: { text: string; pageIndex: number; rects: { x: number; y: number; width: number; height: number }[] } }) => void;
   onDefineSelection?: (event: { nativeEvent: { text: string; pageIndex: number } }) => void;
   onScroll?: (event: { nativeEvent: { offsetY: number } }) => void;

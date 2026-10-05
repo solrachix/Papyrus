@@ -1,6 +1,7 @@
 #import "PapyrusPdfDocumentView.h"
 
 #import <QuartzCore/QuartzCore.h>
+#import <PencilKit/PencilKit.h>
 #import <dispatch/dispatch.h>
 #import <math.h>
 
@@ -106,6 +107,54 @@ static UIColor *PapyrusAnnotationColor(NSString *hexColor, CGFloat opacity) {
   return [baseColor colorWithAlphaComponent:MIN(1.0, MAX(0.0, opacity))];
 }
 
+static NSMapTable<UIWindow *, PKToolPicker *> *PapyrusToolPickersByWindow(void) {
+  static NSMapTable<UIWindow *, PKToolPicker *> *pickers;
+  static dispatch_once_t onceToken;
+  dispatch_once(&onceToken, ^{
+    pickers = [NSMapTable weakToStrongObjectsMapTable];
+  });
+  return pickers;
+}
+
+static NSString *PapyrusHexColorFromUIColor(UIColor *color, CGFloat *opacity) {
+  CGFloat red = 0;
+  CGFloat green = 0;
+  CGFloat blue = 0;
+  CGFloat alpha = 1;
+  if (![color getRed:&red green:&green blue:&blue alpha:&alpha]) {
+    CGColorRef cgColor = color.CGColor;
+    const CGFloat *components = CGColorGetComponents(cgColor);
+    size_t componentCount = CGColorGetNumberOfComponents(cgColor);
+    CGColorSpaceModel model = CGColorSpaceGetModel(CGColorGetColorSpace(cgColor));
+    if (components && model == kCGColorSpaceModelMonochrome && componentCount >= 2) {
+      red = green = blue = components[0];
+      alpha = components[1];
+    } else if (components && componentCount >= 4) {
+      red = components[0];
+      green = components[1];
+      blue = components[2];
+      alpha = components[3];
+    }
+  }
+  if (opacity) *opacity = MIN(1.0, MAX(0.0, alpha));
+  return [NSString stringWithFormat:@"#%02X%02X%02X",
+          (unsigned int)lrint(MIN(1.0, MAX(0.0, red)) * 255.0),
+          (unsigned int)lrint(MIN(1.0, MAX(0.0, green)) * 255.0),
+          (unsigned int)lrint(MIN(1.0, MAX(0.0, blue)) * 255.0)];
+}
+
+@interface PapyrusPdfPageInkCanvasView : PKCanvasView
+@property (nonatomic, assign) NSInteger papyrusPageIndex;
+@property (nonatomic, assign) BOOL applyingStoreDrawing;
+@property (nonatomic, assign) BOOL hasUncommittedChanges;
+@property (nonatomic, assign) NSUInteger pendingCommitGeneration;
+@property (nonatomic, copy) NSString *appliedStoreSignature;
+@property (nonatomic, weak) PKToolPicker *observedToolPicker;
+@end
+
+@implementation PapyrusPdfPageInkCanvasView
+@end
+
 @interface PapyrusSquigglyPdfAnnotation : PDFAnnotation
 @end
 
@@ -198,7 +247,10 @@ static UIColor *PapyrusAnnotationColor(NSString *hexColor, CGFloat opacity) {
 }
 @end
 
-@interface PapyrusPdfDocumentView () <UIEditMenuInteractionDelegate>
+@interface PapyrusPdfDocumentView () <UIEditMenuInteractionDelegate,
+                                      PDFPageOverlayViewProvider,
+                                      PKCanvasViewDelegate,
+                                      PKToolPickerObserver>
 @property (nonatomic, strong) PDFView *pdfView;
 @property (nonatomic, strong) UIEditMenuInteraction *editMenuInteraction;
 @property (nonatomic, copy) NSArray<PDFSelection *> *searchSelections;
@@ -227,6 +279,11 @@ static UIColor *PapyrusAnnotationColor(NSString *hexColor, CGFloat opacity) {
 @property (nonatomic, assign) NSInteger lastSelectionPageIndex;
 @property (nonatomic, assign) BOOL lastSelectionWasActive;
 @property (nonatomic, assign) NSUInteger selectionMenuGeneration;
+@property (nonatomic, strong) NSMutableDictionary<NSNumber *, PapyrusPdfPageInkCanvasView *> *inkCanvasesByPageIndex;
+@property (nonatomic, strong) NSMutableDictionary<NSNumber *, NSString *> *inkAnnotationSignaturesByPageIndex;
+@property (nonatomic, weak) PapyrusPdfPageInkCanvasView *activeInkCanvas;
+@property (nonatomic, strong) PKToolPicker *activeInkToolPicker;
+@property (nonatomic, copy) NSString *lastAppliedInkToolConfiguration;
 - (void)scheduleSelectionEditMenuForSignature:(NSString *)signature;
 - (void)attemptSelectionEditMenuForSignature:(NSString *)signature generation:(NSUInteger)generation;
 - (BOOL)hasActiveGestureInView:(UIView *)view;
@@ -247,12 +304,23 @@ static UIColor *PapyrusAnnotationColor(NSString *hexColor, CGFloat opacity) {
 - (void)presentAnnotationEditMenuForId:(NSString *)annotationId atPoint:(CGPoint)point;
 - (void)emitAnnotationDeleteWithId:(NSString *)annotationId;
 - (void)emitCommentAtPage:(PDFPage *)page pageIndex:(NSInteger)pageIndex normalizedPoint:(CGPoint)point;
+- (void)reconcileInkOverlays;
+- (void)applyStoreInkAnnotationsToCanvas:(PapyrusPdfPageInkCanvasView *)canvas force:(BOOL)force;
+- (void)updateInkCanvasInputAndPicker;
+- (void)activateInkCanvas:(PapyrusPdfPageInkCanvasView *)canvas;
+- (void)deactivateInkCanvas;
+- (void)releaseInkCanvas:(PapyrusPdfPageInkCanvasView *)canvas;
+- (void)commitInkDrawingForCanvas:(PapyrusPdfPageInkCanvasView *)canvas;
+- (NSString *)inkAnnotationSignatureForPage:(NSInteger)pageIndex;
+- (NSArray<NSDictionary *> *)inkDrawingPayloadForCanvas:(PapyrusPdfPageInkCanvasView *)canvas;
+- (void)resetInkOverlaysForDocumentChange;
 @end
 
 @implementation PapyrusPdfDocumentView
 
 - (void)dealloc {
   [self stopObservingScrollView];
+  [self resetInkOverlaysForDocumentChange];
   [[NSNotificationCenter defaultCenter] removeObserver:self];
   self.tapRecognizer.delegate = nil;
   self.doubleTapRecognizer.delegate = nil;
@@ -273,6 +341,8 @@ static UIColor *PapyrusAnnotationColor(NSString *hexColor, CGFloat opacity) {
   _searchSelectionsByResultIndex = @{};
   _annotations = @[];
   _activeTool = @"select";
+  _activeDrawToolPreset = @"ink";
+  _inkStrokeWidth = 0.006;
   _annotationColor = @"#fbbf24";
   _annotationSelectionColor = @"#2563eb";
   _annotationOpacity = 1.0;
@@ -280,6 +350,8 @@ static UIColor *PapyrusAnnotationColor(NSString *hexColor, CGFloat opacity) {
   _papyrusAnnotationSignaturesById = [NSMutableDictionary dictionary];
   _papyrusAnnotationIdsByObject = [NSMapTable strongToStrongObjectsMapTable];
   _selectedAnnotationAdornmentAnnotations = @[];
+  _inkCanvasesByPageIndex = [NSMutableDictionary dictionary];
+  _inkAnnotationSignaturesByPageIndex = [NSMutableDictionary dictionary];
   _searchNavigationGeneration = 0;
   _lastEmittedPage = NSNotFound;
   _lastSelectionPageIndex = NSNotFound;
@@ -307,6 +379,7 @@ static UIColor *PapyrusAnnotationColor(NSString *hexColor, CGFloat opacity) {
   [self addSubview:_pdfView];
 
   if (@available(iOS 16.0, *)) {
+    _pdfView.pageOverlayViewProvider = self;
     _editMenuInteraction = [[UIEditMenuInteraction alloc] initWithDelegate:self];
     [_pdfView addInteraction:_editMenuInteraction];
   }
@@ -388,6 +461,39 @@ static UIColor *PapyrusAnnotationColor(NSString *hexColor, CGFloat opacity) {
   self.pdfView.backgroundColor = UIColor.whiteColor;
 }
 
+- (void)setActiveTool:(NSString *)activeTool {
+  _activeTool = activeTool.length > 0 ? [activeTool copy] : @"select";
+  [self updateInkCanvasInputAndPicker];
+}
+
+- (void)setActiveDrawToolPreset:(NSString *)activeDrawToolPreset {
+  NSSet<NSString *> *presets = [NSSet setWithArray:@[@"ink", @"highlight", @"underline"]];
+  _activeDrawToolPreset = [presets containsObject:activeDrawToolPreset]
+      ? [activeDrawToolPreset copy] : @"ink";
+  self.lastAppliedInkToolConfiguration = nil;
+  [self updateInkCanvasInputAndPicker];
+}
+
+- (void)setInkStrokeWidth:(CGFloat)inkStrokeWidth {
+  if (!isfinite(inkStrokeWidth)) return;
+  _inkStrokeWidth = MIN(0.02, MAX(0.0025, inkStrokeWidth));
+  self.lastAppliedInkToolConfiguration = nil;
+  [self updateInkCanvasInputAndPicker];
+}
+
+- (void)setAnnotationColor:(NSString *)annotationColor {
+  _annotationColor = annotationColor.length > 0 ? [annotationColor copy] : @"#fbbf24";
+  self.lastAppliedInkToolConfiguration = nil;
+  [self updateInkCanvasInputAndPicker];
+}
+
+- (void)setAnnotationOpacity:(CGFloat)annotationOpacity {
+  if (!isfinite(annotationOpacity)) return;
+  _annotationOpacity = MIN(1.0, MAX(0.1, annotationOpacity));
+  self.lastAppliedInkToolConfiguration = nil;
+  [self updateInkCanvasInputAndPicker];
+}
+
 - (void)setViewMode:(NSString *)viewMode {
   NSString *normalized = [viewMode isEqualToString:@"single"] ? @"single" : @"continuous";
   if ([_viewMode isEqualToString:normalized]) return;
@@ -450,6 +556,7 @@ static UIColor *PapyrusAnnotationColor(NSString *hexColor, CGFloat opacity) {
     [self applyCurrentPage];
     [self rebuildSearchHighlights];
     [self reconcilePapyrusAnnotations];
+    [self reconcileInkOverlays];
     return;
   }
 
@@ -459,6 +566,7 @@ static UIColor *PapyrusAnnotationColor(NSString *hexColor, CGFloat opacity) {
   self.suppressScaleSynchronization = YES;
   self.lastVisiblePagesSignature = nil;
   self.lastEmittedPage = NSNotFound;
+  [self resetInkOverlaysForDocumentChange];
   [self clearPapyrusAnnotationsForDocument:self.pdfView.document];
   [self clearCurrentSelection];
   self.pdfView.document = document;
@@ -503,6 +611,403 @@ static UIColor *PapyrusAnnotationColor(NSString *hexColor, CGFloat opacity) {
 - (void)setAnnotations:(NSArray<NSDictionary *> *)annotations {
   _annotations = [annotations copy] ?: @[];
   [self reconcilePapyrusAnnotations];
+  [self reconcileInkOverlays];
+}
+
+- (UIView *)pdfView:(PDFView *)pdfView overlayViewForPage:(PDFPage *)page {
+  if (@available(iOS 16.0, *)) {
+    PDFDocument *document = pdfView.document;
+    NSInteger pageIndex = document ? (NSInteger)[document indexForPage:page] : NSNotFound;
+    if (pageIndex < 0 || pageIndex == NSNotFound) return nil;
+
+    NSNumber *key = @(pageIndex);
+    PapyrusPdfPageInkCanvasView *canvas = self.inkCanvasesByPageIndex[key];
+    if (!canvas) {
+      canvas = [[PapyrusPdfPageInkCanvasView alloc] initWithFrame:CGRectZero];
+      canvas.papyrusPageIndex = pageIndex;
+      canvas.backgroundColor = UIColor.clearColor;
+      canvas.opaque = NO;
+      canvas.clipsToBounds = YES;
+      canvas.drawingPolicy = PKCanvasViewDrawingPolicyAnyInput;
+      canvas.scrollEnabled = NO;
+      canvas.delegate = self;
+      canvas.userInteractionEnabled = NO;
+      self.inkCanvasesByPageIndex[key] = canvas;
+      [self applyStoreInkAnnotationsToCanvas:canvas force:YES];
+    }
+    return canvas;
+  }
+  return nil;
+}
+
+- (void)pdfView:(PDFView *)pdfView
+    willDisplayOverlayView:(UIView *)overlayView
+                 forPage:(PDFPage *)page {
+  (void)pdfView;
+  (void)page;
+  if (![overlayView isKindOfClass:PapyrusPdfPageInkCanvasView.class]) return;
+  PapyrusPdfPageInkCanvasView *canvas = (PapyrusPdfPageInkCanvasView *)overlayView;
+  self.inkCanvasesByPageIndex[@(canvas.papyrusPageIndex)] = canvas;
+  [self applyStoreInkAnnotationsToCanvas:canvas force:NO];
+  [self updateInkCanvasInputAndPicker];
+}
+
+- (void)pdfView:(PDFView *)pdfView
+    willEndDisplayingOverlayView:(UIView *)overlayView
+                        forPage:(PDFPage *)page {
+  (void)pdfView;
+  (void)page;
+  if ([overlayView isKindOfClass:PapyrusPdfPageInkCanvasView.class]) {
+    [self releaseInkCanvas:(PapyrusPdfPageInkCanvasView *)overlayView];
+  }
+}
+
+- (NSString *)inkAnnotationSignatureForPage:(NSInteger)pageIndex {
+  NSMutableArray<NSDictionary *> *pageAnnotations = [NSMutableArray array];
+  for (id value in self.annotations) {
+    if (![value isKindOfClass:NSDictionary.class]) continue;
+    NSDictionary *annotation = (NSDictionary *)value;
+    if (![annotation[@"type"] isEqual:@"ink"] ||
+        [annotation[@"pageIndex"] integerValue] != pageIndex) {
+      continue;
+    }
+    [pageAnnotations addObject:@{
+      @"path" : annotation[@"path"] ?: @[],
+      @"color" : annotation[@"color"] ?: @"#111827",
+      @"opacity" : annotation[@"opacity"] ?: @1,
+      @"strokeWidth" : annotation[@"strokeWidth"] ?: @0.006
+    }];
+  }
+
+  NSError *error = nil;
+  NSData *data = [NSJSONSerialization dataWithJSONObject:pageAnnotations
+                                                  options:NSJSONWritingSortedKeys
+                                                    error:&error];
+  if (!data || error) return pageAnnotations.description ?: @"[]";
+  return [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] ?: @"[]";
+}
+
+- (void)applyStoreInkAnnotationsToCanvas:(PapyrusPdfPageInkCanvasView *)canvas
+                                   force:(BOOL)force {
+  if (!canvas || !self.pdfView.document) return;
+  NSInteger pageIndex = canvas.papyrusPageIndex;
+  NSString *signature = [self inkAnnotationSignatureForPage:pageIndex];
+  if (!force && [canvas.appliedStoreSignature isEqualToString:signature]) return;
+
+  CGFloat canvasWidth = CGRectGetWidth(canvas.bounds);
+  CGFloat canvasHeight = CGRectGetHeight(canvas.bounds);
+  PDFPage *page = [self.pdfView.document pageAtIndex:(NSUInteger)pageIndex];
+  CGRect pageBounds = [page boundsForBox:kPDFDisplayBoxCropBox];
+  if (canvasWidth <= 0) canvasWidth = CGRectGetWidth(pageBounds);
+  if (canvasHeight <= 0) canvasHeight = CGRectGetHeight(pageBounds);
+  if (canvasWidth <= 0 || canvasHeight <= 0) return;
+
+  NSMutableArray<PKStroke *> *strokes = [NSMutableArray array];
+  for (id value in self.annotations) {
+    if (![value isKindOfClass:NSDictionary.class]) continue;
+    NSDictionary *annotation = (NSDictionary *)value;
+    if (![annotation[@"type"] isEqual:@"ink"] ||
+        [annotation[@"pageIndex"] integerValue] != pageIndex) {
+      continue;
+    }
+    NSArray *pathValues = [annotation[@"path"] isKindOfClass:NSArray.class]
+        ? annotation[@"path"] : @[];
+    if (pathValues.count == 0) continue;
+
+    CGFloat opacity = [annotation[@"opacity"] respondsToSelector:@selector(doubleValue)]
+        ? [annotation[@"opacity"] doubleValue] : 1.0;
+    opacity = isfinite(opacity) ? MIN(1.0, MAX(0.0, opacity)) : 1.0;
+    NSString *hexColor = [annotation[@"color"] isKindOfClass:NSString.class]
+        ? annotation[@"color"] : @"#111827";
+    UIColor *color = PapyrusAnnotationColor(hexColor, opacity);
+    PKInkType inkType = opacity <= 0.35 ? PKInkTypeMarker : PKInkTypePen;
+    PKInk *ink = [[PKInk alloc] initWithInkType:inkType color:color];
+    CGFloat normalizedWidth = [annotation[@"strokeWidth"] respondsToSelector:@selector(doubleValue)]
+        ? [annotation[@"strokeWidth"] doubleValue] : 0.006;
+    if (!isfinite(normalizedWidth) || normalizedWidth <= 0) normalizedWidth = 0.006;
+    CGFloat pointWidth = MAX(0.6, normalizedWidth * canvasWidth);
+
+    NSMutableArray<PKStrokePoint *> *controlPoints = [NSMutableArray array];
+    for (id pointValue in pathValues) {
+      if (![pointValue isKindOfClass:NSDictionary.class]) continue;
+      NSDictionary *point = (NSDictionary *)pointValue;
+      CGFloat x = [point[@"x"] respondsToSelector:@selector(doubleValue)]
+          ? [point[@"x"] doubleValue] : NAN;
+      CGFloat y = [point[@"y"] respondsToSelector:@selector(doubleValue)]
+          ? [point[@"y"] doubleValue] : NAN;
+      if (!isfinite(x) || !isfinite(y)) continue;
+      CGPoint location = CGPointMake(
+          MIN(1.0, MAX(0.0, x)) * canvasWidth,
+          MIN(1.0, MAX(0.0, y)) * canvasHeight);
+      NSTimeInterval timeOffset = (NSTimeInterval)controlPoints.count / 60.0;
+      [controlPoints addObject:[[PKStrokePoint alloc]
+          initWithLocation:location
+                timeOffset:timeOffset
+                      size:CGSizeMake(pointWidth, pointWidth)
+                   opacity:1.0
+                     force:1.0
+                    azimuth:0.0
+                  altitude:(CGFloat)M_PI_2]];
+    }
+    if (controlPoints.count == 0) continue;
+    if (controlPoints.count == 1) {
+      PKStrokePoint *firstPoint = controlPoints.firstObject;
+      [controlPoints addObject:[[PKStrokePoint alloc]
+          initWithLocation:firstPoint.location
+                timeOffset:firstPoint.timeOffset + (1.0 / 60.0)
+                      size:firstPoint.size
+                   opacity:firstPoint.opacity
+                     force:firstPoint.force
+                    azimuth:firstPoint.azimuth
+                  altitude:firstPoint.altitude]];
+    }
+
+    PKStrokePath *strokePath = [[PKStrokePath alloc]
+        initWithControlPoints:controlPoints
+                creationDate:NSDate.date];
+    PKStroke *stroke = [[PKStroke alloc]
+        initWithInk:ink
+         strokePath:strokePath
+          transform:CGAffineTransformIdentity
+               mask:nil];
+    [strokes addObject:stroke];
+  }
+
+  canvas.applyingStoreDrawing = YES;
+  canvas.drawing = [[PKDrawing alloc] initWithStrokes:strokes];
+  canvas.applyingStoreDrawing = NO;
+  canvas.hasUncommittedChanges = NO;
+  canvas.pendingCommitGeneration += 1;
+  canvas.appliedStoreSignature = signature;
+  self.inkAnnotationSignaturesByPageIndex[@(pageIndex)] = signature;
+}
+
+- (void)reconcileInkOverlays {
+  for (NSNumber *pageKey in self.inkCanvasesByPageIndex.allKeys.copy) {
+    PapyrusPdfPageInkCanvasView *canvas = self.inkCanvasesByPageIndex[pageKey];
+    [self applyStoreInkAnnotationsToCanvas:canvas force:NO];
+  }
+}
+
+- (void)updateInkCanvasInputAndPicker {
+  BOOL drawingActive = [self.activeTool isEqualToString:@"ink"];
+  for (PapyrusPdfPageInkCanvasView *canvas in self.inkCanvasesByPageIndex.allValues) {
+    canvas.userInteractionEnabled = drawingActive;
+  }
+  if (!drawingActive) {
+    if (self.activeInkCanvas.hasUncommittedChanges) {
+      [self commitInkDrawingForCanvas:self.activeInkCanvas];
+    }
+    [self deactivateInkCanvas];
+    return;
+  }
+
+  PDFPage *page = self.pdfView.currentPage;
+  NSInteger pageIndex = page && self.pdfView.document
+      ? (NSInteger)[self.pdfView.document indexForPage:page] : NSNotFound;
+  PapyrusPdfPageInkCanvasView *canvas =
+      pageIndex == NSNotFound ? nil : self.inkCanvasesByPageIndex[@(pageIndex)];
+  if (!canvas) canvas = self.inkCanvasesByPageIndex.allValues.firstObject;
+  if (canvas) [self activateInkCanvas:canvas];
+}
+
+- (void)activateInkCanvas:(PapyrusPdfPageInkCanvasView *)canvas {
+  if (!canvas || !canvas.window || ![self.activeTool isEqualToString:@"ink"]) return;
+  if (self.activeInkCanvas != canvas) [self deactivateInkCanvas];
+
+  UIWindow *window = canvas.window;
+  PKToolPicker *picker = [PapyrusToolPickersByWindow() objectForKey:window];
+  if (!picker) {
+    picker = [[PKToolPicker alloc] init];
+    [PapyrusToolPickersByWindow() setObject:picker forKey:window];
+  }
+  for (PapyrusPdfPageInkCanvasView *visibleCanvas in self.inkCanvasesByPageIndex.allValues) {
+    if (visibleCanvas.observedToolPicker == picker) continue;
+    [visibleCanvas.observedToolPicker removeObserver:visibleCanvas];
+    [picker addObserver:visibleCanvas];
+    visibleCanvas.observedToolPicker = picker;
+  }
+  if (self.activeInkToolPicker != picker) [picker addObserver:self];
+  self.activeInkToolPicker = picker;
+  self.activeInkCanvas = canvas;
+  canvas.delegate = self;
+  canvas.userInteractionEnabled = YES;
+
+  NSString *configuration = [NSString stringWithFormat:@"%@|%@|%.5f|%.5f",
+      self.activeDrawToolPreset ?: @"ink",
+      self.annotationColor ?: @"#111827",
+      self.annotationOpacity,
+      self.inkStrokeWidth];
+  if (![self.lastAppliedInkToolConfiguration isEqualToString:configuration]) {
+    PDFPage *page = [self.pdfView.document pageAtIndex:(NSUInteger)canvas.papyrusPageIndex];
+    CGFloat pageWidth = CGRectGetWidth([page boundsForBox:kPDFDisplayBoxCropBox]);
+    CGFloat toolWidth = MAX(0.6, self.inkStrokeWidth * pageWidth);
+    PKInkType type = [self.activeDrawToolPreset isEqualToString:@"highlight"]
+        ? PKInkTypeMarker : PKInkTypePen;
+    picker.selectedTool = [[PKInkingTool alloc]
+        initWithInkType:type
+                  color:PapyrusAnnotationColor(self.annotationColor, self.annotationOpacity)
+                  width:toolWidth];
+    self.lastAppliedInkToolConfiguration = configuration;
+  }
+
+  [canvas becomeFirstResponder];
+  if (@available(iOS 16.0, *)) {
+    [picker setVisible:YES forFirstResponder:canvas];
+  }
+}
+
+- (void)deactivateInkCanvas {
+  PapyrusPdfPageInkCanvasView *canvas = self.activeInkCanvas;
+  PKToolPicker *picker = self.activeInkToolPicker;
+  for (PapyrusPdfPageInkCanvasView *visibleCanvas in self.inkCanvasesByPageIndex.allValues) {
+    PKToolPicker *observedPicker = visibleCanvas.observedToolPicker;
+    if (observedPicker) [observedPicker removeObserver:visibleCanvas];
+    visibleCanvas.observedToolPicker = nil;
+  }
+  if (picker) {
+    if (canvas) {
+      if (@available(iOS 16.0, *)) {
+        [picker setVisible:NO forFirstResponder:canvas];
+      }
+      [canvas resignFirstResponder];
+    }
+    [picker removeObserver:self];
+  }
+  canvas.userInteractionEnabled = NO;
+  self.activeInkCanvas = nil;
+  self.activeInkToolPicker = nil;
+}
+
+- (void)releaseInkCanvas:(PapyrusPdfPageInkCanvasView *)canvas {
+  if (!canvas) return;
+  if (canvas.hasUncommittedChanges) [self commitInkDrawingForCanvas:canvas];
+  if (self.activeInkCanvas == canvas) [self deactivateInkCanvas];
+  else if (canvas.observedToolPicker) {
+    [canvas.observedToolPicker removeObserver:canvas];
+    canvas.observedToolPicker = nil;
+  }
+  NSNumber *key = @(canvas.papyrusPageIndex);
+  if (self.inkCanvasesByPageIndex[key] == canvas) {
+    [self.inkCanvasesByPageIndex removeObjectForKey:key];
+    [self.inkAnnotationSignaturesByPageIndex removeObjectForKey:key];
+  }
+  canvas.delegate = nil;
+  canvas.userInteractionEnabled = NO;
+}
+
+- (void)canvasViewDrawingDidChange:(PKCanvasView *)canvasView {
+  if (![canvasView isKindOfClass:PapyrusPdfPageInkCanvasView.class]) return;
+  PapyrusPdfPageInkCanvasView *canvas = (PapyrusPdfPageInkCanvasView *)canvasView;
+  if (canvas.applyingStoreDrawing || ![self.activeTool isEqualToString:@"ink"]) return;
+  canvas.hasUncommittedChanges = YES;
+  NSUInteger generation = ++canvas.pendingCommitGeneration;
+  __weak typeof(self) weakSelf = self;
+  __weak PapyrusPdfPageInkCanvasView *weakCanvas = canvas;
+  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.40 * NSEC_PER_SEC)),
+                 dispatch_get_main_queue(), ^{
+    typeof(self) strongSelf = weakSelf;
+    PapyrusPdfPageInkCanvasView *strongCanvas = weakCanvas;
+    if (!strongSelf || !strongCanvas ||
+        strongCanvas.pendingCommitGeneration != generation ||
+        !strongCanvas.hasUncommittedChanges) return;
+    UIGestureRecognizerState state = strongCanvas.drawingGestureRecognizer.state;
+    if (state == UIGestureRecognizerStateBegan ||
+        state == UIGestureRecognizerStateChanged) {
+      [strongSelf canvasViewDrawingDidChange:strongCanvas];
+      return;
+    }
+    [strongSelf commitInkDrawingForCanvas:strongCanvas];
+  });
+}
+
+- (void)canvasViewDidEndUsingTool:(PKCanvasView *)canvasView {
+  if ([canvasView isKindOfClass:PapyrusPdfPageInkCanvasView.class]) {
+    [self commitInkDrawingForCanvas:(PapyrusPdfPageInkCanvasView *)canvasView];
+  }
+}
+
+- (void)commitInkDrawingForCanvas:(PapyrusPdfPageInkCanvasView *)canvas {
+  if (!canvas || !canvas.hasUncommittedChanges) return;
+  canvas.pendingCommitGeneration += 1;
+  canvas.hasUncommittedChanges = NO;
+  NSArray<NSDictionary *> *strokes = [self inkDrawingPayloadForCanvas:canvas];
+  canvas.appliedStoreSignature = nil;
+  if (self.onInkDrawingCommitted) {
+    self.onInkDrawingCommitted(@{
+      @"pageIndex" : @(canvas.papyrusPageIndex),
+      @"strokes" : strokes
+    });
+  }
+}
+
+- (NSArray<NSDictionary *> *)inkDrawingPayloadForCanvas:(PapyrusPdfPageInkCanvasView *)canvas {
+  CGFloat width = CGRectGetWidth(canvas.bounds);
+  CGFloat height = CGRectGetHeight(canvas.bounds);
+  if (width <= 0 || height <= 0) return @[];
+
+  NSMutableArray<NSDictionary *> *payload = [NSMutableArray array];
+  for (PKStroke *stroke in canvas.drawing.strokes) {
+    // The universal Papyrus path has no clipping mask. Use the vector eraser so
+    // erased strokes disappear as complete paths instead of persisting masked ink.
+    if (stroke.mask != nil) continue;
+    PKStrokePath *path = stroke.path;
+    NSMutableArray<NSDictionary *> *points = [NSMutableArray array];
+    for (NSUInteger index = 0; index < path.count; index += 1) {
+      PKStrokePoint *strokePoint = [path pointAtIndex:index];
+      CGPoint location = CGPointApplyAffineTransform(strokePoint.location, stroke.transform);
+      CGFloat x = MIN(1.0, MAX(0.0, location.x / width));
+      CGFloat y = MIN(1.0, MAX(0.0, location.y / height));
+      if (!isfinite(x) || !isfinite(y)) continue;
+      [points addObject:@{@"x" : @(x), @"y" : @(y)}];
+    }
+    if (points.count == 0) continue;
+    if (points.count == 1) [points addObject:points.firstObject];
+
+    CGFloat opacity = 1.0;
+    NSString *color = PapyrusHexColorFromUIColor(stroke.ink.color, &opacity);
+    CGFloat normalizedWidth = stroke.ink.width / width;
+    if (!isfinite(normalizedWidth) || normalizedWidth <= 0) normalizedWidth = 0.006;
+    [payload addObject:@{
+      @"path" : points,
+      @"color" : color ?: @"#111827",
+      @"opacity" : @(opacity),
+      @"strokeWidth" : @(normalizedWidth)
+    }];
+  }
+  return [payload copy];
+}
+
+- (void)toolPickerSelectedToolDidChange:(PKToolPicker *)toolPicker {
+  PKTool *selectedTool = toolPicker.selectedTool;
+  if (![selectedTool isKindOfClass:PKEraserTool.class]) return;
+  PKEraserTool *eraser = (PKEraserTool *)selectedTool;
+  if (eraser.eraserType == PKEraserTypeVector) return;
+  // Papyrus stores normalized centerlines rather than PencilKit masks, so keep
+  // erasing stroke-based and representable by the shared Annotation model.
+  toolPicker.selectedTool = [[PKEraserTool alloc] initWithEraserType:PKEraserTypeVector];
+}
+
+- (void)resetInkOverlaysForDocumentChange {
+  [self deactivateInkCanvas];
+  for (PapyrusPdfPageInkCanvasView *canvas in self.inkCanvasesByPageIndex.allValues) {
+    canvas.delegate = nil;
+    canvas.userInteractionEnabled = NO;
+  }
+  [self.inkCanvasesByPageIndex removeAllObjects];
+  [self.inkAnnotationSignaturesByPageIndex removeAllObjects];
+}
+
+- (void)didMoveToWindow {
+  [super didMoveToWindow];
+  if (!self.window) {
+    [self deactivateInkCanvas];
+    for (PapyrusPdfPageInkCanvasView *canvas in self.inkCanvasesByPageIndex.allValues) {
+      canvas.userInteractionEnabled = NO;
+    }
+    return;
+  }
+  [self updateInkCanvasInputAndPicker];
 }
 
 - (void)setAnnotationSelectionColor:(NSString *)annotationSelectionColor {
@@ -999,6 +1504,7 @@ static UIColor *PapyrusAnnotationColor(NSString *hexColor, CGFloat opacity) {
 
 - (void)handlePdfPageChanged:(NSNotification *)notification {
   if (notification.object != self.pdfView) return;
+  [self updateInkCanvasInputAndPicker];
   [self emitCurrentPageIfNeeded];
   [self emitVisiblePagesIfNeeded];
 }
@@ -1480,6 +1986,7 @@ static UIColor *PapyrusAnnotationColor(NSString *hexColor, CGFloat opacity) {
 
 - (void)handleDocumentTap:(UITapGestureRecognizer *)recognizer {
   if (recognizer.state != UIGestureRecognizerStateEnded) return;
+  if ([self.activeTool isEqualToString:@"ink"]) return;
   PDFDocument *document = self.pdfView.document;
   if (!document) return;
 
@@ -1572,6 +2079,7 @@ static UIColor *PapyrusAnnotationColor(NSString *hexColor, CGFloat opacity) {
 
 - (void)handleDocumentDoubleTap:(UITapGestureRecognizer *)recognizer {
   if (recognizer.state != UIGestureRecognizerStateEnded) return;
+  if ([self.activeTool isEqualToString:@"ink"]) return;
   PDFDocument *document = self.pdfView.document;
   if (!document) return;
 

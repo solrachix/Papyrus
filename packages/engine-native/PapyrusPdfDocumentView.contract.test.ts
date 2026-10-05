@@ -160,7 +160,7 @@ describe("PapyrusPdfDocumentView native text selection and search highlights", (
       "menuForConfiguration:(UIEditMenuConfiguration *)configuration"
     );
 
-    expect(source).toContain("<UIEditMenuInteractionDelegate>");
+    expect(source).toContain("<UIEditMenuInteractionDelegate,");
     expect(source).toContain("UIEditMenuInteraction *editMenuInteraction");
     expect(source).toContain("initWithDelegate:self");
     expect(source).toContain("addInteraction:_editMenuInteraction");

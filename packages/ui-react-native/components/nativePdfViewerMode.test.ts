@@ -33,6 +33,47 @@ describe("shouldUseNativePdfViewer", () => {
     ).toBe(true);
   });
 
+  it("falls back to compat for ink only on iOS versions without page overlays", () => {
+    expect(
+      shouldUseNativePdfViewer({
+        ...input,
+        platform: "ios",
+        activeTool: "ink",
+        nativeInkOverlayAvailable: false,
+        nativePdfDocumentViewAvailable: true,
+      })
+    ).toBe(false);
+    expect(
+      shouldUseNativePdfViewer({
+        ...input,
+        platform: "ios",
+        activeTool: "select",
+        nativeInkOverlayAvailable: false,
+        nativePdfDocumentViewAvailable: true,
+      })
+    ).toBe(true);
+  });
+
+  it("keeps native ink on supported iOS and leaves Android routing unchanged", () => {
+    expect(
+      shouldUseNativePdfViewer({
+        ...input,
+        platform: "ios",
+        activeTool: "ink",
+        nativeInkOverlayAvailable: true,
+        nativePdfDocumentViewAvailable: true,
+      })
+    ).toBe(true);
+    expect(
+      shouldUseNativePdfViewer({
+        ...input,
+        platform: "android",
+        activeTool: "ink",
+        nativeInkOverlayAvailable: false,
+      })
+    ).toBe(true);
+  });
+
   it("falls back to compat for double-page mode on iOS", () => {
     expect(
       shouldUseNativePdfViewer({

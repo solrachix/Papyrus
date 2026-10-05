@@ -18,8 +18,10 @@ import {
   PdfViewerMode,
   PdfVisiblePage,
   ReadingMode,
+  InkStrokeCommit,
 } from "@papyrus-sdk/types";
 import { papyrusEvents } from "./services/event-emitter";
+import { reconcileInkAnnotationsForPage } from "./inkAnnotations";
 
 const perfNow = () =>
   typeof performance !== "undefined" && typeof performance.now === "function"
@@ -58,6 +60,7 @@ interface ViewerState {
   annotationOpacity: number;
   inkStrokeWidth: number;
   activeDrawToolPreset: "ink" | "highlight" | "underline";
+  nativeInkToolPickerActive: boolean;
   outline: OutlineItem[];
   sidebarLeftOpen: boolean;
   sidebarLeftTab: "thumbnails" | "summary";
@@ -112,6 +115,10 @@ interface ViewerState {
   updateAnnotation: (id: string, updates: Partial<Annotation>) => void;
   addAnnotationReply: (annotationId: string, content: string) => void;
   removeAnnotation: (id: string) => void;
+  commitInkStrokesForPage: (
+    pageIndex: number,
+    strokes: readonly InkStrokeCommit[]
+  ) => void;
   setSelectedAnnotation: (id: string | null) => void;
   setSearch: (query: string, results: SearchResult[]) => void;
   nextSearchResult: () => void;
@@ -168,6 +175,7 @@ const getDefaultViewerState = () => ({
   annotations: [] as Annotation[],
   activeTool: "select" as const,
   activeDrawToolPreset: "ink" as const,
+  nativeInkToolPickerActive: false,
   selectedAnnotationId: null as string | null,
   interactionMode: "pan" as const,
   selectionActive: false,
@@ -415,6 +423,87 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
     papyrusEvents.emit(PapyrusEventType.ANNOTATION_DELETED, {
       annotationId: id,
     });
+  },
+
+  commitInkStrokesForPage: (pageIndex, strokes) => {
+    const state = get();
+    const previousPageInk = state.annotations.filter(
+      (annotation) => annotation.type === "ink" && annotation.pageIndex === pageIndex
+    );
+    const nextPageInk = reconcileInkAnnotationsForPage(
+      state.annotations,
+      pageIndex,
+      strokes
+    );
+    const sameDrawing =
+      previousPageInk.length === nextPageInk.length &&
+      previousPageInk.every((annotation, index) => {
+        const next = nextPageInk[index];
+        return (
+          annotation.id === next?.id &&
+          annotation.pageIndex === next.pageIndex &&
+          annotation.color === next.color &&
+          (annotation.opacity ?? 1) === (next.opacity ?? 1) &&
+          (annotation.strokeWidth ?? 0.006) === (next.strokeWidth ?? 0.006) &&
+          JSON.stringify(annotation.path ?? []) ===
+            JSON.stringify(next.path ?? []) &&
+          JSON.stringify(annotation.rect) === JSON.stringify(next.rect)
+        );
+      });
+    if (sameDrawing) return;
+
+    const firstInkIndex = state.annotations.findIndex(
+      (annotation) => annotation.type === "ink" && annotation.pageIndex === pageIndex
+    );
+    const retainedAnnotations = state.annotations.filter(
+      (annotation) => !(annotation.type === "ink" && annotation.pageIndex === pageIndex)
+    );
+    const insertionIndex =
+      firstInkIndex < 0
+        ? retainedAnnotations.length
+        : state.annotations
+            .slice(0, firstInkIndex)
+            .filter(
+              (annotation) =>
+                !(annotation.type === "ink" && annotation.pageIndex === pageIndex)
+            ).length;
+    retainedAnnotations.splice(insertionIndex, 0, ...nextPageInk);
+
+    const nextIds = new Set(nextPageInk.map((annotation) => annotation.id));
+    const previousIds = new Set(previousPageInk.map((annotation) => annotation.id));
+    set({
+      annotations: retainedAnnotations,
+      selectedAnnotationId:
+        state.selectedAnnotationId &&
+        retainedAnnotations.some(
+          (annotation) => annotation.id === state.selectedAnnotationId
+        )
+          ? state.selectedAnnotationId
+          : null,
+      annotationUndoStack: [
+        ...state.annotationUndoStack,
+        {
+          annotations: state.annotations,
+          selectedAnnotationId: state.selectedAnnotationId,
+        },
+      ].slice(-50),
+      annotationRedoStack: [],
+    });
+
+    for (const annotation of previousPageInk) {
+      if (!nextIds.has(annotation.id)) {
+        papyrusEvents.emit(PapyrusEventType.ANNOTATION_DELETED, {
+          annotationId: annotation.id,
+        });
+      }
+    }
+    for (const annotation of nextPageInk) {
+      if (!previousIds.has(annotation.id)) {
+        papyrusEvents.emit(PapyrusEventType.ANNOTATION_CREATED, {
+          annotation,
+        });
+      }
+    }
   },
 
   undoAnnotations: () => {

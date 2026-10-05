@@ -15,6 +15,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, assign) NSInteger activeSearchIndex;
 @property (nonatomic, copy) NSArray<NSDictionary *> *annotations;
 @property (nonatomic, copy) NSString *activeTool;
+@property (nonatomic, copy) NSString *activeDrawToolPreset;
+@property (nonatomic, assign) CGFloat inkStrokeWidth;
 @property (nonatomic, copy) NSString *annotationColor;
 @property (nonatomic, copy) NSString *annotationSelectionColor;
 @property (nonatomic, assign) CGFloat annotationOpacity;
@@ -37,6 +39,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, copy, nullable) RCTBubblingEventBlock onAnnotationTap;
 @property (nonatomic, copy, nullable) RCTBubblingEventBlock onAnnotationDelete;
 @property (nonatomic, copy, nullable) RCTBubblingEventBlock onAnnotationDeselected;
+@property (nonatomic, copy, nullable) RCTBubblingEventBlock onInkDrawingCommitted;
 @property (nonatomic, copy, nullable) RCTDirectEventBlock onScroll;
 @property (nonatomic, copy, nullable) RCTBubblingEventBlock onTap;
 

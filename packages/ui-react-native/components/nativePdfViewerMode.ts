@@ -50,6 +50,8 @@ export type NativePdfViewerModeInput = {
   pageTheme?: string;
   viewMode?: "single" | "double" | "continuous";
   rotation?: number;
+  activeTool?: string;
+  nativeInkOverlayAvailable?: boolean;
 };
 
 export const shouldUseNativePdfViewer = ({
@@ -62,6 +64,8 @@ export const shouldUseNativePdfViewer = ({
   pageTheme = "normal",
   viewMode = "continuous",
   rotation = 0,
+  activeTool = "select",
+  nativeInkOverlayAvailable = true,
 }: NativePdfViewerModeInput): boolean => {
   if (
     viewerMode !== "native" ||
@@ -74,6 +78,7 @@ export const shouldUseNativePdfViewer = ({
 
   const implementation = resolveNativePdfViewerImplementation(platform);
   if (implementation === "android") return true;
+  if (activeTool === "ink" && !nativeInkOverlayAvailable) return false;
   return (
     implementation === "ios" &&
     nativePdfDocumentViewAvailable &&

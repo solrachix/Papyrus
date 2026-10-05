@@ -231,6 +231,8 @@ const Viewer: React.FC<ViewerProps> = ({
   const nativeEngineId = getNativePdfEngineId(engine);
   const nativePdfDocumentViewAvailable =
     Platform.OS === "ios" && isPapyrusPdfDocumentViewAvailable();
+  const nativeInkOverlayAvailable =
+    Platform.OS !== "ios" || Number.parseInt(String(Platform.Version), 10) >= 16;
   const isNativePdfViewer = shouldUseNativePdfViewer({
     platform: Platform.OS,
     viewerMode: resolvedViewerMode,
@@ -241,6 +243,8 @@ const Viewer: React.FC<ViewerProps> = ({
     pageTheme,
     viewMode,
     rotation,
+    activeTool,
+    nativeInkOverlayAvailable,
   });
   useEffect(() => {
     mobilePerf.emit(
@@ -268,6 +272,9 @@ const Viewer: React.FC<ViewerProps> = ({
     const reason = (() => {
       if (!nativePdfDocumentViewAvailable) return "manager-unavailable";
       if (!nativeEngineId) return "engine-unavailable";
+      if (activeTool === "ink" && !nativeInkOverlayAvailable) {
+        return "unsupported-ink-overlay";
+      }
       if (pageTheme !== "normal") return "unsupported-page-theme";
       if (viewMode === "double") return "unsupported-view-mode";
       if (rotation !== 0) return "unsupported-rotation";
@@ -279,6 +286,7 @@ const Viewer: React.FC<ViewerProps> = ({
     const detailByReason: Record<string, string> = {
       "manager-unavailable": "the PapyrusPdfDocumentView manager is not registered",
       "engine-unavailable": "the native PDF engine id is unavailable",
+      "unsupported-ink-overlay": "PencilKit page overlays require iOS 16 or newer",
       "unsupported-page-theme": `pageTheme '${pageTheme}' is not supported by the native viewport`,
       "unsupported-view-mode": "double-page mode is not supported by the native viewport",
       "unsupported-rotation": "document rotation is not supported by the native viewport",
@@ -288,8 +296,10 @@ const Viewer: React.FC<ViewerProps> = ({
     );
   }, [
     isWebView,
+    activeTool,
     nativeEngineId,
     nativePdfDocumentViewAvailable,
+    nativeInkOverlayAvailable,
     pageCount,
     pageTheme,
     rotation,
