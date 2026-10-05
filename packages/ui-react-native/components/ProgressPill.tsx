@@ -260,6 +260,7 @@ export function ProgressPill({
         const releaseAction = resolvePageScrubberReleaseAction({
           hasMoved: hasMovedRef.current,
           pendingPage: releasedPage,
+          longPressTriggered: longPressTriggeredRef.current,
         });
         if (releaseAction.kind === "navigate") {
           pendingReleasedScrubPageRef.current = releaseAction.page;
@@ -298,12 +299,6 @@ export function ProgressPill({
   }
 
   const responderPanHandlers = scrubberResponderRef.current?.panHandlers ?? {};
-  const responderTarget: "track" | "pill" = touchPolicy.responderTarget;
-  const scrubberPanHandlers =
-    responderTarget === "track" ? responderPanHandlers : {};
-  const pillPanHandlers =
-    responderTarget === "pill" ? responderPanHandlers : {};
-
   return (
     <View
       pointerEvents="box-none"
@@ -320,7 +315,6 @@ export function ProgressPill({
         ref={scrubberRef}
         pointerEvents={resolvePageScrubberPointerEvents()}
         style={[styles.scrubber, { height: trackHeight }]}
-        {...scrubberPanHandlers}
         onLayout={() => {
           scrubberRef.current?.measureInWindow((_x, y) => {
             trackYRef.current = y;
@@ -328,6 +322,7 @@ export function ProgressPill({
         }}
       >
         <Animated.View
+          pointerEvents="none"
           style={[
             styles.track,
             isDark && styles.trackDark,
@@ -339,14 +334,17 @@ export function ProgressPill({
             },
           ]}
         />
-        <Animated.View style={[styles.thumb, { top: thumbTopRef.current }]}>
+        <Animated.View
+          pointerEvents="box-none"
+          style={[styles.thumb, { top: thumbTopRef.current }]}
+        >
           <View
             style={[
               styles.pill,
               isDark && styles.pillDark,
               { borderColor: `${accentColor}33` },
             ]}
-            {...pillPanHandlers}
+            {...responderPanHandlers}
             testID="papyrus-progress-pill"
           >
             <View style={styles.labelHit}>
