@@ -6,6 +6,7 @@
 #import <math.h>
 
 #import "PapyrusEngineStore.h"
+#import "PapyrusPageRotationRegistry.h"
 
 static const CGFloat PapyrusPdfMinimumZoom = 0.5;
 static const CGFloat PapyrusPdfMaximumZoom = 4.0;
@@ -553,6 +554,15 @@ static NSString *PapyrusHexColorFromUIColor(UIColor *color, CGFloat *opacity) {
   PDFDocument *document = self.engineId.length > 0
       ? [[PapyrusEngineStore shared] documentForEngine:self.engineId]
       : nil;
+  PDFDocument *currentDocument = self.pdfView.document;
+  PapyrusPageRotationRegistry *rotationRegistry =
+      [PapyrusPageRotationRegistry sharedRegistry];
+  if (currentDocument) {
+    [rotationRegistry restoreAllRotationsForDocument:currentDocument];
+  }
+  if (document && document != currentDocument) {
+    [rotationRegistry restoreAllRotationsForDocument:document];
+  }
   if (self.pdfView.document == document) {
     [self applyCurrentPage];
     [self rebuildSearchHighlights];

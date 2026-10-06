@@ -34,7 +34,7 @@ After a successful document load, reset `NativeDocumentEngine` transient values 
 
 ### Add an explicit rotation reset control
 
-Add a localized `Original / 0°` action alongside the existing clockwise and counterclockwise controls. It resets the engine rotation and writes rotation 0 to the viewer store. Existing direction actions remain unchanged.
+Add a localized `Original / 0°` action alongside the existing clockwise and counterclockwise controls on iOS only. It resets the engine rotation and writes rotation 0 to the viewer store. Existing direction actions and Android UI remain unchanged.
 
 ### Preserve themed compatibility rendering
 

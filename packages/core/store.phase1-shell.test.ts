@@ -72,6 +72,22 @@ describe("phase-1 shell state", () => {
     expect(useViewerStore.getState().viewerMode).toBe("native");
   });
 
+  it("clears prior document state when initializing a new document", () => {
+    useViewerStore.getState().initializeStore({
+      initialPage: 8,
+      initialZoom: 2.4,
+      initialRotation: 90,
+    });
+
+    useViewerStore.getState().initializeStore({ initialPage: 3 });
+
+    expect(useViewerStore.getState()).toMatchObject({
+      currentPage: 3,
+      zoom: 1,
+      rotation: 0,
+    });
+  });
+
   it("stores visible native pages without changing the current page", () => {
     const store = useViewerStore.getState();
 

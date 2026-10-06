@@ -19,6 +19,11 @@ describe("mobile selection toolbar strings", () => {
     expect(getStrings("pt-BR").deleteAnnotation).toBe("Apagar");
   });
 
+  it("provides the original rotation reset label in English and Brazilian Portuguese", () => {
+    expect(getStrings("en").rotationOriginal).toBe("Original / 0°");
+    expect(getStrings("pt-BR").rotationOriginal).toBe("Original / 0°");
+  });
+
   it("provides native annotation menu labels in English and Brazilian Portuguese", () => {
     expect(getStrings("en")).toMatchObject({
       annotate: "Annotate",

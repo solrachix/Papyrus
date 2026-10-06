@@ -38,6 +38,7 @@ type Strings = {
   rotate: string;
   clockwise: string;
   counterclockwise: string;
+  rotationOriginal: string;
   zoom: string;
   highlight: string;
   strike: string;
@@ -113,6 +114,7 @@ const STRINGS: Record<Locale, Strings> = {
     rotate: "Rotate",
     clockwise: "Clockwise",
     counterclockwise: "Counterclockwise",
+    rotationOriginal: "Original / 0°",
     zoom: "Zoom",
     highlight: "Highlight",
     strike: "Strike",
@@ -186,6 +188,7 @@ const STRINGS: Record<Locale, Strings> = {
     rotate: "Girar",
     clockwise: "Sentido horario",
     counterclockwise: "Sentido anti-horario",
+    rotationOriginal: "Original / 0°",
     zoom: "Zoom",
     highlight: "Marca texto",
     strike: "Risco",

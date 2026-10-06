@@ -1,13 +1,18 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+const { nativeModules } = vi.hoisted(() => ({
+  nativeModules: {} as Record<string, unknown>,
+}));
 
 vi.mock("react-native", () => ({
-  NativeModules: {},
+  NativeModules: nativeModules,
   Platform: { OS: "android" },
-  TurboModuleRegistry: { getEnforcing: () => ({}) },
+  TurboModuleRegistry: { get: () => null, getEnforcing: () => ({}) },
   requireNativeComponent: () => null,
   View: {},
+  UIManager: {},
 }));
 vi.mock("expo-modules-core/src/NativeViewManagerAdapter", () => ({
   requireNativeViewManager: () => null,
@@ -16,7 +21,35 @@ vi.mock("expo-modules-core/src/requireNativeModule", () => ({
   requireOptionalNativeModule: () => null,
 }));
 
-import { WebViewDocumentEngine } from "./index";
+import { NativeDocumentEngine, WebViewDocumentEngine } from "./index";
+
+afterEach(() => {
+  delete nativeModules.PapyrusNativeEngine;
+});
+
+describe("NativeDocumentEngine document state", () => {
+  it("resets page, zoom, and rotation after loading another PDF", async () => {
+    const nativeModule = {
+      createEngine: vi.fn(() => "rotation-engine"),
+      load: vi.fn().mockResolvedValue({ pageCount: 10 }),
+    };
+    nativeModules.PapyrusNativeEngine = nativeModule;
+    const engine = new NativeDocumentEngine();
+
+    await engine.load({ type: "pdf", source: "file:///first.pdf" });
+    engine.goToPage(7);
+    engine.setZoom(2.25);
+    engine.rotate("clockwise");
+    nativeModule.load.mockResolvedValueOnce({ pageCount: 4 });
+
+    await engine.load({ type: "pdf", source: "file:///second.pdf" });
+
+    expect(engine.getCurrentPage()).toBe(1);
+    expect(engine.getZoom()).toBe(1);
+    expect(engine.getRotation()).toBe(0);
+    expect(engine.getPageCount()).toBe(4);
+  });
+});
 
 describe("WebViewDocumentEngine local sources", () => {
   it("keeps local comic files as URI payloads", async () => {

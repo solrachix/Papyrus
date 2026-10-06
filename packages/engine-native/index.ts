@@ -430,6 +430,8 @@ export class NativeDocumentEngine extends BaseDocumentEngine {
     }
 
     this.currentPage = 1;
+    this.zoom = 1.0;
+    this.rotation = 0;
   }
 
   getPageCount(): number {
