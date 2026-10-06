@@ -131,6 +131,21 @@ describe("native PDF PencilKit overlay contract", () => {
     expect(deactivationMethod).toContain("[observedPicker removeObserver:visibleCanvas]");
   });
 
+  it("does not report programmatic picker hides during page handoff as user dismissal", () => {
+    const deactivationMethod = source.match(
+      /- \(void\)deactivateInkCanvas \{[\s\S]*?\n\}/
+    )?.[0];
+    const removeVisibilityObserver = deactivationMethod?.indexOf(
+      "[picker removeObserver:self]"
+    ) ?? -1;
+    const hidePicker = deactivationMethod?.indexOf("[picker setVisible:NO") ?? -1;
+    const resignCanvas = deactivationMethod?.indexOf("[canvas resignFirstResponder]") ?? -1;
+
+    expect(removeVisibilityObserver).toBeGreaterThanOrEqual(0);
+    expect(removeVisibilityObserver).toBeLessThan(hidePicker);
+    expect(removeVisibilityObserver).toBeLessThan(resignCanvas);
+  });
+
   it("passes native drawing config to the page view and commits through the Papyrus store", () => {
     expect(iosViewer).toContain("state.activeDrawToolPreset");
     expect(iosViewer).toContain("state.inkStrokeWidth");

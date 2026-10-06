@@ -2,6 +2,16 @@ import type { PdfViewerMode } from "@papyrus-sdk/types";
 
 export type NativePdfViewerImplementation = "android" | "ios" | null;
 export type ActiveViewerTelemetryMode = "native" | "compat" | "webview";
+export type DefineSelectionMode = "selection" | "single-word";
+
+export const shouldShowDefineSelection = (
+  text: string | null | undefined,
+  mode: DefineSelectionMode = "selection"
+): boolean => {
+  const normalized = text?.trim() ?? "";
+  if (normalized.length === 0) return false;
+  return mode !== "single-word" || !/\s/u.test(normalized);
+};
 
 export const resolveViewerModeTelemetry = ({
   requestedMode,

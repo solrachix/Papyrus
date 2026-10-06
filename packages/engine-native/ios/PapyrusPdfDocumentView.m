@@ -871,13 +871,13 @@ static NSString *PapyrusHexColorFromUIColor(UIColor *color, CGFloat *opacity) {
     visibleCanvas.observedToolPicker = nil;
   }
   if (picker) {
+    [picker removeObserver:self];
     if (canvas) {
       if (@available(iOS 16.0, *)) {
         [picker setVisible:NO forFirstResponder:canvas];
       }
       [canvas resignFirstResponder];
     }
-    [picker removeObserver:self];
   }
   canvas.userInteractionEnabled = NO;
   self.activeInkCanvas = nil;

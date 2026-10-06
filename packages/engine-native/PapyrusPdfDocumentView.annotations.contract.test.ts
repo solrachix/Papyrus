@@ -123,6 +123,12 @@ describe("Papyrus iOS PDF annotation bridge", () => {
     }
   });
 
+  it("applies single-word Define policy to the iOS pre-16 fallback action", () => {
+    expect(iosViewer).toContain(
+      "shouldShowDefineSelection(selection.text, defineSelectionMode)"
+    );
+  });
+
   it("builds annotations from current selection line bounds and emits intent to JS", () => {
     const create = method("- (void)emitAnnotationFromCurrentSelectionWithType:");
     expect(create).toContain("self.pdfView.currentSelection");

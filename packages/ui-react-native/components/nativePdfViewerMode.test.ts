@@ -1,11 +1,21 @@
 import { describe, expect, it } from "vitest";
 
+import * as nativePdfViewerMode from "./nativePdfViewerMode";
 import {
   resolveEffectivePdfViewerMode,
   resolveNativePdfViewerImplementation,
   resolveViewerModeTelemetry,
   shouldUseNativePdfViewer,
 } from "./nativePdfViewerMode";
+
+const shouldShowDefineSelection = (
+  nativePdfViewerMode as unknown as {
+    shouldShowDefineSelection?: (
+      text: string | null | undefined,
+      mode: "selection" | "single-word"
+    ) => boolean;
+  }
+).shouldShowDefineSelection;
 
 const input = {
   viewerMode: "native" as const,
@@ -228,5 +238,20 @@ describe("resolveViewerModeTelemetry", () => {
         isWebView: false,
       })
     ).toEqual({ mode: "native", requestedMode: "native" });
+  });
+});
+
+describe("shouldShowDefineSelection", () => {
+  it("requires a non-empty single token when single-word mode is active", () => {
+    expect(typeof shouldShowDefineSelection).toBe("function");
+    expect(shouldShowDefineSelection!("  Tarzan  ", "single-word")).toBe(true);
+    expect(shouldShowDefineSelection!("Tarzan Lord", "single-word")).toBe(false);
+    expect(shouldShowDefineSelection!("   ", "single-word")).toBe(false);
+  });
+
+  it("keeps phrase selections available in the default selection mode", () => {
+    expect(typeof shouldShowDefineSelection).toBe("function");
+    expect(shouldShowDefineSelection!("Tarzan Lord", "selection")).toBe(true);
+    expect(shouldShowDefineSelection!("   ", "selection")).toBe(false);
   });
 });

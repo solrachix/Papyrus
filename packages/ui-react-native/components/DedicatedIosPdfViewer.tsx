@@ -9,6 +9,7 @@ import {
   resolveMarkupAnnotationDeleteFallback,
 } from "./annotationDeletion";
 import { resolvePageTapChromeVisibility } from "./mobileChromeInteraction";
+import { shouldShowDefineSelection } from "./nativePdfViewerMode";
 import { getDedicatedAndroidPdfEngineId } from "./DedicatedAndroidPdfViewer";
 import {
   resolveNativePdfPageChange,
@@ -395,7 +396,10 @@ export default function DedicatedIosPdfViewer({
         }}
         onInkToolPickerVisibilityChange={handleInkToolPickerVisibilityChange}
       />
-      {selection && !supportsNativeEditMenu && onDefineSelection && (
+      {selection &&
+        !supportsNativeEditMenu &&
+        onDefineSelection &&
+        shouldShowDefineSelection(selection.text, defineSelectionMode) && (
         <View style={styles.selectionFallback} pointerEvents="box-none">
           <Pressable
             onPress={defineSelection}
