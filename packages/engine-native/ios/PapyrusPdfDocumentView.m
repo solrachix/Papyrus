@@ -491,7 +491,11 @@ static NSString *PapyrusHexColorFromUIColor(UIColor *color, CGFloat *opacity) {
       : @"normal";
   BOOL didChange = ![_pageTheme isEqualToString:normalizedTheme];
   _pageTheme = normalizedTheme;
-  [self acquireOrUpdatePageThemeLeaseForDocument:self.pdfView.document];
+  if (self.window) {
+    [self acquireOrUpdatePageThemeLeaseForDocument:self.pdfView.document];
+  } else {
+    [self releasePageThemeLeaseForDocument:self.pdfView.document];
+  }
 
   UIColor *canvasColor = PapyrusPageThemeCanvasColor(normalizedTheme);
   self.backgroundColor = canvasColor;
@@ -619,7 +623,11 @@ static NSString *PapyrusHexColorFromUIColor(UIColor *color, CGFloat *opacity) {
     [rotationRegistry restoreAllRotationsForDocument:document];
   }
   if (self.pdfView.document == document) {
-    [self acquireOrUpdatePageThemeLeaseForDocument:document];
+    if (self.window) {
+      [self acquireOrUpdatePageThemeLeaseForDocument:document];
+    } else {
+      [self releasePageThemeLeaseForDocument:document];
+    }
     [self applyCurrentPage];
     [self rebuildSearchHighlights];
     [self reconcilePapyrusAnnotations];
@@ -637,7 +645,7 @@ static NSString *PapyrusHexColorFromUIColor(UIColor *color, CGFloat *opacity) {
   [self clearPapyrusAnnotationsForDocument:self.pdfView.document];
   [self clearCurrentSelection];
   [self releasePageThemeLeaseForDocument:currentDocument];
-  if (document) {
+  if (document && self.window) {
     self.pageThemeLeaseToken =
         PapyrusAcquirePdfPageThemeLease(document, self.pageTheme);
   }
@@ -1114,12 +1122,16 @@ static NSString *PapyrusHexColorFromUIColor(UIColor *color, CGFloat *opacity) {
 - (void)didMoveToWindow {
   [super didMoveToWindow];
   if (!self.window) {
+    [self releasePageThemeLeaseForDocument:self.pdfView.document];
+    PapyrusInvalidateViewTree(self.pdfView);
     [self deactivateInkCanvas];
     for (PapyrusPdfPageInkCanvasView *canvas in self.inkCanvasesByPageIndex.allValues) {
       canvas.userInteractionEnabled = NO;
     }
     return;
   }
+  [self acquireOrUpdatePageThemeLeaseForDocument:self.pdfView.document];
+  PapyrusInvalidateViewTree(self.pdfView);
   [self updateInkCanvasInputAndPicker];
 }
 

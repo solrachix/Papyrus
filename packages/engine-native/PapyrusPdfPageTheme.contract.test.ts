@@ -128,6 +128,48 @@ describe("Papyrus native PDF page themes", () => {
     expect(dealloc).toContain("releasePageThemeLeaseForDocument:");
   });
 
+  it("releases and invalidates the theme lease when the native view detaches", () => {
+    const didMoveToWindow = method(pageView, "- (void)didMoveToWindow");
+    const detachedStart = didMoveToWindow.indexOf("if (!self.window)");
+    const detachedEnd = didMoveToWindow.indexOf("return;", detachedStart);
+    const detachedBranch = didMoveToWindow.slice(detachedStart, detachedEnd);
+
+    expect(detachedStart).toBeGreaterThanOrEqual(0);
+    expect(detachedBranch).toContain(
+      "releasePageThemeLeaseForDocument:self.pdfView.document"
+    );
+    expect(detachedBranch).toContain("PapyrusInvalidateViewTree(self.pdfView)");
+  });
+
+  it("reacquires and invalidates the theme lease when the native view reattaches", () => {
+    const didMoveToWindow = method(pageView, "- (void)didMoveToWindow");
+    const detachedStart = didMoveToWindow.indexOf("if (!self.window)");
+    const detachedEnd = didMoveToWindow.indexOf("return;", detachedStart);
+    const attachedBranch = didMoveToWindow.slice(detachedEnd + "return;".length);
+
+    expect(attachedBranch).toContain(
+      "acquireOrUpdatePageThemeLeaseForDocument:self.pdfView.document"
+    );
+    expect(attachedBranch).toContain("PapyrusInvalidateViewTree(self.pdfView)");
+    expect(attachedBranch.indexOf("acquireOrUpdatePageThemeLeaseForDocument:"))
+      .toBeLessThan(attachedBranch.indexOf("PapyrusInvalidateViewTree(self.pdfView)"));
+  });
+
+  it("does not acquire a page theme lease for detached theme or document updates", () => {
+    const setTheme = method(pageView, "- (void)setPageTheme:");
+    const reload = method(pageView, "- (void)reloadDocumentFromStore");
+
+    expect(setTheme).toMatch(
+      /if \(self\.window\)\s*\{\s*\[self acquireOrUpdatePageThemeLeaseForDocument:self\.pdfView\.document\];\s*\}\s*else\s*\{\s*\[self releasePageThemeLeaseForDocument:self\.pdfView\.document\];/
+    );
+    expect(reload).toMatch(
+      /if \(self\.pdfView\.document == document\)\s*\{\s*if \(self\.window\)\s*\{\s*\[self acquireOrUpdatePageThemeLeaseForDocument:document\];/
+    );
+    expect(reload).toMatch(
+      /if \(document && self\.window\)\s*\{\s*self\.pageThemeLeaseToken\s*=\s*PapyrusAcquirePdfPageThemeLease\(document, self\.pageTheme\);/
+    );
+  });
+
   it("keeps compatibility rendering and native routing unchanged outside theme support", () => {
     expect(compatPageView).toContain("CISepiaTone");
     expect(compatPageView).toContain("CIColorInvert");
