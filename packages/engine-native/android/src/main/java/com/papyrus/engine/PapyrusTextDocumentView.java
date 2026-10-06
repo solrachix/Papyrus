@@ -122,11 +122,16 @@ public final class PapyrusTextDocumentView extends FrameLayout {
     int next = Math.max(0, value);
     if (next == expectedTextLength) return;
     expectedTextLength = next;
+    int clampedOffset = PapyrusNativeTextModel.clampRequestedTextOffset(currentTextOffset, expectedTextLength);
+    if (clampedOffset != currentTextOffset) {
+      currentTextOffset = clampedOffset;
+      scrollToTextOffset(clampedOffset);
+    }
     if (next > 0 && textView.length() != next) reloadText();
   }
 
   public void setCurrentTextOffset(int value) {
-    int next = Math.max(0, Math.min(textView.length(), value));
+    int next = PapyrusNativeTextModel.clampRequestedTextOffset(value, expectedTextLength);
     boolean changed = next != currentTextOffset;
     currentTextOffset = next;
     if (changed) scrollToTextOffset(next);
@@ -328,10 +333,11 @@ public final class PapyrusTextDocumentView extends FrameLayout {
   }
 
   private void scrollToTextOffset(int offset) {
-    final int safeOffset = Math.max(0, Math.min(textView.length(), offset));
+    final int requestedOffset = Math.max(0, offset);
     textView.post(() -> {
       Layout layout = textView.getLayout();
       if (layout == null || textView.length() == 0) return;
+      int safeOffset = Math.min(textView.length(), requestedOffset);
       int line = layout.getLineForOffset(safeOffset);
     scrollView.scrollTo(0, Math.max(0, layout.getLineTop(line) + textView.getTop()));
     });

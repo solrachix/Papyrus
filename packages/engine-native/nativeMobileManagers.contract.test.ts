@@ -43,7 +43,7 @@ describe("native TXT and comic view registration contracts", () => {
 
   it("retries Android TXT view loading when the document text arrives after native props", () => {
     const androidTextView = read("packages/engine-native/android/src/main/java/com/papyrus/engine/PapyrusTextDocumentView.java");
-    const setter = androidTextView.match(/public void setTextLength\(int value\) \{([^}]*)\}/)?.[1] ?? "";
+    const setter = androidTextView.match(/public void setTextLength\(int value\) \{([\s\S]*?)\n  \}\n\n  public void setCurrentTextOffset/)?.[1] ?? "";
     const reload = androidTextView.match(/private void reloadText\(\) \{([\s\S]*?)\n  private void applySearchHighlights/)?.[1] ?? "";
 
     expect(setter).toContain("reloadText()");
@@ -62,6 +62,27 @@ describe("native TXT and comic view registration contracts", () => {
     expect(androidTextView).toContain("params.height = contentHeight");
     expect(androidTextView).toContain("textView.measure(contentWidthSpec, contentHeightSpec)");
     expect(androidTextView).toContain("scrollView.addOnLayoutChangeListener");
+  });
+
+  it("preserves Android TXT reading offsets that arrive before the asynchronous text", () => {
+    const androidTextView = read("packages/engine-native/android/src/main/java/com/papyrus/engine/PapyrusTextDocumentView.java");
+    const setter = androidTextView.match(/public void setCurrentTextOffset\(int value\) \{([\s\S]*?)\n  \}/)?.[1] ?? "";
+    const reload = androidTextView.match(/private void reloadText\(\) \{([\s\S]*?)\n  private void requestTextContentLayout/)?.[1] ?? "";
+
+    expect(setter).toContain("PapyrusNativeTextModel.clampRequestedTextOffset(value, expectedTextLength)");
+    expect(setter).not.toContain("textView.length()");
+    expect(reload).toContain("int initialOffset = currentTextOffset");
+    expect(androidTextView).toContain("int safeOffset = Math.min(textView.length(), requestedOffset)");
+  });
+
+  it("applies proportional page height on Android comic bitmap cache hits", () => {
+    const androidComicView = read("packages/engine-native/android/src/main/java/com/papyrus/engine/PapyrusComicDocumentView.java");
+    const bind = androidComicView.match(/@Override public void onBindViewHolder\(@NonNull ComicHolder holder, int position\) \{([\s\S]*?)\n    \}\n    @Override public int getItemCount/)?.[1] ?? "";
+    const cacheHit = bind.match(/if \(cached != null\) \{([\s\S]*?)\}/)?.[1] ?? "";
+
+    expect(cacheHit).toContain("applyPageHeightForImage(holder, cached.getWidth(), cached.getHeight())");
+    expect(bind).toContain("applyPageHeightForImage(holder, bounds.outWidth, bounds.outHeight)");
+    expect(androidComicView).toContain("PapyrusComicPageLayout.itemHeight(");
   });
 
   it("bounds TXT and comic sources and rejects stale generation writes", () => {

@@ -46,4 +46,12 @@ public final class PapyrusNativeTextModelTest {
     PapyrusNativeTextModel.Normalized normalized = PapyrusNativeTextModel.normalize(new String(chars));
     assertEquals(1, normalized.ranges.size());
   }
+
+  @Test public void preservesRequestedReadingOffsetUntilTextLengthIsKnown() {
+    int requestedBeforeTextLoads = PapyrusNativeTextModel.clampRequestedTextOffset(84, 0);
+    assertEquals(84, requestedBeforeTextLoads);
+    assertEquals(84, PapyrusNativeTextModel.clampRequestedTextOffset(requestedBeforeTextLoads, 200));
+    assertEquals(100, PapyrusNativeTextModel.clampRequestedTextOffset(140, 100));
+    assertEquals(0, PapyrusNativeTextModel.clampRequestedTextOffset(-1, 0));
+  }
 }

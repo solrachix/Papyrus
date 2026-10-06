@@ -52,6 +52,11 @@ final class PapyrusNativeTextModel {
 
   private PapyrusNativeTextModel() {}
 
+  static int clampRequestedTextOffset(int requestedOffset, int expectedTextLength) {
+    int nonNegativeOffset = Math.max(0, requestedOffset);
+    return expectedTextLength > 0 ? Math.min(nonNegativeOffset, expectedTextLength) : nonNegativeOffset;
+  }
+
   static String decode(byte[] bytes) throws CharacterCodingException {
     if (bytes.length >= 4 && ((u(bytes[0]) == 0xff && u(bytes[1]) == 0xfe && bytes[2] == 0 && bytes[3] == 0) ||
         (bytes[0] == 0 && bytes[1] == 0 && u(bytes[2]) == 0xfe && u(bytes[3]) == 0xff))) {

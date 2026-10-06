@@ -231,7 +231,12 @@ public final class PapyrusComicDocumentView extends FrameLayout {
       holder.image.setTranslationY(imagePanY);
       String key = id + ":" + docGeneration + ":" + logicalPage;
       Bitmap cached = BITMAPS.get(key);
-      if (cached != null) { holder.image.setImageBitmap(cached); configurePageImage(holder, cached); return; }
+      if (cached != null) {
+        applyPageHeightForImage(holder, cached.getWidth(), cached.getHeight());
+        holder.image.setImageBitmap(cached);
+        configurePageImage(holder, cached);
+        return;
+      }
       DECODE_EXECUTOR.execute(() -> {
           Bitmap bitmap = null;
           try {
@@ -248,23 +253,8 @@ public final class PapyrusComicDocumentView extends FrameLayout {
             return;
           }
           if (bounds.outWidth > 0 && bounds.outHeight > 0) {
-            final int width = Math.max(1, recyclerView.getWidth());
-            final int height;
-            if ("continuous".equals(layoutMode)) {
-              float ratio = (float) bounds.outHeight / (float) bounds.outWidth;
-              int proposed = Math.max(1, Math.round(width * ratio));
-              height = "page".equals(fitMode) ? Math.min(Math.max(1, recyclerView.getHeight()), proposed) : proposed;
-            } else {
-              height = Math.max(1, recyclerView.getHeight());
-            }
             post(() -> {
-              if (holder.bindToken == token) {
-                RecyclerView.LayoutParams params = (RecyclerView.LayoutParams) holder.itemView.getLayoutParams();
-                if (params != null && "continuous".equals(layoutMode) && params.height != height) {
-                  params.height = height;
-                  holder.itemView.setLayoutParams(params);
-                }
-              }
+              if (holder.bindToken == token) applyPageHeightForImage(holder, bounds.outWidth, bounds.outHeight);
             });
             int maxEdge = Math.max(getWidth(), getHeight()) * 2;
             int sample = 1;
@@ -289,6 +279,23 @@ public final class PapyrusComicDocumentView extends FrameLayout {
       });
     }
     @Override public int getItemCount() { return pageCount; }
+    private void applyPageHeightForImage(ComicHolder holder, int imageWidth, int imageHeight) {
+      if (!(holder.itemView.getLayoutParams() instanceof RecyclerView.LayoutParams)) return;
+      RecyclerView.LayoutParams params = (RecyclerView.LayoutParams) holder.itemView.getLayoutParams();
+      int height = PapyrusComicPageLayout.itemHeight(
+        imageWidth,
+        imageHeight,
+        recyclerView.getWidth(),
+        recyclerView.getHeight(),
+        layoutMode,
+        fitMode
+      );
+      if (params.height != height) {
+        params.height = height;
+        holder.itemView.setLayoutParams(params);
+      }
+    }
+
     private void configurePageImage(ComicHolder holder, Bitmap bitmap) {
       boolean widthFit = "single".equals(layoutMode) && "width".equals(fitMode) && recyclerView.getWidth() > 0;
       ScrollView.LayoutParams params;
