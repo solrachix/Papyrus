@@ -3,10 +3,16 @@
 #import <React/RCTBridgeModule.h>
 #import <React/RCTUIManager.h>
 #import <PDFKit/PDFKit.h>
+#import <ImageIO/ImageIO.h>
 #include <math.h>
+
+static const unsigned long long kPapyrusMaximumTextSourceBytes = 64ULL * 1024ULL * 1024ULL;
+static const unsigned long long kPapyrusMaximumComicArchiveBytes = 512ULL * 1024ULL * 1024ULL;
 
 #import "PapyrusEngineStore.h"
 #import "PapyrusPageView.h"
+#import "PapyrusTextStore.h"
+#import "../vendor/libarchive/PapyrusComicArchive.h"
 
 static BOOL PapyrusIsWordCharacter(unichar value) {
   if (value >= '0' && value <= '9') return YES;
@@ -54,6 +60,198 @@ static void PapyrusSyncOnMain(void (^block)(void)) {
   }
 }
 
+static void PapyrusCleanupComicSources(NSString *engineId);
+
+static NSString *PapyrusDecodeTextData(NSData *data, NSError **error) {
+  if (data.length >= 4) {
+    const uint8_t *bytes = data.bytes;
+    if ((bytes[0] == 0xff && bytes[1] == 0xfe && bytes[2] == 0 && bytes[3] == 0) ||
+        (bytes[0] == 0 && bytes[1] == 0 && bytes[2] == 0xfe && bytes[3] == 0xff)) {
+      if (error) *error = [NSError errorWithDomain:@"PapyrusText" code:1 userInfo:@{NSLocalizedDescriptionKey: @"UTF-32 text is not supported"}];
+      return nil;
+    }
+  }
+  NSStringEncoding encoding = NSUTF8StringEncoding;
+  NSUInteger offset = 0;
+  if (data.length >= 2) {
+    const uint8_t *bytes = data.bytes;
+    if (bytes[0] == 0xff && bytes[1] == 0xfe) {
+      encoding = NSUTF16LittleEndianStringEncoding;
+      offset = 2;
+    } else if (bytes[0] == 0xfe && bytes[1] == 0xff) {
+      encoding = NSUTF16BigEndianStringEncoding;
+      offset = 2;
+    } else if (data.length >= 3 && bytes[0] == 0xef && bytes[1] == 0xbb && bytes[2] == 0xbf) {
+      offset = 3;
+    }
+  }
+  NSData *payload = offset ? [data subdataWithRange:NSMakeRange(offset, data.length - offset)] : data;
+  NSString *text = [[NSString alloc] initWithData:payload encoding:encoding];
+  if (!text && error) {
+    *error = [NSError errorWithDomain:@"PapyrusText" code:2 userInfo:@{NSLocalizedDescriptionKey: @"Invalid or unsupported text encoding"}];
+  }
+  return text;
+}
+
+static BOOL PapyrusFileURLExceedsLimit(NSURL *url, unsigned long long limit) {
+  NSDictionary *attributes = [[NSFileManager defaultManager] attributesOfItemAtPath:url.path error:nil];
+  NSNumber *fileSize = attributes[NSFileSize];
+  return fileSize && fileSize.unsignedLongLongValue > limit;
+}
+
+typedef void (^PapyrusBoundedDownloadCompletion)(NSURL * _Nullable fileURL, NSURLResponse * _Nullable response, NSError * _Nullable error);
+
+@interface PapyrusBoundedDownload : NSObject <NSURLSessionDownloadDelegate>
+@property (nonatomic, assign) unsigned long long maximumBytes;
+@property (nonatomic, strong) NSURLSession *session;
+@property (nonatomic, copy) PapyrusBoundedDownloadCompletion completion;
+@property (nonatomic, strong, nullable) NSURL *stagedURL;
+@property (nonatomic, strong, nullable) NSURLResponse *response;
+@property (nonatomic, strong, nullable) NSError *stagingError;
+@property (nonatomic, assign) BOOL exceededLimit;
+- (void)startURL:(NSURL *)url maximumBytes:(unsigned long long)maximumBytes completion:(PapyrusBoundedDownloadCompletion)completion;
+@end
+
+@implementation PapyrusBoundedDownload
+- (void)startURL:(NSURL *)url maximumBytes:(unsigned long long)maximumBytes completion:(PapyrusBoundedDownloadCompletion)completion {
+  self.maximumBytes = maximumBytes;
+  self.completion = completion;
+  NSURLSessionConfiguration *configuration = NSURLSessionConfiguration.defaultSessionConfiguration;
+  self.session = [NSURLSession sessionWithConfiguration:configuration delegate:self delegateQueue:nil];
+  [[self.session downloadTaskWithURL:url] resume];
+}
+
+- (void)URLSession:(NSURLSession *)session downloadTask:(NSURLSessionDownloadTask *)downloadTask didWriteData:(int64_t)bytesWritten totalBytesWritten:(int64_t)totalBytesWritten totalBytesExpectedToWrite:(int64_t)totalBytesExpectedToWrite {
+  #pragma unused(session, bytesWritten, totalBytesExpectedToWrite)
+  if (totalBytesWritten > 0 && (unsigned long long)totalBytesWritten > self.maximumBytes) {
+    self.exceededLimit = YES;
+    [downloadTask cancel];
+  }
+}
+
+- (void)URLSession:(NSURLSession *)session downloadTask:(NSURLSessionDownloadTask *)downloadTask didFinishDownloadingToURL:(NSURL *)location {
+  #pragma unused(session)
+  self.response = downloadTask.response;
+  if ([self.response isKindOfClass:NSHTTPURLResponse.class] && ((NSHTTPURLResponse *)self.response).statusCode >= 400) {
+    self.stagingError = [NSError errorWithDomain:@"PapyrusDownload" code:2 userInfo:@{NSLocalizedDescriptionKey: @"Remote server returned an error"}];
+    return;
+  }
+  if (self.exceededLimit || PapyrusFileURLExceedsLimit(location, self.maximumBytes)) {
+    self.exceededLimit = YES;
+    return;
+  }
+  NSURL *destination = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:[NSString stringWithFormat:@"papyrus-download-%@.tmp", NSUUID.UUID.UUIDString]]];
+  NSError *error = nil;
+  if ([[NSFileManager defaultManager] copyItemAtURL:location toURL:destination error:&error]) {
+    self.stagedURL = destination;
+  } else {
+    self.stagingError = error;
+  }
+}
+
+- (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didCompleteWithError:(NSError *)error {
+  #pragma unused(session)
+  self.response = task.response ?: self.response;
+  NSError *resultError = error ?: self.stagingError;
+  if (self.exceededLimit) {
+    resultError = [NSError errorWithDomain:@"PapyrusDownload" code:1 userInfo:@{NSLocalizedDescriptionKey: @"Download exceeds the configured size limit"}];
+    if (self.stagedURL) [[NSFileManager defaultManager] removeItemAtURL:self.stagedURL error:nil];
+    self.stagedURL = nil;
+  }
+  PapyrusBoundedDownloadCompletion completion = self.completion;
+  self.completion = nil;
+  if (completion) completion(self.stagedURL, self.response, resultError);
+  if (self.stagedURL) [[NSFileManager defaultManager] removeItemAtURL:self.stagedURL error:nil];
+  self.stagedURL = nil;
+  [self.session finishTasksAndInvalidate];
+}
+@end
+
+static void PapyrusDownloadURLWithLimit(NSURL *url, unsigned long long maximumBytes, PapyrusBoundedDownloadCompletion completion) {
+  PapyrusBoundedDownload *download = [[PapyrusBoundedDownload alloc] init];
+  [download startURL:url maximumBytes:maximumBytes completion:completion];
+}
+
+static void PapyrusAppendTextMappingSegment(NSMutableArray<NSMutableDictionary *> * _Nullable segments,
+                                           NSUInteger normalizedStart,
+                                           NSUInteger normalizedLength,
+                                           NSRange sourceRange) {
+  if (!segments || normalizedLength == 0) return;
+  BOOL linear = normalizedLength == 1 && sourceRange.length == 1;
+  NSMutableDictionary *previous = segments.lastObject;
+  if (linear && [previous[@"linear"] boolValue] &&
+      [previous[@"normalizedStart"] unsignedIntegerValue] + [previous[@"normalizedLength"] unsignedIntegerValue] == normalizedStart &&
+      [previous[@"sourceEnd"] unsignedIntegerValue] == sourceRange.location) {
+    previous[@"normalizedLength"] = @([previous[@"normalizedLength"] unsignedIntegerValue] + 1);
+    previous[@"sourceEnd"] = @(NSMaxRange(sourceRange));
+    return;
+  }
+  [segments addObject:[@{
+    @"normalizedStart": @(normalizedStart),
+    @"normalizedLength": @(normalizedLength),
+    @"sourceStart": @(sourceRange.location),
+    @"sourceEnd": @(NSMaxRange(sourceRange)),
+    @"linear": @(linear)
+  } mutableCopy]];
+}
+
+static NSDictionary *PapyrusSourceRangeForNormalizedOffset(NSArray<NSDictionary *> *segments,
+                                                             NSUInteger normalizedOffset) {
+  NSInteger low = 0;
+  NSInteger high = (NSInteger)segments.count - 1;
+  while (low <= high) {
+    NSInteger middle = (low + high) / 2;
+    NSDictionary *segment = segments[(NSUInteger)middle];
+    NSUInteger start = [segment[@"normalizedStart"] unsignedIntegerValue];
+    NSUInteger length = [segment[@"normalizedLength"] unsignedIntegerValue];
+    if (normalizedOffset < start) {
+      high = middle - 1;
+    } else if (normalizedOffset >= start + length) {
+      low = middle + 1;
+    } else if ([segment[@"linear"] boolValue]) {
+      NSUInteger sourceOffset = [segment[@"sourceStart"] unsignedIntegerValue] + normalizedOffset - start;
+      return @{@"start": @(sourceOffset), @"end": @(sourceOffset + 1)};
+    } else {
+      return @{@"start": segment[@"sourceStart"], @"end": segment[@"sourceEnd"]};
+    }
+  }
+  return @{@"start": @0, @"end": @0};
+}
+
+static NSString *PapyrusNormalizeSearchText(NSString *source, NSMutableArray<NSMutableDictionary *> * _Nullable sourceRanges) {
+  if (!source) return @"";
+  NSMutableString *normalized = [NSMutableString string];
+  NSCharacterSet *spaceSet = NSCharacterSet.whitespaceAndNewlineCharacterSet;
+  NSRange pendingWhitespace = NSMakeRange(NSNotFound, 0);
+  NSUInteger cursor = 0;
+  while (cursor < source.length) {
+    NSRange clusterRange = [source rangeOfComposedCharacterSequenceAtIndex:cursor];
+    NSString *cluster = [source substringWithRange:clusterRange];
+    cursor = NSMaxRange(clusterRange);
+    if ([cluster rangeOfCharacterFromSet:spaceSet.invertedSet].location == NSNotFound) {
+      if (pendingWhitespace.location == NSNotFound) pendingWhitespace = clusterRange;
+      else pendingWhitespace.length = NSMaxRange(clusterRange) - pendingWhitespace.location;
+      continue;
+    }
+    if (pendingWhitespace.location != NSNotFound && normalized.length > 0) {
+      NSUInteger normalizedStart = normalized.length;
+      [normalized appendString:@" "];
+      PapyrusAppendTextMappingSegment(sourceRanges, normalizedStart, 1, pendingWhitespace);
+    }
+    pendingWhitespace = NSMakeRange(NSNotFound, 0);
+    NSString *folded = [cluster stringByFoldingWithOptions:NSDiacriticInsensitiveSearch | NSCaseInsensitiveSearch locale:[NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"]];
+    NSUInteger normalizedStart = normalized.length;
+    [normalized appendString:folded];
+    PapyrusAppendTextMappingSegment(sourceRanges, normalizedStart, folded.length, clusterRange);
+  }
+  if (pendingWhitespace.location != NSNotFound && normalized.length > 0) {
+    NSUInteger normalizedStart = normalized.length;
+    [normalized appendString:@" "];
+    PapyrusAppendTextMappingSegment(sourceRanges, normalizedStart, 1, pendingWhitespace);
+  }
+  return normalized;
+}
+
 static NSArray<NSDictionary *> *PapyrusBuildOutlineItems(PDFOutline *outline, PDFDocument *document) {
   if (!outline || !document) return @[];
 
@@ -96,6 +294,287 @@ RCT_EXPORT_BLOCKING_SYNCHRONOUS_METHOD(createEngine) {
 
 RCT_EXPORT_METHOD(destroyEngine:(NSString *)engineId) {
   [[PapyrusEngineStore shared] destroyEngine:engineId];
+  [[PapyrusTextStore shared] closeEngineId:engineId];
+  papyrus_comic_close_engine(engineId.UTF8String);
+  PapyrusCleanupComicSources(engineId);
+}
+
+static NSString *PapyrusComicCacheDirectory(void) {
+  NSURL *caches = [[NSFileManager defaultManager] URLsForDirectory:NSCachesDirectory inDomains:NSUserDomainMask].firstObject;
+  NSURL *directory = [caches URLByAppendingPathComponent:@"PapyrusComicPages" isDirectory:YES];
+  [[NSFileManager defaultManager] createDirectoryAtURL:directory withIntermediateDirectories:YES attributes:nil error:nil];
+  return directory.path;
+}
+
+static NSString *PapyrusComicArchiveDirectory(void) {
+  NSString *directory = [PapyrusComicCacheDirectory() stringByAppendingPathComponent:@"archives"];
+  [[NSFileManager defaultManager] createDirectoryAtPath:directory withIntermediateDirectories:YES attributes:nil error:nil];
+  return directory;
+}
+
+static NSString *PapyrusComicThumbnailsDirectory(void) {
+  NSString *directory = [PapyrusComicCacheDirectory() stringByAppendingPathComponent:@"thumbnails"];
+  [[NSFileManager defaultManager] createDirectoryAtPath:directory withIntermediateDirectories:YES attributes:nil error:nil];
+  return directory;
+}
+
+static NSLock *PapyrusComicThumbnailCacheLock(void) {
+  static NSLock *lock;
+  static dispatch_once_t onceToken;
+  dispatch_once(&onceToken, ^{ lock = [[NSLock alloc] init]; });
+  return lock;
+}
+
+static void PapyrusPruneComicThumbnailCache(NSString *preservePath) {
+  NSString *directory = PapyrusComicThumbnailsDirectory();
+  NSArray<NSString *> *names = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:directory error:nil] ?: @[];
+  NSMutableArray<NSDictionary *> *files = [NSMutableArray array];
+  unsigned long long totalBytes = 0;
+  for (NSString *name in names) {
+    NSString *path = [directory stringByAppendingPathComponent:name];
+    NSDictionary *attributes = [[NSFileManager defaultManager] attributesOfItemAtPath:path error:nil];
+    if (![attributes[NSFileType] isEqualToString:NSFileTypeRegular]) continue;
+    unsigned long long size = [attributes[NSFileSize] unsignedLongLongValue];
+    totalBytes += size;
+    [files addObject:@{ @"path": path, @"size": @(size), @"date": attributes[NSFileModificationDate] ?: [NSDate distantPast] }];
+  }
+  [files sortUsingComparator:^NSComparisonResult(NSDictionary *left, NSDictionary *right) {
+    return [left[@"date"] compare:right[@"date"]];
+  }];
+  const unsigned long long maximumBytes = 16ULL * 1024ULL * 1024ULL;
+  for (NSDictionary *file in files) {
+    if (totalBytes <= maximumBytes) break;
+    NSString *path = file[@"path"];
+    if ([path isEqualToString:preservePath]) continue;
+    if ([[NSFileManager defaultManager] removeItemAtPath:path error:nil]) totalBytes -= [file[@"size"] unsignedLongLongValue];
+  }
+}
+
+static NSMutableDictionary<NSString *, NSString *> *PapyrusComicStagedSourceStore(void) {
+  static NSMutableDictionary<NSString *, NSString *> *store;
+  static dispatch_once_t once;
+  dispatch_once(&once, ^{ store = [NSMutableDictionary dictionary]; });
+  return store;
+}
+
+static NSString *PapyrusComicSourceKey(NSString *engineId, NSInteger generation) {
+  return [NSString stringWithFormat:@"%@:%ld", engineId ?: @"", (long)generation];
+}
+
+static void PapyrusRememberComicSource(NSString *path, NSString *engineId, NSInteger generation) {
+  @synchronized (PapyrusComicStagedSourceStore()) {
+    PapyrusComicStagedSourceStore()[PapyrusComicSourceKey(engineId, generation)] = path;
+  }
+}
+
+static void PapyrusCleanupComicSources(NSString *engineId) {
+  NSMutableArray<NSString *> *paths = [NSMutableArray array];
+  NSString *prefix = [NSString stringWithFormat:@"%@:", engineId ?: @""];
+  @synchronized (PapyrusComicStagedSourceStore()) {
+    NSArray<NSString *> *keys = PapyrusComicStagedSourceStore().allKeys;
+    for (NSString *key in keys) {
+      if ([key hasPrefix:prefix]) {
+        NSString *path = PapyrusComicStagedSourceStore()[key];
+        if (path) [paths addObject:path];
+        [PapyrusComicStagedSourceStore() removeObjectForKey:key];
+      }
+    }
+  }
+  for (NSString *path in paths) [[NSFileManager defaultManager] removeItemAtPath:path error:nil];
+}
+
+static NSData *PapyrusDataFromComicSource(NSDictionary *source, NSError **error) {
+  id dataObject = source[@"data"];
+  if ([dataObject isKindOfClass:[NSData class]]) return dataObject;
+  if ([dataObject isKindOfClass:[NSArray class]]) {
+    NSArray *array = dataObject;
+    NSMutableData *data = [NSMutableData dataWithLength:array.count];
+    uint8_t *bytes = data.mutableBytes;
+    for (NSUInteger i = 0; i < array.count; i++) bytes[i] = [array[i] unsignedCharValue];
+    return data;
+  }
+  return nil;
+}
+
+RCT_EXPORT_METHOD(loadComic:(NSString *)engineId
+                  generation:(NSInteger)generation
+                  source:(NSDictionary *)source
+                  format:(NSString *)format
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject) {
+  #pragma unused(format)
+  void (^openPath)(NSString *, BOOL) = ^(NSString *path, BOOL ownsPath) {
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+      int count = 0;
+      char message[512] = {};
+      NSString *cache = PapyrusComicCacheDirectory();
+      BOOL opened = papyrus_comic_open(engineId.UTF8String, (int)generation, path.UTF8String, cache.UTF8String, &count, message, sizeof(message));
+      if (opened && ownsPath) PapyrusRememberComicSource(path, engineId, generation);
+      else if (!opened && ownsPath) [[NSFileManager defaultManager] removeItemAtPath:path error:nil];
+      dispatch_async(dispatch_get_main_queue(), ^{
+        if (!opened) {
+          NSString *reason = message[0] ? [NSString stringWithUTF8String:message] : @"Unable to open comic archive";
+          reject(@"papyrus_comic_load_failed", reason, nil);
+        } else {
+          resolve(@{@"pageCount": @(count)});
+        }
+      });
+    });
+  };
+
+  NSString *uri = source[@"uri"];
+  if ([uri isKindOfClass:[NSString class]]) {
+    if ([uri hasPrefix:@"http://"] || [uri hasPrefix:@"https://"]) {
+      NSURL *url = [NSURL URLWithString:uri];
+      PapyrusDownloadURLWithLimit(url, kPapyrusMaximumComicArchiveBytes, ^(NSURL *downloadedURL, NSURLResponse *response, NSError *error) {
+        if (error || !downloadedURL) {
+          BOOL tooLarge = [error.domain isEqualToString:@"PapyrusDownload"] && error.code == 1;
+          reject(tooLarge ? @"papyrus_comic_too_large" : @"papyrus_comic_download_failed",
+                 tooLarge ? @"Comic archive exceeds the 512 MiB limit" : @"Failed to download comic archive", error);
+          return;
+        }
+        if ([response isKindOfClass:NSHTTPURLResponse.class] && ((NSHTTPURLResponse *)response).statusCode >= 400) {
+          reject(@"papyrus_comic_download_failed", @"Comic server returned an error", nil);
+          return;
+        }
+        if ((response.expectedContentLength > 0 && (unsigned long long)response.expectedContentLength > kPapyrusMaximumComicArchiveBytes) ||
+            PapyrusFileURLExceedsLimit(downloadedURL, kPapyrusMaximumComicArchiveBytes)) {
+          reject(@"papyrus_comic_too_large", @"Comic archive exceeds the 512 MiB limit", nil);
+          return;
+        }
+        NSString *path = [PapyrusComicArchiveDirectory() stringByAppendingPathComponent:[NSString stringWithFormat:@"papyrus-comic-%@-%ld.cbz", NSUUID.UUID.UUIDString, (long)generation]];
+        NSError *copyError = nil;
+        if (![[NSFileManager defaultManager] copyItemAtURL:downloadedURL toURL:[NSURL fileURLWithPath:path] error:&copyError]) {
+          reject(@"papyrus_comic_write_failed", @"Failed to stage comic archive", copyError);
+          return;
+        }
+        openPath(path, YES);
+      });
+      return;
+    }
+    NSURL *url = [uri hasPrefix:@"file://"] ? [NSURL URLWithString:uri] : [NSURL fileURLWithPath:uri];
+    if (url.isFileURL) {
+      BOOL hasScope = [url startAccessingSecurityScopedResource];
+      if (PapyrusFileURLExceedsLimit(url, kPapyrusMaximumComicArchiveBytes)) {
+        if (hasScope) [url stopAccessingSecurityScopedResource];
+        reject(@"papyrus_comic_too_large", @"Comic archive exceeds the 512 MiB limit", nil);
+        return;
+      }
+      NSString *staged = [PapyrusComicArchiveDirectory() stringByAppendingPathComponent:[NSString stringWithFormat:@"papyrus-comic-%@-%ld.%@", NSUUID.UUID.UUIDString, (long)generation, uri.pathExtension.length ? uri.pathExtension : @"archive"]];
+      NSError *copyError = nil;
+      BOOL copied = [[NSFileManager defaultManager] copyItemAtURL:url toURL:[NSURL fileURLWithPath:staged] error:&copyError];
+      if (hasScope) [url stopAccessingSecurityScopedResource];
+      if (!copied) {
+        reject(@"papyrus_comic_stage_failed", @"Failed to copy comic archive into app cache", copyError);
+        return;
+      }
+      openPath(staged, YES);
+      return;
+    }
+  }
+
+  id sourceData = source[@"data"];
+  if ([sourceData isKindOfClass:NSData.class] && [sourceData length] > kPapyrusMaximumComicArchiveBytes) {
+    reject(@"papyrus_comic_too_large", @"Comic archive exceeds the 512 MiB limit", nil);
+    return;
+  }
+  if ([sourceData isKindOfClass:NSArray.class] && [sourceData count] > kPapyrusMaximumComicArchiveBytes) {
+    reject(@"papyrus_comic_too_large", @"Comic archive exceeds the 512 MiB limit", nil);
+    return;
+  }
+  NSError *error = nil;
+  NSData *data = PapyrusDataFromComicSource(source, &error);
+  if (!data) {
+    reject(@"papyrus_comic_invalid_source", @"Unsupported comic archive source", error);
+    return;
+  }
+  NSString *path = [PapyrusComicArchiveDirectory() stringByAppendingPathComponent:[NSString stringWithFormat:@"papyrus-comic-%@-%ld.cbz", NSUUID.UUID.UUIDString, (long)generation]];
+  if (![data writeToFile:path options:NSDataWritingAtomic error:&error]) {
+    reject(@"papyrus_comic_write_failed", @"Failed to stage comic archive", error);
+    return;
+  }
+  openPath(path, YES);
+}
+
+RCT_EXPORT_METHOD(closeComic:(NSString *)engineId generation:(NSInteger)generation) {
+  papyrus_comic_close(engineId.UTF8String, (int)generation);
+  NSString *key = PapyrusComicSourceKey(engineId, generation);
+  NSString *path = nil;
+  @synchronized (PapyrusComicStagedSourceStore()) {
+    path = PapyrusComicStagedSourceStore()[key];
+    [PapyrusComicStagedSourceStore() removeObjectForKey:key];
+  }
+  if (path) [[NSFileManager defaultManager] removeItemAtPath:path error:nil];
+}
+
+RCT_EXPORT_METHOD(getComicPagePreview:(NSString *)engineId
+                  generation:(NSInteger)generation
+                  pageIndex:(NSInteger)pageIndex
+                  maxEdge:(NSInteger)maxEdge
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject) {
+  dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+    char path[4096] = {};
+    char message[512] = {};
+    if (!papyrus_comic_extract_page(engineId.UTF8String, (int)generation, (int)pageIndex, path, sizeof(path), message, sizeof(message))) {
+      dispatch_async(dispatch_get_main_queue(), ^{ resolve(NSNull.null); });
+      return;
+    }
+    NSURL *url = [NSURL fileURLWithPath:[NSString stringWithUTF8String:path]];
+    NSInteger boundedMaxEdge = MAX(64, MIN(1024, maxEdge));
+    NSString *thumbnailDirectory = PapyrusComicThumbnailsDirectory();
+    NSString *thumbnailName = [NSString stringWithFormat:@"%@-%ld.jpg", url.lastPathComponent, (long)boundedMaxEdge];
+    NSString *thumbnailPath = [thumbnailDirectory stringByAppendingPathComponent:thumbnailName];
+    [PapyrusComicThumbnailCacheLock() lock];
+    NSDictionary *cachedAttributes = [[NSFileManager defaultManager] attributesOfItemAtPath:thumbnailPath error:nil];
+    if ([cachedAttributes[NSFileSize] unsignedLongLongValue] > 0) {
+      [[NSFileManager defaultManager] setAttributes:@{NSFileModificationDate: NSDate.date} ofItemAtPath:thumbnailPath error:nil];
+      NSString *cachedURI = [NSURL fileURLWithPath:thumbnailPath].absoluteString;
+      [PapyrusComicThumbnailCacheLock() unlock];
+      dispatch_async(dispatch_get_main_queue(), ^{ resolve(cachedURI); });
+      return;
+    }
+    CGImageSourceRef source = CGImageSourceCreateWithURL((__bridge CFURLRef)url, NULL);
+    if (!source) {
+      [PapyrusComicThumbnailCacheLock() unlock];
+      dispatch_async(dispatch_get_main_queue(), ^{ resolve(NSNull.null); });
+      return;
+    }
+    NSDictionary *properties = CFBridgingRelease(CGImageSourceCopyPropertiesAtIndex(source, 0, NULL));
+    NSUInteger sourceWidth = [properties[(id)kCGImagePropertyPixelWidth] unsignedIntegerValue];
+    NSUInteger sourceHeight = [properties[(id)kCGImagePropertyPixelHeight] unsignedIntegerValue];
+    if (sourceWidth == 0 || sourceHeight == 0 || sourceWidth > 20000 || sourceHeight > 20000 || sourceWidth * sourceHeight > 80000000ULL) {
+      CFRelease(source);
+      [PapyrusComicThumbnailCacheLock() unlock];
+      dispatch_async(dispatch_get_main_queue(), ^{ resolve(NSNull.null); });
+      return;
+    }
+    NSDictionary *options = @{
+      (__bridge NSString *)kCGImageSourceCreateThumbnailFromImageAlways: @YES,
+      (__bridge NSString *)kCGImageSourceThumbnailMaxPixelSize: @(boundedMaxEdge),
+      (__bridge NSString *)kCGImageSourceCreateThumbnailWithTransform: @YES,
+    };
+    CGImageRef image = CGImageSourceCreateThumbnailAtIndex(source, 0, (__bridge CFDictionaryRef)options);
+    CFRelease(source);
+    if (!image) {
+      [PapyrusComicThumbnailCacheLock() unlock];
+      dispatch_async(dispatch_get_main_queue(), ^{ resolve(NSNull.null); });
+      return;
+    }
+    NSURL *thumbnailURL = [NSURL fileURLWithPath:thumbnailPath];
+    CGImageDestinationRef destination = CGImageDestinationCreateWithURL((__bridge CFURLRef)thumbnailURL, CFSTR("public.jpeg"), 1, NULL);
+    if (destination) {
+      CGImageDestinationAddImage(destination, image, (__bridge CFDictionaryRef)@{(__bridge NSString *)kCGImageDestinationLossyCompressionQuality: @0.82});
+    }
+    BOOL wroteThumbnail = destination && CGImageDestinationFinalize(destination);
+    if (destination) CFRelease(destination);
+    CGImageRelease(image);
+    if (!wroteThumbnail) [[NSFileManager defaultManager] removeItemAtPath:thumbnailPath error:nil];
+    else PapyrusPruneComicThumbnailCache(thumbnailPath);
+    NSString *result = wroteThumbnail ? thumbnailURL.absoluteString : nil;
+    [PapyrusComicThumbnailCacheLock() unlock];
+    dispatch_async(dispatch_get_main_queue(), ^{ resolve(result ?: (id)NSNull.null); });
+  });
 }
 
 RCT_EXPORT_METHOD(readFileChunk:(NSString *)uriValue
@@ -134,6 +613,191 @@ RCT_EXPORT_METHOD(readFileChunk:(NSString *)uriValue
     [file closeFile];
     reject(@"papyrus_file_chunk_failed", exception.reason ?: @"Failed to read local file", nil);
   }
+}
+
+RCT_EXPORT_METHOD(loadText:(NSString *)engineId
+                  generation:(NSInteger)generation
+                  source:(NSDictionary *)source
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject) {
+  void (^finishWithData)(NSData *) = ^(NSData *data) {
+    if (data.length > kPapyrusMaximumTextSourceBytes) {
+      reject(@"papyrus_text_too_large", @"TXT source exceeds the 64 MiB limit", nil);
+      return;
+    }
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+      NSError *error = nil;
+      NSString *text = PapyrusDecodeTextData(data, &error);
+      dispatch_async(dispatch_get_main_queue(), ^{
+        if (!text) {
+          reject(@"papyrus_text_decode_failed", error.localizedDescription ?: @"Unsupported text encoding", error);
+          return;
+        }
+        [[PapyrusTextStore shared] setText:text engineId:engineId generation:generation];
+        resolve(@{@"textLength": @(text.length)});
+      });
+    });
+  };
+
+  NSString *plainText = source[@"text"];
+  if ([plainText isKindOfClass:[NSString class]]) {
+    if ([plainText lengthOfBytesUsingEncoding:NSUTF8StringEncoding] > kPapyrusMaximumTextSourceBytes) {
+      reject(@"papyrus_text_too_large", @"TXT source exceeds the 64 MiB limit", nil);
+      return;
+    }
+    NSData *data = [plainText dataUsingEncoding:NSUTF8StringEncoding];
+    if (data) finishWithData(data);
+    else reject(@"papyrus_text_decode_failed", @"Failed to encode text source", nil);
+    return;
+  }
+
+  NSString *uriValue = source[@"uri"];
+  if ([uriValue isKindOfClass:[NSString class]]) {
+    NSURL *url = [NSURL URLWithString:uriValue];
+    if (!url) {
+      reject(@"papyrus_text_invalid_uri", @"Invalid text URI", nil);
+      return;
+    }
+    if ([uriValue hasPrefix:@"http://"] || [uriValue hasPrefix:@"https://"]) {
+      PapyrusDownloadURLWithLimit(url, kPapyrusMaximumTextSourceBytes, ^(NSURL *downloadedURL, NSURLResponse *response, NSError *error) {
+        if (error || !downloadedURL) {
+          BOOL tooLarge = [error.domain isEqualToString:@"PapyrusDownload"] && error.code == 1;
+          reject(tooLarge ? @"papyrus_text_too_large" : @"papyrus_text_read_failed",
+                 tooLarge ? @"TXT source exceeds the 64 MiB limit" : @"Failed to download text", error);
+          return;
+        }
+        if ((response.expectedContentLength > 0 && (unsigned long long)response.expectedContentLength > kPapyrusMaximumTextSourceBytes) ||
+            PapyrusFileURLExceedsLimit(downloadedURL, kPapyrusMaximumTextSourceBytes)) {
+          reject(@"papyrus_text_too_large", @"TXT source exceeds the 64 MiB limit", nil);
+          return;
+        }
+        NSData *data = [NSData dataWithContentsOfURL:downloadedURL options:NSDataReadingMappedIfSafe error:nil];
+        if (!data) {
+          reject(@"papyrus_text_read_failed", @"Failed to read downloaded text", nil);
+          return;
+        }
+        finishWithData(data);
+      });
+      return;
+    }
+    if (url.isFileURL) {
+      BOOL hasScope = [url startAccessingSecurityScopedResource];
+      dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSData *data = nil;
+        BOOL tooLarge = PapyrusFileURLExceedsLimit(url, kPapyrusMaximumTextSourceBytes);
+        if (!tooLarge) data = [NSData dataWithContentsOfURL:url options:NSDataReadingMappedIfSafe error:nil];
+        if (hasScope) [url stopAccessingSecurityScopedResource];
+        if (tooLarge) {
+          dispatch_async(dispatch_get_main_queue(), ^{
+            reject(@"papyrus_text_too_large", @"TXT source exceeds the 64 MiB limit", nil);
+          });
+        } else if (!data) {
+          dispatch_async(dispatch_get_main_queue(), ^{
+            reject(@"papyrus_text_read_failed", @"Failed to read text from URI", nil);
+          });
+        } else {
+          finishWithData(data);
+        }
+      });
+      return;
+    }
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+      NSData *data = [NSData dataWithContentsOfURL:url options:NSDataReadingMappedIfSafe error:nil];
+      if (!data) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+          reject(@"papyrus_text_read_failed", @"Failed to read text from URI", nil);
+        });
+      } else {
+        finishWithData(data);
+      }
+    });
+    return;
+  }
+
+  id dataObject = source[@"data"];
+  if ([dataObject isKindOfClass:[NSData class]]) {
+    if ([dataObject length] > kPapyrusMaximumTextSourceBytes) {
+      reject(@"papyrus_text_too_large", @"TXT source exceeds the 64 MiB limit", nil);
+      return;
+    }
+    finishWithData(dataObject);
+    return;
+  }
+  if ([dataObject isKindOfClass:[NSArray class]]) {
+    NSArray *array = dataObject;
+    if (array.count > kPapyrusMaximumTextSourceBytes) {
+      reject(@"papyrus_text_too_large", @"TXT source exceeds the 64 MiB limit", nil);
+      return;
+    }
+    NSMutableData *data = [NSMutableData dataWithLength:array.count];
+    uint8_t *bytes = data.mutableBytes;
+    for (NSUInteger i = 0; i < array.count; i++) bytes[i] = [array[i] unsignedCharValue];
+    finishWithData(data);
+    return;
+  }
+  reject(@"papyrus_text_invalid_source", @"Unsupported TXT source", nil);
+}
+
+RCT_EXPORT_METHOD(closeText:(NSString *)engineId generation:(NSInteger)generation) {
+  [[PapyrusTextStore shared] closeEngineId:engineId generation:generation];
+}
+
+RCT_EXPORT_METHOD(getTextRange:(NSString *)engineId
+                  generation:(NSInteger)generation
+                  start:(NSInteger)start
+                  end:(NSInteger)end
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject) {
+  #pragma unused(reject)
+  NSString *text = [[PapyrusTextStore shared] textForEngineId:engineId generation:generation];
+  if (!text || start < 0 || end < start || end > text.length) {
+    resolve(@"");
+    return;
+  }
+  resolve([text substringWithRange:NSMakeRange((NSUInteger)start, (NSUInteger)(end - start))]);
+}
+
+RCT_EXPORT_METHOD(searchTextRanges:(NSString *)engineId
+                  generation:(NSInteger)generation
+                  query:(NSString *)query
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject) {
+  #pragma unused(reject)
+  NSString *text = [[PapyrusTextStore shared] textForEngineId:engineId generation:generation];
+  if (!text || query.length == 0) {
+    resolve(@[]);
+    return;
+  }
+  dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+    NSMutableArray<NSMutableDictionary *> *sourceRanges = [NSMutableArray array];
+    NSString *normalizedSource = PapyrusNormalizeSearchText(text, sourceRanges);
+    NSString *normalizedQuery = [PapyrusNormalizeSearchText(query, nil) stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+    if (normalizedQuery.length == 0 || normalizedSource.length < normalizedQuery.length) {
+      resolve(@[]);
+      return;
+    }
+    NSMutableArray<NSDictionary *> *results = [NSMutableArray array];
+    NSUInteger cursor = 0;
+    while (cursor < normalizedSource.length && results.count < 10000) {
+      NSRange searchRange = NSMakeRange(cursor, normalizedSource.length - cursor);
+      NSRange found = [normalizedSource rangeOfString:normalizedQuery options:NSLiteralSearch range:searchRange];
+      if (found.location == NSNotFound) break;
+      NSDictionary *first = PapyrusSourceRangeForNormalizedOffset(sourceRanges, found.location);
+      NSDictionary *last = PapyrusSourceRangeForNormalizedOffset(sourceRanges, NSMaxRange(found) - 1);
+      NSInteger start = [first[@"start"] integerValue];
+      NSInteger end = [last[@"end"] integerValue];
+      if (end > start && end <= text.length) {
+        [results addObject:@{
+          @"kind": @"text",
+          @"location": @{@"kind": @"textRange", @"start": @(start), @"end": @(end)},
+          @"text": [text substringWithRange:NSMakeRange((NSUInteger)start, (NSUInteger)(end - start))],
+          @"matchIndex": @(results.count)
+        }];
+      }
+      cursor = found.location + 1;
+    }
+    resolve(results);
+  });
 }
 
 RCT_EXPORT_METHOD(load:(NSString *)engineId

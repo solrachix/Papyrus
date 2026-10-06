@@ -38,6 +38,7 @@ export function SearchOverlay({
     prevSearchResult,
     searchQuery,
     searchResults,
+    textSearchResults,
     isLoaded,
     pageCount,
     setSearch,
@@ -53,12 +54,14 @@ export function SearchOverlay({
   const offsets = resolveMobileChromeOffsets(usePapyrusSafeAreaInsets());
   const t = getStrings(locale);
   const searchService = useMemo(() => new SearchService(engine), [engine]);
+  const results =
+    documentType === "text" ? textSearchResults : searchResults;
 
   useEffect(() => {
     searchService.clearCache();
   }, [isLoaded, pageCount, searchService]);
   const currentCount =
-    searchResults.length > 0 && activeSearchIndex >= 0
+    results.length > 0 && activeSearchIndex >= 0
       ? activeSearchIndex + 1
       : 0;
   const targetLabel =
@@ -84,9 +87,9 @@ export function SearchOverlay({
 
     setIsSearching(true);
     try {
-      const results = await searchService.search(query);
+      const nextResults = await searchService.searchReader(query);
       if (requestId !== searchRequestIdRef.current) return;
-      setSearch(query, results);
+      setSearch(query, nextResults);
     } finally {
       if (requestId === searchRequestIdRef.current) setIsSearching(false);
     }
@@ -147,11 +150,11 @@ export function SearchOverlay({
         <View style={styles.metaRow}>
           <Pressable
             onPress={prevSearchResult}
-            disabled={searchResults.length === 0}
+            disabled={results.length === 0}
             style={[
               styles.navButton,
               isDark && styles.navButtonDark,
-              searchResults.length === 0 && styles.navButtonDisabled,
+              results.length === 0 && styles.navButtonDisabled,
             ]}
             accessibilityLabel="Previous result"
           >
@@ -160,15 +163,15 @@ export function SearchOverlay({
           <Text style={[styles.metaText, isDark && styles.metaTextDark]}>
             {isSearching
               ? t.searching
-              : `${currentCount}/${searchResults.length} ${targetLabel}`}
+              : `${currentCount}/${results.length} ${targetLabel}`}
           </Text>
           <Pressable
             onPress={nextSearchResult}
-            disabled={searchResults.length === 0}
+            disabled={results.length === 0}
             style={[
               styles.navButton,
               isDark && styles.navButtonDark,
-              searchResults.length === 0 && styles.navButtonDisabled,
+              results.length === 0 && styles.navButtonDisabled,
             ]}
             accessibilityLabel="Next result"
           >
@@ -187,11 +190,11 @@ export function SearchOverlay({
           </Pressable>
           <Pressable
             onPress={onOpenResults}
-            disabled={searchResults.length === 0}
+            disabled={results.length === 0}
             style={[
               styles.secondaryAction,
               isDark && styles.secondaryActionDark,
-              searchResults.length === 0 && styles.navButtonDisabled,
+              results.length === 0 && styles.navButtonDisabled,
             ]}
             accessibilityLabel="Open all results"
           >

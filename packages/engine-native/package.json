@@ -33,6 +33,8 @@
     "ios/*.h",
     "ios/*.m",
     "ios/*.podspec",
+    "vendor/libarchive",
+    "third_party_licenses",
     "react-native.config.js"
   ],
   "publishConfig": {

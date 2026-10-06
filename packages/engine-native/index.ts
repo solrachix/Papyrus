@@ -16,6 +16,9 @@ import {
   DocumentSource,
   DocumentType,
   ComicFormat,
+  ComicFitMode,
+  ComicLayoutMode,
+  ComicReadingDirection,
   PageDestination,
   PapyrusEventType,
   RenderTargetType,
@@ -23,6 +26,7 @@ import {
   OutlineItem,
   FileLike,
   SearchResult,
+  TextSearchResult,
   TextSelection,
   TextSelectionEndpoints,
   RenderPageResult,
@@ -35,6 +39,8 @@ import {
 import { inferDocumentType, resolveComicFormat } from "./documentType";
 import { resolvePapyrusNativeModule } from "./nativeModuleResolution";
 import { isNativeViewManagerRegistered } from "./nativeViewAvailability";
+import { clampTextOffset } from "./nativeTextModel";
+import { resolveNativeMobileDocumentRoute } from "./nativeDocumentRoute";
 
 const MODULE_NAME = "PapyrusNativeEngine";
 
@@ -165,11 +171,48 @@ const normalizeLoadInput = (
 ): { source: DocumentSource; type?: DocumentType; format?: ComicFormat } =>
   isLoadRequest(input)
     ? { source: input.source, type: input.type, format: input.format }
-    : { source: input };
+  : { source: input };
+
+const normalizeNativeSource = async (
+  source: DocumentSource,
+  allowPlainText: boolean
+): Promise<NativeDocumentSource> => {
+  if (typeof source === "string") {
+    const dataUri = parseDataUri(source);
+    if (dataUri?.isBase64) return { data: decodeBase64(dataUri.data) };
+    if (dataUri && allowPlainText) {
+      return { text: decodeURIComponent(dataUri.data) };
+    }
+    if (looksLikeUri(source)) return { uri: source };
+    if (!allowPlainText && isLikelyBase64(source)) return { data: decodeBase64(source) };
+    return allowPlainText ? { text: source } : { uri: source };
+  }
+  if (typeof source === "object" && source !== null && "uri" in source) {
+    return { uri: source.uri };
+  }
+  if (typeof source === "object" && source !== null && "data" in source) {
+    const data =
+      source.data instanceof Uint8Array
+        ? source.data
+        : new Uint8Array(source.data);
+    return { data };
+  }
+  if (
+    typeof source === "object" &&
+    source !== null &&
+    typeof (source as FileLike).arrayBuffer === "function"
+  ) {
+    return { data: new Uint8Array(await (source as FileLike).arrayBuffer()) };
+  }
+  if (source instanceof ArrayBuffer) return { data: new Uint8Array(source) };
+  if (source instanceof Uint8Array) return { data: source };
+  throw new Error("[Papyrus] Unsupported native document source");
+};
 
 type NativeDocumentSource = {
   uri?: string;
   data?: Uint8Array;
+  text?: string;
 };
 
 type NativePageDestination = {
@@ -252,6 +295,36 @@ type NativeEngineModule = {
     offset: number,
     length: number
   ) => Promise<{ data: string; done: boolean }>;
+  loadText?: (
+    engineId: string,
+    generation: number,
+    source: NativeDocumentSource
+  ) => Promise<{ textLength: number }>;
+  closeText?: (engineId: string, generation: number) => void;
+  getTextRange?: (
+    engineId: string,
+    generation: number,
+    start: number,
+    end: number
+  ) => Promise<string>;
+  searchTextRanges?: (
+    engineId: string,
+    generation: number,
+    query: string
+  ) => Promise<TextSearchResult[]>;
+  loadComic?: (
+    engineId: string,
+    generation: number,
+    source: NativeDocumentSource,
+    format: ComicFormat
+  ) => Promise<{ pageCount: number }>;
+  closeComic?: (engineId: string, generation: number) => void;
+  getComicPagePreview?: (
+    engineId: string,
+    generation: number,
+    pageIndex: number,
+    maxEdge: number
+  ) => Promise<string | null>;
 };
 
 export type PapyrusPageViewProps = ViewProps & {
@@ -304,6 +377,45 @@ export type PapyrusPdfViewerViewProps = ViewProps & {
   annotationNoteLabel?: string;
   annotationDeleteLabel?: string;
   viewMode?: "continuous" | "single";
+};
+
+export type PapyrusTextDocumentViewProps = ViewProps & {
+  engineId?: string;
+  documentGeneration?: number;
+  textLength?: number;
+  currentTextOffset?: number;
+  scrollToTextOffsetSignal?: number | null;
+  searchResults?: TextSearchResult[];
+  activeSearchIndex?: number;
+  pageTheme?: PageTheme;
+  uiTheme?: "light" | "dark";
+  fontSize?: number;
+  lineHeight?: number;
+  pageMargin?: number;
+  defineLabel?: string;
+  defineSelectionMode?: "selection" | "single-word";
+  onTextOffsetChange?: (event: { nativeEvent: { offset: number } }) => void;
+  onTextRangeSelected?: (event: {
+    nativeEvent: { text: string; start: number; end: number };
+  }) => void;
+  onDefineSelection?: (event: {
+    nativeEvent: { text: string; start: number; end: number };
+  }) => void;
+};
+
+export type PapyrusComicDocumentViewProps = ViewProps & {
+  engineId?: string;
+  documentGeneration?: number;
+  pageCount?: number;
+  currentPage?: number;
+  layoutMode?: ComicLayoutMode;
+  fitMode?: ComicFitMode;
+  readingDirection?: ComicReadingDirection;
+  zoom?: number;
+  pageTheme?: PageTheme;
+  onPageChanged?: (event: { nativeEvent: { page: number } }) => void;
+  onZoomChanged?: (event: { nativeEvent: { zoom: number } }) => void;
+  onError?: (event: { nativeEvent: { message: string } }) => void;
 };
 
 type PapyrusPageViewComponent = ComponentType<
@@ -390,6 +502,40 @@ export const PapyrusPdfViewerView =
     ? papyrusPdfDocumentView ?? unavailablePapyrusPdfDocumentView
     : resolvePapyrusAndroidPdfViewerView();
 export const PapyrusPdfDocumentView = PapyrusPdfViewerView;
+
+const PAPYRUS_TEXT_DOCUMENT_VIEW_NAME = "PapyrusTextDocumentView";
+const PAPYRUS_COMIC_DOCUMENT_VIEW_NAME = "PapyrusComicDocumentView";
+
+const resolveNativeView = <Props extends ViewProps>(
+  name: string
+): ComponentType<Props & RefAttributes<unknown>> | null => {
+  if (!isNativeViewManagerRegistered(UIManager, name)) return null;
+  try {
+    return requireNativeComponent<Props>(name) as unknown as ComponentType<
+      Props & RefAttributes<unknown>
+    >;
+  } catch {
+    return null;
+  }
+};
+
+const papyrusTextDocumentView =
+  resolveNativeView<PapyrusTextDocumentViewProps>(
+    PAPYRUS_TEXT_DOCUMENT_VIEW_NAME
+  );
+const papyrusComicDocumentView =
+  resolveNativeView<PapyrusComicDocumentViewProps>(
+    PAPYRUS_COMIC_DOCUMENT_VIEW_NAME
+  );
+
+export const isPapyrusTextDocumentViewAvailable = (): boolean =>
+  papyrusTextDocumentView !== null;
+export const isPapyrusComicDocumentViewAvailable = (): boolean =>
+  papyrusComicDocumentView !== null;
+export const PapyrusTextDocumentView =
+  papyrusTextDocumentView ?? unavailablePapyrusPdfDocumentView;
+export const PapyrusComicDocumentView =
+  papyrusComicDocumentView ?? unavailablePapyrusPdfDocumentView;
 
 export class NativeDocumentEngine extends BaseDocumentEngine {
   private nativeModule: NativeEngineModule | null = null;
@@ -667,6 +813,216 @@ export class NativeDocumentEngine extends BaseDocumentEngine {
     if (target?.nativeTag && typeof target.nativeTag === "number")
       return target.nativeTag;
     return null;
+  }
+}
+
+export class NativeTextDocumentEngine extends BaseDocumentEngine {
+  private nativeModule: NativeEngineModule | null = resolveNativeModule();
+  private engineId: string = this.nativeModule?.createEngine?.() ?? "default";
+  private loadGeneration = 0;
+  private documentGeneration = 0;
+  private textLength = 0;
+  private currentOffset = 0;
+
+  async load(input: DocumentLoadInput): Promise<void> {
+    const { source, type } = normalizeLoadInput(input);
+    if (type && type !== "text") {
+      throw new Error("[NativeTextDocumentEngine] Unsupported type: " + type);
+    }
+
+    const generation = ++this.loadGeneration;
+    if (this.documentGeneration > 0) {
+      this.nativeModule?.closeText?.(this.engineId, this.documentGeneration);
+    }
+    this.documentGeneration = 0;
+    this.textLength = 0;
+    this.currentOffset = 0;
+    const nativeSource = await normalizeNativeSource(source, true);
+    if (generation !== this.loadGeneration) return;
+
+    const native = this.assertNativeModule();
+    if (!native.loadText) {
+      throw new Error("[Papyrus] Native TXT loading is not available");
+    }
+    const result = await native.loadText(
+      this.engineId,
+      generation,
+      nativeSource
+    );
+    if (generation !== this.loadGeneration) {
+      native.closeText?.(this.engineId, generation);
+      return;
+    }
+    this.documentGeneration = generation;
+    this.textLength = Math.max(0, Math.floor(result.textLength));
+    this.currentOffset = 0;
+  }
+
+  getNativeTextEngineId(): string {
+    return this.engineId;
+  }
+  getDocumentGeneration(): number {
+    return this.documentGeneration;
+  }
+  getTextLength(): number {
+    return this.textLength;
+  }
+  getCurrentTextOffset(): number {
+    return this.currentOffset;
+  }
+  goToTextOffset(offset: number): void {
+    this.currentOffset = clampTextOffset(offset, this.textLength);
+  }
+  async getTextRange(start: number, end: number): Promise<string> {
+    const native = this.assertNativeModule();
+    if (!native.getTextRange) return "";
+    return native.getTextRange(
+      this.engineId,
+      this.documentGeneration,
+      clampTextOffset(start, this.textLength),
+      clampTextOffset(end, this.textLength)
+    );
+  }
+  async searchTextRanges(query: string): Promise<TextSearchResult[]> {
+    const native = this.assertNativeModule();
+    if (!native.searchTextRanges) return [];
+    return native.searchTextRanges(this.engineId, this.documentGeneration, query);
+  }
+  getRenderTargetType(): RenderTargetType {
+    return "native-text";
+  }
+  getPageCount(): number { return 0; }
+  getCurrentPage(): number { return 1; }
+  goToPage(page: number): void { void page; }
+  setZoom(zoom: number): void { void zoom; }
+  getZoom(): number { return 1; }
+  rotate(direction: "clockwise" | "counterclockwise"): void { void direction; }
+  getRotation(): number { return 0; }
+  async renderPage(): Promise<void> {}
+  async renderTextLayer(): Promise<void> {}
+  async getTextContent(): Promise<TextItem[]> { return []; }
+  async getPageDimensions(): Promise<{ width: number; height: number }> {
+    return { width: 0, height: 0 };
+  }
+  async selectText(): Promise<TextSelection | null> { return null; }
+  async getOutline(): Promise<OutlineItem[]> { return []; }
+  async getPageIndex(): Promise<number | null> { return null; }
+  destroy(): void {
+    this.loadGeneration += 1;
+    const engineId = this.engineId;
+    if (this.documentGeneration > 0) {
+      this.nativeModule?.closeText?.(engineId, this.documentGeneration);
+    }
+    this.nativeModule?.destroyEngine?.(engineId);
+    this.engineId = "default";
+    this.textLength = 0;
+    this.currentOffset = 0;
+    this.documentGeneration = 0;
+  }
+  private assertNativeModule(): NativeEngineModule {
+    if (!this.nativeModule) this.nativeModule = resolveNativeModule();
+    if (!this.nativeModule) {
+      throw new Error('[Papyrus] Native module "PapyrusNativeEngine" not found. Use a dev client or native build.');
+    }
+    if (this.engineId === "default" && this.nativeModule.createEngine) {
+      this.engineId = this.nativeModule.createEngine();
+    }
+    return this.nativeModule;
+  }
+}
+
+export class NativeComicDocumentEngine extends BaseDocumentEngine {
+  private nativeModule: NativeEngineModule | null = resolveNativeModule();
+  private engineId: string = this.nativeModule?.createEngine?.() ?? "default";
+  private loadGeneration = 0;
+  private documentGeneration = 0;
+  private pageCount = 0;
+  private currentPage = 1;
+  private zoom = 1;
+  private format: ComicFormat = "cbz";
+
+  async load(input: DocumentLoadInput): Promise<void> {
+    const { source, type, format } = normalizeLoadInput(input);
+    if (type && type !== "comic") {
+      throw new Error("[NativeComicDocumentEngine] Unsupported type: " + type);
+    }
+    const generation = ++this.loadGeneration;
+    if (this.documentGeneration > 0) {
+      this.nativeModule?.closeComic?.(this.engineId, this.documentGeneration);
+    }
+    this.documentGeneration = 0;
+    this.pageCount = 0;
+    this.currentPage = 1;
+    this.zoom = 1;
+    const nativeSource = await normalizeNativeSource(source, false);
+    if (generation !== this.loadGeneration) return;
+    const native = this.assertNativeModule();
+    if (!native.loadComic) {
+      throw new Error("[Papyrus] Native comic archive loading is not available");
+    }
+    const engineId = this.engineId;
+    this.format = resolveComicFormat(source, format);
+    const result = await native.loadComic(
+      engineId, generation, nativeSource, this.format
+    );
+    if (generation !== this.loadGeneration) {
+      native.closeComic?.(engineId, generation);
+      return;
+    }
+    this.documentGeneration = generation;
+    this.pageCount = Math.max(0, Math.floor(result.pageCount));
+    this.currentPage = 1;
+  }
+  getNativeComicEngineId(): string { return this.engineId; }
+  getDocumentGeneration(): number { return this.documentGeneration; }
+  getComicFormat(): ComicFormat { return this.format; }
+  getPageCount(): number { return this.pageCount; }
+  getCurrentPage(): number { return this.currentPage; }
+  goToPage(page: number): void {
+    if (page >= 1 && page <= this.pageCount) this.currentPage = page;
+  }
+  getRenderTargetType(): RenderTargetType { return "native-comic"; }
+  async getPagePreview(pageIndex: number): Promise<string | null> {
+    const native = this.assertNativeModule();
+    return (await native.getComicPagePreview?.(
+      this.engineId, this.documentGeneration, pageIndex, 1024
+    )) ?? null;
+  }
+  setZoom(zoom: number): void { this.zoom = Math.max(1, Math.min(5, zoom)); }
+  getZoom(): number { return this.zoom; }
+  rotate(direction: "clockwise" | "counterclockwise"): void { void direction; }
+  getRotation(): number { return 0; }
+  async renderPage(): Promise<void> {}
+  async renderTextLayer(): Promise<void> {}
+  async getTextContent(): Promise<TextItem[]> { return []; }
+  async getPageDimensions(): Promise<{ width: number; height: number }> {
+    return { width: 0, height: 0 };
+  }
+  async selectText(): Promise<TextSelection | null> { return null; }
+  async getOutline(): Promise<OutlineItem[]> { return []; }
+  async getPageIndex(): Promise<number | null> { return null; }
+  destroy(): void {
+    this.loadGeneration += 1;
+    const engineId = this.engineId;
+    if (this.documentGeneration > 0) {
+      this.nativeModule?.closeComic?.(engineId, this.documentGeneration);
+    }
+    this.nativeModule?.destroyEngine?.(engineId);
+    this.engineId = "default";
+    this.documentGeneration = 0;
+    this.pageCount = 0;
+    this.currentPage = 1;
+    this.zoom = 1;
+  }
+  private assertNativeModule(): NativeEngineModule {
+    if (!this.nativeModule) this.nativeModule = resolveNativeModule();
+    if (!this.nativeModule) {
+      throw new Error('[Papyrus] Native module "PapyrusNativeEngine" not found. Use a dev client or native build.');
+    }
+    if (this.engineId === "default" && this.nativeModule.createEngine) {
+      this.engineId = this.nativeModule.createEngine();
+    }
+    return this.nativeModule;
   }
 }
 
@@ -1344,12 +1700,17 @@ export class WebViewDocumentEngine extends BaseDocumentEngine {
 
 export class MobileDocumentEngine extends BaseDocumentEngine {
   private pdfEngine: NativeDocumentEngine;
+  private textEngine: NativeTextDocumentEngine;
+  private comicEngine: NativeComicDocumentEngine;
   private webEngine: WebViewDocumentEngine;
   private activeEngine: DocumentEngine;
+  private loadGeneration = 0;
 
   constructor(options: MobileDocumentEngineOptions = {}) {
     super();
     this.pdfEngine = new NativeDocumentEngine();
+    this.textEngine = new NativeTextDocumentEngine();
+    this.comicEngine = new NativeComicDocumentEngine();
     this.webEngine = new WebViewDocumentEngine(options);
     this.activeEngine = this.pdfEngine;
   }
@@ -1370,6 +1731,42 @@ export class MobileDocumentEngine extends BaseDocumentEngine {
     return this.activeEngine === this.pdfEngine
       ? this.pdfEngine.getNativeEngineId()
       : null;
+  }
+
+  getNativeTextEngineId(): string | null {
+    return this.activeEngine === this.textEngine
+      ? this.textEngine.getNativeTextEngineId()
+      : null;
+  }
+
+  getNativeTextDocumentGeneration(): number {
+    return this.activeEngine === this.textEngine
+      ? this.textEngine.getDocumentGeneration()
+      : 0;
+  }
+
+  getNativeComicEngineId(): string | null {
+    return this.activeEngine === this.comicEngine
+      ? this.comicEngine.getNativeComicEngineId()
+      : null;
+  }
+
+  getNativeComicDocumentGeneration(): number {
+    return this.activeEngine === this.comicEngine
+      ? this.comicEngine.getDocumentGeneration()
+      : 0;
+  }
+
+  getTextLength(): number {
+    return this.activeEngine.getTextLength?.() ?? 0;
+  }
+
+  getCurrentTextOffset(): number {
+    return this.activeEngine.getCurrentTextOffset?.() ?? 0;
+  }
+
+  goToTextOffset(offset: number): void {
+    this.activeEngine.goToTextOffset?.(offset);
   }
 
   getLifecycleStats(): Record<string, number> {
@@ -1394,13 +1791,38 @@ export class MobileDocumentEngine extends BaseDocumentEngine {
   async load(input: DocumentLoadInput): Promise<void> {
     const { source, type, format } = normalizeLoadInput(input);
     const resolvedType = type ?? inferDocumentType(source);
-    this.activeEngine =
-      resolvedType === "pdf" ? this.pdfEngine : this.webEngine;
-    await this.activeEngine.load({
+    const generation = ++this.loadGeneration;
+    const route = resolveNativeMobileDocumentRoute({
+      type: resolvedType,
+      format: resolvedType === "comic" ? resolveComicFormat(source, format) : undefined,
+      platform: Platform.OS,
+      nativeModuleAvailable: resolveNativeModule() !== null,
+      nativeViewAvailable:
+        resolvedType === "text"
+          ? isPapyrusTextDocumentViewAvailable()
+          : resolvedType === "comic"
+            ? isPapyrusComicDocumentViewAvailable()
+            : true,
+    });
+    const nextEngine =
+      route === "native-pdf"
+        ? this.pdfEngine
+        : route === "native-text"
+          ? this.textEngine
+          : route === "native-comic"
+            ? this.comicEngine
+            : this.webEngine;
+
+    if (this.activeEngine !== nextEngine) this.activeEngine.destroy();
+    this.activeEngine = nextEngine;
+    await nextEngine.load({
       type: resolvedType,
       source,
       ...(resolvedType === "comic" && format ? { format } : {}),
     });
+    if (generation !== this.loadGeneration && this.activeEngine !== nextEngine) {
+      return;
+    }
   }
 
   getPageCount(): number {
@@ -1472,6 +1894,13 @@ export class MobileDocumentEngine extends BaseDocumentEngine {
     return [];
   }
 
+  async searchTextRanges(query: string): Promise<TextSearchResult[]> {
+    if (typeof this.activeEngine.searchTextRanges === "function") {
+      return await this.activeEngine.searchTextRanges(query);
+    }
+    return [];
+  }
+
   async selectText(
     pageIndex: number,
     rect: { x: number; y: number; width: number; height: number },
@@ -1492,7 +1921,10 @@ export class MobileDocumentEngine extends BaseDocumentEngine {
   }
 
   destroy(): void {
+    this.loadGeneration += 1;
     this.pdfEngine.destroy();
+    this.textEngine.destroy();
+    this.comicEngine.destroy();
     this.webEngine.destroy();
   }
 }

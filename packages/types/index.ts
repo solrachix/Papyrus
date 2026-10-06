@@ -2,7 +2,12 @@ export type ViewMode = "single" | "double" | "continuous";
 export type UITheme = "light" | "dark";
 export type PageTheme = "normal" | "sepia" | "dark" | "high-contrast";
 export type Locale = "en" | "pt-BR";
-export type RenderTargetType = "canvas" | "element" | "webview";
+export type RenderTargetType =
+  | "canvas"
+  | "element"
+  | "webview"
+  | "native-text"
+  | "native-comic";
 export type PdfViewerMode = "native" | "compat";
 export type PdfScrollDirection = "vertical" | "horizontal";
 export type PdfPageMode = "single" | "continuous";
@@ -40,6 +45,25 @@ export type DocumentSource =
 
 export type DocumentType = "pdf" | "epub" | "text" | "comic";
 export type ComicFormat = "cbz" | "cbr";
+export type ComicLayoutMode = "single" | "continuous";
+export type ComicFitMode = "width" | "page";
+export type ComicReadingDirection = "ltr" | "rtl";
+
+export interface TextLocation {
+  offset: number;
+}
+
+export interface TextRange {
+  start: number;
+  end: number;
+}
+
+export interface TextSearchResult {
+  kind: "text";
+  location: { kind: "textRange" } & TextRange;
+  text: string;
+  matchIndex: number;
+}
 
 export type ReadingMode =
   | "focus"
@@ -126,6 +150,13 @@ export interface SearchResult {
   rects?: { x: number; y: number; width: number; height: number }[];
 }
 
+/** Search result union; page-based SearchResult remains unchanged for PDF. */
+export type ReaderSearchResult = SearchResult | TextSearchResult;
+
+export interface TextRangeSelection extends TextRange {
+  text: string;
+}
+
 export interface TextSelection {
   text: string;
   rects: { x: number; y: number; width: number; height: number }[];
@@ -175,6 +206,8 @@ export interface Annotation {
   content?: string;
   rect: { x: number; y: number; width: number; height: number };
   rects?: { x: number; y: number; width: number; height: number }[];
+  /** Stable UTF-16 range for text documents; never a screen coordinate. */
+  textRange?: TextRange;
   path?: { x: number; y: number }[];
   color: string;
   opacity?: number;
@@ -217,6 +250,10 @@ export interface PapyrusConfig {
   initialAccentColor?: string;
   initialLocale?: Locale;
   initialAnnotations?: Annotation[];
+  initialTextOffset?: number;
+  initialComicLayoutMode?: ComicLayoutMode;
+  initialComicFitMode?: ComicFitMode;
+  initialComicReadingDirection?: ComicReadingDirection;
   sidebarLeftOpen?: boolean;
   sidebarRightOpen?: boolean;
 }
@@ -231,6 +268,7 @@ export enum PapyrusEventType {
   ANNOTATION_REPLY_ADDED = "ANNOTATION_REPLY_ADDED",
   SEARCH_TRIGGERED = "SEARCH_TRIGGERED",
   TEXT_SELECTED = "TEXT_SELECTED",
+  TEXT_RANGE_SELECTED = "TEXT_RANGE_SELECTED",
 }
 
 export interface EventPayloads {
@@ -247,6 +285,7 @@ export interface EventPayloads {
   };
   [PapyrusEventType.SEARCH_TRIGGERED]: { query: string };
   [PapyrusEventType.TEXT_SELECTED]: { text: string; pageIndex: number };
+  [PapyrusEventType.TEXT_RANGE_SELECTED]: TextRangeSelection;
 }
 
 export type PapyrusEventListener<T extends PapyrusEventType> = (
@@ -296,6 +335,11 @@ export interface DocumentEngine {
   /** Optional low-resolution preview used by mobile navigation sheets. */
   getPagePreview?(pageIndex: number): Promise<string | null>;
   searchText?(query: string): Promise<SearchResult[]>;
+  /** Text-only location APIs use UTF-16 offsets and do not synthesize pages. */
+  getTextLength?(): number;
+  getCurrentTextOffset?(): number;
+  goToTextOffset?(offset: number): void;
+  searchTextRanges?(query: string): Promise<TextSearchResult[]>;
   selectText?(
     pageIndex: number,
     rect: { x: number; y: number; width: number; height: number },

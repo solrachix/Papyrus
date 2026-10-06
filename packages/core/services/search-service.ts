@@ -1,4 +1,9 @@
-import { DocumentEngine, SearchResult, TextItem } from "@papyrus-sdk/types";
+import {
+  DocumentEngine,
+  ReaderSearchResult,
+  SearchResult,
+  TextItem,
+} from "@papyrus-sdk/types";
 
 const FALLBACK_SEARCH_CONCURRENCY = 4;
 
@@ -26,7 +31,8 @@ export class SearchService {
 
     if (typeof this.engine.searchText === "function") {
       const results = await this.engine.searchText(trimmedQuery);
-      return requestGeneration === this.requestGeneration ? results : [];
+      if (requestGeneration !== this.requestGeneration) return [];
+      if (results.length > 0) return results;
     }
 
     const pageCount = this.engine.getPageCount();
@@ -62,6 +68,19 @@ export class SearchService {
 
     if (requestGeneration !== this.requestGeneration) return [];
     return pageResults.flat();
+  }
+
+  async searchReader(query: string): Promise<ReaderSearchResult[]> {
+    if (typeof this.engine.searchTextRanges !== "function") {
+      return this.search(query);
+    }
+
+    const requestGeneration = ++this.requestGeneration;
+    const trimmedQuery = query.trim();
+    if (!trimmedQuery || trimmedQuery.length < 2) return [];
+    const results = await this.engine.searchTextRanges(trimmedQuery);
+    if (requestGeneration !== this.requestGeneration) return [];
+    return results.length > 0 ? results : this.search(trimmedQuery);
   }
 
   private async searchPage(

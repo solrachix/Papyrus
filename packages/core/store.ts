@@ -4,6 +4,11 @@ import {
   Annotation,
   AnnotationReply,
   SearchResult,
+  ReaderSearchResult,
+  TextSearchResult,
+  ComicLayoutMode,
+  ComicFitMode,
+  ComicReadingDirection,
   UITheme,
   PageTheme,
   OutlineItem,
@@ -69,8 +74,15 @@ interface ViewerState {
   sidebarRightTab: "search" | "annotations" | "pages";
   searchQuery: string;
   searchResults: SearchResult[];
+  textSearchResults: TextSearchResult[];
   activeSearchIndex: number;
   scrollToPageSignal: number | null;
+  currentTextOffset: number;
+  textLength: number;
+  scrollToTextOffsetSignal: number | null;
+  comicLayoutMode: ComicLayoutMode;
+  comicFitMode: ComicFitMode;
+  comicReadingDirection: ComicReadingDirection;
   annotations: Annotation[];
   activeTool:
     | "select"
@@ -121,10 +133,15 @@ interface ViewerState {
     strokes: readonly InkStrokeCommit[]
   ) => void;
   setSelectedAnnotation: (id: string | null) => void;
-  setSearch: (query: string, results: SearchResult[]) => void;
+  setSearch: (query: string, results: ReaderSearchResult[]) => void;
   nextSearchResult: () => void;
   prevSearchResult: () => void;
   triggerScrollToPage: (pageIndex: number) => void;
+  setTextLocation: (offset: number, textLength?: number) => void;
+  triggerScrollToTextOffset: (offset: number) => void;
+  setComicLayoutMode: (mode: ComicLayoutMode) => void;
+  setComicFitMode: (mode: ComicFitMode) => void;
+  setComicReadingDirection: (direction: ComicReadingDirection) => void;
   setAnnotationColor: (color: string) => void;
   setAnnotationOpacity: (opacity: number) => void;
   setInkStrokeWidth: (width: number) => void;
@@ -171,8 +188,15 @@ const getDefaultViewerState = () => ({
   sidebarRightTab: "search" as const,
   searchQuery: "",
   searchResults: [] as SearchResult[],
+  textSearchResults: [] as TextSearchResult[],
   activeSearchIndex: -1,
   scrollToPageSignal: null as number | null,
+  currentTextOffset: 0,
+  textLength: 0,
+  scrollToTextOffsetSignal: null as number | null,
+  comicLayoutMode: "continuous" as ComicLayoutMode,
+  comicFitMode: "width" as ComicFitMode,
+  comicReadingDirection: "ltr" as ComicReadingDirection,
   annotations: [] as Annotation[],
   activeTool: "select" as const,
   activeDrawToolPreset: "ink" as const,
@@ -235,6 +259,13 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
       return {
         ...defaults,
         currentPage: config.initialPage ?? defaults.currentPage,
+        currentTextOffset: Math.max(0, config.initialTextOffset ?? 0),
+        textLength: defaults.textLength,
+        comicLayoutMode:
+          config.initialComicLayoutMode ?? defaults.comicLayoutMode,
+        comicFitMode: config.initialComicFitMode ?? defaults.comicFitMode,
+        comicReadingDirection:
+          config.initialComicReadingDirection ?? defaults.comicReadingDirection,
         zoom: config.initialZoom ?? defaults.zoom,
         rotation: config.initialRotation ?? defaults.rotation,
         viewMode: config.initialViewMode ?? defaults.viewMode,
@@ -587,7 +618,13 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
   setSearch: (query, results) => {
     set({
       searchQuery: query,
-      searchResults: results,
+      searchResults: results.filter(
+        (result): result is SearchResult => !("kind" in result)
+      ),
+      textSearchResults: results.filter(
+        (result): result is TextSearchResult =>
+          "kind" in result && result.kind === "text"
+      ),
       activeSearchIndex: results.length > 0 ? 0 : -1,
     });
     papyrusEvents.emit(PapyrusEventType.SEARCH_TRIGGERED, { query });
@@ -595,10 +632,24 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
 
   nextSearchResult: () => {
     const state = get();
-    if (state.searchResults.length === 0) return;
+    const results = state.textSearchResults.length
+      ? state.textSearchResults
+      : state.searchResults;
+    if (results.length === 0) return;
     const nextIndex =
-      (state.activeSearchIndex + 1) % state.searchResults.length;
-    const pageIndex = state.searchResults[nextIndex].pageIndex;
+      (state.activeSearchIndex + 1) % results.length;
+    const textResult = state.textSearchResults[nextIndex];
+    if (textResult) {
+      const offset = textResult.location.start;
+      set({
+        activeSearchIndex: nextIndex,
+        currentTextOffset: offset,
+        scrollToTextOffsetSignal: offset,
+      });
+      return;
+    }
+    const pageIndex = state.searchResults[nextIndex]?.pageIndex;
+    if (pageIndex === undefined) return;
     set({
       activeSearchIndex: nextIndex,
       scrollToPageSignal: pageIndex,
@@ -608,11 +659,24 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
 
   prevSearchResult: () => {
     const state = get();
-    if (state.searchResults.length === 0) return;
+    const results = state.textSearchResults.length
+      ? state.textSearchResults
+      : state.searchResults;
+    if (results.length === 0) return;
     const prevIndex =
-      (state.activeSearchIndex - 1 + state.searchResults.length) %
-      state.searchResults.length;
-    const pageIndex = state.searchResults[prevIndex].pageIndex;
+      (state.activeSearchIndex - 1 + results.length) % results.length;
+    const textResult = state.textSearchResults[prevIndex];
+    if (textResult) {
+      const offset = textResult.location.start;
+      set({
+        activeSearchIndex: prevIndex,
+        currentTextOffset: offset,
+        scrollToTextOffsetSignal: offset,
+      });
+      return;
+    }
+    const pageIndex = state.searchResults[prevIndex]?.pageIndex;
+    if (pageIndex === undefined) return;
     set({
       activeSearchIndex: prevIndex,
       scrollToPageSignal: pageIndex,
@@ -622,4 +686,30 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
 
   triggerScrollToPage: (pageIndex) =>
     set({ scrollToPageSignal: pageIndex, currentPage: pageIndex + 1 }),
+  setTextLocation: (offset, textLength) =>
+    set((state) => {
+      const resolvedLength = Math.max(0, textLength ?? state.textLength);
+      return {
+        textLength: resolvedLength,
+        currentTextOffset: Math.max(
+          0,
+          Math.min(resolvedLength, Math.floor(offset))
+        ),
+      };
+    }),
+  triggerScrollToTextOffset: (offset) =>
+    set((state) => {
+      const safeOffset = Math.max(
+        0,
+        Math.min(state.textLength, Math.floor(offset))
+      );
+      return {
+        currentTextOffset: safeOffset,
+        scrollToTextOffsetSignal: safeOffset,
+      };
+    }),
+  setComicLayoutMode: (mode) => set({ comicLayoutMode: mode }),
+  setComicFitMode: (mode) => set({ comicFitMode: mode }),
+  setComicReadingDirection: (direction) =>
+    set({ comicReadingDirection: direction }),
 }));

@@ -73,6 +73,16 @@ type Strings = {
   deleteAnnotation: string;
   previousPage: string;
   nextPage: string;
+  comicMode: string;
+  comicSingle: string;
+  comicContinuous: string;
+  comicFit: string;
+  comicFitWidth: string;
+  comicFitPage: string;
+  comicDirection: string;
+  comicLtr: string;
+  comicRtl: string;
+  comicPageError: string;
 };
 
 const STRINGS: Record<Locale, Strings> = {
@@ -149,6 +159,16 @@ const STRINGS: Record<Locale, Strings> = {
     deleteAnnotation: "Delete",
     previousPage: "Previous page",
     nextPage: "Next page",
+    comicMode: "Comic layout",
+    comicSingle: "Single page",
+    comicContinuous: "Continuous",
+    comicFit: "Page fit",
+    comicFitWidth: "Fit width",
+    comicFitPage: "Fit page",
+    comicDirection: "Reading direction",
+    comicLtr: "Left to right",
+    comicRtl: "Right to left / Manga",
+    comicPageError: "This comic page could not be displayed.",
   },
   "pt-BR": {
     pages: "Paginas",
@@ -223,6 +243,16 @@ const STRINGS: Record<Locale, Strings> = {
     deleteAnnotation: "Apagar",
     previousPage: "Página anterior",
     nextPage: "Próxima página",
+    comicMode: "Layout do quadrinho",
+    comicSingle: "Página única",
+    comicContinuous: "Contínuo",
+    comicFit: "Ajuste da página",
+    comicFitWidth: "Ajustar à largura",
+    comicFitPage: "Ajustar à página",
+    comicDirection: "Direção de leitura",
+    comicLtr: "Esquerda para direita",
+    comicRtl: "Direita para esquerda / Mangá",
+    comicPageError: "Não foi possível exibir esta página do quadrinho.",
   },
 };
 

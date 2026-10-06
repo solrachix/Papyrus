@@ -1,0 +1,11 @@
+BLAKE2 reference source notice
+
+The BLAKE2 reference source files included in the libarchive subset are
+Copyright 2012, Samuel Neves <sneves@dei.uc.pt>. They may be used under the
+terms of CC0 1.0 Universal, the OpenSSL License, or Apache License 2.0, at the
+user's option. The source files retain this notice. The license texts are
+available from:
+
+CC0 1.0 Universal: https://creativecommons.org/publicdomain/zero/1.0/legalcode
+OpenSSL License: https://www.openssl.org/source/license.html
+Apache License 2.0: https://www.apache.org/licenses/LICENSE-2.0
