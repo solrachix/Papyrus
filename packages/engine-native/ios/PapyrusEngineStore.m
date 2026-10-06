@@ -1,7 +1,13 @@
 #import "PapyrusEngineStore.h"
+#import "PapyrusPdfPageTheme.h"
+
+NSNotificationName const PapyrusEngineStoreDocumentDidChangeNotification =
+    @"PapyrusEngineStoreDocumentDidChangeNotification";
+NSString *const PapyrusEngineStoreEngineIdKey = @"engineId";
 
 @interface PapyrusEngineStore ()
 @property (nonatomic, strong) NSMutableDictionary<NSString *, PDFDocument *> *documents;
+- (void)postDocumentChangeForEngineId:(NSString *)engineId;
 @end
 
 @implementation PapyrusEngineStore
@@ -29,20 +35,40 @@
 }
 
 - (void)destroyEngine:(NSString *)engineId {
-  [self.documents removeObjectForKey:engineId];
+  if (engineId.length == 0) return;
+  @synchronized(self) {
+    [self.documents removeObjectForKey:engineId];
+  }
+  [self postDocumentChangeForEngineId:engineId];
 }
 
 - (void)setDocument:(PDFDocument *)document forEngine:(NSString *)engineId {
-  if (!engineId) return;
+  if (engineId.length == 0) return;
   if (document) {
-    self.documents[engineId] = document;
-  } else {
-    [self.documents removeObjectForKey:engineId];
+    PapyrusInstallPdfPageThemeDelegate(document);
   }
+  @synchronized(self) {
+    if (document) {
+      self.documents[engineId] = document;
+    } else {
+      [self.documents removeObjectForKey:engineId];
+    }
+  }
+  [self postDocumentChangeForEngineId:engineId];
 }
 
 - (PDFDocument *_Nullable)documentForEngine:(NSString *)engineId {
-  return self.documents[engineId];
+  if (engineId.length == 0) return nil;
+  @synchronized(self) {
+    return self.documents[engineId];
+  }
+}
+
+- (void)postDocumentChangeForEngineId:(NSString *)engineId {
+  [[NSNotificationCenter defaultCenter]
+      postNotificationName:PapyrusEngineStoreDocumentDidChangeNotification
+                    object:self
+                  userInfo:@{PapyrusEngineStoreEngineIdKey : engineId}];
 }
 
 @end

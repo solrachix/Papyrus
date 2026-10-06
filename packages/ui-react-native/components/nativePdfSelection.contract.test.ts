@@ -1,0 +1,51 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { describe, expect, it } from "vitest";
+
+const source = (path: string) =>
+  readFileSync(resolve(process.cwd(), path), "utf8");
+
+const viewerSource = source("packages/ui-react-native/components/Viewer.tsx");
+const nativeViewerSource = source(
+  "packages/ui-react-native/components/NativePdfDocumentViewer.tsx"
+);
+const iosViewerSource = source(
+  "packages/ui-react-native/components/DedicatedIosPdfViewer.tsx"
+);
+const publicApiSource = source("packages/ui-react-native/index.ts");
+
+describe("native iOS PDF selection contract", () => {
+  it("exposes and forwards text selection callbacks through Viewer", () => {
+    const propsSource = viewerSource.slice(
+      viewerSource.indexOf("export interface ViewerProps"),
+      viewerSource.indexOf("const LIST_TOP_PADDING")
+    );
+
+    expect(propsSource).toContain("onTextSelected?:");
+    expect(propsSource).toContain("onDefineSelection?:");
+    expect(publicApiSource).toContain(
+      'export type { ViewerProps } from "./components/Viewer";'
+    );
+    expect(viewerSource).toContain("onTextSelected={onTextSelected}");
+    expect(viewerSource).toContain("onDefineSelection={onDefineSelection}");
+    expect(nativeViewerSource).toContain("onTextSelected={onTextSelected}");
+    expect(nativeViewerSource).toContain("onDefineSelection={onDefineSelection}");
+    expect(iosViewerSource).toContain("onTextSelected?.({ text, pageIndex });");
+    expect(iosViewerSource).toContain("onDefineSelection?.({");
+  });
+
+  it("uses the native iOS edit menu for Copy and localized Define", () => {
+    expect(iosViewerSource).not.toContain("@react-native-clipboard/clipboard");
+    expect(iosViewerSource).toContain('import { getStrings } from "../mobileStrings"');
+    expect(iosViewerSource).toContain("defineLabel={t.define}");
+    expect(iosViewerSource).toContain("onDefineSelection={");
+    expect(iosViewerSource).toContain("!supportsNativeEditMenu && onDefineSelection");
+    expect(iosViewerSource).toContain("accessibilityLabel={t.define}");
+    expect(iosViewerSource).toContain("<Text style={styles.fallbackButtonText}>{t.define}</Text>");
+    expect(iosViewerSource).not.toContain("copySelection");
+  });
+
+  it("clears the PDFKit selection when the selection toolbar closes", () => {
+    expect(iosViewerSource).toContain("selectionActive={selection !== null}");
+  });
+});

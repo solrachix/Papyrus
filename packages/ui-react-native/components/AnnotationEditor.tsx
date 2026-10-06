@@ -9,12 +9,14 @@ import {
 } from "react-native";
 import { useViewerStore } from "@papyrus-sdk/core";
 import { getStrings } from "../mobileStrings";
+import { deleteAnnotationAndClearSelection } from "./annotationDeletion";
 
 const AnnotationEditor: React.FC = () => {
   const {
     annotations,
     selectedAnnotationId,
     updateAnnotation,
+    removeAnnotation,
     setSelectedAnnotation,
     uiTheme,
     locale,
@@ -40,6 +42,13 @@ const AnnotationEditor: React.FC = () => {
     updateAnnotation(annotation.id, { content: draft });
     setSelectedAnnotation(null);
   };
+  const handleDelete = () => {
+    deleteAnnotationAndClearSelection(
+      annotation.id,
+      removeAnnotation,
+      setSelectedAnnotation
+    );
+  };
 
   return (
     <Modal
@@ -62,6 +71,22 @@ const AnnotationEditor: React.FC = () => {
             multiline
           />
           <View style={styles.actions}>
+            <Pressable
+              onPress={handleDelete}
+              style={[
+                styles.actionButton,
+                styles.actionDelete,
+                isDark && styles.actionDeleteDark,
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel={t.deleteAnnotation}
+              testID="annotation-delete-button"
+            >
+              <Text style={[styles.actionText, styles.actionTextLight]}>
+                {t.deleteAnnotation}
+              </Text>
+            </Pressable>
+            <View style={styles.actionSpacer} />
             <Pressable
               onPress={handleClose}
               style={[styles.actionButton, styles.actionCancel]}
@@ -131,8 +156,9 @@ const styles = StyleSheet.create({
   actions: {
     marginTop: 16,
     flexDirection: "row",
-    justifyContent: "flex-end",
+    alignItems: "center",
   },
+  actionSpacer: { flex: 1 },
   actionButton: {
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -141,6 +167,12 @@ const styles = StyleSheet.create({
   },
   actionCancel: {
     backgroundColor: "#e5e7eb",
+  },
+  actionDelete: {
+    backgroundColor: "#b91c1c",
+  },
+  actionDeleteDark: {
+    backgroundColor: "#991b1b",
   },
   actionSave: {
     backgroundColor: "#2563eb",

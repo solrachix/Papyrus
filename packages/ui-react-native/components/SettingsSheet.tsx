@@ -3,6 +3,7 @@ import {
   View,
   Text,
   Pressable,
+  Platform,
   StyleSheet,
   useWindowDimensions,
 } from "react-native";
@@ -10,6 +11,7 @@ import { useViewerStore } from "@papyrus-sdk/core";
 import { DocumentEngine, PageTheme } from "@papyrus-sdk/types";
 import { getStrings } from "../mobileStrings";
 import { IconZoomIn, IconZoomOut } from "../icons";
+import { resetEngineRotation } from "./rotationReset";
 import { NativeSheet, NativeSheetScrollView } from "./NativeSheet";
 import { getSettingsSheetMaxHeight } from "./settingsSheetLayout";
 
@@ -97,6 +99,10 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
   const handleRotate = (direction: "clockwise" | "counterclockwise") => {
     engine.rotate(direction);
     setDocumentState({ rotation: engine.getRotation() });
+  };
+
+  const handleResetRotation = () => {
+    resetEngineRotation(engine, (rotation) => setDocumentState({ rotation }));
   };
 
   const handleZoom = (delta: number) => {
@@ -317,6 +323,18 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
                 {t.counterclockwise}
               </Text>
             </Pressable>
+            {Platform.OS === "ios" && (
+              <Pressable
+                onPress={handleResetRotation}
+                style={[styles.optionButton, isDark && styles.optionButtonDark]}
+              >
+                <Text
+                  style={[styles.optionText, isDark && styles.optionTextDark]}
+                >
+                  {t.rotationOriginal}
+                </Text>
+              </Pressable>
+            )}
             <Pressable
               onPress={() => handleRotate("clockwise")}
               style={[styles.optionButton, isDark && styles.optionButtonDark]}

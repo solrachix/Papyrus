@@ -2,6 +2,7 @@ import type { ComponentType, RefAttributes } from "react";
 import {
   NativeModules,
   Platform,
+  UIManager,
   TurboModuleRegistry,
   requireNativeComponent,
   View,
@@ -28,10 +29,12 @@ import {
   RenderPageTelemetryContext,
   PageTheme,
   Annotation,
+  InkStrokeCommit,
   PdfVisiblePage,
 } from "@papyrus-sdk/types";
 import { inferDocumentType, resolveComicFormat } from "./documentType";
 import { resolvePapyrusNativeModule } from "./nativeModuleResolution";
+import { isNativeViewManagerRegistered } from "./nativeViewAvailability";
 
 const MODULE_NAME = "PapyrusNativeEngine";
 
@@ -262,11 +265,15 @@ export type PapyrusPdfViewerViewProps = ViewProps & {
   zoom?: number;
   currentPage?: number;
   activeTool?: string;
-  annotationColor?: string;
+  activeDrawToolPreset?: "ink" | "highlight" | "underline";
   inkStrokeWidth?: number;
+  annotationColor?: string;
+  annotationSelectionColor?: string;
   annotationOpacity?: number;
   searchResults?: SearchResult[];
+  activeSearchIndex?: number;
   annotations?: Annotation[];
+  selectedAnnotationId?: string | null;
   onPageChanged?: (event: { nativeEvent: { page: number } }) => void;
   onZoomChanged?: (event: { nativeEvent: { zoom: number } }) => void;
   onPageChange?: (event: { nativeEvent: { page: number } }) => void;
@@ -275,9 +282,27 @@ export type PapyrusPdfViewerViewProps = ViewProps & {
   onAnnotationCreated?: (event: { nativeEvent: Annotation }) => void;
   onTap?: (event: { nativeEvent: { pageIndex: number; x: number; y: number } }) => void;
   onAnnotationTap?: (event: { nativeEvent: { id: string; pageIndex: number; type: string; color: string } }) => void;
+  onAnnotationDelete?: (event: { nativeEvent: { id: string } }) => void;
+  onAnnotationDeselected?: (event: { nativeEvent: Record<string, never> }) => void;
+  onInkDrawingCommitted?: (event: {
+    nativeEvent: { pageIndex: number; strokes: InkStrokeCommit[] };
+  }) => void;
+  onInkToolPickerVisibilityChange?: (event: {
+    nativeEvent: { visible: boolean };
+  }) => void;
   onTextSelected?: (event: { nativeEvent: { text: string; pageIndex: number; rects: { x: number; y: number; width: number; height: number }[] } }) => void;
+  onDefineSelection?: (event: { nativeEvent: { text: string; pageIndex: number } }) => void;
   onScroll?: (event: { nativeEvent: { offsetY: number } }) => void;
   selectionActive?: boolean;
+  defineLabel?: string;
+  defineSelectionMode?: "selection" | "single-word";
+  annotateLabel?: string;
+  annotationHighlightLabel?: string;
+  annotationUnderlineLabel?: string;
+  annotationStrikeoutLabel?: string;
+  annotationSquigglyLabel?: string;
+  annotationNoteLabel?: string;
+  annotationDeleteLabel?: string;
   viewMode?: "continuous" | "single";
 };
 
@@ -324,20 +349,46 @@ const resolvePapyrusPageView = (): PapyrusPageViewComponent => {
   }
 };
 
-const resolvePapyrusPdfViewerView = (): PapyrusPdfViewerViewComponent => {
-  const componentName =
-    Platform.OS === "ios" ? "PapyrusPdfDocumentView" : "PapyrusPdfViewerView";
+const PAPYRUS_PDF_DOCUMENT_VIEW_NAME = "PapyrusPdfDocumentView";
+
+const hasPapyrusPdfDocumentViewManager = (): boolean =>
+  Platform.OS === "ios" &&
+  isNativeViewManagerRegistered(UIManager, PAPYRUS_PDF_DOCUMENT_VIEW_NAME);
+
+const unavailablePapyrusPdfDocumentView: PapyrusPdfViewerViewComponent = () =>
+  null;
+
+const resolvePapyrusPdfDocumentView = (): PapyrusPdfViewerViewComponent | null => {
+  if (!hasPapyrusPdfDocumentViewManager()) return null;
   try {
     return requireNativeComponent<PapyrusPdfViewerViewProps>(
-      componentName
+      PAPYRUS_PDF_DOCUMENT_VIEW_NAME
+    ) as unknown as PapyrusPdfViewerViewComponent;
+  } catch {
+    return null;
+  }
+};
+
+const resolvePapyrusAndroidPdfViewerView = (): PapyrusPdfViewerViewComponent => {
+  try {
+    return requireNativeComponent<PapyrusPdfViewerViewProps>(
+      "PapyrusPdfViewerView"
     ) as unknown as PapyrusPdfViewerViewComponent;
   } catch {
     return View as unknown as PapyrusPdfViewerViewComponent;
   }
 };
 
+const papyrusPdfDocumentView = resolvePapyrusPdfDocumentView();
+
+export const isPapyrusPdfDocumentViewAvailable = (): boolean =>
+  papyrusPdfDocumentView !== null && hasPapyrusPdfDocumentViewManager();
+
 export const PapyrusPageView = resolvePapyrusPageView();
-export const PapyrusPdfViewerView = resolvePapyrusPdfViewerView();
+export const PapyrusPdfViewerView =
+  Platform.OS === "ios"
+    ? papyrusPdfDocumentView ?? unavailablePapyrusPdfDocumentView
+    : resolvePapyrusAndroidPdfViewerView();
 export const PapyrusPdfDocumentView = PapyrusPdfViewerView;
 
 export class NativeDocumentEngine extends BaseDocumentEngine {
@@ -398,6 +449,8 @@ export class NativeDocumentEngine extends BaseDocumentEngine {
     }
 
     this.currentPage = 1;
+    this.zoom = 1.0;
+    this.rotation = 0;
   }
 
   getPageCount(): number {

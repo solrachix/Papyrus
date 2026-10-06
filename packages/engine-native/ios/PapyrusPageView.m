@@ -2,17 +2,21 @@
 
 #import <CoreImage/CoreImage.h>
 
+#import "PapyrusPageRotationRegistry.h"
+
 @interface PapyrusPageView ()
 @property (nonatomic, strong) PDFView *pdfView;
 @property (nonatomic, strong) UIImageView *imageView;
 @property (nonatomic, strong) CIContext *ciContext;
 @property (nonatomic, weak) PDFDocument *currentDocument;
+@property (nonatomic, strong) PapyrusPageRotationLease *pageRotationLease;
 @property (nonatomic, assign) NSInteger currentPageIndex;
 @property (nonatomic, assign) NSInteger currentRotation;
 @property (nonatomic, assign) CGFloat currentScale;
 @property (nonatomic, assign) CGFloat currentZoom;
 @property (nonatomic, assign) NSInteger renderGeneration;
 @property (nonatomic, copy) NSString *currentRenderKey;
+- (void)releasePageRotationLease;
 @end
 
 @implementation PapyrusPageView
@@ -23,6 +27,15 @@ static NSCache<NSString *, UIImage *> *PapyrusPageImageCache;
   if (self != [PapyrusPageView class]) return;
   PapyrusPageImageCache = [NSCache new];
   PapyrusPageImageCache.totalCostLimit = 32 * 1024 * 1024;
+}
+
+- (void)dealloc {
+  [self releasePageRotationLease];
+}
+
+- (void)releasePageRotationLease {
+  [[PapyrusPageRotationRegistry sharedRegistry] releaseLease:self.pageRotationLease];
+  self.pageRotationLease = nil;
 }
 
 - (instancetype)initWithFrame:(CGRect)frame {
@@ -73,6 +86,33 @@ static NSCache<NSString *, UIImage *> *PapyrusPageImageCache;
                      scale:(CGFloat)scale
                       zoom:(CGFloat)zoom
                   rotation:(NSInteger)rotation {
+  if (!document) {
+    [self releasePageRotationLease];
+    self.currentDocument = nil;
+    self.currentPageIndex = NSNotFound;
+    self.currentRotation = rotation;
+    self.currentScale = scale;
+    self.currentZoom = zoom;
+    self.renderGeneration += 1;
+    self.pdfView.document = nil;
+    self.imageView.image = nil;
+    self.currentRenderKey = nil;
+    return;
+  }
+
+  BOOL isSamePage = self.currentDocument == document &&
+      self.currentPageIndex == pageIndex;
+  if (!isSamePage) [self releasePageRotationLease];
+
+  PDFPage *page = [document pageAtIndex:pageIndex];
+  if (!page) return;
+
+  self.pageRotationLease = [[PapyrusPageRotationRegistry sharedRegistry]
+      applyViewerRotation:rotation
+                   toPage:page
+                 document:document
+                pageIndex:pageIndex
+           replacingLease:self.pageRotationLease];
   self.currentDocument = document;
   self.currentPageIndex = pageIndex;
   self.currentRotation = rotation;
@@ -80,20 +120,7 @@ static NSCache<NSString *, UIImage *> *PapyrusPageImageCache;
   self.currentZoom = zoom;
   self.renderGeneration += 1;
 
-  if (!document) {
-    self.pdfView.document = nil;
-    self.imageView.image = nil;
-    return;
-  }
-
-  if (self.pdfView.document != document) {
-    self.pdfView.document = document;
-  }
-
-  PDFPage *page = [document pageAtIndex:pageIndex];
-  if (!page) return;
-
-  page.rotation = (int)rotation;
+  if (self.pdfView.document != document) self.pdfView.document = document;
   [self.pdfView goToPage:page];
 
   CGFloat clampedZoom = MAX(0.1, MIN(5.0, zoom));

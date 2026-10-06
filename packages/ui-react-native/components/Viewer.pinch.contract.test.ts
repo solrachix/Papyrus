@@ -133,8 +133,14 @@ describe("RN Viewer pinch contract", () => {
     ).toHaveLength(5);
   });
 
-  it("uses the Android-only native PDF surface only on Android", () => {
+  it("routes the opt-in native PDF viewer through the platform capability", () => {
     expect(viewerSource).toContain("platform: Platform.OS");
+    const eligibilitySource = viewerSource.slice(
+      viewerSource.indexOf("const isNativePdfViewer"),
+      viewerSource.indexOf("const warnedNativePdfFallbackRef")
+    );
+    expect(eligibilitySource).toContain("viewMode,");
+    expect(eligibilitySource).toContain("rotation,");
     const nativeModeSource = readFileSync(
       resolve(
         process.cwd(),
@@ -143,5 +149,18 @@ describe("RN Viewer pinch contract", () => {
       "utf8"
     );
     expect(nativeModeSource).toContain('platform === "android"');
+    expect(nativeModeSource).toContain('platform === "ios"');
+    expect(nativeModeSource).toContain("nativePdfDocumentViewAvailable");
+    expect(viewerSource).toContain("isPapyrusPdfDocumentViewAvailable()");
+    expect(viewerSource).toContain('"scrollToPageSignal.nativeIOS"');
+  });
+
+  it("records the requested viewer mode separately from the active renderer", () => {
+    expect(viewerSource).toMatch(
+      /mobilePerf\.emit\(\s*"viewer\.mode",\s*resolveViewerModeTelemetry\(\{/m
+    );
+    expect(viewerSource).toContain("requestedMode: resolvedViewerMode");
+    expect(viewerSource).toContain("isNativePdfViewer,");
+    expect(viewerSource).toContain("isWebView,");
   });
 });

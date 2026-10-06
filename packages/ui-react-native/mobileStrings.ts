@@ -38,6 +38,7 @@ type Strings = {
   rotate: string;
   clockwise: string;
   counterclockwise: string;
+  rotationOriginal: string;
   zoom: string;
   highlight: string;
   strike: string;
@@ -61,6 +62,17 @@ type Strings = {
   info: string;
   more: string;
   close: string;
+  copy: string;
+  define: string;
+  annotate: string;
+  annotationHighlight: string;
+  annotationUnderline: string;
+  annotationStrikeout: string;
+  annotationSquiggly: string;
+  annotationNote: string;
+  deleteAnnotation: string;
+  previousPage: string;
+  nextPage: string;
 };
 
 const STRINGS: Record<Locale, Strings> = {
@@ -102,6 +114,7 @@ const STRINGS: Record<Locale, Strings> = {
     rotate: "Rotate",
     clockwise: "Clockwise",
     counterclockwise: "Counterclockwise",
+    rotationOriginal: "Original / 0°",
     zoom: "Zoom",
     highlight: "Highlight",
     strike: "Strike",
@@ -125,6 +138,17 @@ const STRINGS: Record<Locale, Strings> = {
     info: "Info",
     more: "More",
     close: "Close",
+    copy: "Copy",
+    define: "Define",
+    annotate: "Annotate",
+    annotationHighlight: "Highlight",
+    annotationUnderline: "Underline",
+    annotationStrikeout: "Strikeout",
+    annotationSquiggly: "Squiggly",
+    annotationNote: "Note",
+    deleteAnnotation: "Delete",
+    previousPage: "Previous page",
+    nextPage: "Next page",
   },
   "pt-BR": {
     pages: "Paginas",
@@ -164,6 +188,7 @@ const STRINGS: Record<Locale, Strings> = {
     rotate: "Girar",
     clockwise: "Sentido horario",
     counterclockwise: "Sentido anti-horario",
+    rotationOriginal: "Original / 0°",
     zoom: "Zoom",
     highlight: "Marca texto",
     strike: "Risco",
@@ -187,6 +212,17 @@ const STRINGS: Record<Locale, Strings> = {
     info: "Info",
     more: "Mais",
     close: "Fechar",
+    copy: "Copiar",
+    define: "Definir",
+    annotate: "Anotar",
+    annotationHighlight: "Destacar",
+    annotationUnderline: "Sublinhar",
+    annotationStrikeout: "Riscar",
+    annotationSquiggly: "Ondulado",
+    annotationNote: "Nota",
+    deleteAnnotation: "Apagar",
+    previousPage: "Página anterior",
+    nextPage: "Próxima página",
   },
 };
 

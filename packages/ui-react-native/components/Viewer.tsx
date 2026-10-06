@@ -31,7 +31,12 @@ import WebViewViewer from "./WebViewViewer";
 import NativePdfDocumentViewer, {
   getNativePdfEngineId,
 } from "./NativePdfDocumentViewer";
-import { shouldUseNativePdfViewer } from "./nativePdfViewerMode";
+import {
+  resolveEffectivePdfViewerMode,
+  resolveViewerModeTelemetry,
+  shouldUseNativePdfViewer,
+} from "./nativePdfViewerMode";
+import { isPapyrusPdfDocumentViewAvailable } from "@papyrus-sdk/engine-native";
 import {
   resolvePdfBasePageWidth,
   resolvePdfDoublePageContentWidth,
@@ -96,6 +101,12 @@ export interface ViewerProps {
   useDedicatedAndroidPdfViewer?: boolean;
   viewerMode?: PdfViewerMode;
   pageScrubActive?: boolean;
+  /** Called when the native iOS PDF viewer selects non-empty text. */
+  onTextSelected?: (payload: { text: string; pageIndex: number }) => void;
+  /** Called when the reader's Define action is pressed for the current selection. */
+  onDefineSelection?: (payload: { text: string; pageIndex: number }) => void;
+  /** Controls which native PDF selections can be sent to the dictionary. */
+  defineSelectionMode?: "selection" | "single-word";
 }
 
 const LIST_TOP_PADDING = 18;
@@ -179,6 +190,9 @@ const Viewer: React.FC<ViewerProps> = ({
   useDedicatedAndroidPdfViewer,
   viewerMode,
   pageScrubActive = false,
+  onTextSelected,
+  onDefineSelection,
+  defineSelectionMode = "selection",
 }) => {
   const pageCount = useViewerStore((state) => state.pageCount);
   const currentPage = useViewerStore((state) => state.currentPage);
@@ -192,7 +206,9 @@ const Viewer: React.FC<ViewerProps> = ({
   const selectionActive = useViewerStore((state) => state.selectionActive);
   const activeTool = useViewerStore((state) => state.activeTool);
   const uiTheme = useViewerStore((state) => state.uiTheme);
+  const pageTheme = useViewerStore((state) => state.pageTheme);
   const viewMode = useViewerStore((state) => state.viewMode);
+  const rotation = useViewerStore((state) => state.rotation);
   const zoom = useViewerStore((state) => state.zoom);
   const storeViewerMode = useViewerStore((state) => state.viewerMode);
   const listRef = useRef<FlatList<any> & ViewerListHandle>(null);
@@ -203,25 +219,97 @@ const Viewer: React.FC<ViewerProps> = ({
   const isSingle = viewMode === "single";
   const renderTargetType = engine.getRenderTargetType?.() ?? "canvas";
   const isWebView = renderTargetType === "webview";
-  const resolvedViewerMode =
-    viewerMode ?? (useDedicatedAndroidPdfViewer ? "native" : storeViewerMode);
+  const resolvedViewerMode = resolveEffectivePdfViewerMode({
+    platform: Platform.OS,
+    viewerMode,
+    useDedicatedAndroidPdfViewer,
+    storeViewerMode,
+  });
   const mobilePerf = useMobilePerf();
   const pinchPerfMachine = useMemo(
     () => createPinchPerfMachine(mobilePerf),
     [mobilePerf]
   );
 
-  useEffect(() => {
-    mobilePerf.emit("viewer.mode", { mode: resolvedViewerMode });
-  }, [mobilePerf, resolvedViewerMode]);
   const nativeEngineId = getNativePdfEngineId(engine);
+  const nativePdfDocumentViewAvailable =
+    Platform.OS === "ios" && isPapyrusPdfDocumentViewAvailable();
+  const nativeInkOverlayAvailable =
+    Platform.OS !== "ios" || Number.parseInt(String(Platform.Version), 10) >= 16;
   const isNativePdfViewer = shouldUseNativePdfViewer({
     platform: Platform.OS,
     viewerMode: resolvedViewerMode,
     pageCount,
     isWebView,
     nativeEngineId,
+    nativePdfDocumentViewAvailable,
+    pageTheme,
+    viewMode,
+    rotation,
+    activeTool,
+    nativeInkOverlayAvailable,
   });
+  useEffect(() => {
+    setDocumentState({ nativePdfViewerActive: isNativePdfViewer });
+    return () => setDocumentState({ nativePdfViewerActive: false });
+  }, [isNativePdfViewer, setDocumentState]);
+  useEffect(() => {
+    mobilePerf.emit(
+      "viewer.mode",
+      resolveViewerModeTelemetry({
+        requestedMode: resolvedViewerMode,
+        isNativePdfViewer,
+        isWebView,
+      })
+    );
+  }, [isNativePdfViewer, isWebView, mobilePerf, resolvedViewerMode]);
+  const warnedNativePdfFallbackRef = useRef("");
+
+  useEffect(() => {
+    if (
+      !__DEV__ ||
+      Platform.OS !== "ios" ||
+      resolvedViewerMode !== "native" ||
+      isWebView ||
+      pageCount <= 0
+    ) {
+      return;
+    }
+
+    const reason = (() => {
+      if (!nativePdfDocumentViewAvailable) return "manager-unavailable";
+      if (!nativeEngineId) return "engine-unavailable";
+      if (activeTool === "ink" && !nativeInkOverlayAvailable) {
+        return "unsupported-ink-overlay";
+      }
+      if (viewMode === "double") return "unsupported-view-mode";
+      if (rotation !== 0) return "unsupported-rotation";
+      return "";
+    })();
+    if (!reason || warnedNativePdfFallbackRef.current === reason) return;
+
+    warnedNativePdfFallbackRef.current = reason;
+    const detailByReason: Record<string, string> = {
+      "manager-unavailable": "the PapyrusPdfDocumentView manager is not registered",
+      "engine-unavailable": "the native PDF engine id is unavailable",
+      "unsupported-ink-overlay": "PencilKit page overlays require iOS 16 or newer",
+      "unsupported-view-mode": "double-page mode is not supported by the native viewport",
+      "unsupported-rotation": "document rotation is not supported by the native viewport",
+    };
+    console.warn(
+      `[Papyrus] viewerMode="native" is using the compatibility PDF viewer because ${detailByReason[reason]}.`
+    );
+  }, [
+    isWebView,
+    activeTool,
+    nativeEngineId,
+    nativePdfDocumentViewAvailable,
+    nativeInkOverlayAvailable,
+    pageCount,
+    rotation,
+    resolvedViewerMode,
+    viewMode,
+  ]);
   const perfEnabled = isMobilePerfEnabled();
   const mountedAtRef = useRef(perfNow());
   const readyLoggedRef = useRef(false);
@@ -1655,6 +1743,22 @@ const Viewer: React.FC<ViewerProps> = ({
   );
 
   useEffect(() => {
+    if (Platform.OS === "ios" && isNativePdfViewer) {
+      clearPendingScrollTarget();
+      if (scrollToPageSignal === null) return;
+      if (pageCount === 0) return;
+      if (scrollToPageSignal < 0 || scrollToPageSignal >= pageCount) return;
+      engine.goToPage(scrollToPageSignal + 1);
+      setDocumentStateTracked(
+        {
+          currentPage: scrollToPageSignal + 1,
+          scrollToPageSignal: null,
+        },
+        "scrollToPageSignal.nativeIOS"
+      );
+      return;
+    }
+
     if (isWebView) {
       clearPendingScrollTarget();
       if (scrollToPageSignal === null) return;
@@ -1712,6 +1816,7 @@ const Viewer: React.FC<ViewerProps> = ({
     isDouble,
     isSingle,
     isWebView,
+    isNativePdfViewer,
     engine,
   ]);
 
@@ -2119,7 +2224,11 @@ const Viewer: React.FC<ViewerProps> = ({
   if (isNativePdfViewer) {
     return (
       <View style={[styles.container, isDark && styles.containerDark]}>
-        <NativePdfDocumentViewer engine={engine} maxPageWidth={maxPageWidth} />
+        <NativePdfDocumentViewer engine={engine} maxPageWidth={maxPageWidth}
+          onTextSelected={onTextSelected}
+          onDefineSelection={onDefineSelection}
+          defineSelectionMode={defineSelectionMode}
+        />
       </View>
     );
   }

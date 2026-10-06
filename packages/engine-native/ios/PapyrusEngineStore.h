@@ -3,6 +3,9 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+FOUNDATION_EXPORT NSNotificationName const PapyrusEngineStoreDocumentDidChangeNotification;
+FOUNDATION_EXPORT NSString *const PapyrusEngineStoreEngineIdKey;
+
 @interface PapyrusEngineStore : NSObject
 
 + (instancetype)shared;

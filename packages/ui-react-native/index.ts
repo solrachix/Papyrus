@@ -1,4 +1,5 @@
 export { default as Viewer } from "./components/Viewer";
+export type { ViewerProps } from "./components/Viewer";
 export { MobilePerfProvider, useMobilePerf } from "./perf/MobilePerfContext";
 export { createPerfSession, createRunId } from "./perf/perfSession";
 export { default as PageRenderer } from "./components/PageRenderer";
