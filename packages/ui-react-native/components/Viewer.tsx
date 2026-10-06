@@ -282,7 +282,6 @@ const Viewer: React.FC<ViewerProps> = ({
       if (activeTool === "ink" && !nativeInkOverlayAvailable) {
         return "unsupported-ink-overlay";
       }
-      if (pageTheme !== "normal") return "unsupported-page-theme";
       if (viewMode === "double") return "unsupported-view-mode";
       if (rotation !== 0) return "unsupported-rotation";
       return "";
@@ -294,7 +293,6 @@ const Viewer: React.FC<ViewerProps> = ({
       "manager-unavailable": "the PapyrusPdfDocumentView manager is not registered",
       "engine-unavailable": "the native PDF engine id is unavailable",
       "unsupported-ink-overlay": "PencilKit page overlays require iOS 16 or newer",
-      "unsupported-page-theme": `pageTheme '${pageTheme}' is not supported by the native viewport`,
       "unsupported-view-mode": "double-page mode is not supported by the native viewport",
       "unsupported-rotation": "document rotation is not supported by the native viewport",
     };
@@ -308,7 +306,6 @@ const Viewer: React.FC<ViewerProps> = ({
     nativePdfDocumentViewAvailable,
     nativeInkOverlayAvailable,
     pageCount,
-    pageTheme,
     rotation,
     resolvedViewerMode,
     viewMode,

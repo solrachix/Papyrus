@@ -92,7 +92,6 @@ export const shouldUseNativePdfViewer = ({
   return (
     implementation === "ios" &&
     nativePdfDocumentViewAvailable &&
-    pageTheme === "normal" &&
     viewMode !== "double" &&
     rotation === 0
   );

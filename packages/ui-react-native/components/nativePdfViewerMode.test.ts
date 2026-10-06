@@ -121,15 +121,26 @@ describe("shouldUseNativePdfViewer", () => {
     expect(shouldUseNativePdfViewer({ ...input, platform: "ios" })).toBe(false);
   });
 
-  it("falls back to compat for unsupported iOS page themes", () => {
-    expect(
-      shouldUseNativePdfViewer({
-        ...input,
-        platform: "ios",
-        pageTheme: "sepia",
-        nativePdfDocumentViewAvailable: true,
-      })
-    ).toBe(false);
+  it.each(["normal", "sepia", "dark", "high-contrast"])(
+    "keeps the native iOS viewer for the %s page theme",
+    (pageTheme) => {
+      expect(
+        shouldUseNativePdfViewer({
+          ...input,
+          platform: "ios",
+          pageTheme,
+          nativePdfDocumentViewAvailable: true,
+        })
+      ).toBe(true);
+    }
+  );
+
+  it("keeps Android native eligibility unchanged for every page theme", () => {
+    for (const pageTheme of ["normal", "sepia", "dark", "high-contrast"]) {
+      expect(
+        shouldUseNativePdfViewer({ ...input, platform: "android", pageTheme })
+      ).toBe(true);
+    }
   });
 
   it("never uses a native PDF view for a WebView engine", () => {

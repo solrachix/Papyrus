@@ -6,6 +6,7 @@
 #import <math.h>
 
 #import "PapyrusEngineStore.h"
+#import "PapyrusPdfPageTheme.h"
 #import "PapyrusPageRotationRegistry.h"
 
 static const CGFloat PapyrusPdfMinimumZoom = 0.5;
@@ -14,6 +15,27 @@ static const CGFloat PapyrusPdfZoomEventTolerance = 0.02;
 static const NSTimeInterval PapyrusPdfZoomEventInterval = 0.10;
 static const NSTimeInterval PapyrusPdfScrollEventInterval = 0.08;
 static void *PapyrusPdfScrollObservationContext = &PapyrusPdfScrollObservationContext;
+
+static void PapyrusInvalidateViewTree(UIView *view) {
+  [view setNeedsDisplay];
+  [view.layer setNeedsDisplay];
+  for (UIView *subview in view.subviews) {
+    PapyrusInvalidateViewTree(subview);
+  }
+}
+
+static UIColor *PapyrusPageThemeCanvasColor(NSString *theme) {
+  if ([theme isEqualToString:@"sepia"]) {
+    return [UIColor colorWithRed:0.96 green:0.92 blue:0.83 alpha:1.0];
+  }
+  if ([theme isEqualToString:@"dark"]) {
+    return [UIColor colorWithWhite:0.08 alpha:1.0];
+  }
+  if ([theme isEqualToString:@"high-contrast"]) {
+    return UIColor.blackColor;
+  }
+  return UIColor.whiteColor;
+}
 
 static NSDictionary *PapyrusNormalizedSelectionRect(CGRect rect, CGRect pageBounds) {
   if (CGRectIsNull(rect) || CGRectIsEmpty(rect)) return nil;
@@ -253,6 +275,7 @@ static NSString *PapyrusHexColorFromUIColor(UIColor *color, CGFloat *opacity) {
                                       PKCanvasViewDelegate,
                                       PKToolPickerObserver>
 @property (nonatomic, strong) PDFView *pdfView;
+@property (nonatomic, copy, nullable) NSString *pageThemeLeaseToken;
 @property (nonatomic, strong) UIEditMenuInteraction *editMenuInteraction;
 @property (nonatomic, copy) NSArray<PDFSelection *> *searchSelections;
 @property (nonatomic, copy) NSDictionary<NSNumber *, PDFSelection *> *searchSelectionsByResultIndex;
@@ -316,11 +339,14 @@ static NSString *PapyrusHexColorFromUIColor(UIColor *color, CGFloat *opacity) {
 - (NSString *)inkAnnotationSignatureForPage:(NSInteger)pageIndex;
 - (NSArray<NSDictionary *> *)inkDrawingPayloadForCanvas:(PapyrusPdfPageInkCanvasView *)canvas;
 - (void)resetInkOverlaysForDocumentChange;
+- (void)releasePageThemeLeaseForDocument:(nullable PDFDocument *)document;
+- (void)acquireOrUpdatePageThemeLeaseForDocument:(nullable PDFDocument *)document;
 @end
 
 @implementation PapyrusPdfDocumentView
 
 - (void)dealloc {
+  [self releasePageThemeLeaseForDocument:self.pdfView.document];
   [self stopObservingScrollView];
   [self resetInkOverlaysForDocumentChange];
   [[NSNotificationCenter defaultCenter] removeObserver:self];
@@ -457,10 +483,39 @@ static NSString *PapyrusHexColorFromUIColor(UIColor *color, CGFloat *opacity) {
 }
 
 - (void)setPageTheme:(NSString *)pageTheme {
-  _pageTheme = pageTheme.length > 0 ? [pageTheme copy] : @"normal";
-  // Non-normal page themes route to the compatibility viewer in JavaScript.
-  self.backgroundColor = UIColor.whiteColor;
-  self.pdfView.backgroundColor = UIColor.whiteColor;
+  NSSet<NSString *> *supportedThemes =
+      [NSSet setWithArray:@[@"normal", @"sepia", @"dark", @"high-contrast"]];
+  NSString *normalizedTheme = pageTheme.length > 0 &&
+                                      [supportedThemes containsObject:pageTheme]
+      ? [pageTheme copy]
+      : @"normal";
+  BOOL didChange = ![_pageTheme isEqualToString:normalizedTheme];
+  _pageTheme = normalizedTheme;
+  [self acquireOrUpdatePageThemeLeaseForDocument:self.pdfView.document];
+
+  UIColor *canvasColor = PapyrusPageThemeCanvasColor(normalizedTheme);
+  self.backgroundColor = canvasColor;
+  self.pdfView.backgroundColor = canvasColor;
+  if (didChange) {
+    PapyrusInvalidateViewTree(self.pdfView);
+  }
+}
+
+- (void)releasePageThemeLeaseForDocument:(PDFDocument *)document {
+  if (document && self.pageThemeLeaseToken.length > 0) {
+    PapyrusReleasePdfPageThemeLease(document, self.pageThemeLeaseToken);
+  }
+  self.pageThemeLeaseToken = nil;
+}
+
+- (void)acquireOrUpdatePageThemeLeaseForDocument:(PDFDocument *)document {
+  if (!document) return;
+  if (self.pageThemeLeaseToken.length > 0) {
+    PapyrusUpdatePdfPageThemeLease(document, self.pageThemeLeaseToken, self.pageTheme);
+  } else {
+    self.pageThemeLeaseToken =
+        PapyrusAcquirePdfPageThemeLease(document, self.pageTheme);
+  }
 }
 
 - (void)setActiveTool:(NSString *)activeTool {
@@ -564,6 +619,7 @@ static NSString *PapyrusHexColorFromUIColor(UIColor *color, CGFloat *opacity) {
     [rotationRegistry restoreAllRotationsForDocument:document];
   }
   if (self.pdfView.document == document) {
+    [self acquireOrUpdatePageThemeLeaseForDocument:document];
     [self applyCurrentPage];
     [self rebuildSearchHighlights];
     [self reconcilePapyrusAnnotations];
@@ -580,6 +636,11 @@ static NSString *PapyrusHexColorFromUIColor(UIColor *color, CGFloat *opacity) {
   [self resetInkOverlaysForDocumentChange];
   [self clearPapyrusAnnotationsForDocument:self.pdfView.document];
   [self clearCurrentSelection];
+  [self releasePageThemeLeaseForDocument:currentDocument];
+  if (document) {
+    self.pageThemeLeaseToken =
+        PapyrusAcquirePdfPageThemeLease(document, self.pageTheme);
+  }
   self.pdfView.document = document;
   if (!document) {
     [self rebuildSearchHighlights];

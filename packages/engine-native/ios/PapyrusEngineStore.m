@@ -1,4 +1,5 @@
 #import "PapyrusEngineStore.h"
+#import "PapyrusPdfPageTheme.h"
 
 NSNotificationName const PapyrusEngineStoreDocumentDidChangeNotification =
     @"PapyrusEngineStoreDocumentDidChangeNotification";
@@ -43,6 +44,9 @@ NSString *const PapyrusEngineStoreEngineIdKey = @"engineId";
 
 - (void)setDocument:(PDFDocument *)document forEngine:(NSString *)engineId {
   if (engineId.length == 0) return;
+  if (document) {
+    PapyrusInstallPdfPageThemeDelegate(document);
+  }
   @synchronized(self) {
     if (document) {
       self.documents[engineId] = document;
