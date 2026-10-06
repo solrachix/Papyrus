@@ -148,12 +148,32 @@ describe("native TXT and comic view registration contracts", () => {
     expect(iosTextView).not.toContain("[_textView addInteraction:_editMenuInteraction]");
   });
 
+  it("reports phrase selections even when Define is restricted to one word", () => {
+    const iosTextView = read("packages/engine-native/ios/PapyrusTextDocumentView.m");
+    const selectionCallback = iosTextView.match(/- \(void\)textViewDidChangeSelection:\(UITextView \*\)textView \{([\s\S]*?)\n\}/)?.[1] ?? "";
+
+    expect(selectionCallback).not.toContain("defineSelectionMode");
+    expect(selectionCallback).toContain("self.lastReportedStart = -1");
+    expect(selectionCallback).toContain("self.onTextRangeSelected(@{ @\"nativeEvent\": payload })");
+    expect(iosTextView).toContain("return [self selectedRangePayload] != nil &&");
+    expect(iosTextView).toContain("[self isSingleWordSelection]");
+  });
+
   it("preserves iOS comic pan offset between drag gestures", () => {
     const iosComicView = read("packages/engine-native/ios/PapyrusComicDocumentView.m");
 
     expect(iosComicView).toContain("panGestureStartOffset = self.panOffset");
     expect(iosComicView).toContain("translation.x + self.panGestureStartOffset.x");
     expect(iosComicView).toContain("translation.y + self.panGestureStartOffset.y");
+  });
+
+  it("reapplies collection layout when reading direction changes dynamically", () => {
+    const iosComicView = read("packages/engine-native/ios/PapyrusComicDocumentView.m");
+    const directionSetter = iosComicView.match(/- \(void\)setReadingDirection:\(NSString \*\)value \{([\s\S]*?)\n\}/)?.[1] ?? "";
+
+    expect(directionSetter).toContain("[self applyLayoutMode]");
+    expect(directionSetter).toContain("[self.collectionView reloadData]");
+    expect(directionSetter).toContain("[self scrollToCurrentPageAnimated:NO]");
   });
 
   it("closes stale comic loads using the engine identity that started the load", () => {

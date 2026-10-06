@@ -228,7 +228,6 @@ static NSUInteger const PapyrusMaximumTextSearchHighlights = 2000;
 
 - (void)textViewDidChangeSelection:(UITextView *)textView {
   NSDictionary *payload = [self selectedRangePayload];
-  if ([self.defineSelectionMode isEqualToString:@"single-word"] && ![self isSingleWordSelection]) return;
   if (!payload) {
     self.lastReportedStart = -1;
     self.lastReportedEnd = -1;

@@ -147,6 +147,7 @@ static NSCache<NSString *, UIImage *> *PapyrusComicImageCache(void) {
 }
 - (void)setReadingDirection:(NSString *)value {
   _readingDirection = [value isEqualToString:@"rtl"] ? @"rtl" : @"ltr";
+  [self applyLayoutMode];
   [self.collectionView reloadData];
   [self scrollToCurrentPageAnimated:NO];
 }
