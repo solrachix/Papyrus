@@ -10,7 +10,7 @@ changes, and can also be dispatched on a release branch.
 On a Mac with Node, pnpm, Xcode and CocoaPods installed:
 
 ```sh
-pnpm install --frozen-lockfile
+pnpm install --frozen-lockfile --config.node-linker=hoisted
 pnpm --filter @papyrus-sdk/types build
 pnpm --filter @papyrus-sdk/core build
 pnpm --filter @papyrus-sdk/engine-native build
@@ -24,6 +24,9 @@ no IPA, npm publication or EAS job. TypeScript/Vitest and npm pack remain useful
 checks but are not evidence of native iOS compilation. A successful compile
 does not replace device smoke of reading, selection, search, annotations and
 PencilKit.
+
+The CI installs JS dependencies with the hoisted layout used by the mobile
+consumer. This avoids validating a different pnpm symlink layout in CocoaPods.
 
 The pod version is read from `packages/engine-native/package.json`; C++17 is
 explicit in the pod target settings. The renderPage telemetry arguments and

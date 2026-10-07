@@ -55,7 +55,8 @@ jobs:
       - name: Install CocoaPods
         run: gem install cocoapods --version 1.16.2 --no-document
       - name: Install JS dependencies
-        run: pnpm install --frozen-lockfile
+        # Match the mobile consumer's node_modules layout for CocoaPods.
+        run: pnpm install --frozen-lockfile --config.node-linker=hoisted
       - name: Build SDK JavaScript and declarations
         run: |
           pnpm --filter @papyrus-sdk/types build
