@@ -45,6 +45,11 @@ describe("Papyrus PDF page rotation lifecycle", () => {
     expect(registry).toContain("if (record.leaseTokens.count > 0) return;");
   });
 
+  it("calls the records lookup method with Objective-C message syntax", () => {
+    expect(registry).not.toContain("self.recordsForDocument:");
+    expect(registry).toContain("[self recordsForDocument:document create:NO]");
+  });
+
   it("releases a page lease on page/document reuse and view deallocation", () => {
     expect(pageView).toContain("releasePageRotationLease");
     expect(pageView).toContain("- (void)dealloc");
