@@ -27,7 +27,7 @@ export const shouldEnableViewerScrollForPageScrub = ({
 }): boolean => viewerScrollEnabled && !isScrubbing;
 
 export type PageScrubberTouchPolicy = {
-  responderTarget: "track" | "pill";
+  responderTarget: "pill";
   claimOnStart: boolean;
   captureOnStart: boolean;
   captureOnMove: boolean;
@@ -35,7 +35,7 @@ export type PageScrubberTouchPolicy = {
 };
 
 export const resolvePageScrubberTouchPolicy = (): PageScrubberTouchPolicy => ({
-  responderTarget: "track",
+  responderTarget: "pill",
   claimOnStart: true,
   captureOnStart: true,
   captureOnMove: true,
@@ -47,7 +47,7 @@ export const resolvePageScrubberOverlayStyle = () => ({
   elevation: 30,
 });
 
-export const resolvePageScrubberPointerEvents = () => "box-only" as const;
+export const resolvePageScrubberPointerEvents = () => "box-none" as const;
 
 type PageScrubberThumbTopInput = {
   currentPage: number;
@@ -70,19 +70,25 @@ type PageScrubberNavigationController = {
 };
 
 type PageScrubberReleaseAction =
+  | { kind: "none" }
   | { kind: "open" }
   | { kind: "navigate"; page: number };
 
 export const resolvePageScrubberReleaseAction = ({
   hasMoved,
   pendingPage,
+  longPressTriggered = false,
 }: {
   hasMoved: boolean;
   pendingPage: number | null;
-}): PageScrubberReleaseAction =>
-  hasMoved && pendingPage !== null
-    ? { kind: "navigate", page: pendingPage }
-    : { kind: "open" };
+  longPressTriggered?: boolean;
+}): PageScrubberReleaseAction => {
+  if (longPressTriggered) return { kind: "none" };
+  if (hasMoved && pendingPage !== null) {
+    return { kind: "navigate", page: pendingPage };
+  }
+  return { kind: "open" };
+};
 
 export const createPageScrubberNavigationController = (
   onRelease: (page: number) => void,
