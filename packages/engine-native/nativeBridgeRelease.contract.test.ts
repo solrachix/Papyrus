@@ -10,6 +10,10 @@ const android = read(
 const podspec = read("packages/engine-native/PapyrusNativeEngine.podspec");
 
 describe("native release bridge contracts", () => {
+  it("imports POSIX permission macros explicitly for Apple archive compilation", () => {
+    const config = read("packages/engine-native/vendor/libarchive/config/PapyrusArchiveConfig.h");
+    expect(config).toMatch(/#if defined\(__APPLE__\)\s+#include <sys\/types\.h>\s+#include <sys\/stat\.h>\s+#endif/);
+  });
   it("keeps archive compilation sources inside the pod root and publishes that podspec", () => {
     const rootSpec = "packages/engine-native/PapyrusNativeEngine.podspec";
     expect(existsSync(resolve(process.cwd(), rootSpec))).toBe(true);

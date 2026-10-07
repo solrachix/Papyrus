@@ -2,6 +2,12 @@
 #define PAPYRUS_ARCHIVE_CONFIG_H
 #define __LIBARCHIVE_CONFIG_H_INCLUDED 1
 
+/* Import permission macros directly rather than relying on transitive headers. */
+#if defined(__APPLE__)
+#include <sys/types.h>
+#include <sys/stat.h>
+#endif
+
 /* Minimal POSIX configuration for the libarchive reader subset used by Papyrus. */
 #define HAVE_INTTYPES_H 1
 #define HAVE_STDINT_H 1
