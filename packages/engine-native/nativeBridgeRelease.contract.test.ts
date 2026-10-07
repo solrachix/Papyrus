@@ -25,6 +25,16 @@ describe("native release bridge contracts", () => {
     expect(signature?.[1]).toBe("String engineId, ReadableMap dest, Promise promise");
   });
 
+  it("copies the archive error before crossing into the main queue block", () => {
+    const start = ios.indexOf("void (^openPath)");
+    const openPath = ios.slice(start, ios.indexOf('NSString *uri = source', start));
+    const mainQueueBlock = openPath.indexOf("dispatch_async(dispatch_get_main_queue()");
+    const messageCopy = openPath.indexOf("NSString *reason = message[0]");
+    expect(messageCopy).toBeGreaterThanOrEqual(0);
+    expect(messageCopy).toBeLessThan(mainQueueBlock);
+    expect(openPath.slice(mainQueueBlock)).not.toMatch(/\bmessage\b/);
+  });
+
   it("compiles the filesystem-based archive wrapper as C++17 on iOS", () => {
     expect(podspec).toMatch(/'CLANG_CXX_LANGUAGE_STANDARD'\s*=>\s*'c\+\+17'/);
   });

@@ -411,9 +411,9 @@ RCT_EXPORT_METHOD(loadComic:(NSString *)engineId
       BOOL opened = papyrus_comic_open(engineId.UTF8String, (int)generation, path.UTF8String, cache.UTF8String, &count, message, sizeof(message));
       if (opened && ownsPath) PapyrusRememberComicSource(path, engineId, generation);
       else if (!opened && ownsPath) [[NSFileManager defaultManager] removeItemAtPath:path error:nil];
+      NSString *reason = message[0] ? [NSString stringWithUTF8String:message] : @"Unable to open comic archive";
       dispatch_async(dispatch_get_main_queue(), ^{
         if (!opened) {
-          NSString *reason = message[0] ? [NSString stringWithUTF8String:message] : @"Unable to open comic archive";
           reject(@"papyrus_comic_load_failed", reason, nil);
         } else {
           resolve(@{@"pageCount": @(count)});
