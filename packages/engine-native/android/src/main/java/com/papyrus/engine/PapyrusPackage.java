@@ -21,7 +21,9 @@ public class PapyrusPackage implements ReactPackage {
   public List<ViewManager> createViewManagers(ReactApplicationContext reactContext) {
     return Arrays.<ViewManager>asList(
       new PapyrusPageViewManager(),
-      new PapyrusPdfViewerViewManager()
+      new PapyrusPdfViewerViewManager(),
+      new PapyrusTextDocumentViewManager(),
+      new PapyrusComicDocumentViewManager()
     );
   }
 }

@@ -51,6 +51,9 @@ export function ProgressPill({
   const {
     currentPage,
     pageCount,
+    currentTextOffset,
+    textLength,
+    comicLayoutMode,
     viewMode,
     locale,
     uiTheme,
@@ -167,7 +170,32 @@ export function ProgressPill({
     return null;
   }
 
-  const pillMode = resolveProgressPillMode(viewMode, currentPage, pageCount);
+  if (documentType === "text") {
+    const progress = textLength <= 0
+      ? 0
+      : clampPercent((currentTextOffset / textLength) * 100);
+    return (
+      <View
+        pointerEvents="box-none"
+        style={[styles.frame, styles.singleFrame, { top: offsets.progress, right: offsets.right }]}
+      >
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${t.progress} ${progress}%`}
+          onPress={() => onPressRef.current()}
+          style={[styles.singlePill, isDark && styles.pillDark]}
+          testID="papyrus-progress-text"
+        >
+          <Text style={[styles.label, isDark && styles.labelDark]}>{progress}%</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  const progressViewMode = documentType === "comic"
+    ? comicLayoutMode === "single" ? "single" : "continuous"
+    : viewMode;
+  const pillMode = resolveProgressPillMode(progressViewMode, currentPage, pageCount);
   if (pillMode.kind === "navigation") {
     const previousDisabled = pillMode.previousPage === null || !onNavigateToPage;
     const nextDisabled = pillMode.nextPage === null || !onNavigateToPage;

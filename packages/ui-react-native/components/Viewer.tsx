@@ -31,6 +31,8 @@ import WebViewViewer from "./WebViewViewer";
 import NativePdfDocumentViewer, {
   getNativePdfEngineId,
 } from "./NativePdfDocumentViewer";
+import NativeTextDocumentViewer from "./NativeTextDocumentViewer";
+import NativeComicDocumentViewer from "./NativeComicDocumentViewer";
 import {
   resolveEffectivePdfViewerMode,
   resolveViewerModeTelemetry,
@@ -107,6 +109,10 @@ export interface ViewerProps {
   onDefineSelection?: (payload: { text: string; pageIndex: number }) => void;
   /** Controls which native PDF selections can be sent to the dictionary. */
   defineSelectionMode?: "selection" | "single-word";
+  /** Called when the native TXT view selects a UTF-16 range. */
+  onTextRangeSelected?: (payload: { text: string; start: number; end: number }) => void;
+  /** Called when Define is chosen for a native TXT range. */
+  onDefineTextSelection?: (payload: { text: string; start: number; end: number }) => void;
 }
 
 const LIST_TOP_PADDING = 18;
@@ -193,6 +199,8 @@ const Viewer: React.FC<ViewerProps> = ({
   onTextSelected,
   onDefineSelection,
   defineSelectionMode = "selection",
+  onTextRangeSelected,
+  onDefineTextSelection,
 }) => {
   const pageCount = useViewerStore((state) => state.pageCount);
   const currentPage = useViewerStore((state) => state.currentPage);
@@ -219,6 +227,8 @@ const Viewer: React.FC<ViewerProps> = ({
   const isSingle = viewMode === "single";
   const renderTargetType = engine.getRenderTargetType?.() ?? "canvas";
   const isWebView = renderTargetType === "webview";
+  const isNativeTextViewer = renderTargetType === "native-text";
+  const isNativeComicViewer = renderTargetType === "native-comic";
   const resolvedViewerMode = resolveEffectivePdfViewerMode({
     platform: Platform.OS,
     viewerMode,
@@ -2217,6 +2227,27 @@ const Viewer: React.FC<ViewerProps> = ({
           onScrollOffset={handleWebViewScroll}
           onTap={handleWebViewTap}
         />
+      </View>
+    );
+  }
+
+  if (isNativeTextViewer) {
+    return (
+      <View style={[styles.container, isDark && styles.containerDark]}>
+        <NativeTextDocumentViewer
+          engine={engine}
+          onTextRangeSelected={onTextRangeSelected}
+          onDefineSelection={onDefineTextSelection}
+          defineSelectionMode={defineSelectionMode}
+        />
+      </View>
+    );
+  }
+
+  if (isNativeComicViewer) {
+    return (
+      <View style={[styles.container, isDark && styles.containerDark]}>
+        <NativeComicDocumentViewer engine={engine} />
       </View>
     );
   }

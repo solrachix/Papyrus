@@ -5,6 +5,8 @@ import android.content.Context;
 import android.net.Uri;
 import android.os.ParcelFileDescriptor;
 import android.util.Base64;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.view.View;
 
 import com.facebook.react.bridge.Arguments;
@@ -29,12 +31,22 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.io.ByteArrayOutputStream;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class PapyrusNativeEngineModule extends ReactContextBaseJavaModule {
+  private static final Object COMIC_THUMBNAIL_CACHE_LOCK = new Object();
+  private static final long MAX_COMIC_THUMBNAIL_CACHE_BYTES = 16L * 1024L * 1024L;
+  private static final long MAX_TEXT_SOURCE_BYTES = 64L * 1024L * 1024L;
+  private static final long MAX_COMIC_ARCHIVE_BYTES = 512L * 1024L * 1024L;
   private final ReactApplicationContext reactContext;
   private final ExecutorService executor = Executors.newSingleThreadExecutor();
+  private final ConcurrentHashMap<String, File> comicSourceFiles = new ConcurrentHashMap<>();
   private long renderRequestCounter = 0;
 
   public PapyrusNativeEngineModule(ReactApplicationContext reactContext) {
@@ -61,6 +73,229 @@ public class PapyrusNativeEngineModule extends ReactContextBaseJavaModule {
   @ReactMethod
   public void destroyEngine(String engineId) {
     PapyrusEngineStore.destroyEngine(engineId);
+    PapyrusTextStore.close(engineId);
+    PapyrusComicArchiveNative.closeEngine(engineId);
+    String prefix = engineId + ":";
+    for (java.util.Map.Entry<String, File> entry : comicSourceFiles.entrySet()) {
+      if (entry.getKey().startsWith(prefix) && comicSourceFiles.remove(entry.getKey(), entry.getValue())) {
+        entry.getValue().delete();
+      }
+    }
+  }
+
+  @ReactMethod
+  public void loadText(String engineId, int generation, ReadableMap source, Promise promise) {
+    executor.execute(() -> {
+      File ownedFile = null;
+      try {
+        String text;
+        if (source.hasKey("text") && source.getType("text") == ReadableType.String) {
+          text = source.getString("text");
+          if (text != null && utf8LengthExceeds(text, MAX_TEXT_SOURCE_BYTES)) {
+            throw new IOException("TXT source exceeds the 64 MiB limit");
+          }
+        } else {
+          File file = materializeSource(source, reactContext, MAX_TEXT_SOURCE_BYTES);
+          if (file == null) throw new IOException("Unsupported TXT source");
+          if (isOwnedMaterializedSource(source)) ownedFile = file;
+          try (FileInputStream input = new FileInputStream(file)) {
+            text = PapyrusNativeTextModel.decode(readAllBytes(input, MAX_TEXT_SOURCE_BYTES));
+          }
+        }
+        if (text == null) throw new IOException("TXT source did not contain text");
+        PapyrusTextStore.setText(engineId, generation, text);
+        WritableMap result = Arguments.createMap();
+        result.putInt("textLength", text.length());
+        promise.resolve(result);
+      } catch (Throwable error) {
+        promise.reject("papyrus_text_load_failed", error.getMessage() != null ? error.getMessage() : "Failed to load TXT", error);
+      } finally {
+        if (ownedFile != null) ownedFile.delete();
+      }
+    });
+  }
+
+  @ReactMethod
+  public void closeText(String engineId, int generation) {
+    PapyrusTextStore.close(engineId, generation);
+  }
+
+  @ReactMethod
+  public void getTextRange(String engineId, int generation, int start, int end, Promise promise) {
+    String text = PapyrusTextStore.getText(engineId, generation);
+    if (text == null || start < 0 || end < start || end > text.length()) {
+      promise.resolve("");
+      return;
+    }
+    promise.resolve(text.substring(start, end));
+  }
+
+  @ReactMethod
+  public void searchTextRanges(String engineId, int generation, String query, Promise promise) {
+    executor.execute(() -> {
+      try {
+        String text = PapyrusTextStore.getText(engineId, generation);
+        List<PapyrusNativeTextModel.SearchMatch> matches = text == null
+          ? java.util.Collections.emptyList()
+          : PapyrusNativeTextModel.search(text, query == null ? "" : query);
+        WritableArray payload = Arguments.createArray();
+        for (PapyrusNativeTextModel.SearchMatch match : matches) {
+          WritableMap location = Arguments.createMap();
+          location.putString("kind", "textRange");
+          location.putInt("start", match.start);
+          location.putInt("end", match.end);
+          WritableMap item = Arguments.createMap();
+          item.putString("kind", "text");
+          item.putMap("location", location);
+          item.putString("text", match.text);
+          item.putInt("matchIndex", match.matchIndex);
+          payload.pushMap(item);
+        }
+        promise.resolve(payload);
+      } catch (Throwable error) {
+        promise.reject("papyrus_text_search_failed", error.getMessage() != null ? error.getMessage() : "Failed to search TXT", error);
+      }
+    });
+  }
+
+  @ReactMethod
+  public void loadComic(String engineId, int generation, ReadableMap source, String format, Promise promise) {
+    executor.execute(() -> {
+      File ownedFile = null;
+      try {
+        File archive = materializeSource(source, reactContext, MAX_COMIC_ARCHIVE_BYTES);
+        if (archive == null) throw new IOException("Unsupported comic source");
+        if (isOwnedMaterializedSource(source)) ownedFile = archive;
+        File cache = new File(reactContext.getCacheDir(), "papyrus-comic-pages");
+        int pageCount = PapyrusComicArchiveNative.open(engineId, generation, archive.getAbsolutePath(), cache.getAbsolutePath());
+        if (ownedFile != null) comicSourceFiles.put(comicSourceKey(engineId, generation), ownedFile);
+        WritableMap result = Arguments.createMap();
+        result.putInt("pageCount", pageCount);
+        promise.resolve(result);
+      } catch (Throwable error) {
+        if (ownedFile != null) ownedFile.delete();
+        promise.reject("papyrus_comic_load_failed", error.getMessage() != null ? error.getMessage() : "Failed to load comic archive", error);
+      }
+    });
+  }
+
+  @ReactMethod
+  public void closeComic(String engineId, int generation) {
+    PapyrusComicArchiveNative.close(engineId, generation);
+    File source = comicSourceFiles.remove(comicSourceKey(engineId, generation));
+    if (source != null) source.delete();
+  }
+
+  @ReactMethod
+  public void getComicPagePreview(String engineId, int generation, int pageIndex, int maxEdge, Promise promise) {
+    executor.execute(() -> {
+      Bitmap bitmap = null;
+      try {
+        String path = PapyrusComicArchiveNative.extractPage(engineId, generation, pageIndex);
+        File sourceFile = new File(path);
+        int limit = Math.max(64, Math.min(1024, maxEdge));
+        File thumbnailDirectory = new File(reactContext.getCacheDir(), "papyrus-comic-pages/thumbnails");
+        if (!thumbnailDirectory.exists() && !thumbnailDirectory.mkdirs()) {
+          promise.resolve(null);
+          return;
+        }
+        File thumbnailFile = new File(thumbnailDirectory, sourceFile.getName() + "-" + limit + ".jpg");
+        synchronized (COMIC_THUMBNAIL_CACHE_LOCK) {
+          if (thumbnailFile.isFile() && thumbnailFile.length() > 0) {
+            thumbnailFile.setLastModified(System.currentTimeMillis());
+            promise.resolve(Uri.fromFile(thumbnailFile).toString());
+            return;
+          }
+        }
+        BitmapFactory.Options bounds = new BitmapFactory.Options();
+        bounds.inJustDecodeBounds = true;
+        BitmapFactory.decodeFile(sourceFile.getAbsolutePath(), bounds);
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0 || bounds.outWidth > 20000 || bounds.outHeight > 20000 ||
+            (long) bounds.outWidth * (long) bounds.outHeight > 80000000L) {
+          promise.resolve(null);
+          return;
+        }
+        int sample = 1;
+        while (Math.max(bounds.outWidth, bounds.outHeight) / sample > limit ||
+            ((long) bounds.outWidth / sample) * ((long) bounds.outHeight / sample) > 8000000L) sample *= 2;
+        BitmapFactory.Options options = new BitmapFactory.Options();
+        options.inSampleSize = sample;
+        bitmap = BitmapFactory.decodeFile(sourceFile.getAbsolutePath(), options);
+        if (bitmap == null) { promise.resolve(null); return; }
+        synchronized (COMIC_THUMBNAIL_CACHE_LOCK) {
+          if (!thumbnailFile.isFile() || thumbnailFile.length() == 0) {
+            try (FileOutputStream output = new FileOutputStream(thumbnailFile)) {
+              if (!bitmap.compress(Bitmap.CompressFormat.JPEG, 82, output)) {
+                thumbnailFile.delete();
+                promise.resolve(null);
+                return;
+              }
+            }
+          }
+          pruneComicThumbnailCache(thumbnailDirectory, thumbnailFile);
+          promise.resolve(Uri.fromFile(thumbnailFile).toString());
+        }
+      } catch (Throwable ignored) {
+        promise.resolve(null);
+      } finally {
+        if (bitmap != null && !bitmap.isRecycled()) bitmap.recycle();
+      }
+    });
+  }
+
+  private static void pruneComicThumbnailCache(File directory, File preserve) {
+    File[] files = directory.listFiles(File::isFile);
+    if (files == null) return;
+    long total = 0;
+    for (File file : files) total += file.length();
+    Arrays.sort(files, Comparator.comparingLong(File::lastModified));
+    for (File file : files) {
+      if (total <= MAX_COMIC_THUMBNAIL_CACHE_BYTES) break;
+      if (file.equals(preserve)) continue;
+      long size = file.length();
+      if (file.delete()) total -= size;
+    }
+  }
+
+  private static String comicSourceKey(String engineId, int generation) {
+    return engineId + ":" + generation;
+  }
+
+  private static boolean isOwnedMaterializedSource(ReadableMap source) {
+    if (source.hasKey("data")) return true;
+    if (!source.hasKey("uri") || source.getType("uri") != ReadableType.String) return false;
+    String uri = source.getString("uri");
+    return uri != null && (uri.startsWith("http://") || uri.startsWith("https://") ||
+      uri.startsWith("content://") || uri.startsWith("asset:/") ||
+      uri.startsWith("file:///android_asset/") || uri.startsWith("res://"));
+  }
+
+  private static byte[] readAllBytes(InputStream input, long maxBytes) throws IOException {
+    ByteArrayOutputStream output = new ByteArrayOutputStream();
+    byte[] buffer = new byte[8192];
+    int count;
+    long total = 0;
+    while ((count = input.read(buffer)) != -1) {
+      total += count;
+      if (total > maxBytes) throw new IOException("TXT source exceeds the 64 MiB limit");
+      output.write(buffer, 0, count);
+    }
+    return output.toByteArray();
+  }
+
+  private static boolean utf8LengthExceeds(String value, long maxBytes) {
+    long bytes = 0;
+    for (int i = 0; i < value.length(); i++) {
+      char current = value.charAt(i);
+      if (current <= 0x7f) bytes += 1;
+      else if (current <= 0x7ff) bytes += 2;
+      else if (Character.isHighSurrogate(current) && i + 1 < value.length() && Character.isLowSurrogate(value.charAt(i + 1))) {
+        bytes += 4;
+        i++;
+      } else bytes += 3;
+      if (bytes > maxBytes) return true;
+    }
+    return false;
   }
 
   @ReactMethod
@@ -554,101 +789,114 @@ public class PapyrusNativeEngineModule extends ReactContextBaseJavaModule {
   }
 
   private static File materializeSource(ReadableMap source, Context context) throws IOException {
+    return materializeSource(source, context, Long.MAX_VALUE);
+  }
+
+  private static File materializeSource(ReadableMap source, Context context, long maxBytes) throws IOException {
     if (source.hasKey("uri") && source.getType("uri") == ReadableType.String) {
       String uriString = source.getString("uri");
       if (uriString == null) return null;
 
       if (uriString.startsWith("http://") || uriString.startsWith("https://")) {
-        return downloadToCache(uriString, context);
+        return downloadToCache(uriString, context, maxBytes);
       }
 
       if (uriString.startsWith("asset:/")) {
-        return copyFromAsset(uriString.substring("asset:/".length()), context);
+        return copyFromAsset(uriString.substring("asset:/".length()), context, maxBytes);
       }
 
       if (uriString.startsWith("file:///android_asset/")) {
-        return copyFromAsset(uriString.substring("file:///android_asset/".length()), context);
+        return copyFromAsset(uriString.substring("file:///android_asset/".length()), context, maxBytes);
       }
 
       if (uriString.startsWith("content://")) {
-        return copyFromContentUri(Uri.parse(uriString), context);
+        return copyFromContentUri(Uri.parse(uriString), context, maxBytes);
       }
 
       if (uriString.startsWith("file://")) {
-        return new File(Uri.parse(uriString).getPath());
+        return requireFileWithinLimit(new File(Uri.parse(uriString).getPath()), maxBytes);
       }
 
       if (uriString.startsWith("res://")) {
         String resourceName = uriString.substring("res://".length());
-        File resourceFile = copyFromRawResource(resourceName, context);
+        File resourceFile = copyFromRawResource(resourceName, context, maxBytes);
         if (resourceFile != null) {
           return resourceFile;
         }
       }
 
-      File resourceFile = copyFromRawResource(uriString, context);
+      File resourceFile = copyFromRawResource(uriString, context, maxBytes);
       if (resourceFile != null) {
         return resourceFile;
       }
 
-      return new File(uriString);
+      return requireFileWithinLimit(new File(uriString), maxBytes);
     }
 
     if (source.hasKey("data") && source.getType("data") == ReadableType.Array) {
       ReadableArray array = source.getArray("data");
       if (array == null) return null;
+      if (array.size() > maxBytes) throw new IOException("Document source exceeds the size limit");
       byte[] bytes = new byte[array.size()];
       for (int i = 0; i < array.size(); i++) {
         bytes[i] = (byte) array.getInt(i);
       }
-      return writeBytesToCache(bytes, context);
+      return writeBytesToCache(bytes, context, maxBytes);
     }
 
     return null;
   }
 
-  private static File downloadToCache(String uri, Context context) throws IOException {
+  private static File downloadToCache(String uri, Context context, long maxBytes) throws IOException {
     URL url = new URL(uri);
     HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-    connection.connect();
-    if (connection.getResponseCode() >= 400) {
-      throw new IOException("Failed to download PDF");
-    }
-    InputStream inputStream = connection.getInputStream();
     File out = createTempFile(context);
-    writeStreamToFile(inputStream, out);
-    connection.disconnect();
-    return out;
+    try {
+      connection.connect();
+      if (connection.getResponseCode() >= 400) throw new IOException("Failed to download document");
+      long contentLength = connection.getContentLengthLong();
+      if (contentLength > maxBytes) throw new IOException("Document source exceeds the size limit");
+      try (InputStream inputStream = connection.getInputStream()) {
+        writeStreamToFile(inputStream, out, maxBytes);
+      }
+      return out;
+    } catch (IOException error) {
+      out.delete();
+      throw error;
+    } finally {
+      connection.disconnect();
+    }
   }
 
-  private static File copyFromContentUri(Uri uri, Context context) throws IOException {
+  private static File copyFromContentUri(Uri uri, Context context, long maxBytes) throws IOException {
     ContentResolver resolver = context.getContentResolver();
     InputStream inputStream = resolver.openInputStream(uri);
     if (inputStream == null) throw new IOException("Unable to read content URI");
     File out = createTempFile(context);
-    writeStreamToFile(inputStream, out);
+    writeStreamToFile(inputStream, out, maxBytes);
     return out;
   }
 
-  private static File copyFromAsset(String assetPath, Context context) throws IOException {
+  private static File copyFromAsset(String assetPath, Context context, long maxBytes) throws IOException {
     InputStream inputStream = context.getAssets().open(assetPath);
     File out = createTempFile(context);
-    writeStreamToFile(inputStream, out);
+    writeStreamToFile(inputStream, out, maxBytes);
     return out;
   }
 
-  private static File copyFromRawResource(String resourceName, Context context) throws IOException {
+  private static File copyFromRawResource(String resourceName, Context context, long maxBytes) throws IOException {
     int resId = context.getResources().getIdentifier(resourceName, "raw", context.getPackageName());
     if (resId == 0) {
       return null;
     }
     InputStream inputStream = context.getResources().openRawResource(resId);
     File out = createTempFile(context);
-    writeStreamToFile(inputStream, out);
+    writeStreamToFile(inputStream, out, maxBytes);
     return out;
   }
 
-  private static File writeBytesToCache(byte[] bytes, Context context) throws IOException {
+  private static File writeBytesToCache(byte[] bytes, Context context, long maxBytes) throws IOException {
+    if (bytes.length > maxBytes) throw new IOException("Document source exceeds the size limit");
     File out = createTempFile(context);
     FileOutputStream fos = new FileOutputStream(out);
     fos.write(bytes);
@@ -662,15 +910,25 @@ public class PapyrusNativeEngineModule extends ReactContextBaseJavaModule {
     return File.createTempFile("papyrus", ".pdf", cacheDir);
   }
 
-  private static void writeStreamToFile(InputStream inputStream, File out) throws IOException {
-    FileOutputStream fos = new FileOutputStream(out);
-    byte[] buffer = new byte[8192];
-    int read;
-    while ((read = inputStream.read(buffer)) != -1) {
-      fos.write(buffer, 0, read);
+  private static File requireFileWithinLimit(File file, long maxBytes) throws IOException {
+    if (file.length() > maxBytes) throw new IOException("Document source exceeds the size limit");
+    return file;
+  }
+
+  private static void writeStreamToFile(InputStream inputStream, File out, long maxBytes) throws IOException {
+    long total = 0;
+    try (InputStream source = inputStream; FileOutputStream output = new FileOutputStream(out)) {
+      byte[] buffer = new byte[8192];
+      int read;
+      while ((read = source.read(buffer)) != -1) {
+        total += read;
+        if (total > maxBytes) throw new IOException("Document source exceeds the size limit");
+        output.write(buffer, 0, read);
+      }
+      output.flush();
+    } catch (IOException error) {
+      out.delete();
+      throw error;
     }
-    fos.flush();
-    fos.close();
-    inputStream.close();
   }
 }

@@ -8,7 +8,14 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { useViewerStore } from "@papyrus-sdk/core";
-import { DocumentEngine, PageTheme } from "@papyrus-sdk/types";
+import {
+  ComicFitMode,
+  ComicLayoutMode,
+  ComicReadingDirection,
+  DocumentEngine,
+  DocumentType,
+  PageTheme,
+} from "@papyrus-sdk/types";
 import { getStrings } from "../mobileStrings";
 import { IconZoomIn, IconZoomOut } from "../icons";
 import { resetEngineRotation } from "./rotationReset";
@@ -19,6 +26,7 @@ interface SettingsSheetProps {
   engine: DocumentEngine;
   visible: boolean;
   onClose: () => void;
+  documentType?: DocumentType;
 }
 
 const PAGE_THEME_OPTIONS: Array<{ value: PageTheme; labelKey: ThemeLabelKey }> =
@@ -61,6 +69,7 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
   engine,
   visible,
   onClose,
+  documentType = "pdf",
 }) => {
   const {
     viewMode,
@@ -70,6 +79,9 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
     locale,
     accentColor,
     pageTheme,
+    comicLayoutMode,
+    comicFitMode,
+    comicReadingDirection,
   } = useViewerStore();
   const isDark = uiTheme === "dark";
   const isPaged = viewMode === "single";
@@ -126,6 +138,68 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
         contentContainerStyle={styles.sheetContent}
         showsVerticalScrollIndicator={false}
       >
+        {documentType === "comic" && (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}>
+              {t.comicMode}
+            </Text>
+            <View style={styles.optionRow}>
+              {(["single", "continuous"] as ComicLayoutMode[]).map((mode) => {
+                const active = comicLayoutMode === mode;
+                return (
+                  <Pressable
+                    key={mode}
+                    onPress={() => setDocumentState({ comicLayoutMode: mode })}
+                    style={[styles.optionButton, isDark && styles.optionButtonDark, active && styles.optionButtonActive, active && { backgroundColor: accentColor }]}
+                  >
+                    <Text style={[styles.optionText, isDark && styles.optionTextDark, active && styles.optionTextActive]}>
+                      {mode === "single" ? t.comicSingle : t.comicContinuous}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <Text style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}>
+              {t.comicFit}
+            </Text>
+            <View style={styles.optionRow}>
+              {(["width", "page"] as ComicFitMode[]).map((mode) => {
+                const active = comicFitMode === mode;
+                return (
+                  <Pressable
+                    key={mode}
+                    onPress={() => setDocumentState({ comicFitMode: mode })}
+                    style={[styles.optionButton, isDark && styles.optionButtonDark, active && styles.optionButtonActive, active && { backgroundColor: accentColor }]}
+                  >
+                    <Text style={[styles.optionText, isDark && styles.optionTextDark, active && styles.optionTextActive]}>
+                      {mode === "width" ? t.comicFitWidth : t.comicFitPage}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <Text style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}>
+              {t.comicDirection}
+            </Text>
+            <View style={styles.optionRow}>
+              {(["ltr", "rtl"] as ComicReadingDirection[]).map((direction) => {
+                const active = comicReadingDirection === direction;
+                return (
+                  <Pressable
+                    key={direction}
+                    onPress={() => setDocumentState({ comicReadingDirection: direction })}
+                    style={[styles.optionButton, isDark && styles.optionButtonDark, active && styles.optionButtonActive, active && { backgroundColor: accentColor }]}
+                  >
+                    <Text style={[styles.optionText, isDark && styles.optionTextDark, active && styles.optionTextActive]}>
+                      {direction === "ltr" ? t.comicLtr : t.comicRtl}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        )}
+
         <View style={styles.section}>
           <Text
             style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}
@@ -210,7 +284,7 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
           </View>
         </View>
 
-        <View style={styles.section}>
+        {documentType !== "comic" && documentType !== "text" && (<View style={styles.section}>
           <Text
             style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}
           >
@@ -256,9 +330,9 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
               </Text>
             </Pressable>
           </View>
-        </View>
+        </View>)}
 
-        <View style={styles.section}>
+        {documentType !== "comic" && documentType !== "text" && (<View style={styles.section}>
           <Text
             style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}
           >
@@ -304,9 +378,9 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
               </Text>
             </Pressable>
           </View>
-        </View>
+        </View>)}
 
-        <View style={styles.section}>
+        {documentType !== "comic" && documentType !== "text" && (<View style={styles.section}>
           <Text
             style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}
           >
@@ -346,9 +420,9 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
               </Text>
             </Pressable>
           </View>
-        </View>
+        </View>)}
 
-        <View style={styles.section}>
+        {documentType !== "text" && (<View style={styles.section}>
           <Text
             style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}
           >
@@ -373,7 +447,7 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
               <IconZoomIn size={16} color={isDark ? "#e5e7eb" : "#111827"} />
             </Pressable>
           </View>
-        </View>
+        </View>)}
 
         <View style={styles.section}>
           <Text

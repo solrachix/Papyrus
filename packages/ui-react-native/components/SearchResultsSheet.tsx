@@ -22,11 +22,16 @@ export function SearchResultsSheet({
     locale,
     pageCount,
     searchResults,
+    textSearchResults,
+    textLength,
     setDocumentState,
     triggerScrollToPage,
+    triggerScrollToTextOffset,
     uiTheme,
     accentColor,
   } = useViewerStore();
+  const results =
+    documentType === "text" ? textSearchResults : searchResults;
   const isDark = uiTheme === "dark";
   const palette = getReaderSheetPalette(isDark);
   const t = getStrings(locale);
@@ -37,6 +42,8 @@ export function SearchResultsSheet({
       pageCount <= 1 ? 100 : Math.round(((pageIndex + 1) / pageCount) * 100);
     return `${t.progress} ${percent}%`;
   };
+  const getTextResultLabel = (offset: number) =>
+    `${t.progress} ${textLength <= 0 ? 0 : Math.round((offset / textLength) * 100)}%`;
 
   return (
     <NativeSheet
@@ -54,25 +61,36 @@ export function SearchResultsSheet({
       }}
     >
       <Text style={[styles.meta, { color: palette.mutedText }]}>
-        {searchResults.length} {t.results}
+        {results.length} {t.results}
       </Text>
       <NativeSheetScrollView contentContainerStyle={styles.content}>
-        {searchResults.length === 0 ? (
+        {results.length === 0 ? (
           <Text style={[styles.emptyText, { color: palette.mutedText }]}>
             {t.noResults}
           </Text>
         ) : (
-          searchResults.map((result, index) => {
+          results.map((result, index) => {
             const isActive = index === activeSearchIndex;
+            const isTextResult = "kind" in result && result.kind === "text";
             return (
               <Pressable
-                key={`${result.pageIndex}-${index}`}
+                key={isTextResult
+                  ? `text-${result.location.start}-${index}`
+                  : `page-${result.pageIndex}-${index}`}
                 onPress={() => {
-                  setDocumentState({
-                    activeSearchIndex: index,
-                    currentPage: result.pageIndex + 1,
-                  });
-                  triggerScrollToPage(result.pageIndex);
+                  if (isTextResult) {
+                    setDocumentState({
+                      activeSearchIndex: index,
+                      currentTextOffset: result.location.start,
+                    });
+                    triggerScrollToTextOffset(result.location.start);
+                  } else {
+                    setDocumentState({
+                      activeSearchIndex: index,
+                      currentPage: result.pageIndex + 1,
+                    });
+                    triggerScrollToPage(result.pageIndex);
+                  }
                   onClose();
                 }}
                 style={[
@@ -86,7 +104,9 @@ export function SearchResultsSheet({
                 ]}
               >
                 <Text style={[styles.resultLabel, { color: accentColor }]}>
-                  {getResultLabel(result.pageIndex)}
+                  {isTextResult
+                    ? getTextResultLabel(result.location.start)
+                    : getResultLabel(result.pageIndex)}
                 </Text>
                 <Text style={[styles.resultText, { color: palette.text }]}>
                   {result.text}

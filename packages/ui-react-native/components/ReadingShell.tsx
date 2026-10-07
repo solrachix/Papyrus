@@ -229,6 +229,7 @@ export function ReadingShell({
       />
       <SettingsSheet
         engine={engine}
+        documentType={documentType}
         visible={settingsOpen}
         onClose={() => {
           setSettingsOpen(false);

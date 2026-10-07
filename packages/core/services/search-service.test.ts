@@ -20,6 +20,41 @@ const deferred = <T>() => {
 };
 
 describe("SearchService fallback", () => {
+  it("uses text ranges without inventing a page index", async () => {
+    const textResults = [
+      {
+        kind: "text" as const,
+        location: { kind: "textRange" as const, start: 18, end: 22 },
+        text: "the reader",
+        matchIndex: 0,
+      },
+    ];
+    const engine = {
+      searchTextRanges: async () => textResults,
+      searchText: () => {
+        throw new Error("page-based search should not run");
+      },
+    } as unknown as DocumentEngine;
+
+    await expect(new SearchService(engine).searchReader("read")).resolves.toEqual(
+      textResults
+    );
+  });
+
+  it("falls back to page search when the mobile wrapper has no text ranges for this format", async () => {
+    const pageResults = [
+      { pageIndex: 2, text: "match on page", matchIndex: 0 },
+    ];
+    const engine = {
+      searchTextRanges: async () => [],
+      searchText: async () => pageResults,
+    } as unknown as DocumentEngine;
+
+    await expect(new SearchService(engine).searchReader("match")).resolves.toEqual(
+      pageResults
+    );
+  });
+
   it("prefers the engine search implementation when it is available", async () => {
     const engineSearch = async () => [
       { pageIndex: 4, text: "casa", matchIndex: 0 },
@@ -34,6 +69,18 @@ describe("SearchService fallback", () => {
     await expect(new SearchService(engine).search("casa")).resolves.toEqual(
       await engineSearch()
     );
+  });
+
+  it("falls back to page text when the native search returns no matches", async () => {
+    const engine = {
+      searchText: async () => [],
+      getPageCount: () => 1,
+      getTextContent: async () => [item("casa no livro")],
+    } as unknown as DocumentEngine;
+
+    await expect(new SearchService(engine).search("casa")).resolves.toEqual([
+      { pageIndex: 0, text: "casa no livro", matchIndex: 0 },
+    ]);
   });
 
   it("uses a bounded concurrent pool and keeps page order", async () => {
