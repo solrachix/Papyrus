@@ -1,6 +1,6 @@
 {
   "name": "@papyrus-sdk/engine-cbr-mobile",
-  "version": "0.1.0",
+  "version": "0.1.1-beta.1",
   "license": "MIT",
   "keywords": ["papyrus", "react-native", "comic", "cbr", "rar", "mobile"],
   "private": false,
@@ -11,8 +11,8 @@
     "./runtime/libarchive.wasm": "./runtime/libarchive.wasm"
   },
   "peerDependencies": {
-    "@papyrus-sdk/engine-native": ">=0.2.18",
-    "@papyrus-sdk/ui-react-native": ">=0.2.21"
+    "@papyrus-sdk/engine-native": ">=0.2.18-0",
+    "@papyrus-sdk/ui-react-native": ">=0.2.21-0"
   },
   "repository": {
     "type": "git",
