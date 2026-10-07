@@ -1,6 +1,6 @@
 {
   "name": "@papyrus-sdk/engine-native",
-  "version": "0.2.22-beta.3",
+  "version": "0.2.22-beta.6",
   "license": "MIT",
   "keywords": [
     "papyrus",
@@ -32,7 +32,7 @@
     "android/consumer-rules.pro",
     "ios/*.h",
     "ios/*.m",
-    "ios/*.podspec",
+    "*.podspec",
     "vendor/libarchive",
     "third_party_licenses",
     "react-native.config.js"

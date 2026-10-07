@@ -102,7 +102,7 @@
   NSUInteger currentGeneration = [self generationForDocument:document];
   if (lease.generation != currentGeneration) return NO;
   PapyrusPageRotationRecord *record =
-      [self.recordsForDocument:document create:NO][@(pageIndex)];
+      [[self recordsForDocument:document create:NO] objectForKey:@(pageIndex)];
   if (!record || record.generation != currentGeneration) return NO;
   return [record.leaseTokens containsObject:lease.token];
 }
@@ -143,7 +143,7 @@
     }
 
     PapyrusPageRotationRecord *record =
-        [self.recordsForDocument:document create:NO][@(pageIndex)];
+        [[self recordsForDocument:document create:NO] objectForKey:@(pageIndex)];
     NSInteger effectiveRotation =
         [self normalizeRotation:record.originalRotation + viewerRotation];
     page.rotation = (int)effectiveRotation;
@@ -164,7 +164,7 @@
   NSAssert(NSThread.isMainThread, @"PDF page rotations must be changed on the main thread");
   @synchronized (self) {
     NSDictionary<NSNumber *, PapyrusPageRotationRecord *> *records =
-        [[self.recordsForDocument:document create:NO] copy];
+        [[self recordsForDocument:document create:NO] copy];
     [records enumerateKeysAndObjectsUsingBlock:^(NSNumber *pageIndex,
                                                   PapyrusPageRotationRecord *record,
                                                   __unused BOOL *stop) {

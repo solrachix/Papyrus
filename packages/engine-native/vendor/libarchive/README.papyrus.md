@@ -5,7 +5,7 @@ This source snapshot is libarchive **v3.8.9**, pinned to upstream commit
 `https://github.com/libarchive/libarchive`.
 
 Papyrus compiles only the read-side source subset listed in both
-`android/src/main/cpp/CMakeLists.txt` and `ios/PapyrusNativeEngine.podspec`.
+`android/src/main/cpp/CMakeLists.txt` and `PapyrusNativeEngine.podspec`.
 The public C++ adapter in this directory filters comic archive entries,
 orders them naturally, and extracts one selected image at a time to a bounded
 cache. It does not write or modify archives.

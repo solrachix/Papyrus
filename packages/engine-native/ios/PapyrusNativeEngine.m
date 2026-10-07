@@ -35,10 +35,6 @@ NS_ASSUME_NONNULL_BEGIN
 
 NS_ASSUME_NONNULL_END
 
-@implementation PapyrusNativeEngine
-
-RCT_EXPORT_MODULE(PapyrusNativeEngine)
-
 static NSMutableDictionary<NSString *, NSNumber *> *PapyrusPageViewTags;
 
 static NSString *PapyrusViewKeyFor(NSString *engineId, NSInteger pageIndex) {
@@ -284,6 +280,10 @@ static NSArray<NSDictionary *> *PapyrusBuildOutlineItems(PDFOutline *outline, PD
   return items;
 }
 
+@implementation PapyrusNativeEngine
+
+RCT_EXPORT_MODULE(PapyrusNativeEngine)
+
 + (BOOL)requiresMainQueueSetup {
   return YES;
 }
@@ -411,9 +411,9 @@ RCT_EXPORT_METHOD(loadComic:(NSString *)engineId
       BOOL opened = papyrus_comic_open(engineId.UTF8String, (int)generation, path.UTF8String, cache.UTF8String, &count, message, sizeof(message));
       if (opened && ownsPath) PapyrusRememberComicSource(path, engineId, generation);
       else if (!opened && ownsPath) [[NSFileManager defaultManager] removeItemAtPath:path error:nil];
+      NSString *reason = message[0] ? [NSString stringWithUTF8String:message] : @"Unable to open comic archive";
       dispatch_async(dispatch_get_main_queue(), ^{
         if (!opened) {
-          NSString *reason = message[0] ? [NSString stringWithUTF8String:message] : @"Unable to open comic archive";
           reject(@"papyrus_comic_load_failed", reason, nil);
         } else {
           resolve(@{@"pageCount": @(count)});
@@ -876,7 +876,10 @@ RCT_EXPORT_METHOD(renderPage:(NSString *)engineId
                   target:(nonnull NSNumber *)target
                   scale:(CGFloat)scale
                   zoom:(CGFloat)zoom
-                  rotation:(NSInteger)rotation) {
+                  rotation:(NSInteger)rotation
+                  requestId:(NSString *)requestId
+                  telemetryContext:(NSDictionary *)telemetryContext) {
+  #pragma unused(requestId, telemetryContext)
   dispatch_async(dispatch_get_main_queue(), ^{
     PDFDocument *document = [[PapyrusEngineStore shared] documentForEngine:engineId];
     UIView *view = [self.bridge.uiManager viewForReactTag:target];

@@ -8,6 +8,7 @@ const readIfPresent = (path: string) =>
 
 const pageView = read("packages/engine-native/ios/PapyrusPageView.m");
 const documentView = read("packages/engine-native/ios/PapyrusPdfDocumentView.m");
+const nativeEngine = read("packages/engine-native/ios/PapyrusNativeEngine.m");
 const registry = readIfPresent(
   "packages/engine-native/ios/PapyrusPageRotationRegistry.m"
 );
@@ -43,6 +44,11 @@ describe("Papyrus PDF page rotation lifecycle", () => {
     expect(registry).toContain("generation");
     expect(registry).toContain("lease.generation != currentGeneration");
     expect(registry).toContain("if (record.leaseTokens.count > 0) return;");
+  });
+
+  it("calls the records lookup method with Objective-C message syntax", () => {
+    expect(registry).not.toContain("self.recordsForDocument:");
+    expect(registry).toContain("[self recordsForDocument:document create:NO]");
   });
 
   it("releases a page lease on page/document reuse and view deallocation", () => {
@@ -85,5 +91,28 @@ describe("Papyrus PDF page rotation lifecycle", () => {
     expect(restoreMethod).toContain("advanceGenerationForDocument:");
     expect(releaseMethod).toContain("lease.generation != currentGeneration");
     expect(releaseMethod).toContain("lease.document");
+  });
+});
+
+describe("Papyrus native engine Objective-C declarations", () => {
+  it("declares helper classes outside the native engine implementation", () => {
+    const engineImplementation = nativeEngine.indexOf(
+      "@implementation PapyrusNativeEngine"
+    );
+    const boundedDownloadInterface = nativeEngine.indexOf(
+      "@interface PapyrusBoundedDownload"
+    );
+    const boundedDownloadImplementationEnd = nativeEngine.indexOf(
+      "@end",
+      nativeEngine.indexOf("@implementation PapyrusBoundedDownload")
+    );
+
+    expect(boundedDownloadInterface).toBeGreaterThanOrEqual(0);
+    expect(boundedDownloadImplementationEnd).toBeGreaterThan(
+      boundedDownloadInterface
+    );
+    expect(engineImplementation).toBeGreaterThan(
+      boundedDownloadImplementationEnd
+    );
   });
 });

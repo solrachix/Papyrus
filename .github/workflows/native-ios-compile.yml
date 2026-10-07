@@ -1,0 +1,81 @@
+name: Native iOS compile
+
+on:
+  pull_request:
+    paths:
+      - 'packages/engine-native/**'
+      - 'packages/core/**'
+      - 'packages/types/**'
+      - 'packages/ui-react-native/**'
+      - 'examples/mobile/**'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - 'package.json'
+      - 'scripts/ci/compile-ios-native.sh'
+      - '.github/workflows/native-ios-compile.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'packages/engine-native/**'
+      - 'packages/core/**'
+      - 'packages/types/**'
+      - 'packages/ui-react-native/**'
+      - 'examples/mobile/**'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - 'package.json'
+      - 'scripts/ci/compile-ios-native.sh'
+      - '.github/workflows/native-ios-compile.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-ios-compile-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compile:
+    name: Compile and link native iOS SDK
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+      - name: Install CocoaPods
+        run: gem install cocoapods --version 1.16.2 --no-document
+      - name: Install JS dependencies
+        # Match the mobile consumer's node_modules layout for CocoaPods.
+        run: pnpm install --frozen-lockfile --config.node-linker=hoisted
+      - name: Build SDK JavaScript and declarations
+        run: |
+          pnpm --filter @papyrus-sdk/types build
+          pnpm --filter @papyrus-sdk/core build
+          pnpm --filter @papyrus-sdk/engine-native build
+          pnpm --filter @papyrus-sdk/ui-react-native build
+      - name: Install Pods and compile native sources
+        env:
+          PAPYRUS_IOS_COMPILE_OUTPUT_DIR: ${{ runner.temp }}/papyrus-ios-compile
+        run: bash scripts/ci/compile-ios-native.sh
+      - name: Preserve compiler diagnostics
+        if: always()
+        # Artifact service outages must not obscure the compiler's result.
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-ios-compile-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/papyrus-ios-compile/**/*.log
+            ${{ runner.temp }}/papyrus-ios-compile/**/*.xcresult
+          if-no-files-found: ignore
+          retention-days: 7

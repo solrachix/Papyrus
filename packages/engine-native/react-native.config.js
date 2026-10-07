@@ -1,7 +1,7 @@
 module.exports = {
   project: {
     ios: {
-      podspecPath: 'ios/PapyrusNativeEngine.podspec',
+      podspecPath: 'PapyrusNativeEngine.podspec',
     },
     android: {
       sourceDir: 'android',

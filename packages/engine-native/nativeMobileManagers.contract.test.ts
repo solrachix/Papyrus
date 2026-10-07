@@ -108,7 +108,7 @@ describe("native TXT and comic view registration contracts", () => {
   });
 
   it("ships the archive sources required by CMake and CocoaPods", () => {
-    const podspec = read("packages/engine-native/ios/PapyrusNativeEngine.podspec");
+    const podspec = read("packages/engine-native/PapyrusNativeEngine.podspec");
     const cmake = read("packages/engine-native/android/src/main/cpp/CMakeLists.txt");
     const packageJson = read("packages/engine-native/package.json");
 
@@ -178,6 +178,15 @@ describe("native TXT and comic view registration contracts", () => {
     expect(selectionCallback).toContain("self.onTextRangeSelected(@{ @\"nativeEvent\": payload })");
     expect(iosTextView).toContain("return [self selectedRangePayload] != nil &&");
     expect(iosTextView).toContain("[self isSingleWordSelection]");
+  });
+
+  it("does not redeclare the public Define selection mode as readwrite in the class extension", () => {
+    const iosTextHeader = read("packages/engine-native/ios/PapyrusTextDocumentView.h");
+    const iosTextView = read("packages/engine-native/ios/PapyrusTextDocumentView.m");
+    const classExtension = iosTextView.match(/@interface PapyrusTextDocumentView \(\)([\s\S]*?)@end/)?.[1] ?? "";
+
+    expect(iosTextHeader).toContain("@property (nonatomic, copy) NSString *defineSelectionMode;");
+    expect(classExtension).not.toContain("defineSelectionMode");
   });
 
   it("preserves iOS comic pan offset between drag gestures", () => {
