@@ -35,10 +35,6 @@ NS_ASSUME_NONNULL_BEGIN
 
 NS_ASSUME_NONNULL_END
 
-@implementation PapyrusNativeEngine
-
-RCT_EXPORT_MODULE(PapyrusNativeEngine)
-
 static NSMutableDictionary<NSString *, NSNumber *> *PapyrusPageViewTags;
 
 static NSString *PapyrusViewKeyFor(NSString *engineId, NSInteger pageIndex) {
@@ -283,6 +279,10 @@ static NSArray<NSDictionary *> *PapyrusBuildOutlineItems(PDFOutline *outline, PD
 
   return items;
 }
+
+@implementation PapyrusNativeEngine
+
+RCT_EXPORT_MODULE(PapyrusNativeEngine)
 
 + (BOOL)requiresMainQueueSetup {
   return YES;
