@@ -1,6 +1,9 @@
+require 'json'
+package = JSON.parse(File.read(File.join(__dir__, '..', 'package.json')))
+
 Pod::Spec.new do |s|
   s.name         = 'PapyrusNativeEngine'
-  s.version      = '0.2.12'
+  s.version      = package['version']
   s.summary      = 'Papyrus Native Engine (PDFKit)'
   s.homepage     = 'https://solrachix.github.io/Papyrus/'
   s.license      = { :type => 'MIT' }
@@ -33,6 +36,7 @@ Pod::Spec.new do |s|
   s.requires_arc = true
   s.swift_version = '5.0'
   s.pod_target_xcconfig = {
+    'CLANG_CXX_LANGUAGE_STANDARD' => 'c++17',
     'HEADER_SEARCH_PATHS' => '$(inherited) "$(PODS_TARGET_SRCROOT)/../vendor/libarchive" "$(PODS_TARGET_SRCROOT)/../vendor/libarchive/libarchive" "$(PODS_TARGET_SRCROOT)/../vendor/libarchive/config"',
     'GCC_PREPROCESSOR_DEFINITIONS' => '$(inherited) PLATFORM_CONFIG_H=\\"PapyrusArchiveConfig.h\\"',
   }

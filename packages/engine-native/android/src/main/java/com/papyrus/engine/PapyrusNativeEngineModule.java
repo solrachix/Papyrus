@@ -568,7 +568,7 @@ public class PapyrusNativeEngineModule extends ReactContextBaseJavaModule {
   }
 
   @ReactMethod
-  public void getPageIndex(String engineId, Object dest, Promise promise) {
+  public void getPageIndex(String engineId, ReadableMap dest, Promise promise) {
     promise.resolve(null);
   }
 

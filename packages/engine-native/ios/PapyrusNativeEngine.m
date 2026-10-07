@@ -876,7 +876,10 @@ RCT_EXPORT_METHOD(renderPage:(NSString *)engineId
                   target:(nonnull NSNumber *)target
                   scale:(CGFloat)scale
                   zoom:(CGFloat)zoom
-                  rotation:(NSInteger)rotation) {
+                  rotation:(NSInteger)rotation
+                  requestId:(NSString *)requestId
+                  telemetryContext:(NSDictionary *)telemetryContext) {
+  #pragma unused(requestId, telemetryContext)
   dispatch_async(dispatch_get_main_queue(), ^{
     PDFDocument *document = [[PapyrusEngineStore shared] documentForEngine:engineId];
     UIView *view = [self.bridge.uiManager viewForReactTag:target];
