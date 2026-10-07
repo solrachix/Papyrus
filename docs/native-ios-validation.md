@@ -33,6 +33,14 @@ explicit in the pod target settings. The renderPage telemetry arguments and
 Android destination map are implemented upstream. Consumers of beta.6 should
 remove the earlier beta.5 bridge patch instead of porting it.
 
+The podspec now lives at the package root so CocoaPods includes the comic C++
+wrapper and libarchive C sources inside its source root. Consumers with an
+explicit Podfile entry must change the path from
+`../node_modules/@papyrus-sdk/engine-native/ios` to
+`../node_modules/@papyrus-sdk/engine-native` when installing beta.6. The example
+and the package's React Native configuration use this root path. Do not apply
+this path change while the consumer still has beta.5 installed.
+
 Publish engine-native first and ui-react-native second only after the compile
 gate passes, then verify both exact versions in the registry before updating
 the consumer lockfile. Distribution builds must use the same validated SDK

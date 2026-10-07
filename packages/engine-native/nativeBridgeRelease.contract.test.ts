@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -7,9 +7,21 @@ const ios = read("packages/engine-native/ios/PapyrusNativeEngine.m");
 const android = read(
   "packages/engine-native/android/src/main/java/com/papyrus/engine/PapyrusNativeEngineModule.java"
 );
-const podspec = read("packages/engine-native/ios/PapyrusNativeEngine.podspec");
+const podspec = read("packages/engine-native/PapyrusNativeEngine.podspec");
 
 describe("native release bridge contracts", () => {
+  it("keeps archive compilation sources inside the pod root and publishes that podspec", () => {
+    const rootSpec = "packages/engine-native/PapyrusNativeEngine.podspec";
+    expect(existsSync(resolve(process.cwd(), rootSpec))).toBe(true);
+    const spec = read(rootSpec);
+    expect(spec).toContain("'ios/**/*.{h,m,mm,swift}'");
+    expect(spec).toContain("'vendor/libarchive/PapyrusComicArchive.{h,cpp}'");
+    expect(spec).not.toContain("../vendor");
+    const metadata = JSON.parse(read("packages/engine-native/package.json"));
+    expect(metadata.files).toContain("*.podspec");
+    expect(read("examples/mobile/ios/Podfile")).toContain(":path => '../../../packages/engine-native'");
+    expect(read("packages/engine-native/react-native.config.js")).toContain("podspecPath: 'PapyrusNativeEngine.podspec'");
+  });
   it("accepts all eight JS renderPage arguments on iOS", () => {
     const signature = ios.match(/RCT_EXPORT_METHOD\(renderPage:([\s\S]*?)\)\s*\{/);
     expect(signature).not.toBeNull();
@@ -41,7 +53,7 @@ describe("native release bridge contracts", () => {
 
   it("reads the pod version from the npm package instead of a stale literal", () => {
     expect(podspec).toContain("require 'json'");
-    expect(podspec).toContain("File.join(__dir__, '..', 'package.json')");
+    expect(podspec).toContain("File.join(__dir__, 'package.json')");
     expect(podspec).toMatch(/s\.version\s*=\s*package\['version'\]/);
   });
 });

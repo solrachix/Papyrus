@@ -108,7 +108,7 @@ describe("native TXT and comic view registration contracts", () => {
   });
 
   it("ships the archive sources required by CMake and CocoaPods", () => {
-    const podspec = read("packages/engine-native/ios/PapyrusNativeEngine.podspec");
+    const podspec = read("packages/engine-native/PapyrusNativeEngine.podspec");
     const cmake = read("packages/engine-native/android/src/main/cpp/CMakeLists.txt");
     const packageJson = read("packages/engine-native/package.json");
 

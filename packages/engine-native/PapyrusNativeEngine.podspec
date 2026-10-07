@@ -1,5 +1,5 @@
 require 'json'
-package = JSON.parse(File.read(File.join(__dir__, '..', 'package.json')))
+package = JSON.parse(File.read(File.join(__dir__, 'package.json')))
 
 Pod::Spec.new do |s|
   s.name         = 'PapyrusNativeEngine'
@@ -26,18 +26,18 @@ Pod::Spec.new do |s|
     archive_version_details.c archive_virtual.c
   ]
   s.source_files = [
-    '**/*.{h,m,mm,swift}',
-    '../vendor/libarchive/PapyrusComicArchive.{h,cpp}',
-    '../vendor/libarchive/config/PapyrusArchiveConfig.h',
-    '../vendor/libarchive/libarchive/*.h',
-  ] + archive_sources.map { |file| "../vendor/libarchive/libarchive/#{file}" }
+    'ios/**/*.{h,m,mm,swift}',
+    'vendor/libarchive/PapyrusComicArchive.{h,cpp}',
+    'vendor/libarchive/config/PapyrusArchiveConfig.h',
+    'vendor/libarchive/libarchive/*.h',
+  ] + archive_sources.map { |file| "vendor/libarchive/libarchive/#{file}" }
   s.frameworks = 'PDFKit', 'PencilKit'
   s.libraries = 'z'
   s.requires_arc = true
   s.swift_version = '5.0'
   s.pod_target_xcconfig = {
     'CLANG_CXX_LANGUAGE_STANDARD' => 'c++17',
-    'HEADER_SEARCH_PATHS' => '$(inherited) "$(PODS_TARGET_SRCROOT)/../vendor/libarchive" "$(PODS_TARGET_SRCROOT)/../vendor/libarchive/libarchive" "$(PODS_TARGET_SRCROOT)/../vendor/libarchive/config"',
+    'HEADER_SEARCH_PATHS' => '$(inherited) "$(PODS_TARGET_SRCROOT)/vendor/libarchive" "$(PODS_TARGET_SRCROOT)/vendor/libarchive/libarchive" "$(PODS_TARGET_SRCROOT)/vendor/libarchive/config"',
     'GCC_PREPROCESSOR_DEFINITIONS' => '$(inherited) PLATFORM_CONFIG_H=\\"PapyrusArchiveConfig.h\\"',
   }
 

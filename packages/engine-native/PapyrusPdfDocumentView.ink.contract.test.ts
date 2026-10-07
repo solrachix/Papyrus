@@ -10,7 +10,7 @@ const source = read("packages/engine-native/ios/PapyrusPdfDocumentView.m");
 const manager = read(
   "packages/engine-native/ios/PapyrusPdfDocumentViewManager.m"
 );
-const podspec = read("packages/engine-native/ios/PapyrusNativeEngine.podspec");
+const podspec = read("packages/engine-native/PapyrusNativeEngine.podspec");
 const engineIndex = read("packages/engine-native/index.ts");
 const iosViewer = read(
   "packages/ui-react-native/components/DedicatedIosPdfViewer.tsx"
