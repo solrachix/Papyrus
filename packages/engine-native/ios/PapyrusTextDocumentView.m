@@ -11,7 +11,6 @@ static NSUInteger const PapyrusMaximumTextSearchHighlights = 2000;
 @property (nonatomic, assign) CFAbsoluteTime lastOffsetEventTime;
 @property (nonatomic, assign) BOOL hasLoadedDocument;
 @property (nonatomic, assign) BOOL suppressOffsetEvents;
-@property (nonatomic, copy) NSString *defineSelectionMode;
 @end
 
 @implementation PapyrusTextDocumentView

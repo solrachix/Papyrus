@@ -180,6 +180,15 @@ describe("native TXT and comic view registration contracts", () => {
     expect(iosTextView).toContain("[self isSingleWordSelection]");
   });
 
+  it("does not redeclare the public Define selection mode as readwrite in the class extension", () => {
+    const iosTextHeader = read("packages/engine-native/ios/PapyrusTextDocumentView.h");
+    const iosTextView = read("packages/engine-native/ios/PapyrusTextDocumentView.m");
+    const classExtension = iosTextView.match(/@interface PapyrusTextDocumentView \(\)([\s\S]*?)@end/)?.[1] ?? "";
+
+    expect(iosTextHeader).toContain("@property (nonatomic, copy) NSString *defineSelectionMode;");
+    expect(classExtension).not.toContain("defineSelectionMode");
+  });
+
   it("preserves iOS comic pan offset between drag gestures", () => {
     const iosComicView = read("packages/engine-native/ios/PapyrusComicDocumentView.m");
 
