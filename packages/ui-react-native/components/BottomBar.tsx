@@ -52,10 +52,13 @@ const BottomBar: React.FC<BottomBarProps> = ({
   const drawing = supportsInkChrome && inkSession.active;
   const dockVisible = mobileChromeVisible && mobileDockVisible && !drawing;
   const dockProgress = useNativeInkMotion(dockVisible, supportsInkChrome);
-  const dockMotion = useAnimatedStyle(() => ({
+  const dockMotion = useAnimatedStyle(() => {
+    "worklet";
+    return {
     opacity: dockProgress.value,
     transform: [{ translateY: (1 - dockProgress.value) * 8 }],
-  }));
+    };
+  });
   const isDark = uiTheme === "dark";
   const t = getStrings(locale);
   const { width, height } = useWindowDimensions();

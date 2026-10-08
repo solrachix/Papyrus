@@ -53,14 +53,20 @@ const Topbar: React.FC<TopbarProps> = ({
   const inkSession = useNativeInkSession();
   const t = getStrings(locale);
   const progress = useNativeInkMotion(inkSession.active, inkSession.supported);
-  const settingsMotion = useAnimatedStyle((): ViewStyle => ({
+  const settingsMotion = useAnimatedStyle((): ViewStyle => {
+    "worklet";
+    return {
     opacity: 1 - progress.value,
     transform: [{ scale: 1 - progress.value * 0.04 }, { translateX: -progress.value * 6 }],
-  }));
-  const doneMotion = useAnimatedStyle((): ViewStyle => ({
+    };
+  });
+  const doneMotion = useAnimatedStyle((): ViewStyle => {
+    "worklet";
+    return {
     opacity: progress.value,
     transform: [{ scale: 0.96 + progress.value * 0.04 }, { translateX: (1 - progress.value) * 6 }],
-  }));
+    };
+  });
   const [jumpModalOpen, setJumpModalOpen] = useState(false);
   const isDark = uiTheme === "dark";
   const navIconColor = isDark ? "#e5e7eb" : "#111827";

@@ -162,3 +162,7 @@ If large files fail to load or crash on mobile:
   - Runtime EPUB open/ready timeout: `180000ms`
   - Runtime EPUB display timeout: `30000ms`
 - For very large EPUBs, first-open can take longer on mid-tier Android. This is expected due to zip parsing and spine bootstrapping.
+
+## Native ink motion packaging check
+
+Run `pnpm --filter @papyrus-sdk/ui-react-native check:ink-worklets` before publishing. This builds and verifies all three ink chrome callbacks through the Reanimated Babel plugin in both CJS and ESM artifacts. Keep explicit `"worklet"` directives: bundler aliases such as `useAnimatedStyle2` are not automatically recognized by the plugin.

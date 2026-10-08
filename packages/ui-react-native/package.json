@@ -1,6 +1,6 @@
 {
   "name": "@papyrus-sdk/ui-react-native",
-  "version": "0.2.35-beta.7",
+  "version": "0.2.35-beta.8",
   "license": "MIT",
   "keywords": [
     "papyrus",
@@ -39,7 +39,8 @@
     "url": "https://github.com/solrachix/Papyrus/issues"
   },
   "scripts": {
-    "build": "node runtime/syncComicRuntime.mjs && tsup"
+    "build": "node runtime/syncComicRuntime.mjs && tsup",
+    "check:ink-worklets": "pnpm run build && node ../../scripts/ci/check-native-ink-worklets.cjs"
   },
   "dependencies": {
     "react-native-svg": "^15.5.0"
