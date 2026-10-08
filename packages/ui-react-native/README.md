@@ -5,10 +5,12 @@ React Native UI components for Papyrus viewers.
 ## Install
 
 ```bash
-npm install @papyrus-sdk/ui-react-native @papyrus-sdk/engine-native @papyrus-sdk/core @papyrus-sdk/types react-native-gesture-handler
+npm install @papyrus-sdk/ui-react-native @papyrus-sdk/engine-native @papyrus-sdk/core @papyrus-sdk/types react-native-gesture-handler react-native-reanimated@^3.19.5
 ```
 
-`@papyrus-sdk/core`, `@papyrus-sdk/types`, and `react-native-gesture-handler` are required peer dependencies.
+`@papyrus-sdk/core`, `@papyrus-sdk/types`, `react-native-gesture-handler`, and `react-native-reanimated` (3.19.5+) are required peer dependencies.
+
+Configure Reanimated 3 in the host app, with `react-native-reanimated/plugin` last in the Babel plugin list. The native iOS PDF annotation mode animates the Topbar and dock; it respects the system Reduce Motion setting. While drawing, Concluir/Done closes the ink session through the existing store/native flush flow. The first Back press finishes drawing without leaving the reader; the next press navigates back.
 
 Wrap the app root with `GestureHandlerRootView` before rendering Papyrus components:
 

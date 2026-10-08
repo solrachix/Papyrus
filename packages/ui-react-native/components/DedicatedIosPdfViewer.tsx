@@ -4,8 +4,7 @@ import { useViewerStore } from "@papyrus-sdk/core";
 import type { DocumentEngine } from "@papyrus-sdk/types";
 import { PapyrusPdfDocumentView } from "@papyrus-sdk/engine-native";
 import { getStrings } from "../mobileStrings";
-import { resolveMobileChromeOffsets } from "./mobileChromeMetrics";
-import { usePapyrusSafeAreaInsets } from "./PapyrusSafeArea";
+import { handleNativeInkPickerVisibility } from "./nativeInkSession";
 import {
   deleteAnnotationAndClearSelection,
   resolveMarkupAnnotationDeleteFallback,
@@ -26,8 +25,6 @@ const MOBILE_CHROME_SHOW_DELTA = 22;
 const MOBILE_CHROME_SHOW_DELAY_MS = 180;
 const MOBILE_CHROME_TOP_RESET = 16;
 const MIN_VISIBLE_PAGE_RATIO = 0.03;
-// Stay outside the entire moving scrubber column (150px pill + spacing).
-const INK_DONE_SCRUBBER_CLEARANCE = 168;
 const supportsNativeEditMenu =
   Number.parseInt(String(Platform.Version), 10) >= 16;
 
@@ -48,8 +45,6 @@ export default function DedicatedIosPdfViewer({
 }: DedicatedIosPdfViewerProps) {
   const locale = useViewerStore((state) => state.locale);
   const t = getStrings(locale);
-  const uiTheme = useViewerStore((state) => state.uiTheme);
-  const offsets = resolveMobileChromeOffsets(usePapyrusSafeAreaInsets());
   const pageCount = useViewerStore((state) => state.pageCount);
   const pageTheme = useViewerStore((state) => state.pageTheme);
   const zoom = useViewerStore((state) => state.zoom);
@@ -197,26 +192,14 @@ export default function DedicatedIosPdfViewer({
     [onDefineSelection, updateSelection]
   );
 
-  const finishInkDrawing = useCallback(() => {
-    setDocumentState({
-      activeTool: "select",
-      interactionMode: "pan",
-      nativeInkToolPickerActive: false,
-      toolDockOpen: false,
-      activeMobileDestination: "none",
-    });
-  }, [setDocumentState]);
-
   const handleInkToolPickerVisibilityChange = useCallback(
     (event: { nativeEvent?: { visible?: unknown } }) => {
-      const visible = event.nativeEvent?.visible === true;
-      if (!visible && activeTool === "ink") {
-        finishInkDrawing();
-        return;
-      }
-      setDocumentState({ nativeInkToolPickerActive: visible });
+      handleNativeInkPickerVisibility(
+        event.nativeEvent?.visible === true,
+        useViewerStore.getState()
+      );
     },
-    [activeTool, finishInkDrawing, setDocumentState]
+    []
   );
 
   const trackMobileChromeByOffset = useCallback(
@@ -407,39 +390,6 @@ export default function DedicatedIosPdfViewer({
         }}
         onInkToolPickerVisibilityChange={handleInkToolPickerVisibilityChange}
       />
-      {supportsNativeEditMenu && activeTool === "ink" && (
-        <View
-          pointerEvents="box-none"
-          style={[
-            styles.inkDoneOverlay,
-            {
-              top: offsets.progress,
-              left: offsets.left,
-              right: offsets.right + INK_DONE_SCRUBBER_CLEARANCE,
-            },
-          ]}
-        >
-          <Pressable
-            onPress={finishInkDrawing}
-            accessibilityRole="button"
-            accessibilityLabel={t.done}
-            testID="papyrus-ios-ink-done"
-            style={[
-              styles.inkDoneButton,
-              uiTheme === "dark" && styles.inkDoneButtonDark,
-            ]}
-          >
-            <Text
-              style={[
-                styles.inkDoneText,
-                uiTheme === "dark" && styles.inkDoneTextDark,
-              ]}
-            >
-              {t.done}
-            </Text>
-          </Pressable>
-        </View>
-      )}
       {selection &&
         !supportsNativeEditMenu &&
         onDefineSelection &&
@@ -482,34 +432,6 @@ export default function DedicatedIosPdfViewer({
 const styles = StyleSheet.create({
   container: { flex: 1, alignItems: "stretch" },
   viewer: { flex: 1, width: "100%" },
-  inkDoneOverlay: {
-    position: "absolute",
-    alignItems: "flex-end",
-    zIndex: 52,
-  },
-  inkDoneButton: {
-    minHeight: 44,
-    paddingHorizontal: 16,
-    justifyContent: "center",
-    alignItems: "center",
-    borderRadius: 22,
-    backgroundColor: "rgba(255, 255, 255, 0.96)",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-  },
-  inkDoneButtonDark: {
-    backgroundColor: "rgba(30, 30, 30, 0.96)",
-  },
-  inkDoneText: {
-    color: "#111827",
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  inkDoneTextDark: {
-    color: "#f8fafc",
-  },
   selectionFallback: {
     position: "absolute",
     left: 0,
