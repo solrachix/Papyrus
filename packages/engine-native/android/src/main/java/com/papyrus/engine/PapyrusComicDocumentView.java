@@ -81,9 +81,14 @@ public final class PapyrusComicDocumentView extends FrameLayout {
     });
     scaleDetector = new ScaleGestureDetector(context, new ScaleGestureDetector.SimpleOnScaleGestureListener() {
       @Override public boolean onScale(ScaleGestureDetector detector) {
+        // Keep gesture frames native. Reflect the final zoom to React Native
+        // only once; per-frame bridge writes can feed stale zoom back into
+        // the view and cause visible jitter during a pinch.
         applyZoom(zoom * detector.getScaleFactor(), detector.getFocusX(), detector.getFocusY());
-        emitZoom();
         return true;
+      }
+      @Override public void onScaleEnd(ScaleGestureDetector detector) {
+        emitZoom();
       }
     });
     setLayoutMode(layoutMode);
