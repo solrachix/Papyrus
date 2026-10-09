@@ -1342,13 +1342,48 @@
           selectionWindow &&
           typeof selectionWindow.getSelection === 'function'
         ) {
+          let selectionTimer = null;
+          let lastSelectionKey = '';
+          let lastSelectionAt = 0;
+          const reportSelection = () => {
+            selectionTimer = null;
+            if (session !== documentSessionId || activeRendition !== rendition) return;
+            const selected = selectionWindow.getSelection();
+            if (!selected || selected.isCollapsed || selected.rangeCount === 0 ||
+                typeof contents.cfiFromRange !== 'function') return;
+            const range = selected.getRangeAt(0).cloneRange();
+            if (!range.toString().trim()) return;
+            const href = spineItems[contents.sectionIndex]?.href;
+            if (!href) return;
+            let cfi;
+            try { cfi = contents.cfiFromRange(range); } catch (_) { return; }
+            const anchor = window.PapyrusEpubAnnotations?.selection(contents, cfi, href, annotationDocumentId);
+            if (!anchor) return;
+            const key = anchor.cfiRange + ':' + anchor.quote;
+            const now = Date.now();
+            if (key === lastSelectionKey && now - lastSelectionAt < 750) return;
+            lastSelectionKey = key;
+            lastSelectionAt = now;
+            sendEvent('EPUB_TEXT_SELECTED', {
+              documentSessionId: session,
+              text: anchor.quote,
+              pageIndex: contents.sectionIndex + 1,
+              anchor,
+            });
+          };
           const handleSelectionChange = () => {
             const selection = selectionWindow.getSelection();
             const text = selection ? selection.toString().trim() : '';
             epubScrollDiagnostics && epubScrollDiagnostics.setSelectionActive(Boolean(text));
+            if (selectionTimer !== null) clearTimeout(selectionTimer);
+            // epub.js "selected" is not reliable on every iOS WKWebView path.
+            // The content document still emits selectionchange, so resolve its
+            // live Range to a CFI after the selection handles settle.
+            if (text) selectionTimer = setTimeout(reportSelection, 250);
           };
           selectionDocument.addEventListener('selectionchange', handleSelectionChange);
           const selectionCleanup = () => {
+            if (selectionTimer !== null) clearTimeout(selectionTimer);
             selectionDocument.removeEventListener('selectionchange', handleSelectionChange);
             epubSelectionCleanups.delete(selectionCleanup);
           };
