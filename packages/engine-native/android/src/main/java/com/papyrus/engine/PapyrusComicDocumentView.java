@@ -5,6 +5,8 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.os.SystemClock;
+import android.view.GestureDetector;
+import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 import android.view.View;
 import android.widget.FrameLayout;
@@ -49,6 +51,7 @@ public final class PapyrusComicDocumentView extends FrameLayout {
   private float zoom = 1f;
   private long lastPageEvent;
   private final ScaleGestureDetector scaleDetector;
+  private final GestureDetector tapDetector;
   private final Set<String> emittedErrors = new HashSet<>();
   private float lastPanX;
   private float lastPanY;
@@ -65,6 +68,15 @@ public final class PapyrusComicDocumentView extends FrameLayout {
     recyclerView.addOnScrollListener(new RecyclerView.OnScrollListener() {
       @Override public void onScrollStateChanged(@NonNull RecyclerView view, int state) {
         if (state == RecyclerView.SCROLL_STATE_IDLE) emitCurrentPage();
+      }
+    });
+    tapDetector = new GestureDetector(context, new GestureDetector.SimpleOnGestureListener() {
+      @Override public boolean onDown(MotionEvent event) { return true; }
+      @Override public boolean onDoubleTap(MotionEvent event) {
+        if (scaleDetector.isInProgress()) return false;
+        applyZoom(zoom > 1.05f ? 1f : 2f, event.getX(), event.getY());
+        emitZoom();
+        return true;
       }
     });
     scaleDetector = new ScaleGestureDetector(context, new ScaleGestureDetector.SimpleOnScaleGestureListener() {
@@ -143,6 +155,9 @@ public final class PapyrusComicDocumentView extends FrameLayout {
 
   @Override public boolean dispatchTouchEvent(android.view.MotionEvent event) {
     scaleDetector.onTouchEvent(event);
+    if (event.getPointerCount() == 1 && !scaleDetector.isInProgress()) {
+      tapDetector.onTouchEvent(event);
+    }
     if (event.getActionMasked() == android.view.MotionEvent.ACTION_POINTER_UP && event.getPointerCount() > 1) {
       int remaining = event.getActionIndex() == 0 ? 1 : 0;
       lastPanX = event.getX(remaining); lastPanY = event.getY(remaining);
