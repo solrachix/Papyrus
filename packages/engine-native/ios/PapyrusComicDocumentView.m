@@ -51,6 +51,7 @@ static NSCache<NSString *, UIImage *> *PapyrusComicImageCache(void) {
 @property (nonatomic, strong) UICollectionView *collectionView;
 @property (nonatomic, strong) UICollectionViewFlowLayout *flowLayout;
 @property (nonatomic, strong) UIPinchGestureRecognizer *pinchRecognizer;
+@property (nonatomic, strong) UITapGestureRecognizer *doubleTapRecognizer;
 @property (nonatomic, strong) UIPanGestureRecognizer *pagePanRecognizer;
 @property (nonatomic, assign) BOOL applyingProgrammaticPage;
 @property (nonatomic, strong) NSMutableSet<NSString *> *reportedErrors;
@@ -98,6 +99,12 @@ static NSCache<NSString *, UIImage *> *PapyrusComicImageCache(void) {
     _pinchRecognizer.cancelsTouchesInView = NO;
     _pinchRecognizer.delegate = self;
     [_collectionView addGestureRecognizer:_pinchRecognizer];
+    _doubleTapRecognizer = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleDoubleTap:)];
+    _doubleTapRecognizer.numberOfTapsRequired = 2;
+    _doubleTapRecognizer.numberOfTouchesRequired = 1;
+    _doubleTapRecognizer.cancelsTouchesInView = YES;
+    _doubleTapRecognizer.delegate = self;
+    [_collectionView addGestureRecognizer:_doubleTapRecognizer];
     _pagePanRecognizer = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handlePagePan:)];
     _pagePanRecognizer.minimumNumberOfTouches = 1;
     _pagePanRecognizer.maximumNumberOfTouches = 1;
@@ -475,6 +482,28 @@ static NSCache<NSString *, UIImage *> *PapyrusComicImageCache(void) {
   _currentPage = page;
   self.requestedPage = page;
   if (self.onPageChanged) self.onPageChanged(@{ @"page": @(page) });
+}
+
+- (void)handleDoubleTap:(UITapGestureRecognizer *)recognizer {
+  if (recognizer.state != UIGestureRecognizerStateRecognized ||
+      self.pinchRecognizer.state == UIGestureRecognizerStateChanged) return;
+  CGFloat previous = MAX(1, self.zoom);
+  CGFloat target = previous > 1.05 ? 1.0 : 2.0;
+  CGPoint focus = [recognizer locationInView:self.collectionView];
+  CGPoint center = CGPointMake(CGRectGetMidX(self.collectionView.bounds),
+                               CGRectGetMidY(self.collectionView.bounds));
+  if (target <= 1.0) {
+    self.panOffset = CGPointZero;
+  } else {
+    CGFloat ratio = target / previous;
+    CGFloat maxX = self.collectionView.bounds.size.width * (target - 1.0) / 2.0;
+    CGFloat maxY = self.collectionView.bounds.size.height * (target - 1.0) / 2.0;
+    CGFloat x = ratio * self.panOffset.x + (1 - ratio) * (focus.x - center.x);
+    CGFloat y = ratio * self.panOffset.y + (1 - ratio) * (focus.y - center.y);
+    self.panOffset = CGPointMake(MAX(-maxX, MIN(maxX, x)), MAX(-maxY, MIN(maxY, y)));
+  }
+  self.zoom = target;
+  if (self.onZoomChanged) self.onZoomChanged(@{ @"zoom": @(self.zoom) });
 }
 
 - (void)handlePinch:(UIPinchGestureRecognizer *)recognizer {
