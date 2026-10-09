@@ -4,6 +4,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import com.facebook.react.bridge.ReadableArray;
+import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.common.MapBuilder;
 import com.facebook.react.uimanager.SimpleViewManager;
 import com.facebook.react.uimanager.ThemedReactContext;
@@ -23,14 +24,19 @@ public final class PapyrusTextDocumentViewManager extends SimpleViewManager<Papy
       .put("onTextOffsetChange", MapBuilder.of("phasedRegistrationNames", MapBuilder.of("bubbled", "onTextOffsetChange")))
       .put("onTextRangeSelected", MapBuilder.of("phasedRegistrationNames", MapBuilder.of("bubbled", "onTextRangeSelected")))
       .put("onDefineSelection", MapBuilder.of("phasedRegistrationNames", MapBuilder.of("bubbled", "onDefineSelection")))
+      .put("onAnnotateSelection", MapBuilder.of("phasedRegistrationNames", MapBuilder.of("bubbled", "onAnnotateSelection")))
+      .put("onAnnotationTap", MapBuilder.of("phasedRegistrationNames", MapBuilder.of("bubbled", "onAnnotationTap")))
       .build();
   }
 
+  @ReactProp(name = "annotations") public void setAnnotations(PapyrusTextDocumentView view, ReadableArray value) { view.setAnnotations(value); }
+  @ReactProp(name = "annotationLabels") public void setAnnotationLabels(PapyrusTextDocumentView view, ReadableMap value) { view.setAnnotationLabels(value); }
   @ReactProp(name = "engineId") public void setEngineId(PapyrusTextDocumentView view, String value) { view.setEngineId(value); }
   @ReactProp(name = "documentGeneration", defaultInt = 0) public void setDocumentGeneration(PapyrusTextDocumentView view, int value) { view.setDocumentGeneration(value); }
   @ReactProp(name = "textLength", defaultInt = 0) public void setTextLength(PapyrusTextDocumentView view, int value) { view.setTextLength(value); }
   @ReactProp(name = "currentTextOffset", defaultInt = 0) public void setCurrentTextOffset(PapyrusTextDocumentView view, int value) { view.setCurrentTextOffset(value); }
   @ReactProp(name = "scrollToTextOffsetSignal") public void setScrollToTextOffsetSignal(PapyrusTextDocumentView view, Integer value) { view.setScrollToTextOffsetSignal(value); }
+  @ReactProp(name = "textNavigationRequest") public void setTextNavigationRequest(PapyrusTextDocumentView view, ReadableMap value) {view.setTextNavigationRequest(value);}
   @ReactProp(name = "searchResults") public void setSearchResults(PapyrusTextDocumentView view, ReadableArray value) { view.setSearchResults(value); }
   @ReactProp(name = "activeSearchIndex", defaultInt = -1) public void setActiveSearchIndex(PapyrusTextDocumentView view, int value) { view.setActiveSearchIndex(value); }
   @ReactProp(name = "pageTheme") public void setPageTheme(PapyrusTextDocumentView view, String value) { view.setPageTheme(value); }

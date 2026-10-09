@@ -70,6 +70,9 @@ type Strings = {
   annotationStrikeout: string;
   annotationSquiggly: string;
   annotationNote: string;
+  annotationColor: string;
+  annotationIndicatorOnly: string;
+  deleteAnnotationConfirmation: string;
   deleteAnnotation: string;
   previousPage: string;
   nextPage: string;
@@ -156,6 +159,9 @@ const STRINGS: Record<Locale, Strings> = {
     annotationStrikeout: "Strikeout",
     annotationSquiggly: "Squiggly",
     annotationNote: "Note",
+    annotationColor: "Color",
+    annotationIndicatorOnly: "Note indicator only",
+    deleteAnnotationConfirmation: "Delete this annotation and its note?",
     deleteAnnotation: "Delete",
     previousPage: "Previous page",
     nextPage: "Next page",
@@ -240,6 +246,9 @@ const STRINGS: Record<Locale, Strings> = {
     annotationStrikeout: "Riscar",
     annotationSquiggly: "Ondulado",
     annotationNote: "Nota",
+    annotationColor: "Cor",
+    annotationIndicatorOnly: "Somente indicador",
+    deleteAnnotationConfirmation: "Apagar esta marcação e sua nota?",
     deleteAnnotation: "Apagar",
     previousPage: "Página anterior",
     nextPage: "Próxima página",

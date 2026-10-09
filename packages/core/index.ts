@@ -10,3 +10,7 @@ export * from './renderOverscan';
 export * from './pageLayoutMetrics';
 export * from './virtualPageWindow';
 export * from './perfTelemetry';
+
+export * from "./annotationAnchors";
+
+export {contextualizePdfAnnotation} from "./annotationCreation";

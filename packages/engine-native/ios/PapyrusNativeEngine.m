@@ -1,3 +1,4 @@
+#import "PapyrusTextAnnotationRange.h"
 #import <Foundation/Foundation.h>
 #import <React/RCTBridge.h>
 #import <React/RCTBridgeModule.h>
@@ -755,6 +756,17 @@ RCT_EXPORT_METHOD(getTextRange:(NSString *)engineId
     return;
   }
   resolve([text substringWithRange:NSMakeRange((NSUInteger)start, (NSUInteger)(end - start))]);
+}
+
+RCT_EXPORT_METHOD(resolveTextAnnotationRange:(NSString *)engineId
+                  generation:(NSInteger)generation
+                  anchor:(NSDictionary *)anchor
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject) {
+  #pragma unused(reject)
+  NSString *text = [[PapyrusTextStore shared] textForEngineId:engineId generation:generation];
+  NSRange range = text ? PapyrusResolveTextAnnotationRange(text,anchor) : NSMakeRange(NSNotFound,0);
+  resolve(range.location == NSNotFound ? (id)kCFNull : @{@"start":@(range.location),@"end":@(NSMaxRange(range))});
 }
 
 RCT_EXPORT_METHOD(searchTextRanges:(NSString *)engineId

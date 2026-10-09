@@ -80,9 +80,14 @@ interface ViewerState {
   currentTextOffset: number;
   textLength: number;
   scrollToTextOffsetSignal: number | null;
+  annotationNavigationRequest: {pageIndex:number;rect:{x:number;y:number;width:number;height:number};nonce:number} | null;
+  textNavigationRequest: {offset:number;nonce:number} | null;
   comicLayoutMode: ComicLayoutMode;
   comicFitMode: ComicFitMode;
   comicReadingDirection: ComicReadingDirection;
+  annotationDraft: Annotation | null;
+  beginAnnotationDraft: (annotation: Annotation) => void;
+  clearAnnotationDraft: () => void;
   annotations: Annotation[];
   activeTool:
     | "select"
@@ -194,10 +199,13 @@ const getDefaultViewerState = () => ({
   currentTextOffset: 0,
   textLength: 0,
   scrollToTextOffsetSignal: null as number | null,
+  annotationNavigationRequest: null,
+  textNavigationRequest: null as {offset:number;nonce:number} | null,
   comicLayoutMode: "continuous" as ComicLayoutMode,
   comicFitMode: "width" as ComicFitMode,
   comicReadingDirection: "ltr" as ComicReadingDirection,
   annotations: [] as Annotation[],
+  annotationDraft: null as Annotation | null,
   activeTool: "select" as const,
   activeDrawToolPreset: "ink" as const,
   nativeInkToolPickerActive: false,
@@ -261,6 +269,8 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
         currentPage: config.initialPage ?? defaults.currentPage,
         currentTextOffset: Math.max(0, config.initialTextOffset ?? 0),
         textLength: defaults.textLength,
+        annotationNavigationRequest: null,
+        textNavigationRequest: null,
         comicLayoutMode:
           config.initialComicLayoutMode ?? defaults.comicLayoutMode,
         comicFitMode: config.initialComicFitMode ?? defaults.comicFitMode,
@@ -274,6 +284,7 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
         pageTheme: config.initialPageTheme ?? defaults.pageTheme,
         locale: config.initialLocale ?? defaults.locale,
         accentColor: config.initialAccentColor ?? defaults.accentColor,
+        annotationDraft: null,
         annotations: config.initialAnnotations ?? defaults.annotations,
         annotationUndoStack: defaults.annotationUndoStack,
         annotationRedoStack: defaults.annotationRedoStack,
@@ -353,6 +364,8 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
   setInkStrokeWidth: (width) =>
     set({ inkStrokeWidth: Math.min(0.02, Math.max(0.0025, width)) }),
 
+  beginAnnotationDraft: (annotation) => set({annotationDraft:annotation,selectedAnnotationId:annotation.id}),
+  clearAnnotationDraft: () => set({annotationDraft:null,selectedAnnotationId:null}),
   addAnnotation: (ann) => {
     const shouldAutoSelect = ann.type === "text" || ann.type === "comment";
     set((state) => ({
@@ -645,6 +658,7 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
         activeSearchIndex: nextIndex,
         currentTextOffset: offset,
         scrollToTextOffsetSignal: offset,
+        textNavigationRequest: {offset,nonce:(get().textNavigationRequest?.nonce??0)+1},
       });
       return;
     }
@@ -672,6 +686,7 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
         activeSearchIndex: prevIndex,
         currentTextOffset: offset,
         scrollToTextOffsetSignal: offset,
+        textNavigationRequest: {offset,nonce:(get().textNavigationRequest?.nonce??0)+1},
       });
       return;
     }
@@ -706,6 +721,7 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
       return {
         currentTextOffset: safeOffset,
         scrollToTextOffsetSignal: safeOffset,
+        textNavigationRequest: {offset:safeOffset,nonce:(state.textNavigationRequest?.nonce??0)+1},
       };
     }),
   setComicLayoutMode: (mode) => set({ comicLayoutMode: mode }),

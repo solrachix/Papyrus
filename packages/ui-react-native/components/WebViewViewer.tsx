@@ -1,16 +1,19 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Image, StyleSheet, View } from "react-native";
+import { Image, StyleSheet, View, Pressable, Text, Alert } from "react-native";
 import WebView, {
   type WebViewMessageEvent,
   type WebViewErrorEvent,
 } from "react-native-webview";
-import { useViewerStore } from "@papyrus-sdk/core";
-import { DocumentEngine } from "@papyrus-sdk/types";
+import { createContextualAnnotation, useViewerStore } from "@papyrus-sdk/core";
+import { Annotation, AnnotationMarkupStyle, DocumentEngine } from "@papyrus-sdk/types";
 import { resolveMaxPageWidth } from "./pdfPageMetrics";
 import {
   parseWebViewInteraction,
   parseWebViewState,
 } from "./webViewState";
+
+import { parseEpubAnnotationEvent, type EpubAnnotationEvent } from "./epubAnnotationEvents";
+import { getStrings } from "../mobileStrings";
 
 const runtimeAsset = require("../runtime/index.html");
 type RuntimeSource = { html: string; baseUrl?: string } | { uri: string };
@@ -44,12 +47,17 @@ type WebViewBridgeEngine = DocumentEngine & {
   attachWebView?: (bridge: WebViewBridge) => void;
   detachWebView?: () => void;
   handleWebViewMessage?: (data: string) => void;
+  getWebViewDocumentSessionId?: () => string;
+  syncEpubAnnotations?: (annotations: Annotation[], documentId?: string, labels?: {comment:string}) => Promise<void>;
   getWebViewRuntimeSource?: () => unknown;
   getWebViewRuntimeConfig?: () => Record<string, string> | undefined;
 };
 
 interface WebViewViewerProps {
   engine: DocumentEngine;
+  documentId?: string;
+  onDefineSelection?: (selection: {text:string;pageIndex:number}) => void;
+  defineSelectionMode?: "selection" | "single-word";
   maxPageWidth?: number;
   onScrollOffset?: (offsetY: number) => void;
   onTap?: () => void;
@@ -57,12 +65,17 @@ interface WebViewViewerProps {
 
 const WebViewViewer: React.FC<WebViewViewerProps> = ({
   engine,
+  documentId,
+  onDefineSelection,
+  defineSelectionMode,
   maxPageWidth,
   onScrollOffset,
   onTap,
 }) => {
   const webViewRef = useRef<WebView>(null);
-  const { pageTheme } = useViewerStore();
+  const { pageTheme, annotations, isLoaded, locale, annotationColor, annotationOpacity, addAnnotation, beginAnnotationDraft, setSelectedAnnotation } = useViewerStore();
+  const [selection,setSelection] = useState<Extract<EpubAnnotationEvent,{kind:"selection"}> | null>(null);
+  const t = getStrings(locale);
   const bridgeEngine = engine as WebViewBridgeEngine;
   const runtimeSource = useMemo(
     () =>
@@ -135,8 +148,35 @@ const WebViewViewer: React.FC<WebViewViewerProps> = ({
     };
   }, [bridgeEngine]);
 
+  useEffect(() => {
+    setSelection(null);
+  }, [engine,documentId]);
+
+  useEffect(() => {
+    if (!isLoaded) return;
+    let active = true;
+    void bridgeEngine.syncEpubAnnotations?.(annotations,documentId,{comment:t.annotationNote}).catch(() => {
+      // Store remains authoritative; resend on the next loaded snapshot.
+      if (active) setSelection(null);
+    });
+    return () => {active=false;};
+  }, [bridgeEngine, annotations,documentId,isLoaded,t.annotationNote]);
+
+  const annotateSelection = (style:AnnotationMarkupStyle,note?:string) => {
+    if (!selection || selection.session !== bridgeEngine.getWebViewDocumentSessionId?.() || !isLoaded) return;
+    (note !== undefined ? beginAnnotationDraft : addAnnotation)(createContextualAnnotation({id:`annotation-${Date.now()}-${Math.random().toString(36).slice(2)}`,anchor:selection.anchor,pageIndex:selection.pageIndex,style,color:annotationColor,opacity:annotationOpacity,note}));
+    setSelection(null);
+  };
+
   const handleMessage = (event: WebViewMessageEvent) => {
     const raw = event.nativeEvent.data;
+    const annotationEvent = parseEpubAnnotationEvent(raw,bridgeEngine.getWebViewDocumentSessionId?.() ?? "",documentId);
+    if (annotationEvent?.kind === "selection") setSelection(annotationEvent);
+    if (annotationEvent?.kind === "tap" && annotations.some(a => a.id === annotationEvent.id)) {setSelection(null);
+      const group=annotations.filter(a=>annotationEvent.ids?.includes(a.id));
+      if(group.length>1)Alert.alert(t.annotationNote,undefined,[...group.map(a=>({text:(a.noteContent || a.anchor?.quote || a.content || '').slice(0,100),onPress:()=>setSelectedAnnotation(a.id)})),{text:t.cancel,style:'cancel'}]);
+      else setSelectedAnnotation(annotationEvent.id);
+      return;}
     const interaction = parseWebViewInteraction(raw);
     if (interaction?.kind === "scroll") onScrollOffset?.(interaction.offsetY);
     if (interaction?.kind === "tap") onTap?.();
@@ -229,6 +269,16 @@ const WebViewViewer: React.FC<WebViewViewerProps> = ({
         allowingReadAccessToURL={allowingReadAccessToURL}
         style={[styles.webview, cappedWebViewStyle]}
       />
+      {selection ? (
+        <View style={styles.selectionActions} accessibilityRole="toolbar">
+          {([["highlight",t.annotationHighlight],["underline",t.annotationUnderline],["strikeout",t.annotationStrikeout]] as const).map(([style,label]) => (
+            <Pressable key={style} accessibilityRole="button" accessibilityLabel={label} onPress={() => annotateSelection(style)} style={styles.selectionAction}><Text>{label}</Text></Pressable>
+          ))}
+          <Pressable accessibilityRole="button" onPress={() => annotateSelection("highlight","")} style={styles.selectionAction}><Text>{t.annotationNote}</Text></Pressable>
+          {onDefineSelection && (defineSelectionMode !== "single-word" || /^\S{1,64}$/.test(selection.text.trim())) ? <Pressable accessibilityRole="button" onPress={() => {onDefineSelection(selection);setSelection(null);}} style={styles.selectionAction}><Text>{t.define}</Text></Pressable> : null}
+          <Pressable accessibilityRole="button" accessibilityLabel={t.cancel} onPress={() => setSelection(null)} style={styles.selectionAction}><Text>×</Text></Pressable>
+        </View>
+      ) : null}
       <View
         pointerEvents="none"
         style={[styles.themeOverlay, themeOverlayStyle]}
@@ -238,6 +288,8 @@ const WebViewViewer: React.FC<WebViewViewerProps> = ({
 };
 
 const styles = StyleSheet.create({
+  selectionActions: {position:"absolute",bottom:100,left:12,right:12,flexDirection:"row",flexWrap:"wrap",backgroundColor:"#fff",borderRadius:14,padding:4,elevation:8},
+  selectionAction: {minHeight:44,minWidth:44,paddingHorizontal:10,alignItems:"center",justifyContent:"center"},
   container: {
     flex: 1,
     backgroundColor: "#ffffff",

@@ -101,7 +101,7 @@ describe("Papyrus iOS PDF annotation bridge", () => {
       expect(iosViewer).toContain(selector);
     }
     for (const prop of [
-      "annotations={annotations}",
+      "annotations={annotations.filter",
       "activeTool={activeTool}",
       "annotationColor={annotationColor}",
       "annotationOpacity={annotationOpacity}",

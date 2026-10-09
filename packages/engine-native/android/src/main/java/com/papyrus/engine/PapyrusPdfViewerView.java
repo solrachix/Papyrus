@@ -25,6 +25,7 @@ import android.view.ViewParent;
 import android.widget.OverScroller;
 
 import com.facebook.react.bridge.Arguments;
+import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.bridge.ReactContext;
 import com.facebook.react.bridge.WritableArray;
 import com.facebook.react.bridge.WritableMap;
@@ -325,6 +326,30 @@ public class PapyrusPdfViewerView extends View {
     layoutDirty = true;
     clampOffsets();
     invalidate();
+  }
+
+  private long annotationNavigationGeneration = 0;
+
+  public void setAnnotationNavigationRequest(ReadableMap request) {
+    long generation = ++annotationNavigationGeneration;
+    if (request == null) return;
+    final String requestedEngine = engineId;
+    final int pageIndex = request.getInt("pageIndex");
+    final ReadableMap rect = request.getMap("rect");
+    if (rect == null) return;
+    final float x = (float) rect.getDouble("x");
+    final float y = (float) rect.getDouble("y");
+    post(() -> {
+      if (generation != annotationNavigationGeneration || requestedEngine == null || !requestedEngine.equals(engineId)) return;
+      ensureLayout();
+      if (pageIndex < 0 || pageIndex >= pageFrames.size()) return;
+      flingScroller.forceFinished(true);
+      PageFrame frame = pageFrames.get(pageIndex);
+      offsetY = frame.top + frame.height * clamp(y, 0f, 1f) - getHeight() * 0.15f;
+      offsetX = frame.left + frame.width * clamp(x, 0f, 1f) - getWidth() * 0.15f;
+      clampOffsets();
+      invalidate();
+    });
   }
 
   public void setCurrentPage(int page) {
@@ -1345,6 +1370,11 @@ public class PapyrusPdfViewerView extends View {
     for (Annotation annotation : annotations) {
       if (annotation.pageIndex != pageIndex) continue;
       if (annotation.rects == null || annotation.rects.isEmpty()) continue;
+      if(annotation.hasNote){
+        NormalizedRect last=annotation.rects.get(annotation.rects.size()-1);
+        float cx=Math.min(0.99f,last.x+last.width+0.012f), cy=last.y+0.012f;
+        if(Math.abs(nx-cx)<0.035f && Math.abs(ny-cy)<0.035f)return annotation;
+      }
       for (NormalizedRect rect : annotation.rects) {
         if (nx >= rect.x && nx <= rect.x + rect.width &&
             ny >= rect.y && ny <= rect.y + rect.height) {
@@ -1873,8 +1903,20 @@ public class PapyrusPdfViewerView extends View {
     invalidate();
   }
 
+  private final Map<String, Integer> noteGroupCounts = new HashMap<>();
+  private final java.util.Set<String> hiddenNoteMarkers = new java.util.HashSet<>();
   public void setAnnotations(List<Annotation> items) {
     annotations = items != null ? items : new ArrayList<>();
+    noteGroupCounts.clear(); hiddenNoteMarkers.clear();
+    Map<String, String> leaders = new HashMap<>();
+    for (Annotation annotation : annotations) {
+      if (!annotation.hasNote || annotation.rects.isEmpty()) continue;
+      NormalizedRect rect = annotation.rects.get(annotation.rects.size()-1);
+      String key=annotation.pageIndex+":"+(int)Math.floor((rect.x+rect.width)/0.035f)+":"+(int)Math.floor(rect.y/0.035f);
+      String leader=leaders.get(key);
+      if (leader==null) {leaders.put(key,annotation.id);noteGroupCounts.put(annotation.id,1);}
+      else {hiddenNoteMarkers.add(annotation.id);noteGroupCounts.put(leader,noteGroupCounts.get(leader)+1);}
+    }
     invalidate();
   }
 
@@ -1949,25 +1991,38 @@ public class PapyrusPdfViewerView extends View {
         overlayPaint.setStyle(Paint.Style.FILL);
         continue;
       }
-      overlayPaint.setColor(Color.argb(140, Color.red(color), Color.green(color), Color.blue(color)));
+      overlayPaint.setColor(Color.argb(Math.round(annotation.opacity*255), Color.red(color), Color.green(color), Color.blue(color)));
       for (NormalizedRect rect : annotation.rects) {
         float rLeft = left + rect.x * scaleX;
         float rTop = top + rect.y * scaleY;
         float rRight = rLeft + rect.width * scaleX;
         float rBottom = rTop + rect.height * scaleY;
-        if ("underline".equals(annotation.type)) {
+        if ("underline".equals(annotation.markupStyle)) {
           overlayPaint.setStyle(Paint.Style.STROKE);
           overlayPaint.setStrokeWidth(Math.max(2f, scaleY * 0.008f));
           canvas.drawLine(rLeft, rBottom - 2, rRight, rBottom - 2, overlayPaint);
           overlayPaint.setStyle(Paint.Style.FILL);
-        } else if ("strikeout".equals(annotation.type)) {
+        } else if ("strikeout".equals(annotation.markupStyle)) {
           overlayPaint.setStyle(Paint.Style.STROKE);
           overlayPaint.setStrokeWidth(Math.max(2f, scaleY * 0.008f));
           canvas.drawLine(rLeft, (rTop + rBottom) / 2f, rRight, (rTop + rBottom) / 2f, overlayPaint);
           overlayPaint.setStyle(Paint.Style.FILL);
-        } else {
+        } else if ("squiggly".equals(annotation.markupStyle)) {
+          overlayPaint.setStyle(Paint.Style.STROKE);overlayPaint.setStrokeWidth(2);
+          Path wave=new Path();wave.moveTo(rLeft,rBottom-2);
+          for(float x=rLeft+3;x<=rRight;x+=3)wave.lineTo(x,rBottom-2+(((int)((x-rLeft)/3))%2==0?-2:2));
+          canvas.drawPath(wave,overlayPaint);overlayPaint.setStyle(Paint.Style.FILL);
+        } else if ("highlight".equals(annotation.markupStyle)) {
           canvas.drawRect(rLeft, rTop, rRight, rBottom, overlayPaint);
         }
+      }
+      if (annotation.hasNote && !annotation.rects.isEmpty() && !hiddenNoteMarkers.contains(annotation.id)) {
+        NormalizedRect last=annotation.rects.get(annotation.rects.size()-1);
+        float cx=Math.min(left+scaleX-9,left+(last.x+last.width)*scaleX+9);
+        float cy=top+last.y*scaleY+9;
+        overlayPaint.setColor(color);overlayPaint.setAlpha(255);canvas.drawCircle(cx,cy,8,overlayPaint);
+        int count=noteGroupCounts.getOrDefault(annotation.id,1);
+        if(count>1){overlayPaint.setColor(Color.WHITE);overlayPaint.setTextSize(11);overlayPaint.setTextAlign(Paint.Align.CENTER);canvas.drawText(String.valueOf(count),cx,cy+4,overlayPaint);overlayPaint.setTextAlign(Paint.Align.LEFT);}
       }
     }
 
@@ -2025,6 +2080,8 @@ public class PapyrusPdfViewerView extends View {
     final String id;
     final int pageIndex;
     final String type;
+    String markupStyle;
+    boolean hasNote;
     final String color;
     final List<NormalizedRect> rects;
     final List<NormalizedPoint> path;
@@ -2037,6 +2094,8 @@ public class PapyrusPdfViewerView extends View {
       this.id = id;
       this.pageIndex = pageIndex;
       this.type = type;
+      this.markupStyle = type;
+      this.hasNote = "comment".equals(type)||"text".equals(type);
       this.color = color;
       this.rects = rects;
       this.path = path;

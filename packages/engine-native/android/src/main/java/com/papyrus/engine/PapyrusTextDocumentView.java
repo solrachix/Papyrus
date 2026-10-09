@@ -9,8 +9,21 @@ import android.text.Selection;
 import android.text.Spannable;
 import android.text.SpannableString;
 import android.text.style.BackgroundColorSpan;
+import android.text.style.CharacterStyle;
+import android.text.style.UnderlineSpan;
+import android.text.style.LineBackgroundSpan;
+import android.text.TextPaint;
+import android.graphics.Canvas;
+import android.graphics.Paint;
+import android.app.AlertDialog;
+import com.facebook.react.bridge.ReadableType;
+import java.util.HashMap;
+import java.util.Map;
+import android.widget.Button;
 import android.util.TypedValue;
 import android.view.ActionMode;
+import android.view.GestureDetector;
+import android.view.MotionEvent;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -34,10 +47,19 @@ public final class PapyrusTextDocumentView extends FrameLayout {
   private static final int EVENT_THROTTLE_MS = 100;
   private static final int MAX_SEARCH_HIGHLIGHTS = 2000;
   private static final int ACTION_DEFINE = 0x5041;
+  private static final int ACTION_ANNOTATE = 0x5050;
+  private static final String[] MARKUP_ACTIONS = {"highlight", "underline", "strikeout", "comment"};
   private static final ExecutorService TEXT_LAYOUT_EXECUTOR = Executors.newSingleThreadExecutor();
 
   private final ScrollView scrollView;
   private final PapyrusSelectableTextView textView;
+  private final FrameLayout textContainer;
+  private final List<Button> noteButtons = new ArrayList<>();
+  private ReadableArray annotations;
+  private final Map<String, Range> resolvedAnnotationRanges = new HashMap<>();
+  private String resolvedAnnotationText = "";
+  private final Map<Button,List<String>> noteGroups = new HashMap<>();
+  private ReadableMap annotationLabels;
   private String engineId;
   private int documentGeneration;
   private int expectedTextLength;
@@ -65,31 +87,46 @@ public final class PapyrusTextDocumentView extends FrameLayout {
     scrollView = new ScrollView(context);
     scrollView.setFillViewport(false);
     scrollView.setVerticalScrollBarEnabled(true);
+    textContainer = new FrameLayout(context);
     textView = new PapyrusSelectableTextView(context);
     textView.setTextIsSelectable(true);
     textView.setFocusable(true);
     textView.setFocusableInTouchMode(true);
     textView.setTextSize(TypedValue.COMPLEX_UNIT_SP, fontSize);
-    textView.setPadding(dp(pageMarginDp), dp(pageMarginDp), dp(pageMarginDp), dp(pageMarginDp));
+    textView.setPadding(dp(Math.max(44,pageMarginDp)), dp(pageMarginDp), dp(pageMarginDp), dp(pageMarginDp));
     textView.setOnSelectionChangedListener(this::emitTextRangeSelected);
+    GestureDetector annotationTaps = new GestureDetector(context,new GestureDetector.SimpleOnGestureListener(){
+      @Override public boolean onSingleTapUp(MotionEvent event){return hitTestAnnotation(event);}
+    });
+    textView.setOnTouchListener((v,event)->annotationTaps.onTouchEvent(event));
     textView.setCustomSelectionActionModeCallback(new ActionMode.Callback() {
       @Override public boolean onCreateActionMode(ActionMode mode, Menu menu) {
-        addDefineAction(menu);
+        addSelectionActions(menu);
         return true;
       }
       @Override public boolean onPrepareActionMode(ActionMode mode, Menu menu) {
-        addDefineAction(menu);
+        addSelectionActions(menu);
         return true;
       }
       @Override public boolean onActionItemClicked(ActionMode mode, MenuItem item) {
-        if (item.getItemId() != ACTION_DEFINE) return false;
-        emitDefineSelection();
+        if (item.getItemId() == ACTION_DEFINE) { emitDefineSelection(); }
+        else if (item.getItemId() >= ACTION_ANNOTATE && item.getItemId() < ACTION_ANNOTATE + MARKUP_ACTIONS.length) {
+          WritableMap payload = selectedPayload();
+          if (payload != null) {
+            payload.putString("style", MARKUP_ACTIONS[item.getItemId() - ACTION_ANNOTATE]);
+            emit("onAnnotateSelection", payload);
+          }
+        } else return false;
         mode.finish();
         return true;
       }
       @Override public void onDestroyActionMode(ActionMode mode) { }
     });
-    scrollView.addView(textView, new ScrollView.LayoutParams(
+    textContainer.addView(textView, new FrameLayout.LayoutParams(
+      LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT
+    ));
+    textView.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob) -> layoutNoteButtons());
+    scrollView.addView(textContainer, new ScrollView.LayoutParams(
       LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT
     ));
     scrollView.addOnLayoutChangeListener((view, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
@@ -143,6 +180,10 @@ public final class PapyrusTextDocumentView extends FrameLayout {
     scrollToTextOffset(value);
   }
 
+  public void setTextNavigationRequest(ReadableMap request) {
+    if(request!=null && request.hasKey("offset"))scrollToTextOffset(Math.max(0,request.getInt("offset")));
+  }
+
   public void setSearchResults(ReadableArray results) {
     searchRanges = new ArrayList<>();
     if (results != null) {
@@ -179,6 +220,7 @@ public final class PapyrusTextDocumentView extends FrameLayout {
   public void setFontSize(float value) {
     fontSize = Math.max(10f, Math.min(48f, value));
     textView.setTextSize(TypedValue.COMPLEX_UNIT_SP, fontSize);
+    textView.setLineSpacing(Math.max(0f,lineHeight-fontSize),1f);
     applySearchHighlights();
     requestTextContentLayout();
   }
@@ -192,7 +234,7 @@ public final class PapyrusTextDocumentView extends FrameLayout {
 
   public void setPageMargin(float value) {
     pageMarginDp = Math.round(Math.max(8f, Math.min(64f, value)));
-    textView.setPadding(dp(pageMarginDp), dp(pageMarginDp), dp(pageMarginDp), dp(pageMarginDp));
+    textView.setPadding(dp(Math.max(44,pageMarginDp)), dp(pageMarginDp), dp(pageMarginDp), dp(pageMarginDp));
     requestTextContentLayout();
   }
 
@@ -204,8 +246,17 @@ public final class PapyrusTextDocumentView extends FrameLayout {
     defineSelectionMode = value == null ? "selection" : value;
   }
 
-  private void addDefineAction(Menu menu) {
-    if (selectedPayload() == null || "single-word".equals(defineSelectionMode) && !isSingleWordSelection()) return;
+  private void addSelectionActions(Menu menu) {
+    for (int i = 0; i < MARKUP_ACTIONS.length; i++) {
+      String label = labelFor(MARKUP_ACTIONS[i]);
+      if (selectedPayload() != null && !label.isEmpty() && menu.findItem(ACTION_ANNOTATE+i) == null) {
+        menu.add(Menu.NONE, ACTION_ANNOTATE+i, i, label);
+      }
+    }
+    if (selectedPayload() == null || "single-word".equals(defineSelectionMode) && !isSingleWordSelection()) {
+      menu.removeItem(ACTION_DEFINE);
+      return;
+    }
     MenuItem item = menu.findItem(ACTION_DEFINE);
     if (item == null) {
       item = menu.add(Menu.NONE, ACTION_DEFINE, Menu.NONE, defineLabel);
@@ -231,6 +282,9 @@ public final class PapyrusTextDocumentView extends FrameLayout {
         post(() -> {
           if (token != loadToken || !text.equals(PapyrusTextStore.getText(engineId, documentGeneration))) return;
           textView.setText(precomputed, TextView.BufferType.SPANNABLE);
+          textView.setTextIsSelectable(true);
+          textView.setClickable(true);
+          textView.setLongClickable(true);
           applySearchHighlights();
           requestTextContentLayout();
           textView.requestLayout();
@@ -242,7 +296,10 @@ public final class PapyrusTextDocumentView extends FrameLayout {
     } else {
       textView.post(() -> {
         if (token != loadToken) return;
-        textView.setText(text);
+        textView.setText(text, TextView.BufferType.SPANNABLE);
+        textView.setTextIsSelectable(true);
+        textView.setClickable(true);
+        textView.setLongClickable(true);
         applySearchHighlights();
         requestTextContentLayout();
         textView.requestLayout();
@@ -285,6 +342,15 @@ public final class PapyrusTextDocumentView extends FrameLayout {
         textView.getLeft() + textView.getMeasuredWidth(),
         textView.getTop() + textView.getMeasuredHeight()
       );
+      // React Native can retain the parent's old wrap-content measurement after
+      // asynchronous PrecomputedText arrives. Resize the content container too,
+      // otherwise its clip bounds can hide every line after the first.
+      android.view.ViewGroup.LayoutParams containerParams = textContainer.getLayoutParams();
+      containerParams.height = contentHeight;
+      textContainer.setLayoutParams(containerParams);
+      textContainer.forceLayout();
+      textContainer.measure(contentWidthSpec, exactHeightSpec);
+      textContainer.layout(0, 0, contentWidth, contentHeight);
       scrollView.requestLayout();
       requestLayout();
     });
@@ -295,7 +361,14 @@ public final class PapyrusTextDocumentView extends FrameLayout {
     int selectionStart = textView.getSelectionStart();
     int selectionEnd = textView.getSelectionEnd();
     int oldScrollY = scrollView.getScrollY();
-    SpannableString styled = new SpannableString(textView.getText());
+    Spannable styled = textView.getText() instanceof Spannable
+        ? (Spannable) textView.getText() : new SpannableString(textView.getText());
+    for (BackgroundColorSpan span : styled.getSpans(0, styled.length(), BackgroundColorSpan.class)) styled.removeSpan(span);
+    for (LineBackgroundSpan span : styled.getSpans(0, styled.length(), LineBackgroundSpan.class)) styled.removeSpan(span);
+    for (CharacterStyle span : styled.getSpans(0, styled.length(), CharacterStyle.class)) {
+      if (!(span instanceof BackgroundColorSpan)) styled.removeSpan(span);
+    }
+    applyAnnotationSpans(styled);
     for (int i = 0; i < searchRanges.size(); i++) {
       Range range = searchRanges.get(i);
       int start = Math.max(0, Math.min(styled.length(), range.start));
@@ -306,13 +379,150 @@ public final class PapyrusTextDocumentView extends FrameLayout {
       }
     }
     suppressSelectionEvents = true;
-    textView.setText(styled, TextView.BufferType.SPANNABLE);
+    if (styled != textView.getText()) textView.setText(styled, TextView.BufferType.SPANNABLE);
+    textView.invalidate();
     if (selectionStart >= 0 && selectionEnd >= selectionStart && selectionEnd <= textView.length()) {
       Selection.setSelection((Spannable) textView.getText(), selectionStart, selectionEnd);
     }
     suppressSelectionEvents = false;
     scrollView.scrollTo(scrollView.getScrollX(), oldScrollY);
   }
+
+  public void setAnnotations(ReadableArray value) {
+    annotations = value;
+    resolvedAnnotationRanges.clear();
+    applySearchHighlights();
+  }
+
+  public void setAnnotationLabels(ReadableMap value) { annotationLabels = value; }
+
+  private String labelFor(String key) {
+    return annotationLabels != null && annotationLabels.hasKey(key) && !annotationLabels.isNull(key)
+      ? annotationLabels.getString(key) : "";
+  }
+
+  private ReadableMap annotationRange(ReadableMap item) {
+    if (item.hasKey("anchor") && !item.isNull("anchor")) {
+      ReadableMap anchor = item.getMap("anchor");
+      if (anchor != null && anchor.hasKey("kind") && "text-range".equals(anchor.getString("kind"))) return anchor;
+      return null;
+    }
+    return item.hasKey("textRange") && !item.isNull("textRange") ? item.getMap("textRange") : null;
+  }
+
+  private Range checkedAnnotationRange(ReadableMap item) {
+    try {
+      String id=item.getString("id");
+      CharSequence source=textView.getText();
+      if(!resolvedAnnotationText.contentEquals(source)){resolvedAnnotationText=source.toString();resolvedAnnotationRanges.clear();}
+      if(resolvedAnnotationRanges.containsKey(id))return resolvedAnnotationRanges.get(id);
+      ReadableMap range=annotationRange(item);
+      if(range==null || !range.hasKey("start") || !range.hasKey("end") || range.getType("start")!=ReadableType.Number || range.getType("end")!=ReadableType.Number)return null;
+      int start=range.getInt("start"),end=range.getInt("end");
+      Range result=null;
+      if(range.hasKey("quote") && range.getType("quote")==ReadableType.String){
+        int[] resolved=PapyrusTextAnnotationModel.resolve(resolvedAnnotationText,start,end,range.getString("quote"),range.hasKey("prefix")&&range.getType("prefix")==ReadableType.String?range.getString("prefix"):null,range.hasKey("suffix")&&range.getType("suffix")==ReadableType.String?range.getString("suffix"):null);
+        if(resolved!=null)result=new Range(resolved[0],resolved[1]);
+      } else if(start>=0 && end>start && end<=source.length())result=new Range(start,end);
+      resolvedAnnotationRanges.put(id,result);return result;
+    } catch(RuntimeException malformed) {return null;}
+  }
+
+  private void applyAnnotationSpans(Spannable styled) {
+    for (Button button : noteButtons) textContainer.removeView(button);
+    noteButtons.clear();
+    noteIds.clear();
+    if (annotations == null) return;
+    for (int i=0; i<annotations.size(); i++) {
+      ReadableMap item = annotations.getMap(i);
+      if (item == null || !item.hasKey("id")) continue;
+      Range range = checkedAnnotationRange(item);
+      if (range == null) continue;
+      String type = item.hasKey("type") ? item.getString("type") : "";
+      String style = item.hasKey("markupStyle") && !item.isNull("markupStyle") ? item.getString("markupStyle") : type;
+      int color = 0xFFFFC928;
+      try { if (item.hasKey("color")) color = Color.parseColor(item.getString("color")); } catch (IllegalArgumentException ignored) { }
+      final int spanColor=color;
+      if ("highlight".equals(style)) {
+        double opacity = item.hasKey("opacity") ? Math.max(0,Math.min(1,item.getDouble("opacity"))) : 0.35;
+        styled.setSpan(new BackgroundColorSpan((color & 0x00FFFFFF) | ((int)(opacity*255)<<24)),range.start,range.end,Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+      } else if ("underline".equals(style)) {
+        styled.setSpan(new UnderlineSpan(){@Override public void updateDrawState(TextPaint paint){super.updateDrawState(paint);paint.underlineColor=spanColor;paint.underlineThickness=Math.max(1,paint.getTextSize()/18);}},range.start,range.end,Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+      } else if ("strikeout".equals(style)) {
+        styled.setSpan((LineBackgroundSpan)(canvas,paint,left,right,top,baseline,bottom,text,start,end,lineNumber)->{
+          if(range.end<=start || range.start>=end)return;
+          float x=left+paint.measureText(text,start,Math.max(start,range.start));
+          float width=paint.measureText(text,Math.max(start,range.start),Math.min(end,range.end));
+          int old=paint.getColor();float oldWidth=paint.getStrokeWidth();paint.setColor(spanColor);paint.setStrokeWidth(Math.max(1,paint.getTextSize()/18));
+          canvas.drawLine(x,baseline+paint.ascent()*0.4f,x+width,baseline+paint.ascent()*0.4f,paint);paint.setColor(old);paint.setStrokeWidth(oldWidth);
+        },range.start,range.end,Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+      }
+      if (item.hasKey("noteContent") || "comment".equals(type) || "text".equals(type)) {
+        final String id = item.getString("id");
+        Button button = new Button(getContext());
+        button.setText("●"); button.setTextColor(color); button.setContentDescription(labelFor("comment"));
+        button.setTag(range.start); button.setMinWidth(0); button.setMinimumWidth(0);
+        button.setPadding(0,0,0,0); button.setBackgroundColor(Color.TRANSPARENT);
+        button.setOnClickListener(v -> openAnnotationGroup(button,id));
+        noteIds.put(button,id);
+        noteButtons.add(button); textContainer.addView(button,new FrameLayout.LayoutParams(dp(44),dp(44)));
+      }
+    }
+    textView.post(this::layoutNoteButtons);
+  }
+
+  private boolean hitTestAnnotation(MotionEvent event) {
+    if (annotations == null || textView.getLayout() == null || textView.getSelectionEnd() > textView.getSelectionStart()) return false;
+    Layout layout = textView.getLayout();
+    float x = event.getX()-textView.getPaddingLeft();
+    int y = (int)event.getY()-textView.getPaddingTop();
+    if(x<0 || y<0 || y>layout.getHeight())return false;
+    int line=layout.getLineForVertical(y);
+    if(x<layout.getLineLeft(line) || x>layout.getLineRight(line))return false;
+    int offset=layout.getOffsetForHorizontal(line,x);
+    for(int i=0;i<annotations.size();i++) {
+      ReadableMap annotation=annotations.getMap(i);if(annotation==null)continue;
+      Range range=checkedAnnotationRange(annotation);
+      if(range!=null && offset>=range.start && offset<range.end) {
+        WritableMap payload=Arguments.createMap();payload.putString("id",annotation.getString("id"));emit("onAnnotationTap",payload);return true;
+      }
+    }
+    return false;
+  }
+
+  private void layoutNoteButtons() {
+    Layout layout = textView.getLayout();
+    if (layout == null) return;
+    noteGroups.clear();
+    Map<Integer,Button> leaders=new HashMap<>();
+    for (Button button : noteButtons) {
+      int start = Math.min(textView.length(),(Integer)button.getTag());
+      int line = layout.getLineForOffset(start);
+      int y=textView.getPaddingTop()+layout.getLineTop(line);
+      button.setTranslationY((y/dp(44))*dp(44));
+      int bucket=y/dp(44);Button leader=leaders.get(bucket);
+      button.setVisibility(leader==null?View.VISIBLE:View.INVISIBLE);
+      String id=(String)button.getContentDescription();
+      // Accessibility label stays localized; stable IDs live in a keyed map.
+      id=noteIds.get(button);
+      if(leader==null){leaders.put(bucket,button);leader=button;noteGroups.put(leader,new ArrayList<>());}
+      noteGroups.get(leader).add(id);
+    }
+    for(Map.Entry<Button,List<String>> entry:noteGroups.entrySet())entry.getKey().setText(entry.getValue().size()>1?String.valueOf(entry.getValue().size()):"●");
+  }
+
+  private final Map<Button,String> noteIds=new HashMap<>();
+  private void openAnnotationGroup(Button button,String fallback) {
+    List<String> ids=noteGroups.get(button);
+    if(ids==null || ids.size()<2){emitAnnotationTap(fallback);return;}
+    String[] titles=new String[ids.size()];
+    for(int i=0;i<ids.size();i++){
+      titles[i]=ids.get(i);
+      for(int j=0;j<annotations.size();j++){ReadableMap a=annotations.getMap(j);if(ids.get(i).equals(a.getString("id"))){titles[i]=a.hasKey("noteContent")&&!a.isNull("noteContent")?a.getString("noteContent"):a.hasKey("content")&&!a.isNull("content")?a.getString("content"):ids.get(i);break;}}
+    }
+    new AlertDialog.Builder(getContext()).setTitle(labelFor("comment")).setItems(titles,(dialog,index)->emitAnnotationTap(ids.get(index))).show();
+  }
+  private void emitAnnotationTap(String id){WritableMap event=Arguments.createMap();event.putString("id",id);emit("onAnnotationTap",event);}
 
   private void applyTheme() {
     int paper = Color.WHITE;
@@ -367,6 +577,12 @@ public final class PapyrusTextDocumentView extends FrameLayout {
     event.putString("text", textView.getText().subSequence(start, end).toString());
     event.putInt("start", start);
     event.putInt("end", end);
+    int prefixStart = Math.max(0, start - 48);
+    int suffixEnd = Math.min(textView.length(), end + 48);
+    if (prefixStart > 0 && Character.isLowSurrogate(textView.getText().charAt(prefixStart))) prefixStart--;
+    if (suffixEnd < textView.length() && Character.isLowSurrogate(textView.getText().charAt(suffixEnd))) suffixEnd++;
+    event.putString("prefix", textView.getText().subSequence(prefixStart, start).toString());
+    event.putString("suffix", textView.getText().subSequence(end, suffixEnd).toString());
     return event;
   }
 
@@ -395,7 +611,7 @@ public final class PapyrusTextDocumentView extends FrameLayout {
 
   private void emitDefineSelection() {
     WritableMap selection = selectedPayload();
-    if (selection != null) emit("onDefineSelection", selection);
+    if (selection != null && (!"single-word".equals(defineSelectionMode) || isSingleWordSelection())) emit("onDefineSelection", selection);
   }
 
   private void emit(String name, WritableMap payload) {

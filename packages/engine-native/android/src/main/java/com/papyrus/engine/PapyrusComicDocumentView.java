@@ -57,7 +57,7 @@ public final class PapyrusComicDocumentView extends FrameLayout {
 
   public PapyrusComicDocumentView(Context context) {
     super(context);
-    recyclerView = new RecyclerView(context);
+    recyclerView = new PapyrusComicRecyclerView(context);
     recyclerView.setOverScrollMode(View.OVER_SCROLL_NEVER);
     adapter = new ComicAdapter();
     recyclerView.setAdapter(adapter);
@@ -69,9 +69,7 @@ public final class PapyrusComicDocumentView extends FrameLayout {
     });
     scaleDetector = new ScaleGestureDetector(context, new ScaleGestureDetector.SimpleOnScaleGestureListener() {
       @Override public boolean onScale(ScaleGestureDetector detector) {
-        zoom = Math.max(1f, Math.min(5f, zoom * detector.getScaleFactor()));
-        if (zoom == 1f) { panX = 0; panY = 0; adapter.setPan(0, 0); }
-        adapter.setZoom(zoom);
+        applyZoom(zoom * detector.getScaleFactor(), detector.getFocusX(), detector.getFocusY());
         emitZoom();
         return true;
       }
@@ -98,7 +96,13 @@ public final class PapyrusComicDocumentView extends FrameLayout {
     if (clamped != currentPage) { currentPage = clamped; scrollToCurrentPage(); }
   }
   public void setLayoutMode(String value) {
-    layoutMode = "continuous".equals(value) ? "continuous" : "single";
+    String nextMode = "continuous".equals(value) ? "continuous" : "single";
+    if (!nextMode.equals(layoutMode)) {
+      panX = PapyrusComicPageLayout.panForLayout(panX, recyclerView.getWidth(), zoom, "continuous".equals(nextMode));
+      panY = 0;
+      adapter.setPan(panX, panY);
+    }
+    layoutMode = nextMode;
     int orientation = "continuous".equals(layoutMode) ? RecyclerView.VERTICAL : RecyclerView.HORIZONTAL;
     boolean reverse = orientation == RecyclerView.HORIZONTAL && "rtl".equals(readingDirection);
     layoutManager = new LinearLayoutManager(getContext(), orientation, reverse);
@@ -112,14 +116,37 @@ public final class PapyrusComicDocumentView extends FrameLayout {
   public void setFitMode(String value) { fitMode = value == null ? "width" : value; adapter.notifyDataSetChanged(); }
   public void setReadingDirection(String value) { readingDirection = "rtl".equals(value) ? "rtl" : "ltr"; setLayoutMode(layoutMode); }
   public void setZoom(float value) {
-    zoom = Math.max(1f, Math.min(5f, value));
-    if (zoom == 1f) { panX = 0; panY = 0; adapter.setPan(0, 0); }
-    adapter.setZoom(zoom);
+    applyZoom(value, recyclerView.getWidth() / 2f, recyclerView.getHeight() / 2f);
+  }
+  private void applyZoom(float value, float focusX, float focusY) {
+    float next = Math.max(1f, Math.min(5f, value));
+    if (Math.abs(next - zoom) < 0.0001f) return;
+    float previous = zoom;
+    int position = layoutManager == null ? RecyclerView.NO_POSITION : layoutManager.findFirstVisibleItemPosition();
+    View anchor = position == RecyclerView.NO_POSITION ? null : layoutManager.findViewByPosition(position);
+    int top = anchor == null ? 0 : anchor.getTop();
+    zoom = next;
+    if ("continuous".equals(layoutMode)) {
+      panX = PapyrusComicPageLayout.clampPanX(focusX - (focusX - panX) * next / previous, recyclerView.getWidth(), next);
+      panY = 0;
+      adapter.setZoom(next);
+      adapter.setPan(panX, 0);
+      if (anchor != null) layoutManager.scrollToPositionWithOffset(position,
+        PapyrusComicPageLayout.zoomAnchorTop(top, focusY, previous, next));
+      recyclerView.requestLayout();
+    } else {
+      if (next == 1f) { panX = 0; panY = 0; adapter.setPan(0, 0); }
+      adapter.setZoom(next);
+    }
   }
   public void setPageTheme(String value) { pageTheme = value == null ? "normal" : value; applyTheme(); }
 
   @Override public boolean dispatchTouchEvent(android.view.MotionEvent event) {
     scaleDetector.onTouchEvent(event);
+    if (event.getActionMasked() == android.view.MotionEvent.ACTION_POINTER_UP && event.getPointerCount() > 1) {
+      int remaining = event.getActionIndex() == 0 ? 1 : 0;
+      lastPanX = event.getX(remaining); lastPanY = event.getY(remaining);
+    }
     if (event.getActionMasked() == android.view.MotionEvent.ACTION_DOWN) {
       lastPanX = event.getX();
       lastPanY = event.getY();
@@ -129,7 +156,13 @@ public final class PapyrusComicDocumentView extends FrameLayout {
 
   @Override public boolean onInterceptTouchEvent(android.view.MotionEvent event) {
     if (scaleDetector.isInProgress()) return true;
-    if (zoom > 1f && event.getPointerCount() == 1 && event.getActionMasked() == android.view.MotionEvent.ACTION_MOVE) return true;
+    if (zoom > 1f && event.getPointerCount() == 1 && event.getActionMasked() == android.view.MotionEvent.ACTION_MOVE) {
+      if ("continuous".equals(layoutMode)) {
+        float dx = Math.abs(event.getX() - lastPanX), dy = Math.abs(event.getY() - lastPanY);
+        return dx > android.view.ViewConfiguration.get(getContext()).getScaledTouchSlop() && dx > dy;
+      }
+      return true;
+    }
     return super.onInterceptTouchEvent(event);
   }
 
@@ -137,6 +170,14 @@ public final class PapyrusComicDocumentView extends FrameLayout {
     if (scaleDetector.isInProgress()) return true;
     if (zoom > 1f && event.getPointerCount() == 1) {
       if (event.getActionMasked() == android.view.MotionEvent.ACTION_MOVE) {
+        if ("continuous".equals(layoutMode)) {
+          panX = PapyrusComicPageLayout.clampPanX(panX + event.getX() - lastPanX, recyclerView.getWidth(), zoom);
+          recyclerView.scrollBy(0, Math.round(lastPanY - event.getY()));
+          lastPanX = event.getX(); lastPanY = event.getY();
+          adapter.setPan(panX, 0);
+          emitCurrentPage();
+          return true;
+        }
         panX += event.getX() - lastPanX;
         panY += event.getY() - lastPanY;
         lastPanX = event.getX();
@@ -181,11 +222,12 @@ public final class PapyrusComicDocumentView extends FrameLayout {
     payload.putDouble("zoom", zoom);
     context.getJSModule(RCTEventEmitter.class).receiveEvent(getId(), "onZoomChanged", payload);
   }
-  private void emitError(String key, String message) {
+  private void emitError(String key, String message, String sourceEngineId, int sourceGeneration) {
     synchronized (emittedErrors) {
       if (!emittedErrors.add(key)) return;
     }
     post(() -> {
+      if (!sourceEngineId.equals(engineId) || sourceGeneration != generation) return;
       ReactContext context = (ReactContext) getContext();
       com.facebook.react.bridge.WritableMap payload = Arguments.createMap();
       payload.putString("message", message == null ? "Unable to decode comic page" : message);
@@ -217,7 +259,7 @@ public final class PapyrusComicDocumentView extends FrameLayout {
     }
     @Override public void onBindViewHolder(@NonNull ComicHolder holder, int position) {
       RecyclerView.LayoutParams itemParams = (RecyclerView.LayoutParams) holder.itemView.getLayoutParams();
-      itemParams.width = Math.max(1, recyclerView.getWidth());
+      itemParams.width = "continuous".equals(layoutMode) ? PapyrusComicPageLayout.zoomedWidth(recyclerView.getWidth(), zoom) : Math.max(1, recyclerView.getWidth());
       itemParams.height = Math.max(1, recyclerView.getHeight());
       holder.itemView.setLayoutParams(itemParams);
       final int logicalPage = position;
@@ -225,10 +267,12 @@ public final class PapyrusComicDocumentView extends FrameLayout {
       final int docGeneration = generation;
       final int token = ++holder.bindToken;
       holder.image.setImageDrawable(null);
-      holder.image.setScaleX(imageZoom);
-      holder.image.setScaleY(imageZoom);
-      holder.image.setTranslationX(imagePanX);
-      holder.image.setTranslationY(imagePanY);
+      boolean continuous = "continuous".equals(layoutMode);
+      holder.image.setScaleX(continuous ? 1f : imageZoom);
+      holder.image.setScaleY(continuous ? 1f : imageZoom);
+      holder.image.setTranslationX(continuous ? 0f : imagePanX);
+      holder.image.setTranslationY(continuous ? 0f : imagePanY);
+      holder.itemView.setTranslationX(continuous ? imagePanX : 0f);
       String key = id + ":" + docGeneration + ":" + logicalPage;
       Bitmap cached = BITMAPS.get(key);
       if (cached != null) {
@@ -245,16 +289,16 @@ public final class PapyrusComicDocumentView extends FrameLayout {
           bounds.inJustDecodeBounds = true;
           BitmapFactory.decodeFile(path, bounds);
           if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
-            emitError(key, "Unsupported or corrupt comic image");
+            emitError(key, "Unsupported or corrupt comic image", id, docGeneration);
             return;
           }
           if (bounds.outWidth > 20000 || bounds.outHeight > 20000 || (long) bounds.outWidth * (long) bounds.outHeight > 80_000_000L) {
-            emitError(key, "Comic image exceeds supported dimensions");
+            emitError(key, "Comic image exceeds supported dimensions", id, docGeneration);
             return;
           }
           if (bounds.outWidth > 0 && bounds.outHeight > 0) {
             post(() -> {
-              if (holder.bindToken == token) applyPageHeightForImage(holder, bounds.outWidth, bounds.outHeight);
+              if (holder.bindToken == token && id.equals(engineId) && docGeneration == generation) applyPageHeightForImage(holder, bounds.outWidth, bounds.outHeight);
             });
             int maxEdge = Math.max(getWidth(), getHeight()) * 2;
             int sample = 1;
@@ -265,7 +309,7 @@ public final class PapyrusComicDocumentView extends FrameLayout {
             bitmap = BitmapFactory.decodeFile(path, options);
           }
         } catch (Throwable error) {
-          emitError(key, error.getMessage());
+          emitError(key, error.getMessage(), id, docGeneration);
         }
         if (bitmap == null) return;
         BITMAPS.put(key, bitmap);
@@ -279,16 +323,37 @@ public final class PapyrusComicDocumentView extends FrameLayout {
       });
     }
     @Override public int getItemCount() { return pageCount; }
+    @Override public void onViewAttachedToWindow(@NonNull ComicHolder holder) {
+      super.onViewAttachedToWindow(holder);
+      // Prefetched/scrapped holders can be attached without another bind after a pinch.
+      // Synchronize their geometry too, so an old viewport-width cell cannot clip the image.
+      boolean continuous = "continuous".equals(layoutMode);
+      RecyclerView.LayoutParams params = (RecyclerView.LayoutParams) holder.itemView.getLayoutParams();
+      params.width = continuous ? PapyrusComicPageLayout.zoomedWidth(recyclerView.getWidth(), zoom) : Math.max(1, recyclerView.getWidth());
+      holder.itemView.setLayoutParams(params);
+      holder.itemView.setTranslationX(continuous ? imagePanX : 0f);
+      holder.image.setScaleX(continuous ? 1f : imageZoom);
+      holder.image.setScaleY(continuous ? 1f : imageZoom);
+      holder.image.setTranslationX(continuous ? 0f : imagePanX);
+      holder.image.setTranslationY(continuous ? 0f : imagePanY);
+      if (holder.image.getDrawable() instanceof android.graphics.drawable.BitmapDrawable) {
+        Bitmap bitmap = ((android.graphics.drawable.BitmapDrawable) holder.image.getDrawable()).getBitmap();
+        applyPageHeightForImage(holder, bitmap.getWidth(), bitmap.getHeight());
+      }
+      holder.itemView.forceLayout();
+      recyclerView.requestLayout();
+    }
     private void applyPageHeightForImage(ComicHolder holder, int imageWidth, int imageHeight) {
       if (!(holder.itemView.getLayoutParams() instanceof RecyclerView.LayoutParams)) return;
       RecyclerView.LayoutParams params = (RecyclerView.LayoutParams) holder.itemView.getLayoutParams();
-      int height = PapyrusComicPageLayout.itemHeight(
+      int height = PapyrusComicPageLayout.zoomedHeight(
         imageWidth,
         imageHeight,
         recyclerView.getWidth(),
         recyclerView.getHeight(),
         layoutMode,
-        fitMode
+        fitMode,
+        zoom
       );
       if (params.height != height) {
         params.height = height;
@@ -299,6 +364,22 @@ public final class PapyrusComicDocumentView extends FrameLayout {
     private void configurePageImage(ComicHolder holder, Bitmap bitmap) {
       boolean widthFit = "single".equals(layoutMode) && "width".equals(fitMode) && recyclerView.getWidth() > 0;
       ScrollView.LayoutParams params;
+      FrameLayout cell = (FrameLayout) holder.itemView;
+      if ("continuous".equals(layoutMode)) {
+        if (holder.image.getParent() != cell) {
+          ((android.view.ViewGroup) holder.image.getParent()).removeView(holder.image);
+          cell.addView(holder.image, new FrameLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
+        }
+        holder.pageScrollView.setVisibility(View.GONE);
+        holder.image.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        holder.pageScrollView.scrollTo(0, 0);
+        return;
+      }
+      if (holder.image.getParent() != holder.pageScrollView) {
+        ((android.view.ViewGroup) holder.image.getParent()).removeView(holder.image);
+        holder.pageScrollView.addView(holder.image);
+      }
+      holder.pageScrollView.setVisibility(View.VISIBLE);
       if (widthFit) {
         int width = recyclerView.getWidth();
         int height = Math.max(1, Math.round(width * ((float) bitmap.getHeight() / (float) bitmap.getWidth())));
@@ -307,7 +388,7 @@ public final class PapyrusComicDocumentView extends FrameLayout {
         holder.pageScrollView.setVerticalScrollBarEnabled(height > recyclerView.getHeight());
         holder.pageScrollView.setFillViewport(false);
       } else {
-        params = new ScrollView.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT);
+        params = new ScrollView.LayoutParams(LayoutParams.MATCH_PARENT, Math.max(1, recyclerView.getHeight()));
         holder.image.setScaleType(ImageView.ScaleType.FIT_CENTER);
         holder.pageScrollView.setVerticalScrollBarEnabled(false);
         holder.pageScrollView.setFillViewport(true);
@@ -321,8 +402,18 @@ public final class PapyrusComicDocumentView extends FrameLayout {
         RecyclerView.ViewHolder holder = recyclerView.getChildViewHolder(child);
         if (holder instanceof ComicHolder) {
           ImageView image = ((ComicHolder) holder).image;
-          image.setScaleX(value);
-          image.setScaleY(value);
+          if ("continuous".equals(layoutMode)) {
+            RecyclerView.LayoutParams params = (RecyclerView.LayoutParams) child.getLayoutParams();
+            params.width = PapyrusComicPageLayout.zoomedWidth(recyclerView.getWidth(), value);
+            child.setLayoutParams(params);
+            image.setScaleX(1f); image.setScaleY(1f);
+            if (image.getDrawable() instanceof android.graphics.drawable.BitmapDrawable) {
+              Bitmap bitmap = ((android.graphics.drawable.BitmapDrawable) image.getDrawable()).getBitmap();
+              applyPageHeightForImage((ComicHolder) holder, bitmap.getWidth(), bitmap.getHeight());
+            }
+          } else {
+            image.setScaleX(value); image.setScaleY(value);
+          }
         }
       }
     }
@@ -334,12 +425,39 @@ public final class PapyrusComicDocumentView extends FrameLayout {
         RecyclerView.ViewHolder holder = recyclerView.getChildViewHolder(child);
         if (holder instanceof ComicHolder) {
           ImageView image = ((ComicHolder) holder).image;
-          image.setTranslationX(x);
-          image.setTranslationY(y);
+          if ("continuous".equals(layoutMode)) {
+            child.setTranslationX(x);
+            image.setTranslationX(0f); image.setTranslationY(0f);
+          } else {
+            child.setTranslationX(0f);
+            image.setTranslationX(x); image.setTranslationY(y);
+          }
         }
       }
     }
   }
+  // React Native owns the outer view layout and can consume child requestLayout.
+  // Remeasure the native list when late image dimensions replace placeholder cells.
+  private static final class PapyrusComicRecyclerView extends RecyclerView {
+    private boolean layoutPending;
+    PapyrusComicRecyclerView(Context context) { super(context); }
+    @Override public void requestLayout() {
+      super.requestLayout();
+      if (layoutPending) return;
+      layoutPending = true;
+      post(() -> {
+        try {
+          int width = getWidth(), height = getHeight();
+          if (width <= 0 || height <= 0) return;
+          forceLayout();
+          measure(MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY),
+            MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY));
+          layout(getLeft(), getTop(), getLeft() + width, getTop() + height);
+        } finally { layoutPending = false; }
+      });
+    }
+  }
+
   private static final class ComicHolder extends RecyclerView.ViewHolder {
     final ScrollView pageScrollView;
     final ImageView image;

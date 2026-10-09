@@ -118,7 +118,7 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
   };
 
   const handleZoom = (delta: number) => {
-    const next = Math.max(0.5, Math.min(4, zoom + delta));
+    const next = Math.max(documentType === "comic" ? 1 : 0.5, Math.min(4, zoom + delta));
     engine.setZoom(next);
     setDocumentState({ zoom: next });
   };
@@ -138,6 +138,19 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
         contentContainerStyle={styles.sheetContent}
         showsVerticalScrollIndicator={false}
       >
+        {(documentType === "text" || documentType === "epub") && (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle,isDark && styles.sectionTitleDark]}>{locale === "pt-BR" ? "Tamanho da fonte" : "Font size"}</Text>
+            <View style={{flexDirection:"row",alignItems:"center",gap:12}}>
+              {[-0.1,0.1].map(delta=><Pressable key={delta} accessibilityRole="button" accessibilityLabel={locale === "pt-BR" ? (delta<0?"Diminuir fonte":"Aumentar fonte") : (delta<0?"Decrease font":"Increase font")} onPress={()=>{
+                const next=Math.max(0.7,Math.min(2,zoom+delta));
+                if(documentType === "epub")engine.setZoom(next);
+                setDocumentState({zoom:next});
+              }} style={{minWidth:44,minHeight:44,justifyContent:"center",alignItems:"center"}}><Text style={{fontSize:20,color:isDark?"#fff":"#111"}}>{delta<0?"A−":"A+"}</Text></Pressable>)}
+              <Text style={{color:isDark?"#fff":"#111"}}>{Math.round(zoom*100)}%</Text>
+            </View>
+          </View>
+        )}
         {documentType === "comic" && (
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}>

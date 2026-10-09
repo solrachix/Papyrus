@@ -1,7 +1,11 @@
+import {getStrings} from "../mobileStrings";
+import {getNearbyPdfNotes} from "./pdfAnnotationNoteGroups";
+import PdfNoteChooser from "./PdfNoteChooser";
+import type {Annotation} from "@papyrus-sdk/types";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import Clipboard from "@react-native-clipboard/clipboard";
-import { useViewerStore } from "@papyrus-sdk/core";
+import {contextualizePdfAnnotation, useViewerStore} from "@papyrus-sdk/core";
 import { DocumentEngine } from "@papyrus-sdk/types";
 import { PapyrusPdfDocumentView } from "@papyrus-sdk/engine-native";
 import {
@@ -28,6 +32,7 @@ type NativeEngineBackdoor = {
 
 type DedicatedAndroidPdfViewerProps = {
   engine: DocumentEngine;
+  documentId?: string;
   maxPageWidth?: number;
 };
 
@@ -47,8 +52,10 @@ type SelectionState = {
 
 export default function DedicatedAndroidPdfViewer({
   engine,
+  documentId,
   maxPageWidth,
 }: DedicatedAndroidPdfViewerProps) {
+  const t = getStrings(useViewerStore(state=>state.locale));
   const pageTheme = useViewerStore((state) => state.pageTheme);
   const zoom = useViewerStore((state) => state.zoom);
   const currentPage = useViewerStore((state) => state.currentPage);
@@ -57,7 +64,14 @@ export default function DedicatedAndroidPdfViewer({
   const inkStrokeWidth = useViewerStore((state) => state.inkStrokeWidth);
   const annotationOpacity = useViewerStore((state) => state.annotationOpacity);
   const searchResults = useViewerStore((state) => state.searchResults);
+  const annotationNavigationRequest = useViewerStore(state => state.annotationNavigationRequest);
   const annotations = useViewerStore((state) => state.annotations);
+  const [pendingNotes,setPendingNotes] = useState<Annotation[]>([]);
+  const handleAnnotationTap = (id:string) => {
+    const nearby=getNearbyPdfNotes(annotations,id);
+    if(nearby.length<2){setSelectedAnnotation(id);return;}
+    setPendingNotes(nearby);
+  };
   const viewMode = useViewerStore((state) => state.viewMode);
   const mobileChromeVisible = useViewerStore(
     (state) => state.mobileChromeVisible
@@ -67,6 +81,7 @@ export default function DedicatedAndroidPdfViewer({
   );
   const nativeViewMode = viewMode === "single" ? "single" : "continuous";
   const setDocumentState = useViewerStore((state) => state.setDocumentState);
+  const beginAnnotationDraft = useViewerStore(state=>state.beginAnnotationDraft);
   const addAnnotation = useViewerStore((state) => state.addAnnotation);
   const setSelectedAnnotation = useViewerStore((state) => state.setSelectedAnnotation);
   const engineId = getDedicatedAndroidPdfEngineId(engine);
@@ -200,6 +215,7 @@ export default function DedicatedAndroidPdfViewer({
 
   return (
     <View style={styles.container}>
+      <PdfNoteChooser notes={pendingNotes} title={t.annotationNote} cancel={t.cancel} onClose={()=>setPendingNotes([])} onSelect={id=>{setPendingNotes([]);setSelectedAnnotation(id);}} />
       <PapyrusPdfDocumentView
         style={[styles.viewer, cappedViewerStyle]}
         engineId={engineId}
@@ -211,7 +227,8 @@ export default function DedicatedAndroidPdfViewer({
         inkStrokeWidth={inkStrokeWidth}
         annotationOpacity={annotationOpacity}
         searchResults={searchResults}
-        annotations={annotations}
+        annotationNavigationRequest={annotationNavigationRequest}
+        annotations={annotations.filter(a => !a.anchor?.documentId || a.anchor.documentId === documentId)}
         selectionActive={!!selection}
         viewMode={nativeViewMode}
         onPageChange={(event) => {
@@ -251,10 +268,10 @@ export default function DedicatedAndroidPdfViewer({
           setDocumentState({ visiblePages: stablePages });
         }}
         onAnnotationCreated={(event) => {
-          addAnnotation(event.nativeEvent);
+          (event.nativeEvent.type === "comment" || event.nativeEvent.type === "text" ? beginAnnotationDraft : addAnnotation)(contextualizePdfAnnotation(event.nativeEvent,documentId));
         }}
         onAnnotationTap={(event) => {
-          setSelectedAnnotation(event.nativeEvent.id);
+          handleAnnotationTap(event.nativeEvent.id);
         }}
         onTap={() => {
           if (

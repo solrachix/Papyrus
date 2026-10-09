@@ -14,6 +14,11 @@ import java.util.List;
 import java.util.Map;
 
 public class PapyrusPdfViewerViewManager extends SimpleViewManager<PapyrusPdfViewerView> {
+  @ReactProp(name = "annotationNavigationRequest")
+  public void setAnnotationNavigationRequest(PapyrusPdfViewerView view, @Nullable ReadableMap request) {
+    view.setAnnotationNavigationRequest(request);
+  }
+
   @NonNull
   @Override
   public String getName() {
@@ -239,7 +244,10 @@ public class PapyrusPdfViewerViewManager extends SimpleViewManager<PapyrusPdfVie
         }
         float strokeWidth = item.hasKey("strokeWidth") ? (float) item.getDouble("strokeWidth") : 0.006f;
         float opacity = item.hasKey("opacity") ? (float) item.getDouble("opacity") : 0.85f;
-        items.add(new PapyrusPdfViewerView.Annotation(id, pageIndex, type, color, rects, path, strokeWidth, opacity));
+        PapyrusPdfViewerView.Annotation annotation=new PapyrusPdfViewerView.Annotation(id,pageIndex,type,color,rects,path,strokeWidth,opacity);
+        annotation.markupStyle=item.hasKey("markupStyle") && !item.isNull("markupStyle") ? item.getString("markupStyle") : ("comment".equals(type)||"text".equals(type)?"none":type);
+        annotation.hasNote=item.hasKey("noteContent") || "comment".equals(type) || "text".equals(type);
+        items.add(annotation);
       }
     }
     view.setAnnotations(items);

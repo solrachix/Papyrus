@@ -6,6 +6,45 @@ const read = (path: string) =>
   readFileSync(resolve(process.cwd(), path), "utf8");
 
 describe("native TXT and comic view registration contracts", () => {
+  it("updates prefetched comic holder geometry when attached after a pinch", () => {
+    const comic = read("packages/engine-native/android/src/main/java/com/papyrus/engine/PapyrusComicDocumentView.java");
+    const attached = comic.slice(comic.indexOf("@Override public void onViewAttachedToWindow"), comic.indexOf("private void applyPageHeightForImage"));
+    expect(attached).toContain("PapyrusComicPageLayout.zoomedWidth(recyclerView.getWidth(), zoom)");
+    expect(attached).toContain("applyPageHeightForImage(holder, bitmap.getWidth(), bitmap.getHeight())");
+    expect(attached).toContain("holder.itemView.forceLayout()");
+    expect(attached).toContain("holder.itemView.setTranslationX(continuous ? imagePanX : 0f)");
+  });
+  it("keeps continuous zoom in page geometry and lets vertical gestures scroll the list", () => {
+    const comic = read("packages/engine-native/android/src/main/java/com/papyrus/engine/PapyrusComicDocumentView.java");
+    expect(comic).toContain("image.setScaleX(1f); image.setScaleY(1f)");
+    expect(comic).toContain("PapyrusComicPageLayout.zoomAnchorTop(top, focusY, previous, next)");
+    expect(comic).toContain("dx > dy");
+    expect(comic).toContain("recyclerView.scrollBy(0, Math.round(lastPanY - event.getY()))");
+  });
+
+  it("remeasures comic RecyclerView after asynchronous dimensions under the RN parent", () => {
+    const comic = read("packages/engine-native/android/src/main/java/com/papyrus/engine/PapyrusComicDocumentView.java");
+    expect(comic).toContain("recyclerView = new PapyrusComicRecyclerView(context)");
+    expect(comic).toContain("@Override public void requestLayout()");
+    expect(comic).toContain("measure(MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY)");
+    expect(comic).toContain("layout(getLeft(), getTop(), getLeft() + width, getTop() + height)");
+  });
+
+  it("renders continuous comic images directly in the proportional cell without nested scrolling", () => {
+    const comic = read("packages/engine-native/android/src/main/java/com/papyrus/engine/PapyrusComicDocumentView.java");
+    expect(comic).toContain('if ("continuous".equals(layoutMode))');
+    expect(comic).toContain("cell.addView(holder.image, new FrameLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))");
+    expect(comic).toContain("holder.pageScrollView.setVisibility(View.GONE)");
+    expect(comic).toContain("holder.pageScrollView.scrollTo(0, 0);");
+  });
+
+  it("ignores stale comic decode dimensions and errors after a document switch", () => {
+    const comic = read("packages/engine-native/android/src/main/java/com/papyrus/engine/PapyrusComicDocumentView.java");
+    expect(comic).toContain("if (holder.bindToken == token && id.equals(engineId) && docGeneration == generation) applyPageHeightForImage");
+    expect(comic).toContain("private void emitError(String key, String message, String sourceEngineId, int sourceGeneration)");
+    expect(comic).toContain("if (!sourceEngineId.equals(engineId) || sourceGeneration != generation) return;");
+  });
+
   it("registers the native views and events on both mobile platforms", () => {
     const iosTextManager = read("packages/engine-native/ios/PapyrusTextDocumentViewManager.m");
     const iosComicManager = read("packages/engine-native/ios/PapyrusComicDocumentViewManager.m");
@@ -82,7 +121,7 @@ describe("native TXT and comic view registration contracts", () => {
 
     expect(cacheHit).toContain("applyPageHeightForImage(holder, cached.getWidth(), cached.getHeight())");
     expect(bind).toContain("applyPageHeightForImage(holder, bounds.outWidth, bounds.outHeight)");
-    expect(androidComicView).toContain("PapyrusComicPageLayout.itemHeight(");
+    expect(androidComicView).toContain("PapyrusComicPageLayout.zoomedHeight(");
   });
 
   it("bounds TXT and comic sources and rejects stale generation writes", () => {
@@ -133,7 +172,7 @@ describe("native TXT and comic view registration contracts", () => {
     expect(androidComicView).toContain('"single".equals(layoutMode) && "width".equals(fitMode)');
     expect(androidComicView).toContain("protected void onSizeChanged(int width, int height, int oldWidth, int oldHeight)");
     expect(androidComicView).toContain("adapter.notifyDataSetChanged()");
-    expect(androidComicView).toContain("itemParams.width = Math.max(1, recyclerView.getWidth())");
+    expect(androidComicView).toContain("PapyrusComicPageLayout.zoomedWidth(recyclerView.getWidth(), zoom)");
     expect(androidComicView).toContain("itemParams.height = Math.max(1, recyclerView.getHeight())");
   });
 
@@ -258,5 +297,14 @@ describe("comic viewport stability", () => {
     for (const name of ["setPageCount", "setLayoutMode", "setFitMode", "setReadingDirection"]) {
       expect(method(name)).toContain("return;");
     }
+  });
+});
+
+describe("comic image delivery during gestures", () => {
+  it("defers page geometry changes until native scrolling is idle", () => {
+    const s = read("packages/engine-native/ios/PapyrusComicDocumentView.m");
+    expect(s).toContain("pendingPageSizes");
+    expect(s).toContain("if (self.collectionView.dragging || self.collectionView.decelerating) return;");
+    expect(s).toContain("if (!decelerate) [self applyPendingPageSizes]");
   });
 });

@@ -39,7 +39,7 @@ describe("native iOS PDF selection contract", () => {
     expect(iosViewerSource).toContain('import { getStrings } from "../mobileStrings"');
     expect(iosViewerSource).toContain("defineLabel={t.define}");
     expect(iosViewerSource).toContain("onDefineSelection={");
-    expect(iosViewerSource).toContain("!supportsNativeEditMenu && onDefineSelection");
+    expect(iosViewerSource).toMatch(/!supportsNativeEditMenu\s*&&\s*onDefineSelection/);
     expect(iosViewerSource).toContain("accessibilityLabel={t.define}");
     expect(iosViewerSource).toContain("<Text style={styles.fallbackButtonText}>{t.define}</Text>");
     expect(iosViewerSource).not.toContain("copySelection");

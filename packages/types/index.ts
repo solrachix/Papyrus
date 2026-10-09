@@ -192,8 +192,33 @@ export interface AnnotationReply {
   createdAt: number;
 }
 
+export type AnnotationMarkupStyle = "highlight" | "underline" | "strikeout" | "squiggly" | "none";
+export interface AnnotationAnchorContext {
+  version: 1;
+  /** Stable file/edition identity, never a native engine ID or WebView session. */
+  documentId?: string;
+  documentVersion?: string;
+  quote: string;
+  prefix?: string;
+  suffix?: string;
+}
+export type AnnotationAnchor = AnnotationAnchorContext & (
+  | {kind: "pdf-geometry"; pageIndex: number; rects: {x: number; y: number; width: number; height: number}[]}
+  | {kind: "epub-cfi"; cfiRange: string; href: string; spineIndex?: number}
+  | {kind: "text-range"; start: number; end: number; encoding: "utf-16"}
+);
+export interface AnchoredTextSelection {
+  text: string;
+  pageIndex: number;
+  anchor: AnnotationAnchor;
+}
+
 export interface Annotation {
   id: string;
+  anchor?: AnnotationAnchor;
+  markupStyle?: AnnotationMarkupStyle;
+  /** Note body is independent from the selected quote; absent means legacy. */
+  noteContent?: string;
   type:
     | "highlight"
     | "underline"
@@ -334,6 +359,8 @@ export interface DocumentEngine {
   ): Promise<{ width: number; height: number }>;
   /** Optional low-resolution preview used by mobile navigation sheets. */
   getPagePreview?(pageIndex: number): Promise<string | null>;
+  goToAnnotation?(annotation: Annotation): void | Promise<void>;
+  getDocumentIdentity?(): string | undefined;
   searchText?(query: string): Promise<SearchResult[]>;
   /** Text-only location APIs use UTF-16 offsets and do not synthesize pages. */
   getTextLength?(): number;

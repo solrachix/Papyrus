@@ -14,6 +14,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, copy) NSArray<NSDictionary *> *searchResults;
 @property (nonatomic, assign) NSInteger activeSearchIndex;
 @property (nonatomic, copy) NSArray<NSDictionary *> *annotations;
+@property (nonatomic, copy, nullable) NSDictionary *annotationNavigationRequest;
 @property (nonatomic, copy) NSString *activeTool;
 @property (nonatomic, copy) NSString *activeDrawToolPreset;
 @property (nonatomic, assign) CGFloat inkStrokeWidth;

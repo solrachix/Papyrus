@@ -1,3 +1,5 @@
+import {getStrings} from "../mobileStrings";
+import {contextualizePdfAnnotation,getAnnotationMarkup} from "@papyrus-sdk/core";
 import React, {
   memo,
   useCallback,
@@ -65,6 +67,7 @@ type PageViewComponentType = React.ComponentType<
 
 interface PageRendererProps {
   engine: DocumentEngine;
+  documentId?: string;
   pageIndex: number;
   scale?: number;
   pageAspectRatio?: number;
@@ -180,6 +183,7 @@ const SELECTION_AUTOSCROLL_INTERVAL_MS = 16;
 const PERF_RENDER_TIMEOUT_MS = 5000;
 
 const PageRenderer: React.FC<PageRendererProps> = ({
+  documentId,
   engine,
   pageIndex,
   scale = 1,
@@ -200,6 +204,8 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   surfaceId = `page-${pageIndex}`,
   gestureId,
 }) => {
+  const locale = useViewerStore(state=>state.locale);
+  const t = getStrings(locale);
   const viewRef = useRef<any>(null);
   const onRenderReadyRef = useRef(onRenderReady);
   onRenderReadyRef.current = onRenderReady;
@@ -359,8 +365,8 @@ const PageRenderer: React.FC<PageRendererProps> = ({
   );
 
   const pageAnnotations = useMemo(
-    () => annotations.filter((ann) => ann.pageIndex === pageIndex),
-    [annotations, pageIndex]
+    () => annotations.filter((ann) => ann.pageIndex === pageIndex && (!ann.anchor?.documentId || ann.anchor.documentId === documentId)),
+    [annotations, pageIndex,documentId]
   );
 
   const pageSearchHits = useMemo(
@@ -659,7 +665,8 @@ const PageRenderer: React.FC<PageRendererProps> = ({
         rect,
         rectCount: extras?.rects?.length ?? 0,
       });
-      addAnnotation({
+      const commit = type === "comment" || type === "text" ? useViewerStore.getState().beginAnnotationDraft : addAnnotation;
+      commit(contextualizePdfAnnotation({
         id: Math.random().toString(36).slice(2, 9),
         pageIndex,
         type,
@@ -673,9 +680,9 @@ const PageRenderer: React.FC<PageRendererProps> = ({
           extras?.content ??
           (type === "text" || type === "comment" ? "" : undefined),
         createdAt: Date.now(),
-      });
+      },documentId));
     },
-    [addAnnotation, annotationColor, logSelectionPerf, pageIndex]
+    [addAnnotation, annotationColor, logSelectionPerf, pageIndex,documentId]
   );
 
   const clamp = (value: number, min: number, max: number) =>
@@ -1697,13 +1704,14 @@ const PageRenderer: React.FC<PageRendererProps> = ({
           <View pointerEvents="box-none" style={styles.annotationLayer}>
             {pageAnnotations.map((ann) => {
               const isSelected = selectedAnnotationId === ann.id;
-              const isText = ann.type === "comment" || ann.type === "text";
+              const markup = getAnnotationMarkup(ann);
+              const isText = ann.noteContent !== undefined || ann.type === "comment" || ann.type === "text";
               const isInk =
                 ann.type === "ink" &&
                 Array.isArray(ann.path) &&
                 ann.path.length > 1;
               const isMarkup = TEXT_MARKUP_TOOLS.has(
-                ann.type as TextMarkupType
+                markup as TextMarkupType
               );
               const rects =
                 ann.rects && ann.rects.length > 0 ? ann.rects : [ann.rect];
@@ -1729,7 +1737,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({
                           height: `${rect.height * 100}%`,
                         } as const;
 
-                        if (ann.type === "highlight") {
+                        if (markup === "highlight") {
                           return (
                             <View
                               key={`${ann.id}-mark-${rectIndex}`}
@@ -1748,7 +1756,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({
                           );
                         }
 
-                        if (ann.type === "underline") {
+                        if (markup === "underline") {
                           return (
                             <View
                               key={`${ann.id}-mark-${rectIndex}`}
@@ -1768,7 +1776,7 @@ const PageRenderer: React.FC<PageRendererProps> = ({
                           );
                         }
 
-                        if (ann.type === "strikeout") {
+                        if (markup === "strikeout") {
                           return (
                             <View
                               key={`${ann.id}-mark-${rectIndex}`}
@@ -1846,9 +1854,10 @@ const PageRenderer: React.FC<PageRendererProps> = ({
                       stopPressPropagation(event);
                       setSelectedAnnotation(ann.id);
                     }}
+                    accessibilityRole="button" accessibilityLabel={t.annotationNote}
                     style={[
                       styles.annotation,
-                      hitTargetStyle,
+                      isText ? {left:`${Math.min(.95,(rects[rects.length-1].x+rects[rects.length-1].width))*100}%`,top:`${rects[rects.length-1].y*100}%`,width:44,height:44} : hitTargetStyle,
                       isSelected && styles.annotationSelected,
                       isSelected && { borderColor: accentColor },
                     ]}
@@ -2226,6 +2235,7 @@ const arePageRendererPropsEqual = (
   previous: Readonly<PageRendererProps>,
   next: Readonly<PageRendererProps>
 ) =>
+  previous.documentId === next.documentId &&
   previous.engine === next.engine &&
   previous.pageIndex === next.pageIndex &&
   previous.scale === next.scale &&

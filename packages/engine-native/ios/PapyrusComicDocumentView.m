@@ -55,6 +55,8 @@ static NSCache<NSString *, UIImage *> *PapyrusComicImageCache(void) {
 @property (nonatomic, assign) BOOL applyingProgrammaticPage;
 @property (nonatomic, strong) NSMutableSet<NSString *> *reportedErrors;
 @property (nonatomic, strong) NSMutableDictionary<NSNumber *, NSValue *> *pageSizes;
+@property (nonatomic, strong) NSMutableDictionary<NSNumber *, NSValue *> *pendingPageSizes;
+@property (nonatomic, assign) BOOL pendingViewportLayout;
 @property (nonatomic, assign) CGSize viewportSize;
 @property (nonatomic, assign) NSInteger requestedPage;
 @property (nonatomic, assign) BOOL pendingNavigation;
@@ -72,6 +74,7 @@ static NSCache<NSString *, UIImage *> *PapyrusComicImageCache(void) {
     _requestedPage = 1;
     _pendingNavigation = YES;
     _pageSizes = [NSMutableDictionary dictionary];
+    _pendingPageSizes = [NSMutableDictionary dictionary];
     _layoutMode = @"single";
     _fitMode = @"width";
     _readingDirection = @"ltr";
@@ -128,6 +131,7 @@ static NSCache<NSString *, UIImage *> *PapyrusComicImageCache(void) {
 }
 
 - (void)restoreScrollAnchor:(NSDictionary *)anchor {
+  if (self.collectionView.dragging || self.collectionView.decelerating) return;
   if (!anchor || self.pendingNavigation || ![self.layoutMode isEqualToString:@"continuous"]) return;
   NSInteger page = [anchor[@"pageIndex"] integerValue];
   if (page < 0 || page >= self.pageCount) return;
@@ -151,6 +155,11 @@ static NSCache<NSString *, UIImage *> *PapyrusComicImageCache(void) {
     if (self.pendingNavigation) [self scrollToCurrentPageAnimated:NO];
     return;
   }
+  if (self.collectionView.dragging || self.collectionView.decelerating) {
+    self.pendingViewportLayout = YES;
+    return;
+  }
+  self.pendingViewportLayout = NO;
   BOOL wasApplying = self.applyingProgrammaticPage;
   self.applyingProgrammaticPage = YES;
   self.viewportSize = size;
@@ -173,6 +182,7 @@ static NSCache<NSString *, UIImage *> *PapyrusComicImageCache(void) {
   if ([_engineId isEqualToString:engineId]) return;
   _engineId = [engineId copy];
   [self.pageSizes removeAllObjects];
+  [self.pendingPageSizes removeAllObjects];
   @synchronized (self.reportedErrors) { [self.reportedErrors removeAllObjects]; }
   self.pendingNavigation = YES;
   [self.collectionView reloadData];
@@ -182,6 +192,7 @@ static NSCache<NSString *, UIImage *> *PapyrusComicImageCache(void) {
   if (_documentGeneration == value) return;
   _documentGeneration = value;
   [self.pageSizes removeAllObjects];
+  [self.pendingPageSizes removeAllObjects];
   @synchronized (self.reportedErrors) { [self.reportedErrors removeAllObjects]; }
   self.pendingNavigation = YES;
   [self.collectionView reloadData];
@@ -380,14 +391,8 @@ static NSCache<NSString *, UIImage *> *PapyrusComicImageCache(void) {
       [PapyrusComicImageCache() setObject:page forKey:key cost:cost];
       dispatch_async(dispatch_get_main_queue(), ^{
         if (![self.engineId isEqualToString:engineId] || self.documentGeneration != generation) return;
-        NSDictionary *anchor = [self captureScrollAnchorForViewport:self.collectionView.bounds.size];
-        BOOL wasApplying = self.applyingProgrammaticPage;
-        self.applyingProgrammaticPage = YES;
-        self.pageSizes[@(pageIndex)] = [NSValue valueWithCGSize:page.size];
-        [self.flowLayout invalidateLayout];
-        [self.collectionView layoutIfNeeded];
-        [self restoreScrollAnchor:anchor];
-        self.applyingProgrammaticPage = wasApplying;
+        self.pendingPageSizes[@(pageIndex)] = [NSValue valueWithCGSize:page.size];
+        [self applyPendingPageSizes];
         if ([cell.representedKey isEqualToString:key]) {
           cell.imageView.image = page;
           [self configureCell:cell withImage:page];
@@ -399,10 +404,27 @@ static NSCache<NSString *, UIImage *> *PapyrusComicImageCache(void) {
   return cell;
 }
 
+// Keep geometry fixed during the native gesture; one compensation happens at idle.
+- (void)applyPendingPageSizes {
+  if (self.collectionView.dragging || self.collectionView.decelerating) return;
+  if (self.pendingViewportLayout) { [self setNeedsLayout]; [self layoutIfNeeded]; }
+  if (self.pendingPageSizes.count == 0) return;
+  NSDictionary *anchor = [self captureScrollAnchorForViewport:self.collectionView.bounds.size];
+  BOOL wasApplying = self.applyingProgrammaticPage;
+  self.applyingProgrammaticPage = YES;
+  [self.pageSizes addEntriesFromDictionary:self.pendingPageSizes];
+  [self.pendingPageSizes removeAllObjects];
+  [self.flowLayout invalidateLayout];
+  [self.collectionView layoutIfNeeded];
+  [self restoreScrollAnchor:anchor];
+  self.applyingProgrammaticPage = wasApplying;
+}
+
 - (CGSize)pageSizeAtIndex:(NSInteger)page {
   NSValue *known = self.pageSizes[@(page)];
   if (known) return known.CGSizeValue;
   NSString *key = [NSString stringWithFormat:@"%@:%ld:%ld", self.engineId ?: @"", (long)self.documentGeneration, (long)page];
+  if (self.pendingPageSizes[@(page)]) return CGSizeZero;
   UIImage *cached = [PapyrusComicImageCache() objectForKey:key];
   if (cached) self.pageSizes[@(page)] = [NSValue valueWithCGSize:cached.size];
   return cached ? cached.size : CGSizeZero;
@@ -413,19 +435,28 @@ static NSCache<NSString *, UIImage *> *PapyrusComicImageCache(void) {
   if (![self.layoutMode isEqualToString:@"continuous"]) return collectionView.bounds.size;
   NSInteger page = [self logicalPageForItem:indexPath.item];
   CGSize imageSize = [self pageSizeAtIndex:page];
-  if (imageSize.width <= 0 || imageSize.height <= 0) return collectionView.bounds.size;
-  CGFloat width = collectionView.bounds.size.width;
+  CGSize viewport = self.pendingViewportLayout && self.viewportSize.width > 0 ? self.viewportSize : collectionView.bounds.size;
+  if (imageSize.width <= 0 || imageSize.height <= 0) return viewport;
+  CGFloat width = viewport.width;
   CGFloat height = width * imageSize.height / imageSize.width;
-  if ([self.fitMode isEqualToString:@"page"]) height = MIN(height, collectionView.bounds.size.height);
+  if ([self.fitMode isEqualToString:@"page"]) height = MIN(height, viewport.height);
   return CGSizeMake(width, MAX(1, height));
+}
+
+- (void)scrollViewDidEndDragging:(UIScrollView *)scrollView willDecelerate:(BOOL)decelerate {
+  #pragma unused(scrollView)
+  if (!decelerate) [self applyPendingPageSizes];
+  [self emitVisiblePage];
 }
 
 - (void)scrollViewDidEndDecelerating:(UIScrollView *)scrollView {
   #pragma unused(scrollView)
+  [self applyPendingPageSizes];
   [self emitVisiblePage];
 }
 - (void)scrollViewDidEndScrollingAnimation:(UIScrollView *)scrollView {
   #pragma unused(scrollView)
+  [self applyPendingPageSizes];
   [self emitVisiblePage];
 }
 - (void)scrollViewDidScroll:(UIScrollView *)scrollView {
@@ -450,8 +481,9 @@ static NSCache<NSString *, UIImage *> *PapyrusComicImageCache(void) {
   if (recognizer.state == UIGestureRecognizerStateChanged) {
     self.zoom = MAX(1, MIN(5, self.zoom * recognizer.scale));
     recognizer.scale = 1;
-  } else if (recognizer.state == UIGestureRecognizerStateEnded && self.onZoomChanged) {
-    self.onZoomChanged(@{ @"zoom": @(self.zoom) });
+  } else if (recognizer.state == UIGestureRecognizerStateEnded || recognizer.state == UIGestureRecognizerStateCancelled || recognizer.state == UIGestureRecognizerStateFailed) {
+    [self applyPendingPageSizes];
+    if (self.onZoomChanged) self.onZoomChanged(@{ @"zoom": @(self.zoom) });
   }
 }
 
@@ -478,6 +510,8 @@ static NSCache<NSString *, UIImage *> *PapyrusComicImageCache(void) {
       MAX(-maxY, MIN(maxY, translation.y + self.panGestureStartOffset.y))
     );
     for (PapyrusComicPageCell *cell in self.collectionView.visibleCells) cell.imageView.transform = [self imageTransform];
+  } else if (recognizer.state == UIGestureRecognizerStateEnded || recognizer.state == UIGestureRecognizerStateCancelled || recognizer.state == UIGestureRecognizerStateFailed) {
+    [self applyPendingPageSizes];
   }
 }
 
