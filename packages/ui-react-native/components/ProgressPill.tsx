@@ -102,7 +102,7 @@ export function ProgressPill({
     const total = Math.max(pageCount, 1);
     const percent = clampPercent((displayedPage / total) * 100);
 
-    if (documentType === "pdf") {
+    if (documentType === "pdf" || documentType === "comic") {
       return `${displayedPage}/${pageCount || 0}`;
     }
 

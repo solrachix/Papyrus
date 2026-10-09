@@ -45,10 +45,10 @@ export function buildBottomBarLayout({
   return {
     leftSlots,
     rightSlots: [
-      {
-        key: "search",
+      ...(documentType === "comic" ? [] : [{
+        key: "search" as const,
         active: activeMobileDestination === "search",
-      },
+      }]),
       {
         key: "info",
         active: activeMobileDestination === "info",

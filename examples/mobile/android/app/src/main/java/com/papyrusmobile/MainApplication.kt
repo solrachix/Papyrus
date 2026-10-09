@@ -18,6 +18,7 @@ import com.papyrus.engine.PapyrusPackage
 import com.reactnativecommunity.webview.RNCWebViewPackage
 import com.th3rdwave.safeareacontext.SafeAreaContextPackage
 import com.swmansion.gesturehandler.RNGestureHandlerPackage
+import com.swmansion.reanimated.ReanimatedPackage
 
 class MainApplication : Application(), ReactApplication {
 
@@ -28,6 +29,7 @@ class MainApplication : Application(), ReactApplication {
                 MainReactPackage(),
                 PapyrusPackage(),
                 RNGestureHandlerPackage(),
+                ReanimatedPackage(),
                 SvgPackage(),
                 RNCWebViewPackage(),
                 RNDocumentPickerPackage(),

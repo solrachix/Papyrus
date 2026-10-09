@@ -324,13 +324,13 @@ const styles = StyleSheet.create({
     color: "#111827",
     includeFontPadding: false,
     textAlignVertical: "center",
-    flexShrink: 1,
-    flexGrow: 1,
   },
   brandTextDark: {
     color: "#f9fafb",
   },
   titleHit: {
+    minHeight: 32,
+    justifyContent: "center",
     flexShrink: 1,
     flexGrow: 1,
     minWidth: 0,

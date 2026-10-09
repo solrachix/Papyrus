@@ -223,3 +223,40 @@ describe("native TXT and comic view registration contracts", () => {
     expect(iosModule).toContain("PapyrusSourceRangeForNormalizedOffset");
   });
 });
+
+describe("comic viewport stability", () => {
+  const source = read("packages/engine-native/ios/PapyrusComicDocumentView.m");
+  const method = (name: string) => source.match(new RegExp(`- \\(void\\)${name}[^\\n]*\\{([\\s\\S]*?)\\n\\}`))?.[1] ?? "";
+  it("reports observed pages without requesting a scroll", () => {
+    expect(method("emitVisiblePage")).toContain("self.applyingProgrammaticPage || self.pendingNavigation || self.pageCount <= 0");
+    expect(method("emitVisiblePage")).toContain("_currentPage = page;");
+    expect(method("emitVisiblePage")).not.toContain("self.currentPage = page");
+    expect(method("emitVisiblePage")).toContain("bounds.size.height / 2");
+    expect(method("emitVisiblePage")).not.toContain("CGRectGetMidY");
+  });
+  it("leaves an unchanged viewport alone and anchors resized layouts", () => {
+    expect(method("layoutSubviews")).toContain("CGSizeEqualToSize");
+    expect(method("layoutSubviews")).toContain("restoreScrollAnchor");
+  });
+  it("keeps dimensions outside the evictable image cache", () => {
+    expect(source).toContain("pageSizes");
+    const sizing = source.split("sizeForItemAtIndexPath:")[1]?.split("- (void)scrollView")[0] ?? "";
+    expect(sizing).not.toContain("PapyrusComicImageCache()");
+    expect(source).toContain("[self.pageSizes removeAllObjects]");
+  });
+  it("preserves a requested page until the page count arrives", () => {
+    expect(method("setCurrentPage")).toContain("self.requestedPage = requested");
+    expect(method("setPageCount")).toContain("self.requestedPage");
+    expect(method("setCurrentPage")).toContain("self.pageCount > 0");
+  });
+  it("reads cached dimensions before sizing a reopened page", () => {
+    expect(source).toContain("- (CGSize)pageSizeAtIndex:");
+    expect(source).toContain("self.pageSizes[@(page)] = [NSValue valueWithCGSize:cached.size]");
+    expect(source).toContain("CGSize imageSize = [self pageSizeAtIndex:page]");
+  });
+  it("does not reload unchanged settings", () => {
+    for (const name of ["setPageCount", "setLayoutMode", "setFitMode", "setReadingDirection"]) {
+      expect(method(name)).toContain("return;");
+    }
+  });
+});
