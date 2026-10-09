@@ -17,7 +17,7 @@ describe('EPUB reader recovery contracts', () => {
   for(const runtime of [source,bundled]) {
    expect(runtime).toContain("selectionDocument.addEventListener('selectionchange', handleSelectionChange)");
    expect(runtime).toContain("contents.cfiFromRange(range)");
-   expect(runtime).toContain("setTimeout(reportSelection, 250)");
+   expect(runtime).toContain("if (text) reportSelection()");
    expect(runtime).toContain("if (selectionTimer !== null) clearTimeout(selectionTimer)");
    expect(runtime).toContain("const selectedText = event?.target?.ownerDocument");
   }

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Image, StyleSheet, View, Pressable, Text, Alert } from "react-native";
+import { Image, StyleSheet, View, Alert } from "react-native";
+import Clipboard from "@react-native-clipboard/clipboard";
 import WebView, {
   type WebViewMessageEvent,
   type WebViewErrorEvent,
@@ -162,16 +163,54 @@ const WebViewViewer: React.FC<WebViewViewerProps> = ({
     return () => {active=false;};
   }, [bridgeEngine, annotations,documentId,isLoaded,t.annotationNote]);
 
-  const annotateSelection = (style:AnnotationMarkupStyle,note?:string) => {
-    if (!selection || selection.session !== bridgeEngine.getWebViewDocumentSessionId?.() || !isLoaded) return;
-    (note !== undefined ? beginAnnotationDraft : addAnnotation)(createContextualAnnotation({id:`annotation-${Date.now()}-${Math.random().toString(36).slice(2)}`,anchor:selection.anchor,pageIndex:selection.pageIndex,style,color:annotationColor,opacity:annotationOpacity,note}));
+  const annotateSelection = (style:AnnotationMarkupStyle,note?:string, selected = selection) => {
+    if (!selected || selected.session !== bridgeEngine.getWebViewDocumentSessionId?.() || !isLoaded) return;
+    (note !== undefined ? beginAnnotationDraft : addAnnotation)(createContextualAnnotation({id:`annotation-${Date.now()}-${Math.random().toString(36).slice(2)}`,anchor:selected.anchor,pageIndex:selected.pageIndex,style,color:annotationColor,opacity:annotationOpacity,note}));
     setSelection(null);
   };
 
+  const sendSelectionCommand = (key: string) => {
+    webViewRef.current?.postMessage(JSON.stringify({type: "epub-selection-action", id: "selection-menu", key,
+      documentSessionId: bridgeEngine.getWebViewDocumentSessionId?.()}));
+  };
+  // WebView binds positional item IDs when the menu opens. Keep the order
+  // stable while selection handles move; enforce Define eligibility on action.
+  const selectionMenuItems = [
+    {key: "copy", label: t.copy},
+    ...(onDefineSelection ? [{key: "define", label: t.define}] : []),
+    {key: "highlight", label: t.annotationHighlight},
+    {key: "underline", label: t.annotationUnderline},
+    {key: "strikeout", label: t.annotationStrikeout},
+    {key: "comment", label: t.annotationNote},
+    {key: "selectAll", label: t.selectAll},
+  ];
+
   const handleMessage = (event: WebViewMessageEvent) => {
     const raw = event.nativeEvent.data;
-    const annotationEvent = parseEpubAnnotationEvent(raw,bridgeEngine.getWebViewDocumentSessionId?.() ?? "",documentId);
-    if (annotationEvent?.kind === "selection") setSelection(annotationEvent);
+    // Action messages carry a validated, current-session CFI snapshot from
+    // the chapter iframe. WebView's selectedText only reads the root frame.
+    let action: string | undefined;
+    let annotationRaw = raw;
+    try {
+      const message = JSON.parse(raw);
+      if (message.type === "event" && message.name === "EPUB_SELECTION_ACTION") {
+        action = message.payload?.action;
+        annotationRaw = JSON.stringify({...message, name: "EPUB_TEXT_SELECTED"});
+      }
+    } catch { /* The bridge parser handles other messages. */ }
+    const annotationEvent = parseEpubAnnotationEvent(annotationRaw,bridgeEngine.getWebViewDocumentSessionId?.() ?? "",documentId);
+    if (annotationEvent?.kind === "selection") {
+      if (!action) setSelection(annotationEvent);
+      else if (action === "copy") { Clipboard.setString(annotationEvent.text); setSelection(null); }
+      else if (action === "define") {
+        if (defineSelectionMode !== "single-word" || /^\S{1,64}$/.test(annotationEvent.text.trim())) onDefineSelection?.(annotationEvent);
+        else Alert.alert(t.define, t.defineSingleWordHint);
+        setSelection(null);
+      } else if (["highlight", "underline", "strikeout", "comment"].includes(action)) {
+        annotateSelection(action === "comment" ? "highlight" : action as AnnotationMarkupStyle,
+          action === "comment" ? "" : undefined, annotationEvent);
+      }
+    }
     if (annotationEvent?.kind === "tap" && annotations.some(a => a.id === annotationEvent.id)) {setSelection(null);
       const group=annotations.filter(a=>annotationEvent.ids?.includes(a.id));
       if(group.length>1)Alert.alert(t.annotationNote,undefined,[...group.map(a=>({text:(a.noteContent || a.anchor?.quote || a.content || '').slice(0,100),onPress:()=>setSelectedAnnotation(a.id)})),{text:t.cancel,style:'cancel'}]);
@@ -255,6 +294,8 @@ const WebViewViewer: React.FC<WebViewViewerProps> = ({
         source={webViewSource}
         originWhitelist={["*"]}
         onMessage={handleMessage}
+        menuItems={selectionMenuItems}
+        onCustomMenuSelection={event => sendSelectionCommand(event.nativeEvent.key)}
         onLoadEnd={handleLoadEnd}
         onError={handleError}
         injectedJavaScriptBeforeContentLoaded={runtimeConfigScript}
@@ -269,16 +310,6 @@ const WebViewViewer: React.FC<WebViewViewerProps> = ({
         allowingReadAccessToURL={allowingReadAccessToURL}
         style={[styles.webview, cappedWebViewStyle]}
       />
-      {selection ? (
-        <View style={styles.selectionActions} accessibilityRole="toolbar">
-          {([["highlight",t.annotationHighlight],["underline",t.annotationUnderline],["strikeout",t.annotationStrikeout]] as const).map(([style,label]) => (
-            <Pressable key={style} accessibilityRole="button" accessibilityLabel={label} onPress={() => annotateSelection(style)} style={styles.selectionAction}><Text>{label}</Text></Pressable>
-          ))}
-          <Pressable accessibilityRole="button" onPress={() => annotateSelection("highlight","")} style={styles.selectionAction}><Text>{t.annotationNote}</Text></Pressable>
-          {onDefineSelection && (defineSelectionMode !== "single-word" || /^\S{1,64}$/.test(selection.text.trim())) ? <Pressable accessibilityRole="button" onPress={() => {onDefineSelection(selection);setSelection(null);}} style={styles.selectionAction}><Text>{t.define}</Text></Pressable> : null}
-          <Pressable accessibilityRole="button" accessibilityLabel={t.cancel} onPress={() => setSelection(null)} style={styles.selectionAction}><Text>×</Text></Pressable>
-        </View>
-      ) : null}
       <View
         pointerEvents="none"
         style={[styles.themeOverlay, themeOverlayStyle]}
@@ -288,8 +319,6 @@ const WebViewViewer: React.FC<WebViewViewerProps> = ({
 };
 
 const styles = StyleSheet.create({
-  selectionActions: {position:"absolute",bottom:100,left:12,right:12,flexDirection:"row",flexWrap:"wrap",backgroundColor:"#fff",borderRadius:14,padding:4,elevation:8},
-  selectionAction: {minHeight:44,minWidth:44,paddingHorizontal:10,alignItems:"center",justifyContent:"center"},
   container: {
     flex: 1,
     backgroundColor: "#ffffff",

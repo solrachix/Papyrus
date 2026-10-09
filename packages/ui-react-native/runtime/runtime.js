@@ -1364,12 +1364,10 @@
             if (key === lastSelectionKey && now - lastSelectionAt < 750) return;
             lastSelectionKey = key;
             lastSelectionAt = now;
-            sendEvent('EPUB_TEXT_SELECTED', {
-              documentSessionId: session,
-              text: anchor.quote,
-              pageIndex: contents.sectionIndex + 1,
-              anchor,
-            });
+            const payload = {documentSessionId: session, text: anchor.quote,
+              pageIndex: contents.sectionIndex + 1, anchor};
+            nativeMenuSelection = {contents, payload};
+            sendEvent('EPUB_TEXT_SELECTED', payload);
           };
           const handleSelectionChange = () => {
             const selection = selectionWindow.getSelection();
@@ -1378,8 +1376,8 @@
             if (selectionTimer !== null) clearTimeout(selectionTimer);
             // epub.js "selected" is not reliable on every iOS WKWebView path.
             // The content document still emits selectionchange, so resolve its
-            // live Range to a CFI after the selection handles settle.
-            if (text) selectionTimer = setTimeout(reportSelection, 250);
+            // live Range to a CFI before the native menu action can fire.
+            if (text) reportSelection();
           };
           selectionDocument.addEventListener('selectionchange', handleSelectionChange);
           const selectionCleanup = () => {
@@ -1419,7 +1417,9 @@
         const anchor = href && window.PapyrusEpubAnnotations?.selection(contents,cfiRange,href,annotationDocumentId);
         if (!anchor) return;
         epubScrollDiagnostics && epubScrollDiagnostics.setSelectionActive(true);
-        sendEvent('EPUB_TEXT_SELECTED', {documentSessionId: selectionSession, text: anchor.quote, pageIndex: contents.sectionIndex+1, anchor});
+        const payload = {documentSessionId: selectionSession, text: anchor.quote, pageIndex: contents.sectionIndex+1, anchor};
+        nativeMenuSelection = {contents, payload};
+        sendEvent('EPUB_TEXT_SELECTED', payload);
       });
       ['rendered','resized','layout'].forEach(name => rendition.on(name, () => {
         if (selectionSession === documentSessionId && selectionRendition === rendition) epubAnnotationRenderers.forEach(renderer => renderer.schedule());
@@ -1711,6 +1711,8 @@
     }
   };
 
+  let nativeMenuSelection = null;
+
   const handleCommand = async (message) => {
     const { id, kind, payload } = message;
 
@@ -1957,6 +1959,26 @@
       clearTimeout(pending.timeout);
       if (message.ok) pending.resolve(message);
       else pending.reject(new Error(message.error || 'Falha ao ler arquivo local.'));
+      return;
+    }
+
+    if (message.type === 'epub-selection-action') {
+      const selected = nativeMenuSelection;
+      if (!selected || message.documentSessionId !== documentSessionId ||
+          selected.payload.documentSessionId !== documentSessionId) return;
+      if (message.key === 'selectAll') {
+        const doc = selected.contents.document;
+        const range = doc.createRange();
+        range.selectNodeContents(doc.body);
+        const selection = selected.contents.window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+        return;
+      }
+      if (!['copy','define','highlight','underline','strikeout','comment'].includes(message.key)) return;
+      sendEvent('EPUB_SELECTION_ACTION', {...selected.payload, action: message.key});
+      selected.contents.window.getSelection()?.removeAllRanges();
+      nativeMenuSelection = null;
       return;
     }
 

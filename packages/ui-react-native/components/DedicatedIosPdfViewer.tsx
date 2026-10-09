@@ -370,6 +370,8 @@ export default function DedicatedIosPdfViewer({
         onScroll={handleScroll}
         onTap={handleTap}
         onTextSelected={handleTextSelectionChange}
+        copyLabel={t.copy}
+        selectAllLabel={t.selectAll}
         defineLabel={t.define}
         defineSelectionMode={defineSelectionMode}
         annotateLabel={t.annotate}

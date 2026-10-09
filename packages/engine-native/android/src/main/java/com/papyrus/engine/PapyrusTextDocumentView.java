@@ -90,6 +90,7 @@ public final class PapyrusTextDocumentView extends FrameLayout {
     textContainer = new FrameLayout(context);
     textView = new PapyrusSelectableTextView(context);
     textView.setTextIsSelectable(true);
+    if (Build.VERSION.SDK_INT >= 26) textView.setTextClassifier(android.view.textclassifier.TextClassifier.NO_OP);
     textView.setFocusable(true);
     textView.setFocusableInTouchMode(true);
     textView.setTextSize(TypedValue.COMPLEX_UNIT_SP, fontSize);
@@ -247,10 +248,14 @@ public final class PapyrusTextDocumentView extends FrameLayout {
   }
 
   private void addSelectionActions(Menu menu) {
+    MenuItem copy = menu.findItem(android.R.id.copy);
+    if (copy != null && !labelFor("copy").isEmpty()) copy.setTitle(labelFor("copy"));
+    MenuItem selectAll = menu.findItem(android.R.id.selectAll);
+    if (selectAll != null && !labelFor("selectAll").isEmpty()) selectAll.setTitle(labelFor("selectAll"));
     for (int i = 0; i < MARKUP_ACTIONS.length; i++) {
       String label = labelFor(MARKUP_ACTIONS[i]);
       if (selectedPayload() != null && !label.isEmpty() && menu.findItem(ACTION_ANNOTATE+i) == null) {
-        menu.add(Menu.NONE, ACTION_ANNOTATE+i, i, label);
+        menu.add(Menu.NONE, ACTION_ANNOTATE+i, i, label).setIcon(new PapyrusSelectionMenuIcon(MARKUP_ACTIONS[i]));
       }
     }
     if (selectedPayload() == null || "single-word".equals(defineSelectionMode) && !isSingleWordSelection()) {
@@ -260,6 +265,7 @@ public final class PapyrusTextDocumentView extends FrameLayout {
     MenuItem item = menu.findItem(ACTION_DEFINE);
     if (item == null) {
       item = menu.add(Menu.NONE, ACTION_DEFINE, Menu.NONE, defineLabel);
+      item.setIcon(new PapyrusSelectionMenuIcon("define"));
       item.setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM);
     } else {
       item.setTitle(defineLabel);
@@ -273,14 +279,14 @@ public final class PapyrusTextDocumentView extends FrameLayout {
     int token = ++loadToken;
     int initialOffset = currentTextOffset;
     if (Build.VERSION.SDK_INT >= 28) {
-      android.text.PrecomputedText.Params params = new android.text.PrecomputedText.Params.Builder(textView.getPaint())
-        .setBreakStrategy(textView.getBreakStrategy())
-        .setHyphenationFrequency(textView.getHyphenationFrequency())
-        .build();
+      android.text.PrecomputedText.Params params = textView.getTextMetricsParams();
       TEXT_LAYOUT_EXECUTOR.execute(() -> {
         android.text.PrecomputedText precomputed = android.text.PrecomputedText.create(text, params);
         post(() -> {
           if (token != loadToken || !text.equals(PapyrusTextStore.getText(engineId, documentGeneration))) return;
+          // Typography can change while the background layout is running.
+          // Recompute with current metrics instead of applying an incompatible result.
+          if (!textView.getTextMetricsParams().equals(params)) { reloadText(); return; }
           textView.setText(precomputed, TextView.BufferType.SPANNABLE);
           textView.setTextIsSelectable(true);
           textView.setClickable(true);

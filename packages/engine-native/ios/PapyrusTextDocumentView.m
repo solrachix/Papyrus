@@ -1,3 +1,4 @@
+#import "PapyrusSelectionMenu.h"
 #import "PapyrusTextDocumentView.h"
 #import "PapyrusTextStore.h"
 #import "PapyrusTextAnnotationRange.h"
@@ -310,10 +311,10 @@ editMenuForTextInRange:(NSRange)range
   if (range.location != NSNotFound && range.length > 0 && NSMaxRange(range) <= textView.text.length) {
     textView.selectedRange = range;
   }
-  NSMutableArray<UIMenuElement *> *actions = [suggestedActions mutableCopy] ?: [NSMutableArray array];
+  NSMutableArray<UIMenuElement *> *actions = [PapyrusLocalizedSelectionActions(suggestedActions, self.annotationLabels[@"copy"], self.annotationLabels[@"selectAll"]) mutableCopy] ?: [NSMutableArray array];
   if ([self selectedRangePayload] &&
       (![self.defineSelectionMode isEqualToString:@"single-word"] || [self isSingleWordSelection])) {
-  UIAction *define = [UIAction actionWithTitle:self.defineLabel image:nil identifier:nil handler:^(__kindof UIAction *action) {
+  UIAction *define = [UIAction actionWithTitle:self.defineLabel image:[UIImage systemImageNamed:@"text.magnifyingglass"] identifier:nil handler:^(__kindof UIAction *action) {
     #pragma unused(action)
     [self defineCurrentSelection:nil];
   }];
@@ -324,7 +325,9 @@ editMenuForTextInRange:(NSRange)range
     for (NSString *style in @[@"highlight", @"underline", @"strikeout", @"comment"]) {
       NSString *label = self.annotationLabels[style];
       if (!label.length) continue;
-      [marks addObject:[UIAction actionWithTitle:label image:nil identifier:nil handler:^(__kindof UIAction *action) {
+      NSDictionary *symbols = @{@"highlight":@"highlighter", @"underline":@"underline",
+          @"strikeout":@"strikethrough", @"comment":@"note.text"};
+      [marks addObject:[UIAction actionWithTitle:label image:[UIImage systemImageNamed:symbols[style]] identifier:nil handler:^(__kindof UIAction *action) {
         [self emitAnnotationIntent:style];
       }]];
     }

@@ -24,6 +24,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, copy, nullable) NSString *selectedAnnotationId;
 @property (nonatomic, assign) BOOL selectionActive;
 @property (nonatomic, copy) NSString *defineLabel;
+@property (nonatomic, copy) NSString *copyLabel;
+@property (nonatomic, copy) NSString *selectAllLabel;
 @property (nonatomic, copy) NSString *defineSelectionMode;
 @property (nonatomic, copy) NSString *annotateLabel;
 @property (nonatomic, copy) NSString *annotationHighlightLabel;

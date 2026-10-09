@@ -73,7 +73,7 @@ export default function NativeTextDocumentViewer({
     () => ({
       engineId,
       annotations: scopedAnnotations,
-      annotationLabels: { annotate: t.annotate, highlight: t.annotationHighlight, underline: t.annotationUnderline, strikeout: t.annotationStrikeout, comment: t.annotationNote },
+      annotationLabels: { copy: t.copy, selectAll: t.selectAll, annotate: t.annotate, highlight: t.annotationHighlight, underline: t.annotationUnderline, strikeout: t.annotationStrikeout, comment: t.annotationNote },
       onAnnotationTap: (event: Parameters<NonNullable<PapyrusTextDocumentViewProps["onAnnotationTap"]>>[0]) => setSelectedAnnotation(event.nativeEvent.id),
       onAnnotateSelection: (event: Parameters<NonNullable<PapyrusTextDocumentViewProps["onAnnotateSelection"]>>[0]) => {
         const selection = event.nativeEvent;

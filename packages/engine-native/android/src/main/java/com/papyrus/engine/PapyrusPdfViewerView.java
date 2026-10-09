@@ -1,6 +1,11 @@
 package com.papyrus.engine;
 
 import android.content.Context;
+import android.content.ClipboardManager;
+import android.content.ClipData;
+import android.view.ActionMode;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
@@ -144,6 +149,105 @@ public class PapyrusPdfViewerView extends View {
   private static final float DOUBLE_TAP_MAX_DISTANCE_DP = 20;
   private final long doubleTapTimeoutMs;
   private Runnable pendingSingleTap;
+  private Runnable pendingLongPress;
+  private boolean longPressSelected;
+  private ActionMode selectionActionMode;
+  private ReadableMap selectionLabels;
+  private String defineLabel = "Define";
+  private String defineSelectionMode = "selection";
+  private boolean defineEnabled;
+  private static final String[] SELECTION_ACTIONS = {"copy", "define", "highlight", "underline", "strikeout", "comment"};
+
+  public void setAnnotationLabels(ReadableMap labels) { selectionLabels = labels; }
+  public void setDefineLabel(String label) { defineLabel = label == null ? "Define" : label; }
+  public void setDefineSelectionMode(String mode) { defineSelectionMode = mode; }
+  public void setDefineEnabled(boolean enabled) { defineEnabled = enabled; }
+
+  private String selectionLabel(String key) {
+    if ("define".equals(key)) return defineLabel;
+    return selectionLabels != null && selectionLabels.hasKey(key) && !selectionLabels.isNull(key)
+      ? selectionLabels.getString(key) : key;
+  }
+
+  private void cancelPendingLongPress() {
+    if (pendingLongPress != null) mainHandler.removeCallbacks(pendingLongPress);
+    pendingLongPress = null;
+  }
+
+  @Override protected void onDetachedFromWindow() {
+    cancelPendingLongPress();
+    if (pendingSingleTap != null) mainHandler.removeCallbacks(pendingSingleTap);
+    clearSelectionState();
+    super.onDetachedFromWindow();
+  }
+
+  private void showSelectionMenu() {
+    if (selectedText.trim().isEmpty() || selectedRects.isEmpty()) return;
+    if (selectionActionMode != null) { selectionActionMode.invalidate(); selectionActionMode.invalidateContentRect(); return; }
+    selectionActionMode = startActionMode(new ActionMode.Callback2() {
+      @Override public boolean onCreateActionMode(ActionMode mode, Menu menu) { fillSelectionMenu(menu); return true; }
+      @Override public boolean onPrepareActionMode(ActionMode mode, Menu menu) { fillSelectionMenu(menu); return true; }
+      @Override public boolean onActionItemClicked(ActionMode mode, MenuItem item) {
+        int index = item.getItemId() - 0x5070;
+        if (index < 0 || index >= SELECTION_ACTIONS.length) return false;
+        String action = SELECTION_ACTIONS[index];
+        if ("copy".equals(action)) {
+          ClipboardManager clipboard = (ClipboardManager) getContext().getSystemService(Context.CLIPBOARD_SERVICE);
+          if (clipboard != null) clipboard.setPrimaryClip(ClipData.newPlainText(selectionLabel("copy"), selectedText));
+        } else {
+          WritableMap event = selectionPayload();
+          if ("define".equals(action)) emitSelectionIntent("onDefineSelection", event);
+          else { event.putString("style", action); emitSelectionIntent("onAnnotateSelection", event); }
+        }
+        mode.finish();
+        return true;
+      }
+      @Override public void onDestroyActionMode(ActionMode mode) {
+        if (selectionActionMode != mode) return;
+        selectionActionMode = null;
+        clearSelectionState();
+        emitSelectionCleared();
+      }
+      @Override public void onGetContentRect(ActionMode mode, View view, Rect outRect) {
+        PageFrame frame = findSelectFrame();
+        if (frame == null || selectedRects.isEmpty()) { outRect.set(0,0,1,1); return; }
+        RectF bounds = new RectF();
+        for (NormalizedRect r : selectedRects) bounds.union(frame.left-offsetX+r.x*frame.width,
+          frame.top-offsetY+r.y*frame.height,frame.left-offsetX+(r.x+r.width)*frame.width,
+          frame.top-offsetY+(r.y+r.height)*frame.height);
+        bounds.roundOut(outRect);
+      }
+    }, ActionMode.TYPE_FLOATING);
+  }
+
+  private void fillSelectionMenu(Menu menu) {
+    menu.clear();
+    for (int i=0; i<SELECTION_ACTIONS.length; i++) {
+      String key = SELECTION_ACTIONS[i];
+      if ("define".equals(key) && (!defineEnabled || "single-word".equals(defineSelectionMode) && selectedText.trim().matches("(?s).*\\s+.*"))) continue;
+      MenuItem item = menu.add(Menu.NONE, 0x5070+i, i, selectionLabel(key));
+      item.setIcon(new PapyrusSelectionMenuIcon(key));
+      item.setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM);
+    }
+  }
+
+  private WritableMap selectionPayload() {
+    WritableMap event = Arguments.createMap();
+    event.putString("text", selectedText);
+    event.putInt("pageIndex", selectPageIndex);
+    WritableArray rects = Arguments.createArray();
+    for (NormalizedRect rect : selectedRects) {
+      WritableMap r = Arguments.createMap();
+      r.putDouble("x",rect.x); r.putDouble("y",rect.y);
+      r.putDouble("width",rect.width); r.putDouble("height",rect.height); rects.pushMap(r);
+    }
+    event.putArray("rects",rects);
+    return event;
+  }
+
+  private void emitSelectionIntent(String name, WritableMap event) {
+    reactContext.getJSModule(RCTEventEmitter.class).receiveEvent(getId(), name, event);
+  }
   private boolean suppressPageTapForGesture = false;
   private boolean insideSelectionAtDown = false;
 
@@ -381,6 +485,7 @@ public class PapyrusPdfViewerView extends View {
   @Override
   public boolean onTouchEvent(MotionEvent event) {
     int action = event.getActionMasked();
+    if (event.getPointerCount() > 1 || action == MotionEvent.ACTION_CANCEL) cancelPendingLongPress();
     if (action == MotionEvent.ACTION_DOWN && event.getPointerCount() == 1) {
       requestDisallowParentInterception(true);
     } else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
@@ -586,6 +691,8 @@ public class PapyrusPdfViewerView extends View {
         if (event.getPointerCount() > 1) {
           return true; // Multi-touch: ignore, let pinch zoom handle it
         }
+        cancelPendingLongPress();
+        longPressSelected = false;
         touchDownTime = System.currentTimeMillis();
         touchDownX = event.getX();
         touchDownY = event.getY();
@@ -618,6 +725,18 @@ public class PapyrusPdfViewerView extends View {
           }
         }
 
+        if (!insideSelectionAtDown) {
+          final float x = event.getX(), y = event.getY();
+          pendingLongPress = () -> {
+            pendingLongPress = null;
+            longPressSelected = true;
+            lastTapTime = 0;
+            if (pendingSingleTap != null) mainHandler.removeCallbacks(pendingSingleTap);
+            pendingSingleTap = null;
+            beginWordSelection(x, y);
+          };
+          mainHandler.postDelayed(pendingLongPress, ViewConfiguration.getLongPressTimeout());
+        }
         if (velocityTracker == null) {
           velocityTracker = VelocityTracker.obtain();
         } else {
@@ -639,6 +758,7 @@ public class PapyrusPdfViewerView extends View {
         float moveDx = event.getX() - touchDownX;
         float moveDy = event.getY() - touchDownY;
         float moveDistance = (float) Math.hypot(moveDx, moveDy);
+        if (moveDistance > ViewConfiguration.get(getContext()).getScaledTouchSlop()) cancelPendingLongPress();
 
         if (draggedHandle != 0 && isSelectingText && selectPageIndex >= 0) {
           ensureLayout();
@@ -688,6 +808,12 @@ public class PapyrusPdfViewerView extends View {
 
       case MotionEvent.ACTION_UP:
       case MotionEvent.ACTION_CANCEL: {
+        cancelPendingLongPress();
+        if (longPressSelected) {
+          longPressSelected = false;
+          if (velocityTracker != null) { velocityTracker.recycle(); velocityTracker = null; }
+          return true;
+        }
         boolean wasHandleDrag = draggedHandle != 0;
         draggedHandle = 0;
         insideSelectionAtDown = false;
@@ -813,6 +939,10 @@ public class PapyrusPdfViewerView extends View {
   }
 
   private void clearSelectionState() {
+    cancelPendingLongPress();
+    ActionMode menu = selectionActionMode;
+    selectionActionMode = null;
+    if (menu != null) menu.finish();
     isSelectingText = false;
     selectPageIndex = -1;
     selectedRects.clear();
@@ -1013,7 +1143,8 @@ public class PapyrusPdfViewerView extends View {
     invalidate();
     if (emit) {
       emitTextSelected();
-    }
+      showSelectionMenu();
+    } else if (selectionActionMode != null) selectionActionMode.invalidateContentRect();
   }
 
   private void emitTextSelected() {

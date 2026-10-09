@@ -36,6 +36,9 @@ export default function NativePdfDocumentViewer({
         engine={engine}
         documentId={documentId}
         maxPageWidth={maxPageWidth}
+        onTextSelected={onTextSelected}
+        onDefineSelection={onDefineSelection}
+        defineSelectionMode={defineSelectionMode}
       />
     );
   }

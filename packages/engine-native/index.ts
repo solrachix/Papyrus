@@ -336,6 +336,11 @@ export type PapyrusPageViewProps = ViewProps & {
 };
 
 export type PapyrusPdfViewerViewProps = ViewProps & {
+  annotationLabels?: Record<string,string>;
+  defineEnabled?: boolean;
+  copyLabel?: string;
+  selectAllLabel?: string;
+  onAnnotateSelection?: (event: {nativeEvent: {text:string;pageIndex:number;rects:{x:number;y:number;width:number;height:number}[];style:"highlight"|"underline"|"strikeout"|"comment"}}) => void;
   engineId?: string;
   pageTheme?: PageTheme;
   zoom?: number;

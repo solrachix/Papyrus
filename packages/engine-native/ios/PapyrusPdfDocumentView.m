@@ -1,3 +1,4 @@
+#import "PapyrusSelectionMenu.h"
 #import "PapyrusPdfDocumentView.h"
 
 #import <QuartzCore/QuartzCore.h>
@@ -303,6 +304,7 @@ static NSString *PapyrusHexColorFromUIColor(UIColor *color, CGFloat *opacity) {
 @property (nonatomic, weak) UIScrollView *observedScrollView;
 @property (nonatomic, strong) UITapGestureRecognizer *tapRecognizer;
 @property (nonatomic, strong) UITapGestureRecognizer *doubleTapRecognizer;
+@property (nonatomic, strong) UILongPressGestureRecognizer *longPressRecognizer;
 @property (nonatomic, assign) CGSize lastLayoutSize;
 @property (nonatomic, assign) NSInteger lastEmittedPage;
 @property (nonatomic, assign) CGFloat lastEmittedZoom;
@@ -365,6 +367,7 @@ static NSString *PapyrusHexColorFromUIColor(UIColor *color, CGFloat *opacity) {
   [[NSNotificationCenter defaultCenter] removeObserver:self];
   self.tapRecognizer.delegate = nil;
   self.doubleTapRecognizer.delegate = nil;
+  self.longPressRecognizer.delegate = nil;
   [self clearPapyrusAnnotationsForDocument:self.pdfView.document];
 }
 
@@ -442,6 +445,12 @@ static NSString *PapyrusHexColorFromUIColor(UIColor *color, CGFloat *opacity) {
   _doubleTapRecognizer.delaysTouchesBegan = NO;
   [_pdfView addGestureRecognizer:_doubleTapRecognizer];
   [_tapRecognizer requireGestureRecognizerToFail:_doubleTapRecognizer];
+  _longPressRecognizer = [[UILongPressGestureRecognizer alloc]
+      initWithTarget:self action:@selector(handleDocumentLongPress:)];
+  _longPressRecognizer.delegate = self;
+  _longPressRecognizer.cancelsTouchesInView = NO;
+  [_pdfView addGestureRecognizer:_longPressRecognizer];
+  [_tapRecognizer requireGestureRecognizerToFail:_longPressRecognizer];
 
   NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
   [center addObserver:self
@@ -1985,7 +1994,7 @@ static NSString *PapyrusHexColorFromUIColor(UIColor *color, CGFloat *opacity) {
     [actions addObject:annotationMenu];
   }
 
-  [actions addObjectsFromArray:suggestedActions ?: @[]];
+  [actions addObjectsFromArray:PapyrusLocalizedSelectionActions(suggestedActions ?: @[], self.copyLabel, self.selectAllLabel)];
 
   return [UIMenu menuWithChildren:actions];
 }
@@ -2281,12 +2290,26 @@ static NSString *PapyrusHexColorFromUIColor(UIColor *color, CGFloat *opacity) {
   PDFDocument *document = self.pdfView.document;
   if (!document) return;
 
-  CGPoint viewPoint = [recognizer locationInView:self.pdfView];
-  PDFPage *page = [self.pdfView pageForPoint:viewPoint nearest:YES];
+  [self selectWordAtViewPoint:[recognizer locationInView:self.pdfView]];
+}
+
+- (void)handleDocumentLongPress:(UILongPressGestureRecognizer *)recognizer {
+  if (recognizer.state != UIGestureRecognizerStateBegan ||
+      [self.activeTool isEqualToString:@"ink"]) return;
+  CGPoint point = [recognizer locationInView:self.pdfView];
+  // Existing native handles must retain ownership of an extension gesture.
+  if ([self selectionContainsViewPoint:point]) return;
+  [self selectWordAtViewPoint:point];
+}
+
+- (void)selectWordAtViewPoint:(CGPoint)viewPoint {
+  PDFPage *page = [self.pdfView pageForPoint:viewPoint nearest:NO];
   if (!page) return;
-  CGPoint pagePoint = [self.pdfView convertPoint:viewPoint toPage:page];
-  PDFSelection *selection = [page selectionForWordAtPoint:pagePoint];
-  self.pdfView.currentSelection = selection;
+  PDFSelection *selection = [page selectionForWordAtPoint:
+      [self.pdfView convertPoint:viewPoint toPage:page]];
+  if (!selection.string.length) return;
+  selection.color = [UIColor.systemBlueColor colorWithAlphaComponent:0.30];
+  [self.pdfView setCurrentSelection:selection animate:NO];
   [self emitCurrentSelectionIfNeeded];
 }
 

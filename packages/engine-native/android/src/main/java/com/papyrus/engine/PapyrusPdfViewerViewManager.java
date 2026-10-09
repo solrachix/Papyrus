@@ -98,6 +98,8 @@ public class PapyrusPdfViewerViewManager extends SimpleViewManager<PapyrusPdfVie
           com.facebook.react.common.MapBuilder.of("bubbled", "onTextSelected")
         )
       )
+      .put("onDefineSelection", com.facebook.react.common.MapBuilder.of("phasedRegistrationNames", com.facebook.react.common.MapBuilder.of("bubbled", "onDefineSelection")))
+      .put("onAnnotateSelection", com.facebook.react.common.MapBuilder.of("phasedRegistrationNames", com.facebook.react.common.MapBuilder.of("bubbled", "onAnnotateSelection")))
       .build();
   }
 
@@ -109,6 +111,15 @@ public class PapyrusPdfViewerViewManager extends SimpleViewManager<PapyrusPdfVie
       com.facebook.react.common.MapBuilder.of("registrationName", "onScroll")
     );
   }
+
+  @ReactProp(name = "annotationLabels")
+  public void setAnnotationLabels(PapyrusPdfViewerView view, @Nullable ReadableMap labels) { view.setAnnotationLabels(labels); }
+  @ReactProp(name = "defineLabel")
+  public void setDefineLabel(PapyrusPdfViewerView view, String label) { view.setDefineLabel(label); }
+  @ReactProp(name = "defineSelectionMode")
+  public void setDefineSelectionMode(PapyrusPdfViewerView view, String mode) { view.setDefineSelectionMode(mode); }
+  @ReactProp(name = "defineEnabled")
+  public void setDefineEnabled(PapyrusPdfViewerView view, boolean enabled) { view.setDefineEnabled(enabled); }
 
   @ReactProp(name = "engineId")
   public void setEngineId(PapyrusPdfViewerView view, String engineId) {
