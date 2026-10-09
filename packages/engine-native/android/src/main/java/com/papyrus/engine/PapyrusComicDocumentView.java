@@ -70,15 +70,6 @@ public final class PapyrusComicDocumentView extends FrameLayout {
         if (state == RecyclerView.SCROLL_STATE_IDLE) emitCurrentPage();
       }
     });
-    tapDetector = new GestureDetector(context, new GestureDetector.SimpleOnGestureListener() {
-      @Override public boolean onDown(MotionEvent event) { return true; }
-      @Override public boolean onDoubleTap(MotionEvent event) {
-        if (scaleDetector.isInProgress()) return false;
-        applyZoom(zoom > 1.05f ? 1f : 2f, event.getX(), event.getY());
-        emitZoom();
-        return true;
-      }
-    });
     scaleDetector = new ScaleGestureDetector(context, new ScaleGestureDetector.SimpleOnScaleGestureListener() {
       @Override public boolean onScale(ScaleGestureDetector detector) {
         // Keep gesture frames native. Reflect the final zoom to React Native
@@ -89,6 +80,15 @@ public final class PapyrusComicDocumentView extends FrameLayout {
       }
       @Override public void onScaleEnd(ScaleGestureDetector detector) {
         emitZoom();
+      }
+    });
+    tapDetector = new GestureDetector(context, new GestureDetector.SimpleOnGestureListener() {
+      @Override public boolean onDown(MotionEvent event) { return true; }
+      @Override public boolean onDoubleTap(MotionEvent event) {
+        if (scaleDetector.isInProgress()) return false;
+        applyZoom(zoom > 1.05f ? 1f : 2f, event.getX(), event.getY());
+        emitZoom();
+        return true;
       }
     });
     setLayoutMode(layoutMode);
