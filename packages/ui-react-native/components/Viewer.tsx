@@ -1966,10 +1966,15 @@ const Viewer: React.FC<ViewerProps> = ({
   );
 
   const handleWebViewScroll = useCallback(
-    (offsetY: number) => {
-      trackMobileChromeByOffset(offsetY, "scroll.continuous");
+    (_offsetY: number) => {
+      // EPUB content can scroll inside nested iframes. The runtime does not
+      // always dispatch a matching tap to restore controls on iOS, so never
+      // strand the bottom bar hidden after a WebView scroll.
+      if (!chromeVisibleRef.current) {
+        setMobileChromeVisible(true, "scroll.webview.recover");
+      }
     },
-    [trackMobileChromeByOffset]
+    [setMobileChromeVisible]
   );
 
   const handlePageTap = useCallback(() => {
