@@ -24,6 +24,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, copy, nullable) NSString *selectedAnnotationId;
 @property (nonatomic, assign) BOOL selectionActive;
 @property (nonatomic, copy) NSString *defineLabel;
+// This is a localized label getter, not an Objective-C copy-family method.
+- (NSString *)copyLabel __attribute__((objc_method_family(none)));
 @property (nonatomic, copy) NSString *copyLabel;
 @property (nonatomic, copy) NSString *selectAllLabel;
 @property (nonatomic, copy) NSString *defineSelectionMode;
