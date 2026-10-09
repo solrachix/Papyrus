@@ -1553,7 +1553,8 @@
         const end = getTouchPoint(event);
         const start = touchStart;
         touchStart = null;
-        if (start && end && Math.hypot(end.x - start.x, end.y - start.y) <= 12) {
+        const selectedText = event?.target?.ownerDocument?.defaultView?.getSelection?.()?.toString().trim() || '';
+        if (!selectedText && start && end && Math.hypot(end.x - start.x, end.y - start.y) <= 12) {
           sendEvent('VIEWER_TAP', {});
         }
         epubScrollDiagnostics && epubScrollDiagnostics.touchEnd(event);
