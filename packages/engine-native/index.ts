@@ -27,12 +27,14 @@ import {
   FileLike,
   SearchResult,
   TextSearchResult,
+  TextRangeSelection,
   TextSelection,
   TextSelectionEndpoints,
   RenderPageResult,
   RenderPageTelemetryContext,
   PageTheme,
   Annotation,
+  AnnotationAnchor,
   InkStrokeCommit,
   PdfVisiblePage,
 } from "@papyrus-sdk/types";
@@ -301,6 +303,7 @@ type NativeEngineModule = {
     source: NativeDocumentSource
   ) => Promise<{ textLength: number }>;
   closeText?: (engineId: string, generation: number) => void;
+  resolveTextAnnotationRange?: (engineId:string,generation:number,anchor:AnnotationAnchor) => Promise<{start:number;end:number}|null>;
   getTextRange?: (
     engineId: string,
     generation: number,
@@ -333,6 +336,11 @@ export type PapyrusPageViewProps = ViewProps & {
 };
 
 export type PapyrusPdfViewerViewProps = ViewProps & {
+  annotationLabels?: Record<string,string>;
+  defineEnabled?: boolean;
+  copyLabel?: string;
+  selectAllLabel?: string;
+  onAnnotateSelection?: (event: {nativeEvent: {text:string;pageIndex:number;rects:{x:number;y:number;width:number;height:number}[];style:"highlight"|"underline"|"strikeout"|"comment"}}) => void;
   engineId?: string;
   pageTheme?: PageTheme;
   zoom?: number;
@@ -346,6 +354,7 @@ export type PapyrusPdfViewerViewProps = ViewProps & {
   searchResults?: SearchResult[];
   activeSearchIndex?: number;
   annotations?: Annotation[];
+  annotationNavigationRequest?: {pageIndex:number;rect:{x:number;y:number;width:number;height:number};nonce:number} | null;
   selectedAnnotationId?: string | null;
   onPageChanged?: (event: { nativeEvent: { page: number } }) => void;
   onZoomChanged?: (event: { nativeEvent: { zoom: number } }) => void;
@@ -380,11 +389,16 @@ export type PapyrusPdfViewerViewProps = ViewProps & {
 };
 
 export type PapyrusTextDocumentViewProps = ViewProps & {
+  annotations?: Annotation[];
+  annotationLabels?: Record<string, string>;
+  onAnnotateSelection?: (event: {nativeEvent: TextRangeSelection & {style: "highlight" | "underline" | "strikeout" | "comment"; prefix?: string; suffix?: string}}) => void;
+  onAnnotationTap?: (event: {nativeEvent: {id: string}}) => void;
   engineId?: string;
   documentGeneration?: number;
   textLength?: number;
   currentTextOffset?: number;
   scrollToTextOffsetSignal?: number | null;
+  textNavigationRequest?: {offset:number;nonce:number} | null;
   searchResults?: TextSearchResult[];
   activeSearchIndex?: number;
   pageTheme?: PageTheme;
@@ -873,6 +887,12 @@ export class NativeTextDocumentEngine extends BaseDocumentEngine {
   goToTextOffset(offset: number): void {
     this.currentOffset = clampTextOffset(offset, this.textLength);
   }
+  async resolveAnnotationTextRange(annotation:Annotation):Promise<{start:number;end:number}|null> {
+    if(annotation.anchor?.kind!=="text-range")return annotation.textRange??null;
+    const generation=this.documentGeneration;
+    const range=await this.assertNativeModule().resolveTextAnnotationRange?.(this.engineId,generation,annotation.anchor);
+    return generation===this.documentGeneration?range??null:null;
+  }
   async getTextRange(start: number, end: number): Promise<string> {
     const native = this.assertNativeModule();
     if (!native.getTextRange) return "";
@@ -1105,6 +1125,16 @@ type WebViewSourcePayload =
   | { kind: "text"; text: string };
 
 export class WebViewDocumentEngine extends BaseDocumentEngine {
+  private documentSessionId = "";
+  getWebViewDocumentSessionId(): string { return this.documentSessionId; }
+  async syncEpubAnnotations(annotations: Annotation[], documentId?: string, labels?: {comment:string}): Promise<void> {
+    if (!this.documentSessionId) return;
+    await this.request("epub-annotations", { documentSessionId: this.documentSessionId, annotations, documentId, labels });
+  }
+  async goToAnnotation(annotation: Annotation): Promise<void> {
+    if (annotation.anchor?.kind !== "epub-cfi") return;
+    await this.request("epub-annotation-navigate", {documentSessionId: this.documentSessionId, annotationId: annotation.id});
+  }
   private readonly webViewRuntimeSource?: WebViewRuntimeSource;
   private readonly webViewRuntimeConfig?: WebViewRuntimeConfig;
   private bridge: WebViewBridge | null = null;
@@ -1346,20 +1376,25 @@ export class WebViewDocumentEngine extends BaseDocumentEngine {
       );
     }
 
+    const session = `epub-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    this.documentSessionId = session;
     const payloadSource = await this.normalizeRuntimeSource(
       resolvedType,
       source
     );
+    if(session !== this.documentSessionId) throw new Error("Stale document load");
     const response = await this.request<{
       pageCount?: number;
       outline?: OutlineItem[];
     }>("load", {
       type: resolvedType,
+      documentSessionId: session,
       source: payloadSource,
       ...(resolvedType === "comic"
         ? { format: resolveComicFormat(source, format) }
         : {}),
     });
+    if(session !== this.documentSessionId) throw new Error("Stale document load");
 
     if (typeof response?.pageCount === "number")
       this.pageCount = response.pageCount;
@@ -1774,6 +1809,15 @@ export class MobileDocumentEngine extends BaseDocumentEngine {
       ...this.pdfEngine.getLifecycleStats(),
       ...this.webEngine.getLifecycleStats(),
     };
+  }
+
+  resolveAnnotationTextRange(annotation:Annotation):Promise<{start:number;end:number}|null> {return this.textEngine.resolveAnnotationTextRange(annotation);}
+  getWebViewDocumentSessionId(): string { return this.webEngine.getWebViewDocumentSessionId(); }
+  syncEpubAnnotations(annotations: Annotation[], documentId?: string, labels?: {comment:string}): Promise<void> { return this.webEngine.syncEpubAnnotations(annotations,documentId,labels); }
+  goToAnnotation(annotation: Annotation): void | Promise<void> {
+    if (annotation.anchor?.kind === "epub-cfi") return this.webEngine.goToAnnotation(annotation);
+    if (annotation.anchor?.kind === "text-range") return this.textEngine.goToTextOffset(annotation.anchor.start);
+    this.activeEngine.goToPage((annotation.anchor?.kind === "pdf-geometry" ? annotation.anchor.pageIndex : annotation.pageIndex)+1);
   }
 
   attachWebView(bridge: WebViewBridge): void {

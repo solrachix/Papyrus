@@ -1,190 +1,75 @@
-import React, { useEffect, useState } from "react";
-import {
-  Modal,
-  View,
-  Text,
-  TextInput,
-  Pressable,
-  StyleSheet,
-} from "react-native";
-import { useViewerStore } from "@papyrus-sdk/core";
-import { getStrings } from "../mobileStrings";
-import { deleteAnnotationAndClearSelection } from "./annotationDeletion";
+import React, {useEffect, useRef, useState} from "react";
+import {AccessibilityInfo, Alert, Animated, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View} from "react-native";
+import {getAnnotationEditPatch, getAnnotationMarkup, getAnnotationNote, getAnnotationQuote, useViewerStore} from "@papyrus-sdk/core";
+import type {AnnotationMarkupStyle} from "@papyrus-sdk/types";
+import {getStrings} from "../mobileStrings";
+import {deleteAnnotationAndClearSelection} from "./annotationDeletion";
+import {usePapyrusSafeAreaInsets} from "./PapyrusSafeArea";
 
+const COLORS = ["#fbbf24", "#fb7185", "#60a5fa", "#34d399", "#c084fc"];
 const AnnotationEditor: React.FC = () => {
-  const {
-    annotations,
-    selectedAnnotationId,
-    updateAnnotation,
-    removeAnnotation,
-    setSelectedAnnotation,
-    uiTheme,
-    locale,
-    accentColor,
-  } = useViewerStore();
-  const annotation = annotations.find((ann) => ann.id === selectedAnnotationId);
-  const isEditable =
-    annotation && (annotation.type === "text" || annotation.type === "comment");
-  const [draft, setDraft] = useState("");
-  const isDark = uiTheme === "dark";
-  const t = getStrings(locale);
-
+  const {annotations,annotationDraft,clearAnnotationDraft,addAnnotation,selectedAnnotationId,updateAnnotation,removeAnnotation,setSelectedAnnotation,uiTheme,locale,accentColor} = useViewerStore();
+  const annotation = annotationDraft?.id === selectedAnnotationId ? annotationDraft : annotations.find(a => a.id === selectedAnnotationId);
+  const supported = annotation && annotation.type !== "ink";
+  const [editing,setEditing] = useState(false);
+  const [draft,setDraft] = useState("");
+  const [color,setColor] = useState(COLORS[0]);
+  const [markup,setMarkup] = useState<AnnotationMarkupStyle>("none");
+  const [reduceMotion,setReduceMotion] = useState(true);
+  const progress = useRef(new Animated.Value(0)).current;
+  const insets = usePapyrusSafeAreaInsets();
+  const dark = uiTheme === "dark", t = getStrings(locale);
   useEffect(() => {
-    if (isEditable) {
-      setDraft(annotation?.content ?? "");
-    }
-  }, [annotation?.id, isEditable]);
-
-  if (!isEditable || !annotation) return null;
-
-  const handleClose = () => setSelectedAnnotation(null);
-  const handleSave = () => {
-    updateAnnotation(annotation.id, { content: draft });
-    setSelectedAnnotation(null);
+    let alive = true;
+    void AccessibilityInfo.isReduceMotionEnabled().then(enabled => {if(alive)setReduceMotion(enabled);});
+    const subscription = AccessibilityInfo.addEventListener("reduceMotionChanged",setReduceMotion);
+    return () => {alive=false;subscription.remove();};
+  },[]);
+  useEffect(() => {
+    if(!annotation)return;
+    setDraft(getAnnotationNote(annotation));setColor(annotation.color);setMarkup(getAnnotationMarkup(annotation));
+    setEditing((annotation.type === "comment" || annotation.type === "text") && !getAnnotationNote(annotation));
+  },[annotation?.id]);
+  useEffect(() => {
+    progress.setValue(reduceMotion?1:0);
+    if(supported && !reduceMotion) Animated.timing(progress,{toValue:1,duration:200,useNativeDriver:true}).start();
+    return () => {progress.stopAnimation();};
+  },[selectedAnnotationId,reduceMotion,progress,supported]);
+  if(!supported || !annotation)return null;
+  const close = () => {
+    const finish = () => {if(annotationDraft)clearAnnotationDraft();setSelectedAnnotation(null);};
+    progress.stopAnimation();
+    if(reduceMotion){finish();return;}
+    Animated.timing(progress,{toValue:0,duration:180,useNativeDriver:true}).start(({finished})=>{if(finished)finish();});
   };
-  const handleDelete = () => {
-    deleteAnnotationAndClearSelection(
-      annotation.id,
-      removeAnnotation,
-      setSelectedAnnotation
-    );
+  const save = () => {
+    const patch = getAnnotationEditPatch(annotation,draft,markup,color);
+    if(annotationDraft){clearAnnotationDraft();addAnnotation({...annotation,...patch});}else updateAnnotation(annotation.id,patch);close();
   };
-
-  return (
-    <Modal
-      visible
-      transparent
-      animationType="fade"
-      onRequestClose={handleClose}
-    >
-      <View style={styles.overlay}>
-        <View style={[styles.card, isDark && styles.cardDark]}>
-          <Text style={[styles.title, isDark && styles.titleDark]}>
-            {t.editNote}
-          </Text>
-          <TextInput
-            style={[styles.input, isDark && styles.inputDark]}
-            value={draft}
-            onChangeText={setDraft}
-            placeholder={t.notePlaceholder}
-            placeholderTextColor={isDark ? "#9ca3af" : "#6b7280"}
-            multiline
-          />
-          <View style={styles.actions}>
-            <Pressable
-              onPress={handleDelete}
-              style={[
-                styles.actionButton,
-                styles.actionDelete,
-                isDark && styles.actionDeleteDark,
-              ]}
-              accessibilityRole="button"
-              accessibilityLabel={t.deleteAnnotation}
-              testID="annotation-delete-button"
-            >
-              <Text style={[styles.actionText, styles.actionTextLight]}>
-                {t.deleteAnnotation}
-              </Text>
-            </Pressable>
-            <View style={styles.actionSpacer} />
-            <Pressable
-              onPress={handleClose}
-              style={[styles.actionButton, styles.actionCancel]}
-            >
-              <Text style={styles.actionText}>{t.cancel}</Text>
-            </Pressable>
-            <Pressable
-              onPress={handleSave}
-              style={[
-                styles.actionButton,
-                styles.actionSave,
-                { backgroundColor: accentColor },
-              ]}
-            >
-              <Text style={[styles.actionText, styles.actionTextLight]}>
-                {t.save}
-              </Text>
-            </Pressable>
-          </View>
+  const remove = () => Alert.alert(t.deleteAnnotation,t.deleteAnnotationConfirmation,[{text:t.cancel,style:"cancel"},{text:t.deleteAnnotation,style:"destructive",onPress:()=>deleteAnnotationAndClearSelection(annotation.id,removeAnnotation,setSelectedAnnotation)}]);
+  const textStyle = {color:dark?"#f9fafb":"#111827"};
+  const quote = getAnnotationQuote(annotation);
+  return <Modal visible transparent animationType="none" onRequestClose={close}>
+    <KeyboardAvoidingView behavior={Platform.OS === "ios"?"padding":undefined} style={styles.host}>
+      <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityLabel={t.close} />
+      <Animated.View accessibilityViewIsModal style={[styles.card,{backgroundColor:dark?"#17191f":"#fff",marginBottom:Math.max(16,insets.bottom),opacity:progress,transform:[{translateY:progress.interpolate({inputRange:[0,1],outputRange:[12,0]})}]}]}>
+        <View style={styles.header}><Text style={[styles.title,textStyle]}>{editing?t.editNote:t.annotationNote}</Text><Pressable onPress={close} accessibilityRole="button" accessibilityLabel={t.close} style={styles.button}><Text style={textStyle}>×</Text></Pressable></View>
+        <ScrollView style={styles.content} keyboardShouldPersistTaps="handled">
+          {quote?<Text style={[styles.quote,textStyle]} selectable>{quote}</Text>:null}
+          {editing?<>
+            <TextInput accessibilityLabel={t.editNote} value={draft} onChangeText={setDraft} multiline autoFocus placeholder={t.notePlaceholder} placeholderTextColor={dark?"#9ca3af":"#6b7280"} style={[styles.input,textStyle,{borderColor:dark?"#374151":"#d1d5db"}]} />
+            <View style={styles.options}>{COLORS.map(value=><Pressable key={value} accessibilityRole="button" accessibilityLabel={`${t.annotationColor} ${value}`} accessibilityState={{selected:color===value}} onPress={()=>setColor(value)} style={[styles.color,{backgroundColor:value,borderColor:color===value?accentColor:"transparent"}]} />)}</View>
+            <View style={styles.options}>{([["highlight",t.annotationHighlight],["underline",t.annotationUnderline],["strikeout",t.annotationStrikeout],["none",t.annotationIndicatorOnly]] as const).map(([style,label])=><Pressable key={style} onPress={()=>setMarkup(style)} accessibilityRole="button" accessibilityState={{selected:markup===style}} style={[styles.button,markup===style&&{borderColor:accentColor,borderWidth:1}]}><Text style={textStyle}>{label}</Text></Pressable>)}</View>
+          </>:<Text style={[styles.note,textStyle]} selectable>{getAnnotationNote(annotation)||t.notePlaceholder}</Text>}
+        </ScrollView>
+        <View style={styles.actions}>
+          {!annotationDraft && <Pressable onPress={remove} accessibilityRole="button" accessibilityLabel={t.deleteAnnotation} testID="annotation-delete-button" style={styles.button}><Text style={{color:dark?"#fda4af":"#be123c"}}>{t.deleteAnnotation}</Text></Pressable>}
+          <View style={{flex:1}} />
+          {editing?<><Pressable onPress={()=>{if(annotationDraft){close();return;}setDraft(getAnnotationNote(annotation));setColor(annotation.color);setMarkup(getAnnotationMarkup(annotation));setEditing(false);}} accessibilityRole="button" style={styles.button}><Text style={textStyle}>{t.cancel}</Text></Pressable><Pressable onPress={save} accessibilityRole="button" style={[styles.button,{backgroundColor:accentColor}]}><Text style={{color:"#fff"}}>{t.save}</Text></Pressable></>:<Pressable onPress={()=>setEditing(true)} accessibilityRole="button" style={styles.button}><Text style={textStyle}>{t.editNote}</Text></Pressable>}
         </View>
-      </View>
-    </Modal>
-  );
+      </Animated.View>
+    </KeyboardAvoidingView>
+  </Modal>;
 };
-
-const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.4)",
-    padding: 24,
-  },
-  card: {
-    width: "100%",
-    borderRadius: 16,
-    padding: 16,
-    backgroundColor: "#ffffff",
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-  },
-  cardDark: {
-    backgroundColor: "#0f1115",
-    borderColor: "#1f2937",
-  },
-  title: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#111827",
-    marginBottom: 12,
-  },
-  titleDark: {
-    color: "#f9fafb",
-  },
-  input: {
-    minHeight: 100,
-    borderRadius: 12,
-    padding: 12,
-    backgroundColor: "#f3f4f6",
-    color: "#111827",
-    fontSize: 12,
-  },
-  inputDark: {
-    backgroundColor: "#111827",
-    color: "#e5e7eb",
-  },
-  actions: {
-    marginTop: 16,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  actionSpacer: { flex: 1 },
-  actionButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    marginLeft: 8,
-  },
-  actionCancel: {
-    backgroundColor: "#e5e7eb",
-  },
-  actionDelete: {
-    backgroundColor: "#b91c1c",
-  },
-  actionDeleteDark: {
-    backgroundColor: "#991b1b",
-  },
-  actionSave: {
-    backgroundColor: "#2563eb",
-  },
-  actionText: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: "#111827",
-  },
-  actionTextLight: {
-    color: "#ffffff",
-  },
-});
-
+const styles = StyleSheet.create({host:{flex:1,justifyContent:"flex-end",backgroundColor:"rgba(0,0,0,.18)",paddingHorizontal:12},card:{borderRadius:20,padding:16,maxHeight:"72%",elevation:12},header:{flexDirection:"row",alignItems:"center",justifyContent:"space-between"},title:{fontSize:17,fontWeight:"700"},content:{flexGrow:0},quote:{fontSize:14,lineHeight:21,borderLeftWidth:3,borderLeftColor:"#9ca3af",paddingLeft:10,marginVertical:12},note:{fontSize:16,lineHeight:24,paddingVertical:12},input:{minHeight:112,maxHeight:240,borderWidth:1,borderRadius:12,padding:12,fontSize:16,textAlignVertical:"top"},button:{minWidth:44,minHeight:44,paddingHorizontal:10,borderRadius:10,alignItems:"center",justifyContent:"center"},actions:{flexDirection:"row",alignItems:"center",flexWrap:"wrap",marginTop:12},options:{flexDirection:"row",flexWrap:"wrap",gap:8,marginTop:12},color:{width:44,height:44,borderRadius:22,borderWidth:3}});
 export default AnnotationEditor;

@@ -63,13 +63,18 @@ type Strings = {
   more: string;
   close: string;
   copy: string;
+  selectAll: string;
   define: string;
+  defineSingleWordHint: string;
   annotate: string;
   annotationHighlight: string;
   annotationUnderline: string;
   annotationStrikeout: string;
   annotationSquiggly: string;
   annotationNote: string;
+  annotationColor: string;
+  annotationIndicatorOnly: string;
+  deleteAnnotationConfirmation: string;
   deleteAnnotation: string;
   previousPage: string;
   nextPage: string;
@@ -149,13 +154,18 @@ const STRINGS: Record<Locale, Strings> = {
     more: "More",
     close: "Close",
     copy: "Copy",
+    selectAll: "Select all",
     define: "Define",
+    defineSingleWordHint: "Select a single word to define.",
     annotate: "Annotate",
     annotationHighlight: "Highlight",
     annotationUnderline: "Underline",
     annotationStrikeout: "Strikeout",
     annotationSquiggly: "Squiggly",
     annotationNote: "Note",
+    annotationColor: "Color",
+    annotationIndicatorOnly: "Note indicator only",
+    deleteAnnotationConfirmation: "Delete this annotation and its note?",
     deleteAnnotation: "Delete",
     previousPage: "Previous page",
     nextPage: "Next page",
@@ -233,13 +243,18 @@ const STRINGS: Record<Locale, Strings> = {
     more: "Mais",
     close: "Fechar",
     copy: "Copiar",
+    selectAll: "Selecionar tudo",
     define: "Definir",
+    defineSingleWordHint: "Selecione apenas uma palavra para definir.",
     annotate: "Anotar",
     annotationHighlight: "Destacar",
     annotationUnderline: "Sublinhar",
     annotationStrikeout: "Riscar",
     annotationSquiggly: "Ondulado",
     annotationNote: "Nota",
+    annotationColor: "Cor",
+    annotationIndicatorOnly: "Somente indicador",
+    deleteAnnotationConfirmation: "Apagar esta marcação e sua nota?",
     deleteAnnotation: "Apagar",
     previousPage: "Página anterior",
     nextPage: "Próxima página",

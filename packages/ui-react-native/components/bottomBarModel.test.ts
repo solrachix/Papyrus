@@ -41,3 +41,9 @@ describe("buildBottomBarLayout", () => {
     ]);
   });
 });
+
+it("does not offer text search or unsupported ink for image-only comics", () => {
+  const layout = buildBottomBarLayout({documentType: "comic", activeMobileDestination: "none", toolDockOpen: false});
+  expect(layout.rightSlots.map(slot => slot.key)).toEqual(["info", "more"]);
+  expect(layout.leftSlots.map(slot => slot.key)).toEqual(["notes"]);
+});

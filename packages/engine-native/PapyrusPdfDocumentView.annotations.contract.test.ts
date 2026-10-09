@@ -101,7 +101,7 @@ describe("Papyrus iOS PDF annotation bridge", () => {
       expect(iosViewer).toContain(selector);
     }
     for (const prop of [
-      "annotations={annotations}",
+      "annotations={annotations.filter",
       "activeTool={activeTool}",
       "annotationColor={annotationColor}",
       "annotationOpacity={annotationOpacity}",
@@ -306,7 +306,7 @@ describe("Papyrus iOS PDF annotation bridge", () => {
     expect(menu).toContain("isSingleWordSelection");
     expect(menu).toContain("self.onAnnotationCreated");
     expect(menu.indexOf("actions addObject:defineAction")).toBeLessThan(
-      menu.indexOf("addObjectsFromArray:suggestedActions")
+      menu.indexOf("addObjectsFromArray:PapyrusLocalizedSelectionActions")
     );
     expect(menu).toContain("UIMenu menuWithTitle:self.annotateLabel");
     for (const title of [

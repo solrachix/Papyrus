@@ -6,6 +6,45 @@ const read = (path: string) =>
   readFileSync(resolve(process.cwd(), path), "utf8");
 
 describe("native TXT and comic view registration contracts", () => {
+  it("updates prefetched comic holder geometry when attached after a pinch", () => {
+    const comic = read("packages/engine-native/android/src/main/java/com/papyrus/engine/PapyrusComicDocumentView.java");
+    const attached = comic.slice(comic.indexOf("@Override public void onViewAttachedToWindow"), comic.indexOf("private void applyPageHeightForImage"));
+    expect(attached).toContain("PapyrusComicPageLayout.zoomedWidth(recyclerView.getWidth(), zoom)");
+    expect(attached).toContain("applyPageHeightForImage(holder, bitmap.getWidth(), bitmap.getHeight())");
+    expect(attached).toContain("holder.itemView.forceLayout()");
+    expect(attached).toContain("holder.itemView.setTranslationX(continuous ? imagePanX : 0f)");
+  });
+  it("keeps continuous zoom in page geometry and lets vertical gestures scroll the list", () => {
+    const comic = read("packages/engine-native/android/src/main/java/com/papyrus/engine/PapyrusComicDocumentView.java");
+    expect(comic).toContain("image.setScaleX(1f); image.setScaleY(1f)");
+    expect(comic).toContain("PapyrusComicPageLayout.zoomAnchorTop(top, focusY, previous, next)");
+    expect(comic).toContain("dx > dy");
+    expect(comic).toContain("recyclerView.scrollBy(0, Math.round(lastPanY - event.getY()))");
+  });
+
+  it("remeasures comic RecyclerView after asynchronous dimensions under the RN parent", () => {
+    const comic = read("packages/engine-native/android/src/main/java/com/papyrus/engine/PapyrusComicDocumentView.java");
+    expect(comic).toContain("recyclerView = new PapyrusComicRecyclerView(context)");
+    expect(comic).toContain("@Override public void requestLayout()");
+    expect(comic).toContain("measure(MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY)");
+    expect(comic).toContain("layout(getLeft(), getTop(), getLeft() + width, getTop() + height)");
+  });
+
+  it("renders continuous comic images directly in the proportional cell without nested scrolling", () => {
+    const comic = read("packages/engine-native/android/src/main/java/com/papyrus/engine/PapyrusComicDocumentView.java");
+    expect(comic).toContain('if ("continuous".equals(layoutMode))');
+    expect(comic).toContain("cell.addView(holder.image, new FrameLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))");
+    expect(comic).toContain("holder.pageScrollView.setVisibility(View.GONE)");
+    expect(comic).toContain("holder.pageScrollView.scrollTo(0, 0);");
+  });
+
+  it("ignores stale comic decode dimensions and errors after a document switch", () => {
+    const comic = read("packages/engine-native/android/src/main/java/com/papyrus/engine/PapyrusComicDocumentView.java");
+    expect(comic).toContain("if (holder.bindToken == token && id.equals(engineId) && docGeneration == generation) applyPageHeightForImage");
+    expect(comic).toContain("private void emitError(String key, String message, String sourceEngineId, int sourceGeneration)");
+    expect(comic).toContain("if (!sourceEngineId.equals(engineId) || sourceGeneration != generation) return;");
+  });
+
   it("registers the native views and events on both mobile platforms", () => {
     const iosTextManager = read("packages/engine-native/ios/PapyrusTextDocumentViewManager.m");
     const iosComicManager = read("packages/engine-native/ios/PapyrusComicDocumentViewManager.m");
@@ -82,7 +121,7 @@ describe("native TXT and comic view registration contracts", () => {
 
     expect(cacheHit).toContain("applyPageHeightForImage(holder, cached.getWidth(), cached.getHeight())");
     expect(bind).toContain("applyPageHeightForImage(holder, bounds.outWidth, bounds.outHeight)");
-    expect(androidComicView).toContain("PapyrusComicPageLayout.itemHeight(");
+    expect(androidComicView).toContain("PapyrusComicPageLayout.zoomedHeight(");
   });
 
   it("bounds TXT and comic sources and rejects stale generation writes", () => {
@@ -133,7 +172,7 @@ describe("native TXT and comic view registration contracts", () => {
     expect(androidComicView).toContain('"single".equals(layoutMode) && "width".equals(fitMode)');
     expect(androidComicView).toContain("protected void onSizeChanged(int width, int height, int oldWidth, int oldHeight)");
     expect(androidComicView).toContain("adapter.notifyDataSetChanged()");
-    expect(androidComicView).toContain("itemParams.width = Math.max(1, recyclerView.getWidth())");
+    expect(androidComicView).toContain("PapyrusComicPageLayout.zoomedWidth(recyclerView.getWidth(), zoom)");
     expect(androidComicView).toContain("itemParams.height = Math.max(1, recyclerView.getHeight())");
   });
 
@@ -221,5 +260,72 @@ describe("native TXT and comic view registration contracts", () => {
     expect(androidModel).toContain("appendMappingSegment");
     expect(iosModule).toContain("PapyrusAppendTextMappingSegment");
     expect(iosModule).toContain("PapyrusSourceRangeForNormalizedOffset");
+  });
+});
+
+describe("comic viewport stability", () => {
+  const source = read("packages/engine-native/ios/PapyrusComicDocumentView.m");
+  const method = (name: string) => source.match(new RegExp(`- \\(void\\)${name}[^\\n]*\\{([\\s\\S]*?)\\n\\}`))?.[1] ?? "";
+  it("reports observed pages without requesting a scroll", () => {
+    expect(method("emitVisiblePage")).toContain("self.applyingProgrammaticPage || self.pendingNavigation || self.pageCount <= 0");
+    expect(method("emitVisiblePage")).toContain("_currentPage = page;");
+    expect(method("emitVisiblePage")).not.toContain("self.currentPage = page");
+    expect(method("emitVisiblePage")).toContain("bounds.size.height / 2");
+    expect(method("emitVisiblePage")).not.toContain("CGRectGetMidY");
+  });
+  it("leaves an unchanged viewport alone and anchors resized layouts", () => {
+    expect(method("layoutSubviews")).toContain("CGSizeEqualToSize");
+    expect(method("layoutSubviews")).toContain("restoreScrollAnchor");
+  });
+  it("keeps dimensions outside the evictable image cache", () => {
+    expect(source).toContain("pageSizes");
+    const sizing = source.split("sizeForItemAtIndexPath:")[1]?.split("- (void)scrollView")[0] ?? "";
+    expect(sizing).not.toContain("PapyrusComicImageCache()");
+    expect(source).toContain("[self.pageSizes removeAllObjects]");
+  });
+  it("preserves a requested page until the page count arrives", () => {
+    expect(method("setCurrentPage")).toContain("self.requestedPage = requested");
+    expect(method("setPageCount")).toContain("self.requestedPage");
+    expect(method("setCurrentPage")).toContain("self.pageCount > 0");
+  });
+  it("reads cached dimensions before sizing a reopened page", () => {
+    expect(source).toContain("- (CGSize)pageSizeAtIndex:");
+    expect(source).toContain("self.pageSizes[@(page)] = [NSValue valueWithCGSize:cached.size]");
+    expect(source).toContain("CGSize imageSize = [self pageSizeAtIndex:page]");
+  });
+  it("does not reload unchanged settings", () => {
+    for (const name of ["setPageCount", "setLayoutMode", "setFitMode", "setReadingDirection"]) {
+      expect(method(name)).toContain("return;");
+    }
+  });
+});
+
+describe("comic image delivery during gestures", () => {
+  it("defers page geometry changes until native scrolling is idle", () => {
+    const s = read("packages/engine-native/ios/PapyrusComicDocumentView.m");
+    expect(s).toContain("pendingPageSizes");
+    expect(s).toContain("if (self.collectionView.dragging || self.collectionView.decelerating) return;");
+    expect(s).toContain("if (!decelerate) [self applyPendingPageSizes]");
+  });
+});
+
+
+describe("comic double-tap and stable pinch contracts", () => {
+  it("toggles focused native zoom on Android and publishes only the final pinch scale", () => {
+    const src = read("packages/engine-native/android/src/main/java/com/papyrus/engine/PapyrusComicDocumentView.java");
+    expect(src).toContain("onDoubleTap(MotionEvent event)");
+    expect(src).toContain("zoom > 1.05f ? 1f : 2f");
+    expect(src).toContain("event.getX(), event.getY()");
+    expect(src).toContain("onScaleEnd(ScaleGestureDetector detector)");
+    const onScale = src.match(/@Override public boolean onScale\(ScaleGestureDetector detector\) \{([\s\S]*?)\n      \}/)?.[1] ?? "";
+    expect(onScale).not.toContain("emitZoom()");
+  });
+  it("toggles focused native zoom on iOS and resets to a neutral pan", () => {
+    const src = read("packages/engine-native/ios/PapyrusComicDocumentView.m");
+    expect(src).toContain("_doubleTapRecognizer.numberOfTapsRequired = 2");
+    expect(src).toContain("- (void)handleDoubleTap:(UITapGestureRecognizer *)recognizer");
+    expect(src).toContain("previous > 1.05 ? 1.0 : 2.0");
+    expect(src).toContain("self.panOffset = CGPointZero");
+    expect(src).toContain("self.onZoomChanged(@{ @\"zoom\": @(self.zoom) })");
   });
 });

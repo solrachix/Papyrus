@@ -1,6 +1,8 @@
 import React from "react";
-import { View, Pressable, StyleSheet, useWindowDimensions, Platform } from "react-native";
+import { View, Pressable, StyleSheet, useWindowDimensions } from "react-native";
 import { useViewerStore } from "@papyrus-sdk/core";
+import Animated, { useAnimatedStyle } from "react-native-reanimated";
+import { useNativeInkMotion, useNativeInkSession } from "./useNativeInkChrome";
 import { DocumentType, MobilePrimaryDestination } from "@papyrus-sdk/types";
 import { getStrings } from "../mobileStrings";
 import {
@@ -44,8 +46,19 @@ const BottomBar: React.FC<BottomBarProps> = ({
     toolDockOpen,
     activeTool,
     interactionMode,
-    nativePdfViewerActive,
   } = useViewerStore();
+  const inkSession = useNativeInkSession();
+  const supportsInkChrome = documentType === "pdf" && inkSession.supported;
+  const drawing = supportsInkChrome && inkSession.active;
+  const dockVisible = mobileChromeVisible && mobileDockVisible && !drawing;
+  const dockProgress = useNativeInkMotion(dockVisible, supportsInkChrome);
+  const dockMotion = useAnimatedStyle(() => {
+    "worklet";
+    return {
+    opacity: dockProgress.value,
+    transform: [{ translateY: (1 - dockProgress.value) * 8 }],
+    };
+  });
   const isDark = uiTheme === "dark";
   const t = getStrings(locale);
   const { width, height } = useWindowDimensions();
@@ -75,10 +88,7 @@ const BottomBar: React.FC<BottomBarProps> = ({
       label: t.tools,
       icon: IconToolDockTrigger,
       onPress: () => {
-        const isNativeIosInkViewer =
-          Platform.OS === "ios" &&
-          Number.parseInt(String(Platform.Version), 10) >= 16 &&
-          nativePdfViewerActive;
+        const isNativeIosInkViewer = supportsInkChrome;
         const action = resolveAnnotateButtonAction({
           isNativeIosInkViewer,
           activeTool,
@@ -95,13 +105,7 @@ const BottomBar: React.FC<BottomBarProps> = ({
           return;
         }
         if (action === "deactivate-native-ink") {
-          setDocumentState({
-            activeTool: "select",
-            interactionMode: "pan",
-            nativeInkToolPickerActive: false,
-            toolDockOpen: false,
-            activeMobileDestination: "none",
-          });
+          inkSession.finish();
           return;
         }
         if (action === "dismiss-tool-dock") {
@@ -140,10 +144,16 @@ const BottomBar: React.FC<BottomBarProps> = ({
     },
   };
 
-  if (!mobileChromeVisible || !mobileDockVisible) return null;
+  if (!dockVisible && !supportsInkChrome) return null;
 
   return (
-    <View pointerEvents="box-none" style={[styles.frame, { paddingBottom: offsets.bottom, paddingLeft: offsets.left, paddingRight: offsets.right }]}>
+    <Animated.View
+      pointerEvents={dockVisible ? "box-none" : "none"}
+      accessibilityElementsHidden={!dockVisible}
+      importantForAccessibility={dockVisible ? "auto" : "no-hide-descendants"}
+      testID="papyrus-bottom-bar-frame"
+      style={[styles.frame, { paddingBottom: offsets.bottom, paddingLeft: offsets.left, paddingRight: offsets.right }, dockMotion]}
+    >
       <View style={[styles.row, isLandscape && styles.rowLandscape]}>
         {layout.leftSlots.length > 0 ? (
           <View
@@ -160,6 +170,7 @@ const BottomBar: React.FC<BottomBarProps> = ({
               return (
                 <Pressable
                   key={slot.key}
+                  disabled={!dockVisible}
                   onPress={meta.onPress}
                   style={[
                     styles.iconOnlyItem,
@@ -200,6 +211,7 @@ const BottomBar: React.FC<BottomBarProps> = ({
             return (
               <Pressable
                 key={slot.key}
+                disabled={!dockVisible}
                 onPress={meta.onPress}
                 style={[styles.iconOnlyItem, slot.active && styles.itemActive]}
                 accessibilityLabel={meta.label}
@@ -222,7 +234,7 @@ const BottomBar: React.FC<BottomBarProps> = ({
           })}
         </View>
       </View>
-    </View>
+    </Animated.View>
   );
 };
 

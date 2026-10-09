@@ -89,6 +89,8 @@ import {
 
 export interface ViewerProps {
   engine: DocumentEngine;
+  /** Stable file identity, never the native engine/session ID. */
+  documentId?: string;
   /** Maximum page width at fit zoom, in React Native points; pinch zoom may enlarge it. */
   maxPageWidth?: number;
   /**
@@ -187,6 +189,7 @@ const scrollViewerListToOffset = (
 };
 
 const Viewer: React.FC<ViewerProps> = ({
+  documentId,
   engine,
   maxPageWidth,
   fitPageToViewportHeight = false,
@@ -1963,10 +1966,15 @@ const Viewer: React.FC<ViewerProps> = ({
   );
 
   const handleWebViewScroll = useCallback(
-    (offsetY: number) => {
-      trackMobileChromeByOffset(offsetY, "scroll.continuous");
+    (_offsetY: number) => {
+      // EPUB content can scroll inside nested iframes. The runtime does not
+      // always dispatch a matching tap to restore controls on iOS, so never
+      // strand the bottom bar hidden after a WebView scroll.
+      if (!chromeVisibleRef.current) {
+        setMobileChromeVisible(true, "scroll.webview.recover");
+      }
     },
-    [trackMobileChromeByOffset]
+    [setMobileChromeVisible]
   );
 
   const handlePageTap = useCallback(() => {
@@ -2013,6 +2021,7 @@ const Viewer: React.FC<ViewerProps> = ({
           >
             <View style={{ width: columnWidth }}>
               <PageRenderer
+                  documentId={documentId}
                 engine={engine}
                 pageIndex={row.left}
                 pageAspectRatio={getPageAspectRatio(row.left)}
@@ -2037,6 +2046,7 @@ const Viewer: React.FC<ViewerProps> = ({
             {row.right !== null ? (
               <View style={{ width: columnWidth }}>
                 <PageRenderer
+                  documentId={documentId}
                   engine={engine}
                   pageIndex={row.right}
                   pageAspectRatio={getPageAspectRatio(row.right)}
@@ -2067,6 +2077,7 @@ const Viewer: React.FC<ViewerProps> = ({
 
       return (
         <PageRenderer
+                  documentId={documentId}
           engine={engine}
           pageIndex={item as number}
           pageAspectRatio={getPageAspectRatio(item as number)}
@@ -2223,6 +2234,9 @@ const Viewer: React.FC<ViewerProps> = ({
       <View style={[styles.container, isDark && styles.containerDark]}>
         <WebViewViewer
           engine={engine}
+          documentId={documentId}
+          onDefineSelection={onDefineSelection}
+          defineSelectionMode={defineSelectionMode}
           maxPageWidth={maxPageWidth}
           onScrollOffset={handleWebViewScroll}
           onTap={handleWebViewTap}
@@ -2236,6 +2250,7 @@ const Viewer: React.FC<ViewerProps> = ({
       <View style={[styles.container, isDark && styles.containerDark]}>
         <NativeTextDocumentViewer
           engine={engine}
+          documentId={documentId}
           onTextRangeSelected={onTextRangeSelected}
           onDefineSelection={onDefineTextSelection}
           defineSelectionMode={defineSelectionMode}
@@ -2255,7 +2270,7 @@ const Viewer: React.FC<ViewerProps> = ({
   if (isNativePdfViewer) {
     return (
       <View style={[styles.container, isDark && styles.containerDark]}>
-        <NativePdfDocumentViewer engine={engine} maxPageWidth={maxPageWidth}
+        <NativePdfDocumentViewer engine={engine} documentId={documentId} maxPageWidth={maxPageWidth}
           onTextSelected={onTextSelected}
           onDefineSelection={onDefineSelection}
           defineSelectionMode={defineSelectionMode}
@@ -2357,6 +2372,7 @@ const Viewer: React.FC<ViewerProps> = ({
                 scrollEventThrottle={16}
               >
                 <PageRenderer
+                  documentId={documentId}
                   engine={engine}
                   pageIndex={Math.max(0, currentPage - 1)}
                   pageAspectRatio={getPageAspectRatio(

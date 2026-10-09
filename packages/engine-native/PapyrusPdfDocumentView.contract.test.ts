@@ -130,8 +130,9 @@ describe("PapyrusPdfDocumentView native text selection and search highlights", (
   it("selects a whole PDFKit word on double tap", () => {
     const body = methodBody("handleDocumentDoubleTap:");
 
-    expect(body).toContain("selectionForWordAtPoint:");
-    expect(body).toContain("self.pdfView.currentSelection = selection;");
+    expect(body).toContain("selectWordAtViewPoint:");
+    expect(methodBody("selectWordAtViewPoint:")).toContain("selectionForWordAtPoint:");
+    expect(methodBody("selectWordAtViewPoint:")).toContain("setCurrentSelection:selection animate:NO");
   });
 
   it("clears native selection after a tap outside it or an inactive prop", () => {

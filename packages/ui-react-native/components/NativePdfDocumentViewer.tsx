@@ -11,6 +11,7 @@ export {
 
 type NativePdfDocumentViewerProps = {
   engine: DocumentEngine;
+  documentId?: string;
   maxPageWidth?: number;
   onTextSelected?: (payload: { text: string; pageIndex: number }) => void;
   onDefineSelection?: (payload: { text: string; pageIndex: number }) => void;
@@ -19,6 +20,7 @@ type NativePdfDocumentViewerProps = {
 
 export default function NativePdfDocumentViewer({
   engine,
+  documentId,
   maxPageWidth,
   onTextSelected,
   onDefineSelection,
@@ -32,7 +34,11 @@ export default function NativePdfDocumentViewer({
     return (
       <DedicatedAndroidPdfViewer
         engine={engine}
+        documentId={documentId}
         maxPageWidth={maxPageWidth}
+        onTextSelected={onTextSelected}
+        onDefineSelection={onDefineSelection}
+        defineSelectionMode={defineSelectionMode}
       />
     );
   }
@@ -41,6 +47,7 @@ export default function NativePdfDocumentViewer({
     return (
       <DedicatedIosPdfViewer
         engine={engine}
+        documentId={documentId}
         maxPageWidth={maxPageWidth}
         onTextSelected={onTextSelected}
         onDefineSelection={onDefineSelection}

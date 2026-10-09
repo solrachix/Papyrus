@@ -17,7 +17,8 @@ const replaceMarkedSource = (content, start, end, replacement) => {
 };
 
 const runtimePath = resolve(runtimeDirectory, "runtime.js");
-const runtime = await readFile(runtimePath, "utf8");
+const epubSource = await readFile(resolve(runtimeDirectory,"epubAnnotations.js"),"utf8");
+const runtime = replaceMarkedSource(await readFile(runtimePath, "utf8"), "/* @papyrus-epub-annotations:start */", "/* @papyrus-epub-annotations:end */", `\n${epubSource}\n`);
 const comicRuntimeEnd = "/* @papyrus-comic-runtime:end */";
 const runtimeBodyStart = runtime.indexOf("\n(function () {", runtime.indexOf(comicRuntimeEnd));
 if (runtimeBodyStart < 0) {

@@ -4,7 +4,7 @@ import {
   PapyrusTextDocumentView,
   type PapyrusTextDocumentViewProps,
 } from "@papyrus-sdk/engine-native";
-import { papyrusEvents, useViewerStore } from "@papyrus-sdk/core";
+import { createContextualAnnotation, validateAnnotationAnchor, papyrusEvents, useViewerStore } from "@papyrus-sdk/core";
 import { DocumentEngine, PapyrusEventType, TextRangeSelection } from "@papyrus-sdk/types";
 import { getStrings } from "../mobileStrings";
 import { MOBILE_CHROME_METRICS } from "./mobileChromeMetrics";
@@ -19,6 +19,7 @@ type TextEngineAccess = DocumentEngine & {
 
 type Props = {
   engine: DocumentEngine;
+  documentId?: string;
   onTextRangeSelected?: (selection: TextRangeSelection) => void;
   onDefineSelection?: (selection: TextRangeSelection) => void;
   defineSelectionMode?: "selection" | "single-word";
@@ -26,6 +27,7 @@ type Props = {
 
 export default function NativeTextDocumentViewer({
   engine,
+  documentId,
   onTextRangeSelected,
   onDefineSelection,
   defineSelectionMode = "selection",
@@ -34,15 +36,24 @@ export default function NativeTextDocumentViewer({
   const engineId = nativeEngine.getNativeTextEngineId?.() ?? undefined;
   const documentGeneration = nativeEngine.getNativeTextDocumentGeneration?.() ?? 0;
   const measuredTextLength = nativeEngine.getTextLength?.() ?? 0;
+  const annotations = useViewerStore((state) => state.annotations);
+  const scopedAnnotations = useMemo(() => annotations.filter(annotation => !annotation.anchor || (validateAnnotationAnchor(annotation.anchor) && annotation.anchor.kind === "text-range" && (!annotation.anchor.documentId || annotation.anchor.documentId === documentId))), [annotations, documentId]);
+  const beginAnnotationDraft = useViewerStore(state=>state.beginAnnotationDraft);
+  const addAnnotation = useViewerStore((state) => state.addAnnotation);
+  const setSelectedAnnotation = useViewerStore((state) => state.setSelectedAnnotation);
+  const annotationColor = useViewerStore((state) => state.annotationColor);
+  const annotationOpacity = useViewerStore((state) => state.annotationOpacity);
   const locale = useViewerStore((state) => state.locale);
   const insets = usePapyrusSafeAreaInsets();
   const pageTheme = useViewerStore((state) => state.pageTheme);
+  const zoom = useViewerStore(state=>state.zoom);
   const uiTheme = useViewerStore((state) => state.uiTheme);
   const textLength = useViewerStore((state) => state.textLength);
   const currentTextOffset = useViewerStore((state) => state.currentTextOffset);
   const scrollToTextOffsetSignal = useViewerStore(
     (state) => state.scrollToTextOffsetSignal,
   );
+  const textNavigationRequest = useViewerStore(state=>state.textNavigationRequest);
   const textSearchResults = useViewerStore((state) => state.textSearchResults);
   const activeSearchIndex = useViewerStore((state) => state.activeSearchIndex);
   const setDocumentState = useViewerStore((state) => state.setDocumentState);
@@ -61,16 +72,30 @@ export default function NativeTextDocumentViewer({
   const viewProps = useMemo(
     () => ({
       engineId,
+      annotations: scopedAnnotations,
+      annotationLabels: { copy: t.copy, selectAll: t.selectAll, annotate: t.annotate, highlight: t.annotationHighlight, underline: t.annotationUnderline, strikeout: t.annotationStrikeout, comment: t.annotationNote },
+      onAnnotationTap: (event: Parameters<NonNullable<PapyrusTextDocumentViewProps["onAnnotationTap"]>>[0]) => setSelectedAnnotation(event.nativeEvent.id),
+      onAnnotateSelection: (event: Parameters<NonNullable<PapyrusTextDocumentViewProps["onAnnotateSelection"]>>[0]) => {
+        const selection = event.nativeEvent;
+        if (!selection.text || selection.end <= selection.start) return;
+        (selection.style === "comment" ? beginAnnotationDraft : addAnnotation)(createContextualAnnotation({
+          id: `annotation-${Date.now()}-${Math.random().toString(36).slice(2)}`, pageIndex: 0,
+          anchor: { version: 1, kind: "text-range", encoding: "utf-16", documentId, quote: selection.text, start: selection.start, end: selection.end, prefix: selection.prefix, suffix: selection.suffix },
+          style: selection.style === "comment" ? "highlight" : selection.style,
+          note: selection.style === "comment" ? "" : undefined, color: annotationColor, opacity: annotationOpacity,
+        }));
+      },
       documentGeneration,
       textLength: textLength || measuredTextLength,
       currentTextOffset,
       scrollToTextOffsetSignal,
+      textNavigationRequest,
       searchResults: textSearchResults,
       activeSearchIndex,
       pageTheme,
       uiTheme,
-      fontSize: 18,
-      lineHeight: 28,
+      fontSize: 18 * zoom,
+      lineHeight: 28 * zoom,
       pageMargin: 20,
       defineLabel: t.define,
       defineSelectionMode,
@@ -88,6 +113,7 @@ export default function NativeTextDocumentViewer({
       },
     }) satisfies PapyrusTextDocumentViewProps,
     [
+      scopedAnnotations, beginAnnotationDraft, addAnnotation, setSelectedAnnotation, documentId, annotationColor, annotationOpacity, t,
       activeSearchIndex,
       currentTextOffset,
       documentGeneration,
@@ -102,7 +128,8 @@ export default function NativeTextDocumentViewer({
       t.define,
       textLength,
       textSearchResults,
-      uiTheme,
+      textNavigationRequest,
+      uiTheme, zoom,
     ],
   );
 

@@ -1,9 +1,13 @@
+import {getNearbyPdfNotes} from "./pdfAnnotationNoteGroups";
+import PdfNoteChooser from "./PdfNoteChooser";
+import type {Annotation} from "@papyrus-sdk/types";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
-import { useViewerStore } from "@papyrus-sdk/core";
+import { contextualizePdfAnnotation, useViewerStore } from "@papyrus-sdk/core";
 import type { DocumentEngine } from "@papyrus-sdk/types";
 import { PapyrusPdfDocumentView } from "@papyrus-sdk/engine-native";
 import { getStrings } from "../mobileStrings";
+import { handleNativeInkPickerVisibility } from "./nativeInkSession";
 import {
   deleteAnnotationAndClearSelection,
   resolveMarkupAnnotationDeleteFallback,
@@ -29,6 +33,7 @@ const supportsNativeEditMenu =
 
 type DedicatedIosPdfViewerProps = {
   engine: DocumentEngine;
+  documentId?: string;
   maxPageWidth?: number;
   onTextSelected?: (payload: { text: string; pageIndex: number }) => void;
   onDefineSelection?: (payload: { text: string; pageIndex: number }) => void;
@@ -37,6 +42,7 @@ type DedicatedIosPdfViewerProps = {
 
 export default function DedicatedIosPdfViewer({
   engine,
+  documentId,
   maxPageWidth,
   onTextSelected,
   onDefineSelection,
@@ -57,13 +63,21 @@ export default function DedicatedIosPdfViewer({
     (state) => state.activeDrawToolPreset
   );
   const inkStrokeWidth = useViewerStore((state) => state.inkStrokeWidth);
+  const annotationNavigationRequest = useViewerStore(state => state.annotationNavigationRequest);
   const annotations = useViewerStore((state) => state.annotations);
+  const [pendingNotes,setPendingNotes] = useState<Annotation[]>([]);
+  const handleAnnotationTap = (id:string) => {
+    const nearby=getNearbyPdfNotes(annotations,id);
+    if(nearby.length<2){setSelectedAnnotation(id);return;}
+    setPendingNotes(nearby);
+  };
   const annotationColor = useViewerStore((state) => state.annotationColor);
   const annotationSelectionColor = useViewerStore((state) => state.accentColor);
   const annotationOpacity = useViewerStore((state) => state.annotationOpacity);
   const selectedAnnotationId = useViewerStore(
     (state) => state.selectedAnnotationId
   );
+  const beginAnnotationDraft = useViewerStore(state=>state.beginAnnotationDraft);
   const addAnnotation = useViewerStore((state) => state.addAnnotation);
   const removeAnnotation = useViewerStore((state) => state.removeAnnotation);
   const setSelectedAnnotation = useViewerStore(
@@ -193,19 +207,12 @@ export default function DedicatedIosPdfViewer({
 
   const handleInkToolPickerVisibilityChange = useCallback(
     (event: { nativeEvent?: { visible?: unknown } }) => {
-      const visible = event.nativeEvent?.visible === true;
-      if (!visible && activeTool === "ink") {
-        setDocumentState({
-          activeTool: "select",
-          interactionMode: "pan",
-          nativeInkToolPickerActive: false,
-          toolDockOpen: false,
-        });
-        return;
-      }
-      setDocumentState({ nativeInkToolPickerActive: visible });
+      handleNativeInkPickerVisibility(
+        event.nativeEvent?.visible === true,
+        useViewerStore.getState()
+      );
     },
-    [activeTool, setDocumentState]
+    []
   );
 
   const trackMobileChromeByOffset = useCallback(
@@ -322,6 +329,7 @@ export default function DedicatedIosPdfViewer({
 
   return (
     <View style={styles.container}>
+      <PdfNoteChooser notes={pendingNotes} title={t.annotationNote} cancel={t.cancel} onClose={()=>setPendingNotes([])} onSelect={id=>{setPendingNotes([]);setSelectedAnnotation(id);}} />
       <PapyrusPdfDocumentView
         style={[styles.viewer, cappedViewerStyle]}
         engineId={engineId}
@@ -330,7 +338,8 @@ export default function DedicatedIosPdfViewer({
         currentPage={currentPage}
         searchResults={searchResults}
         activeSearchIndex={activeSearchIndex}
-        annotations={annotations}
+        annotationNavigationRequest={annotationNavigationRequest}
+        annotations={annotations.filter(a => !a.anchor?.documentId || a.anchor.documentId === documentId)}
         activeTool={activeTool}
         activeDrawToolPreset={activeDrawToolPreset}
         inkStrokeWidth={inkStrokeWidth}
@@ -361,6 +370,8 @@ export default function DedicatedIosPdfViewer({
         onScroll={handleScroll}
         onTap={handleTap}
         onTextSelected={handleTextSelectionChange}
+        copyLabel={t.copy}
+        selectAllLabel={t.selectAll}
         defineLabel={t.define}
         defineSelectionMode={defineSelectionMode}
         annotateLabel={t.annotate}
@@ -373,9 +384,9 @@ export default function DedicatedIosPdfViewer({
         onDefineSelection={
           onDefineSelection ? handleNativeDefineSelection : undefined
         }
-        onAnnotationCreated={(event) => addAnnotation(event.nativeEvent)}
+        onAnnotationCreated={(event) => (event.nativeEvent.type === "comment" || event.nativeEvent.type === "text" ? beginAnnotationDraft : addAnnotation)(contextualizePdfAnnotation(event.nativeEvent,documentId))}
         onAnnotationTap={(event) =>
-          setSelectedAnnotation(event.nativeEvent.id)
+          handleAnnotationTap(event.nativeEvent.id)
         }
         onAnnotationDelete={(event) =>
           handleDeleteAnnotation(event.nativeEvent.id)

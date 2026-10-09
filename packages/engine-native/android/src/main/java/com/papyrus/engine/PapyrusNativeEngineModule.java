@@ -131,6 +131,18 @@ public class PapyrusNativeEngineModule extends ReactContextBaseJavaModule {
   }
 
   @ReactMethod
+  public void resolveTextAnnotationRange(String engineId,int generation,ReadableMap anchor,Promise promise) {
+    executor.execute(()->{
+      try {
+        String text=PapyrusTextStore.getText(engineId,generation);
+        int[] range=PapyrusTextAnnotationModel.resolve(text,anchor.getInt("start"),anchor.getInt("end"),anchor.getString("quote"),anchor.hasKey("prefix")&&!anchor.isNull("prefix")?anchor.getString("prefix"):null,anchor.hasKey("suffix")&&!anchor.isNull("suffix")?anchor.getString("suffix"):null);
+        if(range==null){promise.resolve(null);return;}
+        WritableMap result=Arguments.createMap();result.putInt("start",range[0]);result.putInt("end",range[1]);promise.resolve(result);
+      } catch(Exception error){promise.reject("papyrus_text_anchor_invalid",error);}
+    });
+  }
+
+  @ReactMethod
   public void searchTextRanges(String engineId, int generation, String query, Promise promise) {
     executor.execute(() -> {
       try {

@@ -1,3 +1,4 @@
+#import "PapyrusSelectionMenu.h"
 #import "PapyrusPdfDocumentView.h"
 
 #import <QuartzCore/QuartzCore.h>
@@ -216,11 +217,14 @@ static NSString *PapyrusHexColorFromUIColor(UIColor *color, CGFloat *opacity) {
 @end
 
 @interface PapyrusCommentPdfAnnotation : PDFAnnotation
+@property (nonatomic, assign) BOOL groupHidden;
+@property (nonatomic, assign) NSInteger groupCount;
 @end
 
 @implementation PapyrusCommentPdfAnnotation
 - (void)drawWithBox:(PDFDisplayBox)box inContext:(CGContextRef)context {
   (void)box;
+  if (self.groupHidden) return;
   CGRect bounds = self.bounds;
   if (CGRectIsNull(bounds) || CGRectIsEmpty(bounds) || !context) return;
 
@@ -246,6 +250,16 @@ static NSString *PapyrusHexColorFromUIColor(UIColor *color, CGFloat *opacity) {
   CGContextMoveToPoint(context, left, secondY);
   CGContextAddLineToPoint(context, right, secondY);
   CGContextStrokePath(context);
+  if (self.groupCount > 1) {
+    UIGraphicsPushContext(context);
+    CGContextTranslateCTM(context, CGRectGetMidX(bounds), CGRectGetMidY(bounds));
+    CGContextScaleCTM(context, 1, -1);
+    NSString *label = [NSString stringWithFormat:@"%ld", (long)self.groupCount];
+    NSDictionary *attributes = @{NSFontAttributeName:[UIFont boldSystemFontOfSize:MAX(8, bounds.size.height * 0.6)], NSForegroundColorAttributeName:UIColor.whiteColor};
+    CGSize size = [label sizeWithAttributes:attributes];
+    [label drawAtPoint:CGPointMake(-size.width/2, -size.height/2) withAttributes:attributes];
+    UIGraphicsPopContext();
+  }
   CGContextRestoreGState(context);
 }
 @end
@@ -290,6 +304,7 @@ static NSString *PapyrusHexColorFromUIColor(UIColor *color, CGFloat *opacity) {
 @property (nonatomic, weak) UIScrollView *observedScrollView;
 @property (nonatomic, strong) UITapGestureRecognizer *tapRecognizer;
 @property (nonatomic, strong) UITapGestureRecognizer *doubleTapRecognizer;
+@property (nonatomic, strong) UILongPressGestureRecognizer *longPressRecognizer;
 @property (nonatomic, assign) CGSize lastLayoutSize;
 @property (nonatomic, assign) NSInteger lastEmittedPage;
 @property (nonatomic, assign) CGFloat lastEmittedZoom;
@@ -352,6 +367,7 @@ static NSString *PapyrusHexColorFromUIColor(UIColor *color, CGFloat *opacity) {
   [[NSNotificationCenter defaultCenter] removeObserver:self];
   self.tapRecognizer.delegate = nil;
   self.doubleTapRecognizer.delegate = nil;
+  self.longPressRecognizer.delegate = nil;
   [self clearPapyrusAnnotationsForDocument:self.pdfView.document];
 }
 
@@ -429,6 +445,12 @@ static NSString *PapyrusHexColorFromUIColor(UIColor *color, CGFloat *opacity) {
   _doubleTapRecognizer.delaysTouchesBegan = NO;
   [_pdfView addGestureRecognizer:_doubleTapRecognizer];
   [_tapRecognizer requireGestureRecognizerToFail:_doubleTapRecognizer];
+  _longPressRecognizer = [[UILongPressGestureRecognizer alloc]
+      initWithTarget:self action:@selector(handleDocumentLongPress:)];
+  _longPressRecognizer.delegate = self;
+  _longPressRecognizer.cancelsTouchesInView = NO;
+  [_pdfView addGestureRecognizer:_longPressRecognizer];
+  [_tapRecognizer requireGestureRecognizerToFail:_longPressRecognizer];
 
   NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
   [center addObserver:self
@@ -1143,6 +1165,20 @@ static NSString *PapyrusHexColorFromUIColor(UIColor *color, CGFloat *opacity) {
   [self updateSelectedAnnotationAdornment];
 }
 
+- (void)setAnnotationNavigationRequest:(NSDictionary *)request {
+  _annotationNavigationRequest = [request copy];
+  if (!request) return;
+  PDFDocument *document = self.pdfView.document;
+  dispatch_async(dispatch_get_main_queue(), ^{
+    if (self.pdfView.document != document || ![self.annotationNavigationRequest isEqual:request]) return;
+    NSInteger index = [request[@"pageIndex"] integerValue];
+    if (index < 0 || index >= document.pageCount || ![request[@"rect"] isKindOfClass:[NSDictionary class]]) return;
+    PDFPage *page = [document pageAtIndex:index];
+    CGRect rect = PapyrusPdfRectFromNormalizedRect(request[@"rect"], [page boundsForBox:kPDFDisplayBoxCropBox]);
+    if (!CGRectIsEmpty(rect)) [self.pdfView goToRect:rect onPage:page];
+  });
+}
+
 - (void)setSelectedAnnotationId:(NSString *)selectedAnnotationId {
   NSString *normalized = selectedAnnotationId.length > 0
       ? [selectedAnnotationId copy] : nil;
@@ -1154,7 +1190,7 @@ static NSString *PapyrusHexColorFromUIColor(UIColor *color, CGFloat *opacity) {
 
 - (NSString *)annotationSignature:(NSDictionary *)annotation {
   NSArray<NSString *> *signatureKeys = @[
-    @"id", @"type", @"pageIndex", @"rect", @"rects", @"color", @"opacity", @"content"
+    @"id", @"type", @"pageIndex", @"rect", @"rects", @"color", @"opacity", @"content", @"anchor", @"markupStyle", @"noteContent"
   ];
   NSMutableDictionary *signatureFields = [NSMutableDictionary dictionary];
   for (NSString *key in signatureKeys) {
@@ -1253,6 +1289,24 @@ static NSString *PapyrusHexColorFromUIColor(UIColor *color, CGFloat *opacity) {
 
   NSString *type = [annotation[@"type"] isKindOfClass:NSString.class]
       ? annotation[@"type"] : @"";
+  NSString *markup = [annotation[@"markupStyle"] isKindOfClass:NSString.class] ? annotation[@"markupStyle"] : ([@[@"highlight",@"underline",@"strikeout",@"squiggly"] containsObject:annotation[@"type"]] ? annotation[@"type"] : nil);
+  BOOL hasContextNote = annotation[@"noteContent"] != nil;
+  if (hasContextNote && !annotation[@"papyrusIndicatorOnly"]) {
+    NSMutableArray *parts = [NSMutableArray array];
+    if (markup.length && ![markup isEqual:@"none"]) {
+      NSMutableDictionary *mark = [annotation mutableCopy];
+      mark[@"type"] = markup; [mark removeObjectForKey:@"noteContent"]; [mark removeObjectForKey:@"markupStyle"];
+      [parts addObjectsFromArray:[self createPdfAnnotationsForPapyrusAnnotation:mark]];
+    }
+    NSMutableDictionary *note = [annotation mutableCopy];
+    note[@"type"] = @"comment"; note[@"papyrusIndicatorOnly"] = @YES;
+    [parts addObjectsFromArray:[self createPdfAnnotationsForPapyrusAnnotation:note]];
+    return parts;
+  }
+  if (markup.length && !hasContextNote) {
+    if ([markup isEqual:@"none"]) return @[];
+    type = markup;
+  }
   NSString *subtype = nil;
   if ([type isEqualToString:@"highlight"]) subtype = @"Highlight";
   else if ([type isEqualToString:@"underline"]) subtype = @"Underline";
@@ -1272,9 +1326,14 @@ static NSString *PapyrusHexColorFromUIColor(UIColor *color, CGFloat *opacity) {
   NSArray *rects = [annotation[@"rects"] isKindOfClass:NSArray.class]
       ? annotation[@"rects"] : @[];
   if ([type isEqualToString:@"comment"] || [type isEqualToString:@"text"]) {
-    NSDictionary *rect = [annotation[@"rect"] isKindOfClass:NSDictionary.class]
-        ? annotation[@"rect"] : (rects.firstObject ?: @{});
-    rects = rect.count > 0 ? @[rect] : @[];
+    NSDictionary *rect = rects.lastObject ?: annotation[@"rect"];
+    if ([rect isKindOfClass:NSDictionary.class]) {
+      CGFloat width = MIN(0.06, 18.0/MAX(1,CGRectGetWidth(pageBounds)));
+      CGFloat height = MIN(0.06, 18.0/MAX(1,CGRectGetHeight(pageBounds)));
+      CGFloat x = MIN(1-width,MAX(0,[rect[@"x"] doubleValue]+[rect[@"width"] doubleValue]));
+      CGFloat y = MIN(1-height,MAX(0,[rect[@"y"] doubleValue]));
+      rects = @[@{@"x":@(x),@"y":@(y),@"width":@(width),@"height":@(height)}];
+    } else rects = @[];
   } else if (rects.count == 0 && [annotation[@"rect"] isKindOfClass:NSDictionary.class]) {
     rects = @[annotation[@"rect"]];
   }
@@ -1367,6 +1426,18 @@ static NSString *PapyrusHexColorFromUIColor(UIColor *color, CGFloat *opacity) {
     didChangeRepresentations = YES;
   }
   if (didChangeRepresentations) {
+    NSMutableDictionary<NSString *, PapyrusCommentPdfAnnotation *> *leaders = [NSMutableDictionary dictionary];
+    for (NSString *annotationId in self.papyrusAnnotationsById) {
+      for (PDFAnnotation *representation in self.papyrusAnnotationsById[annotationId]) {
+        if (![representation isKindOfClass:PapyrusCommentPdfAnnotation.class]) continue;
+        PapyrusCommentPdfAnnotation *note = (PapyrusCommentPdfAnnotation *)representation;
+        note.groupHidden = NO; note.groupCount = 1;
+        CGRect pageBounds = [note.page boundsForBox:kPDFDisplayBoxCropBox];
+        NSString *key = [NSString stringWithFormat:@"%ld:%ld:%ld", (long)[document indexForPage:note.page], (long)floor((CGRectGetMinX(note.bounds)-pageBounds.origin.x)/(pageBounds.size.width * 0.035)), (long)floor((CGRectGetMinY(note.bounds)-pageBounds.origin.y)/(pageBounds.size.height * 0.035))];
+        PapyrusCommentPdfAnnotation *leader = leaders[key];
+        if (leader) { note.groupHidden = YES; leader.groupCount++; } else {leaders[key] = note;}
+      }
+    }
     [self updateSelectedAnnotationAdornment];
     [self.pdfView setNeedsDisplay];
   }
@@ -1923,7 +1994,7 @@ static NSString *PapyrusHexColorFromUIColor(UIColor *color, CGFloat *opacity) {
     [actions addObject:annotationMenu];
   }
 
-  [actions addObjectsFromArray:suggestedActions ?: @[]];
+  [actions addObjectsFromArray:PapyrusLocalizedSelectionActions(suggestedActions ?: @[], self.copyLabel, self.selectAllLabel)];
 
   return [UIMenu menuWithChildren:actions];
 }
@@ -2182,7 +2253,7 @@ static NSString *PapyrusHexColorFromUIColor(UIColor *color, CGFloat *opacity) {
     }
     NSString *annotationType = [papyrusAnnotation[@"type"] isKindOfClass:NSString.class]
         ? papyrusAnnotation[@"type"] : @"";
-    if (![annotationType isEqualToString:@"comment"] &&
+    if (!papyrusAnnotation[@"noteContent"] && ![annotationType isEqualToString:@"comment"] &&
         ![annotationType isEqualToString:@"text"]) {
       [self presentAnnotationEditMenuForId:annotationId atPoint:viewPoint];
     }
@@ -2219,12 +2290,26 @@ static NSString *PapyrusHexColorFromUIColor(UIColor *color, CGFloat *opacity) {
   PDFDocument *document = self.pdfView.document;
   if (!document) return;
 
-  CGPoint viewPoint = [recognizer locationInView:self.pdfView];
-  PDFPage *page = [self.pdfView pageForPoint:viewPoint nearest:YES];
+  [self selectWordAtViewPoint:[recognizer locationInView:self.pdfView]];
+}
+
+- (void)handleDocumentLongPress:(UILongPressGestureRecognizer *)recognizer {
+  if (recognizer.state != UIGestureRecognizerStateBegan ||
+      [self.activeTool isEqualToString:@"ink"]) return;
+  CGPoint point = [recognizer locationInView:self.pdfView];
+  // Existing native handles must retain ownership of an extension gesture.
+  if ([self selectionContainsViewPoint:point]) return;
+  [self selectWordAtViewPoint:point];
+}
+
+- (void)selectWordAtViewPoint:(CGPoint)viewPoint {
+  PDFPage *page = [self.pdfView pageForPoint:viewPoint nearest:NO];
   if (!page) return;
-  CGPoint pagePoint = [self.pdfView convertPoint:viewPoint toPage:page];
-  PDFSelection *selection = [page selectionForWordAtPoint:pagePoint];
-  self.pdfView.currentSelection = selection;
+  PDFSelection *selection = [page selectionForWordAtPoint:
+      [self.pdfView convertPoint:viewPoint toPage:page]];
+  if (!selection.string.length) return;
+  selection.color = [UIColor.systemBlueColor colorWithAlphaComponent:0.30];
+  [self.pdfView setCurrentSelection:selection animate:NO];
   [self emitCurrentSelectionIfNeeded];
 }
 

@@ -1,16 +1,20 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Image, StyleSheet, View } from "react-native";
+import { Image, StyleSheet, View, Alert } from "react-native";
+import Clipboard from "@react-native-clipboard/clipboard";
 import WebView, {
   type WebViewMessageEvent,
   type WebViewErrorEvent,
 } from "react-native-webview";
-import { useViewerStore } from "@papyrus-sdk/core";
-import { DocumentEngine } from "@papyrus-sdk/types";
+import { createContextualAnnotation, useViewerStore } from "@papyrus-sdk/core";
+import { Annotation, AnnotationMarkupStyle, DocumentEngine } from "@papyrus-sdk/types";
 import { resolveMaxPageWidth } from "./pdfPageMetrics";
 import {
   parseWebViewInteraction,
   parseWebViewState,
 } from "./webViewState";
+
+import { parseEpubAnnotationEvent, type EpubAnnotationEvent } from "./epubAnnotationEvents";
+import { getStrings } from "../mobileStrings";
 
 const runtimeAsset = require("../runtime/index.html");
 type RuntimeSource = { html: string; baseUrl?: string } | { uri: string };
@@ -44,12 +48,17 @@ type WebViewBridgeEngine = DocumentEngine & {
   attachWebView?: (bridge: WebViewBridge) => void;
   detachWebView?: () => void;
   handleWebViewMessage?: (data: string) => void;
+  getWebViewDocumentSessionId?: () => string;
+  syncEpubAnnotations?: (annotations: Annotation[], documentId?: string, labels?: {comment:string}) => Promise<void>;
   getWebViewRuntimeSource?: () => unknown;
   getWebViewRuntimeConfig?: () => Record<string, string> | undefined;
 };
 
 interface WebViewViewerProps {
   engine: DocumentEngine;
+  documentId?: string;
+  onDefineSelection?: (selection: {text:string;pageIndex:number}) => void;
+  defineSelectionMode?: "selection" | "single-word";
   maxPageWidth?: number;
   onScrollOffset?: (offsetY: number) => void;
   onTap?: () => void;
@@ -57,12 +66,17 @@ interface WebViewViewerProps {
 
 const WebViewViewer: React.FC<WebViewViewerProps> = ({
   engine,
+  documentId,
+  onDefineSelection,
+  defineSelectionMode,
   maxPageWidth,
   onScrollOffset,
   onTap,
 }) => {
   const webViewRef = useRef<WebView>(null);
-  const { pageTheme } = useViewerStore();
+  const { pageTheme, annotations, isLoaded, locale, annotationColor, annotationOpacity, addAnnotation, beginAnnotationDraft, setSelectedAnnotation } = useViewerStore();
+  const [selection,setSelection] = useState<Extract<EpubAnnotationEvent,{kind:"selection"}> | null>(null);
+  const t = getStrings(locale);
   const bridgeEngine = engine as WebViewBridgeEngine;
   const runtimeSource = useMemo(
     () =>
@@ -135,8 +149,73 @@ const WebViewViewer: React.FC<WebViewViewerProps> = ({
     };
   }, [bridgeEngine]);
 
+  useEffect(() => {
+    setSelection(null);
+  }, [engine,documentId]);
+
+  useEffect(() => {
+    if (!isLoaded) return;
+    let active = true;
+    void bridgeEngine.syncEpubAnnotations?.(annotations,documentId,{comment:t.annotationNote}).catch(() => {
+      // Store remains authoritative; resend on the next loaded snapshot.
+      if (active) setSelection(null);
+    });
+    return () => {active=false;};
+  }, [bridgeEngine, annotations,documentId,isLoaded,t.annotationNote]);
+
+  const annotateSelection = (style:AnnotationMarkupStyle,note?:string, selected = selection) => {
+    if (!selected || selected.session !== bridgeEngine.getWebViewDocumentSessionId?.() || !isLoaded) return;
+    (note !== undefined ? beginAnnotationDraft : addAnnotation)(createContextualAnnotation({id:`annotation-${Date.now()}-${Math.random().toString(36).slice(2)}`,anchor:selected.anchor,pageIndex:selected.pageIndex,style,color:annotationColor,opacity:annotationOpacity,note}));
+    setSelection(null);
+  };
+
+  const sendSelectionCommand = (key: string) => {
+    webViewRef.current?.postMessage(JSON.stringify({type: "epub-selection-action", id: "selection-menu", key,
+      documentSessionId: bridgeEngine.getWebViewDocumentSessionId?.()}));
+  };
+  // WebView binds positional item IDs when the menu opens. Keep the order
+  // stable while selection handles move; enforce Define eligibility on action.
+  const selectionMenuItems = [
+    {key: "copy", label: t.copy},
+    ...(onDefineSelection ? [{key: "define", label: t.define}] : []),
+    {key: "highlight", label: t.annotationHighlight},
+    {key: "underline", label: t.annotationUnderline},
+    {key: "strikeout", label: t.annotationStrikeout},
+    {key: "comment", label: t.annotationNote},
+    {key: "selectAll", label: t.selectAll},
+  ];
+
   const handleMessage = (event: WebViewMessageEvent) => {
     const raw = event.nativeEvent.data;
+    // Action messages carry a validated, current-session CFI snapshot from
+    // the chapter iframe. WebView's selectedText only reads the root frame.
+    let action: string | undefined;
+    let annotationRaw = raw;
+    try {
+      const message = JSON.parse(raw);
+      if (message.type === "event" && message.name === "EPUB_SELECTION_ACTION") {
+        action = message.payload?.action;
+        annotationRaw = JSON.stringify({...message, name: "EPUB_TEXT_SELECTED"});
+      }
+    } catch { /* The bridge parser handles other messages. */ }
+    const annotationEvent = parseEpubAnnotationEvent(annotationRaw,bridgeEngine.getWebViewDocumentSessionId?.() ?? "",documentId);
+    if (annotationEvent?.kind === "selection") {
+      if (!action) setSelection(annotationEvent);
+      else if (action === "copy") { Clipboard.setString(annotationEvent.text); setSelection(null); }
+      else if (action === "define") {
+        if (defineSelectionMode !== "single-word" || /^\S{1,64}$/.test(annotationEvent.text.trim())) onDefineSelection?.(annotationEvent);
+        else Alert.alert(t.define, t.defineSingleWordHint);
+        setSelection(null);
+      } else if (["highlight", "underline", "strikeout", "comment"].includes(action)) {
+        annotateSelection(action === "comment" ? "highlight" : action as AnnotationMarkupStyle,
+          action === "comment" ? "" : undefined, annotationEvent);
+      }
+    }
+    if (annotationEvent?.kind === "tap" && annotations.some(a => a.id === annotationEvent.id)) {setSelection(null);
+      const group=annotations.filter(a=>annotationEvent.ids?.includes(a.id));
+      if(group.length>1)Alert.alert(t.annotationNote,undefined,[...group.map(a=>({text:(a.noteContent || a.anchor?.quote || a.content || '').slice(0,100),onPress:()=>setSelectedAnnotation(a.id)})),{text:t.cancel,style:'cancel'}]);
+      else setSelectedAnnotation(annotationEvent.id);
+      return;}
     const interaction = parseWebViewInteraction(raw);
     if (interaction?.kind === "scroll") onScrollOffset?.(interaction.offsetY);
     if (interaction?.kind === "tap") onTap?.();
@@ -215,6 +294,8 @@ const WebViewViewer: React.FC<WebViewViewerProps> = ({
         source={webViewSource}
         originWhitelist={["*"]}
         onMessage={handleMessage}
+        menuItems={selectionMenuItems}
+        onCustomMenuSelection={event => sendSelectionCommand(event.nativeEvent.key)}
         onLoadEnd={handleLoadEnd}
         onError={handleError}
         injectedJavaScriptBeforeContentLoaded={runtimeConfigScript}

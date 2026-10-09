@@ -131,14 +131,14 @@ describe("annotation deletion routes", () => {
     expect(annotationEditor).toContain("t.deleteAnnotation");
     expect(annotationEditor).toContain("annotation.type === \"text\"");
     expect(annotationEditor).toContain("annotation.type === \"comment\"");
-    expect(annotationEditor).toContain("onPress={handleDelete}");
-    expect(annotationEditor).toContain("styles.actionDelete");
+    expect(annotationEditor).toContain("onPress={remove}");
+    expect(annotationEditor).toContain('style:"destructive"');
     expect(annotationEditor).toContain("t.cancel");
     expect(annotationEditor).toContain("t.save");
   });
 
   it("keeps native markup deletion store-driven through the annotations prop", () => {
-    expect(iosViewer).toContain("annotations={annotations}");
+    expect(iosViewer).toContain("annotations={annotations.filter");
     expect(iosViewer).toContain("handleDeleteAnnotation(event.nativeEvent.id)");
     expect(iosViewer).toContain("setSelectedAnnotation(null)");
   });

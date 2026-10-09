@@ -81,7 +81,7 @@ describe("RN Viewer pinch contract", () => {
     expect(viewerSource).toContain("maxPageWidth?: number");
     expect(viewerSource).toContain("maxPageWidth={maxPageWidth}");
     expect(viewerSource).toContain(
-      "NativePdfDocumentViewer engine={engine} maxPageWidth={maxPageWidth}"
+      "NativePdfDocumentViewer engine={engine} documentId={documentId} maxPageWidth={maxPageWidth}"
     );
     expect(pageRendererSource).toContain("maxPageWidth,");
     expect(webViewViewerSource).toContain("maxWidth: resolvedMaxPageWidth");

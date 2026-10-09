@@ -1,16 +1,12 @@
+import {getStrings} from "../mobileStrings";
+import {getNearbyPdfNotes} from "./pdfAnnotationNoteGroups";
+import PdfNoteChooser from "./PdfNoteChooser";
+import type {Annotation} from "@papyrus-sdk/types";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Pressable, StyleSheet, View } from "react-native";
-import Clipboard from "@react-native-clipboard/clipboard";
-import { useViewerStore } from "@papyrus-sdk/core";
+import { StyleSheet, View } from "react-native";
+import {contextualizePdfAnnotation, useViewerStore} from "@papyrus-sdk/core";
 import { DocumentEngine } from "@papyrus-sdk/types";
 import { PapyrusPdfDocumentView } from "@papyrus-sdk/engine-native";
-import {
-  IconCopy,
-  IconMessageSquareQuote,
-  IconPencilLine,
-  IconUnderline,
-} from "../icons";
-import { copySelectionText } from "./clipboard";
 import { resolvePageTapChromeVisibility } from "./mobileChromeInteraction";
 import { shouldDismissSelectionOnContentInteraction } from "./selectionContentInteraction";
 import { resolveMaxPageWidth } from "./pdfPageMetrics";
@@ -28,7 +24,11 @@ type NativeEngineBackdoor = {
 
 type DedicatedAndroidPdfViewerProps = {
   engine: DocumentEngine;
+  documentId?: string;
   maxPageWidth?: number;
+  onTextSelected?: (selection: {text:string;pageIndex:number}) => void;
+  onDefineSelection?: (selection: {text:string;pageIndex:number}) => void;
+  defineSelectionMode?: "selection" | "single-word";
 };
 
 export const getDedicatedAndroidPdfEngineId = (
@@ -47,8 +47,13 @@ type SelectionState = {
 
 export default function DedicatedAndroidPdfViewer({
   engine,
+  documentId,
   maxPageWidth,
+  onTextSelected,
+  onDefineSelection,
+  defineSelectionMode,
 }: DedicatedAndroidPdfViewerProps) {
+  const t = getStrings(useViewerStore(state=>state.locale));
   const pageTheme = useViewerStore((state) => state.pageTheme);
   const zoom = useViewerStore((state) => state.zoom);
   const currentPage = useViewerStore((state) => state.currentPage);
@@ -57,7 +62,14 @@ export default function DedicatedAndroidPdfViewer({
   const inkStrokeWidth = useViewerStore((state) => state.inkStrokeWidth);
   const annotationOpacity = useViewerStore((state) => state.annotationOpacity);
   const searchResults = useViewerStore((state) => state.searchResults);
+  const annotationNavigationRequest = useViewerStore(state => state.annotationNavigationRequest);
   const annotations = useViewerStore((state) => state.annotations);
+  const [pendingNotes,setPendingNotes] = useState<Annotation[]>([]);
+  const handleAnnotationTap = (id:string) => {
+    const nearby=getNearbyPdfNotes(annotations,id);
+    if(nearby.length<2){setSelectedAnnotation(id);return;}
+    setPendingNotes(nearby);
+  };
   const viewMode = useViewerStore((state) => state.viewMode);
   const mobileChromeVisible = useViewerStore(
     (state) => state.mobileChromeVisible
@@ -67,6 +79,7 @@ export default function DedicatedAndroidPdfViewer({
   );
   const nativeViewMode = viewMode === "single" ? "single" : "continuous";
   const setDocumentState = useViewerStore((state) => state.setDocumentState);
+  const beginAnnotationDraft = useViewerStore(state=>state.beginAnnotationDraft);
   const addAnnotation = useViewerStore((state) => state.addAnnotation);
   const setSelectedAnnotation = useViewerStore((state) => state.setSelectedAnnotation);
   const engineId = getDedicatedAndroidPdfEngineId(engine);
@@ -172,7 +185,7 @@ export default function DedicatedAndroidPdfViewer({
       width: Math.max(acc.x + acc.width, r.x + r.width) - Math.min(acc.x, r.x),
       height: Math.max(acc.y + acc.height, r.y + r.height) - Math.min(acc.y, r.y),
     }), { x: 1, y: 1, width: 0, height: 0 });
-    addAnnotation({
+    (type === "comment" ? beginAnnotationDraft : addAnnotation)(contextualizePdfAnnotation({
       id: Math.random().toString(36).slice(2, 9),
       pageIndex: sel.pageIndex,
       type,
@@ -181,28 +194,26 @@ export default function DedicatedAndroidPdfViewer({
       color: annotationColor,
       content: sel.text,
       createdAt: Date.now(),
-    });
+    },documentId));
     setSelection(null);
     selectionRef.current = null;
-  }, [addAnnotation, annotationColor]);
-
-  const copySelection = useCallback(async () => {
-    const sel = selectionRef.current;
-    if (!sel?.text.trim()) return;
-    const copied = await copySelectionText(sel.text, Clipboard);
-    if (!copied) {
-      console.error("[Papyrus] Failed to copy selected text");
-      return;
-    }
-    setSelection(null);
-    selectionRef.current = null;
-  }, []);
+  }, [addAnnotation, beginAnnotationDraft, annotationColor, documentId]);
 
   return (
     <View style={styles.container}>
+      <PdfNoteChooser notes={pendingNotes} title={t.annotationNote} cancel={t.cancel} onClose={()=>setPendingNotes([])} onSelect={id=>{setPendingNotes([]);setSelectedAnnotation(id);}} />
       <PapyrusPdfDocumentView
         style={[styles.viewer, cappedViewerStyle]}
         engineId={engineId}
+        annotationLabels={{copy:t.copy,highlight:t.annotationHighlight,underline:t.annotationUnderline,strikeout:t.annotationStrikeout,comment:t.annotationNote}}
+        defineLabel={t.define}
+        defineEnabled={!!onDefineSelection}
+        defineSelectionMode={defineSelectionMode}
+        onDefineSelection={event => onDefineSelection?.(event.nativeEvent)}
+        onAnnotateSelection={event => {
+          selectionRef.current = event.nativeEvent;
+          applySelection(event.nativeEvent.style);
+        }}
         pageTheme={pageTheme}
         zoom={zoom}
         currentPage={currentPage}
@@ -211,7 +222,8 @@ export default function DedicatedAndroidPdfViewer({
         inkStrokeWidth={inkStrokeWidth}
         annotationOpacity={annotationOpacity}
         searchResults={searchResults}
-        annotations={annotations}
+        annotationNavigationRequest={annotationNavigationRequest}
+        annotations={annotations.filter(a => !a.anchor?.documentId || a.anchor.documentId === documentId)}
         selectionActive={!!selection}
         viewMode={nativeViewMode}
         onPageChange={(event) => {
@@ -251,10 +263,10 @@ export default function DedicatedAndroidPdfViewer({
           setDocumentState({ visiblePages: stablePages });
         }}
         onAnnotationCreated={(event) => {
-          addAnnotation(event.nativeEvent);
+          (event.nativeEvent.type === "comment" || event.nativeEvent.type === "text" ? beginAnnotationDraft : addAnnotation)(contextualizePdfAnnotation(event.nativeEvent,documentId));
         }}
         onAnnotationTap={(event) => {
-          setSelectedAnnotation(event.nativeEvent.id);
+          handleAnnotationTap(event.nativeEvent.id);
         }}
         onTap={() => {
           if (
@@ -289,6 +301,7 @@ export default function DedicatedAndroidPdfViewer({
           const sel = { text, pageIndex, rects };
           setSelection(sel);
           selectionRef.current = sel;
+          onTextSelected?.({text,pageIndex});
           if (TEXT_MARKUP_TOOLS.has(activeTool)) {
             applySelection(activeTool as "highlight" | "underline" | "squiggly" | "strikeout");
           }
@@ -306,48 +319,7 @@ export default function DedicatedAndroidPdfViewer({
           trackMobileChromeByOffset(event.nativeEvent.offsetY, "native.scroll");
         }}
       />
-      {selection && (
-        <>
-          <View style={styles.selectionToolbar} pointerEvents="box-none">
-            <View style={styles.toolbarContent}>
-              <Pressable
-                onPress={() => {
-                  void copySelection();
-                }}
-                style={styles.toolbarButton}
-                accessibilityRole="button"
-                accessibilityLabel="Copy selected text"
-              >
-                <IconCopy size={20} color="#fff" strokeWidth={2} />
-              </Pressable>
-              <Pressable
-                onPress={() => {
-                  applySelection("highlight");
-                }}
-                style={styles.toolbarButton}
-              >
-                <IconPencilLine size={22} color="#fbbf24" />
-              </Pressable>
-              <Pressable
-                onPress={() => {
-                  applySelection("underline");
-                }}
-                style={styles.toolbarButton}
-              >
-                <IconUnderline size={22} color="#60a5fa" />
-              </Pressable>
-              <Pressable
-                onPress={() => {
-                  applySelection("comment");
-                }}
-                style={styles.toolbarButton}
-              >
-                <IconMessageSquareQuote size={22} color="#fff" />
-              </Pressable>
-            </View>
-          </View>
-        </>
-      )}
+
     </View>
   );
 }
@@ -358,40 +330,5 @@ const styles = StyleSheet.create({
   },
   viewer: {
     flex: 1,
-  },
-  selectionToolbar: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 120,
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 50,
-  },
-  toolbarContent: {
-    flexDirection: "row",
-    backgroundColor: "rgba(30, 30, 30, 0.92)",
-    borderRadius: 16,
-    paddingHorizontal: 8,
-    paddingVertical: 8,
-    gap: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 10,
-  },
-  toolbarButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    backgroundColor: "rgba(255,255,255,0.1)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  toolbarButtonText: {
-    color: "#fff",
-    fontSize: 11,
-    fontWeight: "700",
   },
 });

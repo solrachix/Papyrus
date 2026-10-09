@@ -1,6 +1,11 @@
 package com.papyrus.engine;
 
 import android.content.Context;
+import android.content.ClipboardManager;
+import android.content.ClipData;
+import android.view.ActionMode;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
@@ -25,6 +30,7 @@ import android.view.ViewParent;
 import android.widget.OverScroller;
 
 import com.facebook.react.bridge.Arguments;
+import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.bridge.ReactContext;
 import com.facebook.react.bridge.WritableArray;
 import com.facebook.react.bridge.WritableMap;
@@ -143,6 +149,105 @@ public class PapyrusPdfViewerView extends View {
   private static final float DOUBLE_TAP_MAX_DISTANCE_DP = 20;
   private final long doubleTapTimeoutMs;
   private Runnable pendingSingleTap;
+  private Runnable pendingLongPress;
+  private boolean longPressSelected;
+  private ActionMode selectionActionMode;
+  private ReadableMap selectionLabels;
+  private String defineLabel = "Define";
+  private String defineSelectionMode = "selection";
+  private boolean defineEnabled;
+  private static final String[] SELECTION_ACTIONS = {"copy", "define", "highlight", "underline", "strikeout", "comment"};
+
+  public void setAnnotationLabels(ReadableMap labels) { selectionLabels = labels; }
+  public void setDefineLabel(String label) { defineLabel = label == null ? "Define" : label; }
+  public void setDefineSelectionMode(String mode) { defineSelectionMode = mode; }
+  public void setDefineEnabled(boolean enabled) { defineEnabled = enabled; }
+
+  private String selectionLabel(String key) {
+    if ("define".equals(key)) return defineLabel;
+    return selectionLabels != null && selectionLabels.hasKey(key) && !selectionLabels.isNull(key)
+      ? selectionLabels.getString(key) : key;
+  }
+
+  private void cancelPendingLongPress() {
+    if (pendingLongPress != null) mainHandler.removeCallbacks(pendingLongPress);
+    pendingLongPress = null;
+  }
+
+  @Override protected void onDetachedFromWindow() {
+    cancelPendingLongPress();
+    if (pendingSingleTap != null) mainHandler.removeCallbacks(pendingSingleTap);
+    clearSelectionState();
+    super.onDetachedFromWindow();
+  }
+
+  private void showSelectionMenu() {
+    if (selectedText.trim().isEmpty() || selectedRects.isEmpty()) return;
+    if (selectionActionMode != null) { selectionActionMode.invalidate(); selectionActionMode.invalidateContentRect(); return; }
+    selectionActionMode = startActionMode(new ActionMode.Callback2() {
+      @Override public boolean onCreateActionMode(ActionMode mode, Menu menu) { fillSelectionMenu(menu); return true; }
+      @Override public boolean onPrepareActionMode(ActionMode mode, Menu menu) { fillSelectionMenu(menu); return true; }
+      @Override public boolean onActionItemClicked(ActionMode mode, MenuItem item) {
+        int index = item.getItemId() - 0x5070;
+        if (index < 0 || index >= SELECTION_ACTIONS.length) return false;
+        String action = SELECTION_ACTIONS[index];
+        if ("copy".equals(action)) {
+          ClipboardManager clipboard = (ClipboardManager) getContext().getSystemService(Context.CLIPBOARD_SERVICE);
+          if (clipboard != null) clipboard.setPrimaryClip(ClipData.newPlainText(selectionLabel("copy"), selectedText));
+        } else {
+          WritableMap event = selectionPayload();
+          if ("define".equals(action)) emitSelectionIntent("onDefineSelection", event);
+          else { event.putString("style", action); emitSelectionIntent("onAnnotateSelection", event); }
+        }
+        mode.finish();
+        return true;
+      }
+      @Override public void onDestroyActionMode(ActionMode mode) {
+        if (selectionActionMode != mode) return;
+        selectionActionMode = null;
+        clearSelectionState();
+        emitSelectionCleared();
+      }
+      @Override public void onGetContentRect(ActionMode mode, View view, Rect outRect) {
+        PageFrame frame = findSelectFrame();
+        if (frame == null || selectedRects.isEmpty()) { outRect.set(0,0,1,1); return; }
+        RectF bounds = new RectF();
+        for (NormalizedRect r : selectedRects) bounds.union(frame.left-offsetX+r.x*frame.width,
+          frame.top-offsetY+r.y*frame.height,frame.left-offsetX+(r.x+r.width)*frame.width,
+          frame.top-offsetY+(r.y+r.height)*frame.height);
+        bounds.roundOut(outRect);
+      }
+    }, ActionMode.TYPE_FLOATING);
+  }
+
+  private void fillSelectionMenu(Menu menu) {
+    menu.clear();
+    for (int i=0; i<SELECTION_ACTIONS.length; i++) {
+      String key = SELECTION_ACTIONS[i];
+      if ("define".equals(key) && (!defineEnabled || "single-word".equals(defineSelectionMode) && selectedText.trim().matches("(?s).*\\s+.*"))) continue;
+      MenuItem item = menu.add(Menu.NONE, 0x5070+i, i, selectionLabel(key));
+      item.setIcon(new PapyrusSelectionMenuIcon(key));
+      item.setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM);
+    }
+  }
+
+  private WritableMap selectionPayload() {
+    WritableMap event = Arguments.createMap();
+    event.putString("text", selectedText);
+    event.putInt("pageIndex", selectPageIndex);
+    WritableArray rects = Arguments.createArray();
+    for (NormalizedRect rect : selectedRects) {
+      WritableMap r = Arguments.createMap();
+      r.putDouble("x",rect.x); r.putDouble("y",rect.y);
+      r.putDouble("width",rect.width); r.putDouble("height",rect.height); rects.pushMap(r);
+    }
+    event.putArray("rects",rects);
+    return event;
+  }
+
+  private void emitSelectionIntent(String name, WritableMap event) {
+    reactContext.getJSModule(RCTEventEmitter.class).receiveEvent(getId(), name, event);
+  }
   private boolean suppressPageTapForGesture = false;
   private boolean insideSelectionAtDown = false;
 
@@ -327,6 +432,30 @@ public class PapyrusPdfViewerView extends View {
     invalidate();
   }
 
+  private long annotationNavigationGeneration = 0;
+
+  public void setAnnotationNavigationRequest(ReadableMap request) {
+    long generation = ++annotationNavigationGeneration;
+    if (request == null) return;
+    final String requestedEngine = engineId;
+    final int pageIndex = request.getInt("pageIndex");
+    final ReadableMap rect = request.getMap("rect");
+    if (rect == null) return;
+    final float x = (float) rect.getDouble("x");
+    final float y = (float) rect.getDouble("y");
+    post(() -> {
+      if (generation != annotationNavigationGeneration || requestedEngine == null || !requestedEngine.equals(engineId)) return;
+      ensureLayout();
+      if (pageIndex < 0 || pageIndex >= pageFrames.size()) return;
+      flingScroller.forceFinished(true);
+      PageFrame frame = pageFrames.get(pageIndex);
+      offsetY = frame.top + frame.height * clamp(y, 0f, 1f) - getHeight() * 0.15f;
+      offsetX = frame.left + frame.width * clamp(x, 0f, 1f) - getWidth() * 0.15f;
+      clampOffsets();
+      invalidate();
+    });
+  }
+
   public void setCurrentPage(int page) {
     if (page <= 0 || engineId == null) return;
     ensureLayout();
@@ -356,6 +485,7 @@ public class PapyrusPdfViewerView extends View {
   @Override
   public boolean onTouchEvent(MotionEvent event) {
     int action = event.getActionMasked();
+    if (event.getPointerCount() > 1 || action == MotionEvent.ACTION_CANCEL) cancelPendingLongPress();
     if (action == MotionEvent.ACTION_DOWN && event.getPointerCount() == 1) {
       requestDisallowParentInterception(true);
     } else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
@@ -561,6 +691,8 @@ public class PapyrusPdfViewerView extends View {
         if (event.getPointerCount() > 1) {
           return true; // Multi-touch: ignore, let pinch zoom handle it
         }
+        cancelPendingLongPress();
+        longPressSelected = false;
         touchDownTime = System.currentTimeMillis();
         touchDownX = event.getX();
         touchDownY = event.getY();
@@ -593,6 +725,18 @@ public class PapyrusPdfViewerView extends View {
           }
         }
 
+        if (!insideSelectionAtDown) {
+          final float x = event.getX(), y = event.getY();
+          pendingLongPress = () -> {
+            pendingLongPress = null;
+            longPressSelected = true;
+            lastTapTime = 0;
+            if (pendingSingleTap != null) mainHandler.removeCallbacks(pendingSingleTap);
+            pendingSingleTap = null;
+            beginWordSelection(x, y);
+          };
+          mainHandler.postDelayed(pendingLongPress, ViewConfiguration.getLongPressTimeout());
+        }
         if (velocityTracker == null) {
           velocityTracker = VelocityTracker.obtain();
         } else {
@@ -614,6 +758,7 @@ public class PapyrusPdfViewerView extends View {
         float moveDx = event.getX() - touchDownX;
         float moveDy = event.getY() - touchDownY;
         float moveDistance = (float) Math.hypot(moveDx, moveDy);
+        if (moveDistance > ViewConfiguration.get(getContext()).getScaledTouchSlop()) cancelPendingLongPress();
 
         if (draggedHandle != 0 && isSelectingText && selectPageIndex >= 0) {
           ensureLayout();
@@ -663,6 +808,12 @@ public class PapyrusPdfViewerView extends View {
 
       case MotionEvent.ACTION_UP:
       case MotionEvent.ACTION_CANCEL: {
+        cancelPendingLongPress();
+        if (longPressSelected) {
+          longPressSelected = false;
+          if (velocityTracker != null) { velocityTracker.recycle(); velocityTracker = null; }
+          return true;
+        }
         boolean wasHandleDrag = draggedHandle != 0;
         draggedHandle = 0;
         insideSelectionAtDown = false;
@@ -788,6 +939,10 @@ public class PapyrusPdfViewerView extends View {
   }
 
   private void clearSelectionState() {
+    cancelPendingLongPress();
+    ActionMode menu = selectionActionMode;
+    selectionActionMode = null;
+    if (menu != null) menu.finish();
     isSelectingText = false;
     selectPageIndex = -1;
     selectedRects.clear();
@@ -988,7 +1143,8 @@ public class PapyrusPdfViewerView extends View {
     invalidate();
     if (emit) {
       emitTextSelected();
-    }
+      showSelectionMenu();
+    } else if (selectionActionMode != null) selectionActionMode.invalidateContentRect();
   }
 
   private void emitTextSelected() {
@@ -1345,6 +1501,11 @@ public class PapyrusPdfViewerView extends View {
     for (Annotation annotation : annotations) {
       if (annotation.pageIndex != pageIndex) continue;
       if (annotation.rects == null || annotation.rects.isEmpty()) continue;
+      if(annotation.hasNote){
+        NormalizedRect last=annotation.rects.get(annotation.rects.size()-1);
+        float cx=Math.min(0.99f,last.x+last.width+0.012f), cy=last.y+0.012f;
+        if(Math.abs(nx-cx)<0.035f && Math.abs(ny-cy)<0.035f)return annotation;
+      }
       for (NormalizedRect rect : annotation.rects) {
         if (nx >= rect.x && nx <= rect.x + rect.width &&
             ny >= rect.y && ny <= rect.y + rect.height) {
@@ -1873,8 +2034,20 @@ public class PapyrusPdfViewerView extends View {
     invalidate();
   }
 
+  private final Map<String, Integer> noteGroupCounts = new HashMap<>();
+  private final java.util.Set<String> hiddenNoteMarkers = new java.util.HashSet<>();
   public void setAnnotations(List<Annotation> items) {
     annotations = items != null ? items : new ArrayList<>();
+    noteGroupCounts.clear(); hiddenNoteMarkers.clear();
+    Map<String, String> leaders = new HashMap<>();
+    for (Annotation annotation : annotations) {
+      if (!annotation.hasNote || annotation.rects.isEmpty()) continue;
+      NormalizedRect rect = annotation.rects.get(annotation.rects.size()-1);
+      String key=annotation.pageIndex+":"+(int)Math.floor((rect.x+rect.width)/0.035f)+":"+(int)Math.floor(rect.y/0.035f);
+      String leader=leaders.get(key);
+      if (leader==null) {leaders.put(key,annotation.id);noteGroupCounts.put(annotation.id,1);}
+      else {hiddenNoteMarkers.add(annotation.id);noteGroupCounts.put(leader,noteGroupCounts.get(leader)+1);}
+    }
     invalidate();
   }
 
@@ -1949,25 +2122,38 @@ public class PapyrusPdfViewerView extends View {
         overlayPaint.setStyle(Paint.Style.FILL);
         continue;
       }
-      overlayPaint.setColor(Color.argb(140, Color.red(color), Color.green(color), Color.blue(color)));
+      overlayPaint.setColor(Color.argb(Math.round(annotation.opacity*255), Color.red(color), Color.green(color), Color.blue(color)));
       for (NormalizedRect rect : annotation.rects) {
         float rLeft = left + rect.x * scaleX;
         float rTop = top + rect.y * scaleY;
         float rRight = rLeft + rect.width * scaleX;
         float rBottom = rTop + rect.height * scaleY;
-        if ("underline".equals(annotation.type)) {
+        if ("underline".equals(annotation.markupStyle)) {
           overlayPaint.setStyle(Paint.Style.STROKE);
           overlayPaint.setStrokeWidth(Math.max(2f, scaleY * 0.008f));
           canvas.drawLine(rLeft, rBottom - 2, rRight, rBottom - 2, overlayPaint);
           overlayPaint.setStyle(Paint.Style.FILL);
-        } else if ("strikeout".equals(annotation.type)) {
+        } else if ("strikeout".equals(annotation.markupStyle)) {
           overlayPaint.setStyle(Paint.Style.STROKE);
           overlayPaint.setStrokeWidth(Math.max(2f, scaleY * 0.008f));
           canvas.drawLine(rLeft, (rTop + rBottom) / 2f, rRight, (rTop + rBottom) / 2f, overlayPaint);
           overlayPaint.setStyle(Paint.Style.FILL);
-        } else {
+        } else if ("squiggly".equals(annotation.markupStyle)) {
+          overlayPaint.setStyle(Paint.Style.STROKE);overlayPaint.setStrokeWidth(2);
+          Path wave=new Path();wave.moveTo(rLeft,rBottom-2);
+          for(float x=rLeft+3;x<=rRight;x+=3)wave.lineTo(x,rBottom-2+(((int)((x-rLeft)/3))%2==0?-2:2));
+          canvas.drawPath(wave,overlayPaint);overlayPaint.setStyle(Paint.Style.FILL);
+        } else if ("highlight".equals(annotation.markupStyle)) {
           canvas.drawRect(rLeft, rTop, rRight, rBottom, overlayPaint);
         }
+      }
+      if (annotation.hasNote && !annotation.rects.isEmpty() && !hiddenNoteMarkers.contains(annotation.id)) {
+        NormalizedRect last=annotation.rects.get(annotation.rects.size()-1);
+        float cx=Math.min(left+scaleX-9,left+(last.x+last.width)*scaleX+9);
+        float cy=top+last.y*scaleY+9;
+        overlayPaint.setColor(color);overlayPaint.setAlpha(255);canvas.drawCircle(cx,cy,8,overlayPaint);
+        int count=noteGroupCounts.getOrDefault(annotation.id,1);
+        if(count>1){overlayPaint.setColor(Color.WHITE);overlayPaint.setTextSize(11);overlayPaint.setTextAlign(Paint.Align.CENTER);canvas.drawText(String.valueOf(count),cx,cy+4,overlayPaint);overlayPaint.setTextAlign(Paint.Align.LEFT);}
       }
     }
 
@@ -2025,6 +2211,8 @@ public class PapyrusPdfViewerView extends View {
     final String id;
     final int pageIndex;
     final String type;
+    String markupStyle;
+    boolean hasNote;
     final String color;
     final List<NormalizedRect> rects;
     final List<NormalizedPoint> path;
@@ -2037,6 +2225,8 @@ public class PapyrusPdfViewerView extends View {
       this.id = id;
       this.pageIndex = pageIndex;
       this.type = type;
+      this.markupStyle = type;
+      this.hasNote = "comment".equals(type)||"text".equals(type);
       this.color = color;
       this.rects = rects;
       this.path = path;

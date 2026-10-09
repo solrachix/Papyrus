@@ -5,8 +5,12 @@ import {
   Pressable,
   StyleSheet,
   useWindowDimensions,
+  type ViewStyle,
 } from "react-native";
 import { useViewerStore } from "@papyrus-sdk/core";
+import Animated, { useAnimatedStyle } from "react-native-reanimated";
+import { getStrings } from "../mobileStrings";
+import { useNativeInkMotion, useNativeInkSession } from "./useNativeInkChrome";
 import { IconSettings, IconChevronLeft, IconChevronRight } from "../icons";
 import { DocumentEngine } from "@papyrus-sdk/types";
 import { MOBILE_CHROME_METRICS } from "./mobileChromeMetrics";
@@ -44,7 +48,25 @@ const Topbar: React.FC<TopbarProps> = ({
     triggerScrollToPage,
     accentColor,
     mobileChromeVisible,
+    locale,
   } = useViewerStore();
+  const inkSession = useNativeInkSession();
+  const t = getStrings(locale);
+  const progress = useNativeInkMotion(inkSession.active, inkSession.supported);
+  const settingsMotion = useAnimatedStyle((): ViewStyle => {
+    "worklet";
+    return {
+    opacity: 1 - progress.value,
+    transform: [{ scale: 1 - progress.value * 0.04 }, { translateX: -progress.value * 6 }],
+    };
+  });
+  const doneMotion = useAnimatedStyle((): ViewStyle => {
+    "worklet";
+    return {
+    opacity: progress.value,
+    transform: [{ scale: 0.96 + progress.value * 0.04 }, { translateX: (1 - progress.value) * 6 }],
+    };
+  });
   const [jumpModalOpen, setJumpModalOpen] = useState(false);
   const isDark = uiTheme === "dark";
   const navIconColor = isDark ? "#e5e7eb" : "#111827";
@@ -78,7 +100,20 @@ const Topbar: React.FC<TopbarProps> = ({
   );
   const logoElement = logo ?? defaultLogo;
 
-  if (!mobileChromeVisible) return null;
+  const settingsControl = (
+    <Pressable
+      onPress={() => onOpenOverflow?.() ?? onOpenSettings?.()}
+      style={[styles.iconButton, isDark && styles.iconButtonDark,
+        inkSession.supported && styles.annotationSettingsButton]}
+      accessibilityRole="button"
+      accessibilityLabel="Open overflow menu"
+      disabled={inkSession.active}
+    >
+      <IconSettings size={MOBILE_CHROME_METRICS.iconSize} color={isDark ? "#e5e7eb" : "#111827"} />
+    </Pressable>
+  );
+
+  if (!mobileChromeVisible && !inkSession.active) return null;
 
   return (
     <>
@@ -104,7 +139,12 @@ const Topbar: React.FC<TopbarProps> = ({
           <View style={styles.leftGroup}>
             {onLogoPress ? (
               <Pressable
-                onPress={onLogoPress}
+                onPress={() => {
+                  // Keep the viewer mounted so the existing native flush and
+                  // JS annotation persistence can finish before navigation.
+                  if (inkSession.active) inkSession.finish();
+                  else onLogoPress();
+                }}
                 accessibilityRole="button"
                 accessibilityLabel={logoAccessibilityLabel}
                 style={styles.logoSlot}
@@ -168,17 +208,39 @@ const Topbar: React.FC<TopbarProps> = ({
             </View>
           ) : null}
 
-          <View style={styles.rightGroup}>
-            <Pressable
-              onPress={() => onOpenOverflow?.() ?? onOpenSettings?.()}
-              style={[styles.iconButton, isDark && styles.iconButtonDark]}
-              accessibilityLabel="Open overflow menu"
-            >
-              <IconSettings
-                size={MOBILE_CHROME_METRICS.iconSize}
-                color={isDark ? "#e5e7eb" : "#111827"}
-              />
-            </Pressable>
+          <View
+            style={[styles.rightGroup, inkSession.supported && styles.annotationActionSlot]}
+            testID="papyrus-topbar-action-slot"
+          >
+            {inkSession.supported ? (
+              <>
+                <Animated.View
+                  style={[styles.settingsSlot, settingsMotion]}
+                  pointerEvents={inkSession.active ? "none" : "auto"}
+                  accessibilityElementsHidden={inkSession.active}
+                  importantForAccessibility={inkSession.active ? "no-hide-descendants" : "auto"}
+                >
+                  {settingsControl}
+                </Animated.View>
+                <Animated.View
+                  style={[styles.doneSlot, doneMotion]}
+                  pointerEvents={inkSession.active ? "auto" : "none"}
+                  accessibilityElementsHidden={!inkSession.active}
+                  importantForAccessibility={inkSession.active ? "auto" : "no-hide-descendants"}
+                >
+                  <Pressable
+                    onPress={inkSession.finish}
+                    disabled={!inkSession.active}
+                    style={styles.doneButton}
+                    accessibilityRole="button"
+                    accessibilityLabel={t.done}
+                    testID="papyrus-topbar-ink-done"
+                  >
+                    <Text style={styles.doneButtonText}>✓ {t.done}</Text>
+                  </Pressable>
+                </Animated.View>
+              </>
+            ) : settingsControl}
           </View>
         </View>
       </View>
@@ -262,13 +324,13 @@ const styles = StyleSheet.create({
     color: "#111827",
     includeFontPadding: false,
     textAlignVertical: "center",
-    flexShrink: 1,
-    flexGrow: 1,
   },
   brandTextDark: {
     color: "#f9fafb",
   },
   titleHit: {
+    minHeight: 32,
+    justifyContent: "center",
     flexShrink: 1,
     flexGrow: 1,
     minWidth: 0,
@@ -321,6 +383,42 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
     flexShrink: 0,
     marginLeft: 12,
+  },
+  annotationActionSlot: {
+    width: 108,
+    height: 44,
+  },
+  settingsSlot: {
+    position: "absolute",
+    right: 0,
+    top: 0,
+  },
+  annotationSettingsButton: {
+    minWidth: 44,
+    minHeight: 44,
+    marginLeft: 0,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  doneSlot: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 0,
+  },
+  doneButton: {
+    minWidth: 44,
+    minHeight: 44,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    backgroundColor: "#2563eb",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  doneButtonText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "700",
   },
   iconButton: {
     paddingHorizontal: 10,
