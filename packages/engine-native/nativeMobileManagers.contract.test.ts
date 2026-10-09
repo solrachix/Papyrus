@@ -308,3 +308,24 @@ describe("comic image delivery during gestures", () => {
     expect(s).toContain("if (!decelerate) [self applyPendingPageSizes]");
   });
 });
+
+
+describe("comic double-tap and stable pinch contracts", () => {
+  it("toggles focused native zoom on Android and publishes only the final pinch scale", () => {
+    const src = read("packages/engine-native/android/src/main/java/com/papyrus/engine/PapyrusComicDocumentView.java");
+    expect(src).toContain("onDoubleTap(MotionEvent event)");
+    expect(src).toContain("zoom > 1.05f ? 1f : 2f");
+    expect(src).toContain("event.getX(), event.getY()");
+    expect(src).toContain("onScaleEnd(ScaleGestureDetector detector)");
+    const onScale = src.match(/@Override public boolean onScale\(ScaleGestureDetector detector\) \{([\s\S]*?)\n      \}/)?.[1] ?? "";
+    expect(onScale).not.toContain("emitZoom()");
+  });
+  it("toggles focused native zoom on iOS and resets to a neutral pan", () => {
+    const src = read("packages/engine-native/ios/PapyrusComicDocumentView.m");
+    expect(src).toContain("_doubleTapRecognizer.numberOfTapsRequired = 2");
+    expect(src).toContain("- (void)handleDoubleTap:(UITapGestureRecognizer *)recognizer");
+    expect(src).toContain("previous > 1.05 ? 1.0 : 2.0");
+    expect(src).toContain("self.panOffset = CGPointZero");
+    expect(src).toContain("self.onZoomChanged(@{ @\"zoom\": @(self.zoom) })");
+  });
+});
