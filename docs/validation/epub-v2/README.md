@@ -35,3 +35,9 @@ App Debug no Pixel com fixture sintético local e runtime HTML desta worktree so
 - 30 testes focados passaram (epubReader, epubAnnotationEvents, comicRuntime); build UI/DTS e diff-check passaram.
 
 Essas correções adicionais ainda precisam de nova versão UI e atualização do consumidor. Não empacotar conteúdo alterado sob uma versão já publicada. Continuam pendentes iOS/WKWebView, Release, orientação, conteúdo heterogêneo e sincronização remota.
+
+## Auditoria adicional do runtime e menu iOS — 2026-10-10
+
+- Os testes do bridge agora carregam `epubReader.js` e `epubAnnotations.js` antes de `runtime.js`, como faz o HTML do WebView, e o mock do epub.js inclui o `manager.resize` que o runtime decora para preservar o CFI. 33 testes focados de runtime, CFI, seleção e anotações passaram.
+- O app fixa `react-native-webview` 13.16.1. A API pública de `menuItems` aceita apenas `key` e `label`, e a implementação iOS cria `UICommand` sem imagem. Portanto os ícones nas ações de seleção EPUB não são configuráveis por essa API; mantemos o menu nativo e a seleção existente. Adicionar ícones exigiria mudar o componente nativo/fork e validar as ações de seleção no WKWebView.
+- Não houve validação em iPhone ou simulador iOS nesta auditoria. A cobertura automatizada não comprova gestos, alças, persistência nem aparência no WKWebView real.

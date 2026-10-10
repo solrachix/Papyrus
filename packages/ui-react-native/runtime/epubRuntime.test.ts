@@ -6,9 +6,12 @@ function runtime() {
  const dom=new JSDOM('<div id="viewer"></div>',{runScripts:'outside-only'});
  const messages:any[]=[], renditions:any[]=[];
  (dom.window as any).ReactNativeWebView={postMessage:(raw:string)=>messages.push(JSON.parse(raw))};
+ for (const helper of ['epubReader.js','epubAnnotations.js']) {
+  dom.window.eval(readFileSync(`packages/ui-react-native/runtime/${helper}`,'utf8'));
+ }
  const book:any={ready:Promise.resolve(),spine:{items:[{href:'a.xhtml'},{href:'b.xhtml'}]},loaded:{navigation:Promise.resolve({toc:[]})},destroy:vi.fn(),renderTo:vi.fn((_viewer,options)=>{
   const events:any={};
-  const r:any={options,hooks:{content:{register:vi.fn()},unloaded:{register:vi.fn()}},on:(name:string,fn:any)=>events[name]=fn,themes:{fontSize:vi.fn()},destroy:vi.fn(),display:vi.fn(async()=>{}),next:vi.fn(async()=>{}),prev:vi.fn(async()=>{}),emit:(name:string,data:any)=>events[name]?.(data)};
+  const r:any={options,manager:{resize:vi.fn(),on:vi.fn(),off:vi.fn()},hooks:{content:{register:vi.fn()},unloaded:{register:vi.fn()}},on:(name:string,fn:any)=>events[name]=fn,themes:{fontSize:vi.fn()},destroy:vi.fn(),display:vi.fn(async()=>{}),next:vi.fn(async()=>{}),prev:vi.fn(async()=>{}),emit:(name:string,data:any)=>events[name]?.(data)};
   renditions.push(r);return r;
  })};
  (dom.window as any).ePub=()=>book;
