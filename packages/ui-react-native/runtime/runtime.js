@@ -121,13 +121,36 @@
     if(elapsed>=0 && elapsed<450 && Math.hypot(dx,dy)<=12)return 'tap';
     return null;
   }
-  function location(raw,count,readingMode){
+  function location(raw,count,readingMode,geometry){
     var start=raw && raw.start;if(!start || !validCfi(start.cfi))return null;
     var displayed=start.displayed||{},chapter=Math.max(1,(Number(start.index)||0)+1);
     var visualPage=mode(readingMode)==='paged' && Number.isFinite(displayed.page)?displayed.page:null;
     var total=mode(readingMode)==='paged' && Number.isFinite(displayed.total)?displayed.total:null;
+    var atStart=Boolean(raw.atStart),atEnd=Boolean(raw.atEnd);
+    // Chromium may round a column offset down by a fraction of a CSS pixel.
+    // Keep epub.js authoritative outside a 1px boundary, and for RTL layouts.
+    if(visualPage!==null && total>0 && geometry && geometry.direction==='ltr' && geometry.pageWidth>0 && Number.isFinite(geometry.offset)){
+      var boundary=Math.round(geometry.offset/geometry.pageWidth);
+      if(Math.abs(geometry.offset-boundary*geometry.pageWidth)<=1){
+        visualPage=Math.min(total,Math.max(1,boundary+1));
+        atStart=chapter===(geometry.firstIndex ?? 0)+1 && visualPage===1;
+        atEnd=chapter===(geometry.lastIndex ?? count-1)+1 && visualPage===total;
+      }
+    }
     var fraction=total?Math.max(0,(visualPage-1)/total):0;
-    return {version:1,cfi:start.cfi,href:start.href||'',chapter:chapter,chapterCount:count,visualPage:visualPage,visualPageCount:total,progress:Math.min(1,Math.max(0,(chapter-1+fraction)/Math.max(1,count))),mode:mode(readingMode),atStart:Boolean(raw.atStart),atEnd:Boolean(raw.atEnd)};
+    return {version:1,cfi:start.cfi,href:start.href||'',chapter:chapter,chapterCount:count,visualPage:visualPage,visualPageCount:total,progress:Math.min(1,Math.max(0,(chapter-1+fraction)/Math.max(1,count))),mode:mode(readingMode),atStart:atStart,atEnd:atEnd};
+  }
+  function installResizeAnchor(manager,readCfi){
+    var original=manager.resize,anchor=null;
+    function resize(width,height,target){
+      if(validCfi(target))anchor=target;
+      if(!anchor){var current=readCfi();if(validCfi(current))anchor=current;}
+      // epub.js accepts a logical target as its third argument. Keep it across
+      // keyboard/dialog reflows instead of adopting each new viewport start.
+      return original.call(this,width,height,anchor || target);
+    }
+    manager.resize=resize;
+    return {cfi:function(){return anchor;},invalidate:function(){anchor=null;},destroy:function(){if(manager.resize===resize)manager.resize=original;anchor=null;}};
   }
   function install(contents,config){
     var doc=contents.document,win=contents.window,start=null,blocked=false;
@@ -135,13 +158,15 @@
     function selected(){return Boolean(String(win.getSelection()||'').trim()) || config.blocked();}
     function interactive(target){return Boolean(target && target.closest && target.closest('a,button,input,textarea,select,[contenteditable="true"],[data-papyrus-overlay]'));}
     function begin(e){start=point(e);blocked=e.touches.length!==1 || selected() || interactive(e.target);}
-    function move(e){if(e.touches.length!==1)blocked=true;}
-    function end(e){var action=gesture(start,point(e),{mode:config.mode(),rtl:config.rtl(),selected:selected(),interactive:blocked||interactive(e.target)||Boolean(config.annotationHit && config.annotationHit(point(e))),multitouch:blocked});start=null;if(!config.current())return;if(action==='tap')config.tap();else if(action)config.turn(action==='next'?1:-1);}
+    function invalidateScroll(finish){if(config.current() && start && finish && config.mode()==='chapter-scroll' && !blocked && !selected() && Math.abs(finish.y-start.y)>12 && Math.abs(finish.y-start.y)>Math.abs(finish.x-start.x) && config.interact)config.interact();}
+    function move(e){if(e.touches.length!==1)blocked=true;invalidateScroll(point(e));}
+    function end(e){var finish=point(e);invalidateScroll(finish);var action=gesture(start,finish,{mode:config.mode(),rtl:config.rtl(),selected:selected(),interactive:blocked||interactive(e.target)||Boolean(config.annotationHit && config.annotationHit(point(e))),multitouch:blocked});start=null;if(!config.current())return;if(action==='tap')config.tap();else if(action)config.turn(action==='next'?1:-1);}
     function cancel(){start=null;blocked=true;}
-    doc.addEventListener('touchstart',begin,{passive:true});doc.addEventListener('touchmove',move,{passive:true});doc.addEventListener('touchend',end,{passive:true});doc.addEventListener('touchcancel',cancel,{passive:true});
-    return function(){doc.removeEventListener('touchstart',begin);doc.removeEventListener('touchmove',move);doc.removeEventListener('touchend',end);doc.removeEventListener('touchcancel',cancel);};
+    function link(e){if(config.current() && e.target?.closest?.('a') && config.interact)config.interact();}
+    doc.addEventListener('touchstart',begin,{passive:true});doc.addEventListener('touchmove',move,{passive:true});doc.addEventListener('touchend',end,{passive:true});doc.addEventListener('touchcancel',cancel,{passive:true});doc.addEventListener('click',link);
+    return function(){doc.removeEventListener('touchstart',begin);doc.removeEventListener('touchmove',move);doc.removeEventListener('touchend',end);doc.removeEventListener('touchcancel',cancel);doc.removeEventListener('click',link);};
   }
-  root.PapyrusEpubReader={mode:mode,validCfi:validCfi,options:options,gesture:gesture,location:location,install:install};
+  root.PapyrusEpubReader={mode:mode,validCfi:validCfi,options:options,gesture:gesture,location:location,installResizeAnchor:installResizeAnchor,install:install};
 })(typeof window==='undefined'?globalThis:window);
 
 /* @papyrus-epub-reader:end */
@@ -276,6 +301,7 @@
   let currentType = null;
   let book = null;
   let rendition = null;
+  let epubResizeAnchor = null;
   let documentSessionId = null;
   let annotationDocumentId;
   let annotationLabels = {};
@@ -688,6 +714,7 @@
   };
 
   const clearViewer = () => {
+    if(epubResizeAnchor){epubResizeAnchor.destroy();epubResizeAnchor=null;}
     epubAnnotationRenderers.forEach(renderer => renderer.destroy());
     epubAnnotationRenderers.clear();
     if (epubInteractionCleanup) {
@@ -1375,10 +1402,12 @@
           blocked: () => Boolean(nativeMenuSelection && String(nativeMenuSelection.contents?.window?.getSelection() || '').trim()),
           annotationHit: point => epubAnnotationRenderers.get(contents)?.hit(point.x,point.y),
           current: () => session === documentSessionId && activeRendition === rendition,
+          interact: () => epubResizeAnchor?.invalidate(),
           tap: () => sendEvent('EPUB_CONTENT_TAP',{documentSessionId:session}),
           turn: direction => {
             epubNavigationQueue = epubNavigationQueue.catch(()=>{}).then(() => {
               if(session !== documentSessionId || activeRendition !== rendition)return;
+              epubResizeAnchor?.invalidate();
               return direction<0?activeRendition.prev():activeRendition.next();
             });
             epubNavigationQueue.catch(error => sendEvent('EPUB_NAVIGATION_ERROR',{message:String(error)}));
@@ -1496,8 +1525,18 @@
         if (index < 0 && start && start.href) index = getSpineIndexByHref(start.href);
         if (index < 0 || index >= spineItems.length) return;
         epubScrollDiagnostics && epubScrollDiagnostics.relocated(location);
-        epubLocation=window.PapyrusEpubReader.location(location,spineItems.length,epubViewMode==='single'?'paged':'chapter-scroll');
+        let pageGeometry;
+        const manager=rendition.manager,layout=manager?.layout;
+        if(epubViewMode==='single' && layout?.divisor===1 && !manager?.settings?.fullsize && manager?.settings?.direction==='ltr'){
+          const visible=manager.visible?.();
+          const view=visible?.find(view=>view.index===index);
+          if(view && manager.container){
+            pageGeometry={direction:'ltr',firstIndex:book.spine.first()?.index,lastIndex:book.spine.last()?.index,pageWidth:layout.pageWidth,offset:manager.container.getBoundingClientRect().left-view.position().left};
+          }
+        }
+        epubLocation=window.PapyrusEpubReader.location(location,spineItems.length,epubViewMode==='single'?'paged':'chapter-scroll',pageGeometry);
         if(epubLocation){
+          epubLocation.cfi=epubResizeAnchor?.cfi() || epubLocation.cfi;
           if(book.locations?.length?.()>0)epubLocation.progress=book.locations.percentageFromCfi(epubLocation.cfi);
           sendEvent('EPUB_LOCATION',{documentSessionId,location:epubLocation});
         }
@@ -1517,6 +1556,8 @@
     );
     if (!isCurrentLoad()) throw new Error('EPUB load superseded by a newer load');
     sendEpubDiagnostic('epub.display.end', diagnosticPayload);
+    const resizeRendition=rendition;
+    epubResizeAnchor=window.PapyrusEpubReader.installResizeAnchor(resizeRendition.manager,()=>resizeRendition.location?.start?.cfi);
     if (
       rendition &&
       rendition.manager &&
@@ -1650,6 +1691,7 @@
     const request = ++epubNavigationRequest;
     const navigation = epubNavigationQueue.catch(() => {}).then(async () => {
       if (request !== epubNavigationRequest || session !== documentSessionId || activeRendition !== rendition) return;
+      epubResizeAnchor?.invalidate();
       await activeRendition.display(target);
       if (request !== epubNavigationRequest || session !== documentSessionId || activeRendition !== rendition) return;
       currentPage = pageIndex + 1;
@@ -1839,6 +1881,7 @@
           epubNavigationRequest += 1;
           const navigation = epubNavigationQueue.catch(() => {}).then(async () => {
             if(navigationSession !== documentSessionId || activeRendition !== rendition)throw new Error('Stale EPUB navigation');
+            epubResizeAnchor?.invalidate();
             await activeRendition.display(annotation.anchor.href);
             if(navigationSession !== documentSessionId || activeRendition !== rendition)throw new Error('Stale EPUB navigation');
             const contents = activeRendition.getContents().find(c => spineItems[c.sectionIndex]?.href === annotation.anchor.href);
@@ -1880,6 +1923,7 @@
         const active = rendition;
         epubNavigationQueue = epubNavigationQueue.catch(() => {}).then(() => {
           if (active !== rendition || payload.documentSessionId !== documentSessionId) return;
+          epubResizeAnchor?.invalidate();
           return payload.direction < 0 ? active.prev() : active.next();
         });
         await epubNavigationQueue;
@@ -1892,7 +1936,7 @@
         {
           epubNavigationQueue=epubNavigationQueue.catch(()=>{}).then(async()=>{
             if(payload.documentSessionId!==documentSessionId || next===epubViewMode)return;
-            const target=epubLocation?.cfi;
+            const target=epubResizeAnchor?.cfi() || epubLocation?.cfi;
             epubViewMode=next;
             await renderEpubRendition('layout',epubLoadGeneration,target);
           });
@@ -1902,7 +1946,7 @@
       }
       if(kind === 'epub-go-to-location'){
         if(currentType!=='epub' || payload.documentSessionId!==documentSessionId || !window.PapyrusEpubReader.validCfi(payload.cfi))throw new Error('Invalid EPUB location');
-        epubNavigationQueue=epubNavigationQueue.catch(()=>{}).then(()=>payload.documentSessionId===documentSessionId?rendition.display(payload.cfi):undefined);
+        epubNavigationQueue=epubNavigationQueue.catch(()=>{}).then(()=>{if(payload.documentSessionId!==documentSessionId)return;epubResizeAnchor?.invalidate();return rendition.display(payload.cfi);});
         await epubNavigationQueue;sendResponse(id,true,null);return;
       }
 
@@ -1913,7 +1957,7 @@
           epubNavigationQueue=epubNavigationQueue.catch(()=>{}).then(async()=>{
             if(session!==documentSessionId)return;
             const active=rendition;
-            const cfi=epubLocation?.cfi;
+            const cfi=epubResizeAnchor?.cfi() || epubLocation?.cfi;
             zoom=requestedZoom;applyEpubZoom();
             // Let the content CSS update before redisplaying the logical anchor.
             await new Promise(resolve=>(window.requestAnimationFrame || (callback=>setTimeout(callback,0)))(resolve));
