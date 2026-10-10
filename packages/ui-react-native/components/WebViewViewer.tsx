@@ -1,3 +1,5 @@
+import {usePapyrusSafeAreaInsets} from './PapyrusSafeArea';
+import {parseEpubReadingLocation} from './epubReadingLocation';
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Image, StyleSheet, View, Alert } from "react-native";
 import Clipboard from "@react-native-clipboard/clipboard";
@@ -57,6 +59,7 @@ type WebViewBridgeEngine = DocumentEngine & {
 interface WebViewViewerProps {
   engine: DocumentEngine;
   documentId?: string;
+  documentType?: string;
   onDefineSelection?: (selection: {text:string;pageIndex:number}) => void;
   defineSelectionMode?: "selection" | "single-word";
   maxPageWidth?: number;
@@ -66,6 +69,7 @@ interface WebViewViewerProps {
 
 const WebViewViewer: React.FC<WebViewViewerProps> = ({
   engine,
+  documentType,
   documentId,
   onDefineSelection,
   defineSelectionMode,
@@ -74,7 +78,8 @@ const WebViewViewer: React.FC<WebViewViewerProps> = ({
   onTap,
 }) => {
   const webViewRef = useRef<WebView>(null);
-  const { pageTheme, viewMode, annotations, isLoaded, locale, annotationColor, annotationOpacity, addAnnotation, beginAnnotationDraft, setSelectedAnnotation } = useViewerStore();
+  const insets=usePapyrusSafeAreaInsets();
+  const { pageTheme, epubReadingMode, setDocumentState, annotations, isLoaded, locale, annotationColor, annotationOpacity, addAnnotation, beginAnnotationDraft, setSelectedAnnotation } = useViewerStore();
   const [selection,setSelection] = useState<Extract<EpubAnnotationEvent,{kind:"selection"}> | null>(null);
   const t = getStrings(locale);
   const bridgeEngine = engine as WebViewBridgeEngine;
@@ -171,8 +176,8 @@ const WebViewViewer: React.FC<WebViewViewerProps> = ({
 
   useEffect(() => {
     if (!isLoaded) return;
-    webViewRef.current?.postMessage(JSON.stringify({id:"epub-layout", kind:"set-epub-view-mode", payload:{viewMode, documentSessionId:bridgeEngine.getWebViewDocumentSessionId?.()}}));
-  }, [isLoaded, viewMode, bridgeEngine]);
+    webViewRef.current?.postMessage(JSON.stringify({id:"epub-layout", kind:"set-epub-view-mode", payload:{epubMode:epubReadingMode, documentSessionId:bridgeEngine.getWebViewDocumentSessionId?.()}}));
+  }, [isLoaded, epubReadingMode, bridgeEngine]);
 
   const sendSelectionCommand = (key: string) => {
     webViewRef.current?.postMessage(JSON.stringify({type: "epub-selection-action", id: "selection-menu", key,
@@ -198,6 +203,11 @@ const WebViewViewer: React.FC<WebViewViewerProps> = ({
     let annotationRaw = raw;
     try {
       const message = JSON.parse(raw);
+      if(message.type === "event" && message.name === "EPUB_LOCATION" && message.payload?.documentSessionId === bridgeEngine.getWebViewDocumentSessionId?.()) {
+        const location=parseEpubReadingLocation(message.payload.location);
+        if(location)setDocumentState({epubLocation:location});
+      }
+      if(message.type === "event" && message.name === "EPUB_CONTENT_TAP" && message.payload?.documentSessionId === bridgeEngine.getWebViewDocumentSessionId?.())onTap?.();
       if (message.type === "event" && message.name === "EPUB_SELECTION_ACTION") {
         action = message.payload?.action;
         annotationRaw = JSON.stringify({...message, name: "EPUB_TEXT_SELECTED"});
@@ -293,7 +303,7 @@ const WebViewViewer: React.FC<WebViewViewerProps> = ({
     : undefined;
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container,documentType === "epub" && {paddingTop:insets.top,paddingBottom:insets.bottom}]}>
       <WebView
         ref={webViewRef}
         source={webViewSource}

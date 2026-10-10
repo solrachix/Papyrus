@@ -135,6 +135,7 @@ export function ReadingShell({
     <PapyrusSafeAreaBoundary>
       <View style={styles.container} testID="papyrus-rn-reading-shell">
       <Topbar
+        documentType={documentType}
         engine={engine}
         title={title}
         onOpenSettings={() => openDestination("display")}
@@ -143,6 +144,7 @@ export function ReadingShell({
       />
       <View style={styles.viewerStage}>
         <Viewer
+          documentType={documentType}
           engine={engine}
           {...viewerProps}
           pageScrubActive={pageScrubActive}
@@ -243,6 +245,7 @@ export function ReadingShell({
         }}
       />
       <PageJumpModal
+        documentType={documentType}
         visible={pageJumpOpen}
         currentPage={currentPage}
         pageCount={pageCount}

@@ -8,6 +8,8 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
+import Reanimated, {useAnimatedStyle} from "react-native-reanimated";
+import {useNativeInkMotion} from "./useNativeInkChrome";
 import { useViewerStore } from "@papyrus-sdk/core";
 import { DocumentType } from "@papyrus-sdk/types";
 import { getStrings } from "../mobileStrings";
@@ -60,12 +62,17 @@ export function ProgressPill({
     textLength,
     comicLayoutMode,
     viewMode,
+    epubReadingMode,
+    epubLocation,
     locale,
     uiTheme,
     accentColor,
     mobileChromeVisible,
     mobileProgressPillVisible,
   } = useViewerStore();
+  const chromeVisible = mobileChromeVisible && mobileProgressPillVisible;
+  const chromeProgress = useNativeInkMotion(chromeVisible, documentType === "epub");
+  const chromeMotion = useAnimatedStyle(() => {"worklet";return {opacity:chromeProgress.value};});
   const t = getStrings(locale);
   const isDark = uiTheme === "dark";
   const offsets = resolveMobileChromeOffsets(usePapyrusSafeAreaInsets());
@@ -112,11 +119,11 @@ export function ProgressPill({
     }
 
     if (documentType === "epub") {
-      return `Cap. ${displayedPage} · ${percent}%`;
+      return `Cap. ${displayedPage} · ${scrubPreviewPage === null && epubLocation ? clampPercent(epubLocation.progress * 100) : percent}%`;
     }
 
     return `${percent}%`;
-  }, [displayedPage, documentType, pageCount]);
+  }, [displayedPage, documentType, pageCount, epubLocation, scrubPreviewPage]);
 
   const thumbTop = resolvePageScrubberThumbTop({
     currentPage,
@@ -166,7 +173,7 @@ export function ProgressPill({
   );
 
   if (
-    !shouldRenderPageScrubber({
+    !(documentType === "epub" && mobileProgressPillVisible) && !shouldRenderPageScrubber({
       mobileChromeVisible,
       mobileProgressPillVisible,
       isScrubbing: isScrubbingRef.current,
@@ -199,7 +206,7 @@ export function ProgressPill({
 
   const progressViewMode = documentType === "comic"
     ? comicLayoutMode === "single" ? "single" : "continuous"
-    : viewMode;
+    : documentType === "epub" ? epubReadingMode === "paged" ? "single" : "continuous" : viewMode;
   const pillMode = resolveProgressPillMode(progressViewMode, currentPage, pageCount);
   if (pillMode.kind === "navigation" && navigationInDock) return null;
   if (pillMode.kind === "navigation") {
@@ -386,10 +393,13 @@ export function ProgressPill({
 
   const responderPanHandlers = scrubberResponderRef.current?.panHandlers ?? {};
   return (
-    <View
-      pointerEvents="box-none"
+    <Reanimated.View
+      pointerEvents={chromeVisible ? "box-none" : "none"}
+      accessibilityElementsHidden={!chromeVisible}
+      importantForAccessibility={chromeVisible ? "auto" : "no-hide-descendants"}
       style={[
         styles.frame,
+        chromeMotion,
         resolvePageScrubberOverlayStyle(),
         {
           top: offsets.progress,
@@ -448,7 +458,7 @@ export function ProgressPill({
           </View>
         </Animated.View>
       </View>
-    </View>
+    </Reanimated.View>
   );
 }
 

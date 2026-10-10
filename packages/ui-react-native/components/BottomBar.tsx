@@ -43,7 +43,7 @@ const BottomBar: React.FC<BottomBarProps> = ({
 }) => {
   const {
     activeMobileDestination,
-    viewMode, comicLayoutMode, currentPage, pageCount,
+    viewMode, epubReadingMode, epubLocation, comicLayoutMode, currentPage, pageCount,
     mobileDockVisible,
     setDocumentState,
     uiTheme,
@@ -58,7 +58,7 @@ const BottomBar: React.FC<BottomBarProps> = ({
   const supportsInkChrome = documentType === "pdf" && inkSession.supported;
   const drawing = supportsInkChrome && inkSession.active;
   const dockVisible = mobileChromeVisible && mobileDockVisible && !drawing;
-  const dockProgress = useNativeInkMotion(dockVisible, supportsInkChrome);
+  const dockProgress = useNativeInkMotion(dockVisible, supportsInkChrome || documentType === "epub");
   const dockMotion = useAnimatedStyle(() => {
     "worklet";
     return {
@@ -83,7 +83,7 @@ const BottomBar: React.FC<BottomBarProps> = ({
     toolDockOpen,
   });
 
-  const paginated = documentType !== "text" && (documentType === "comic" ? comicLayoutMode === "single" : viewMode === "single");
+  const paginated = documentType !== "text" && (documentType === "comic" ? comicLayoutMode === "single" : documentType === "epub" ? epubReadingMode === "paged" : viewMode === "single");
   if (paginated) {
     layout.leftSlots.push(...layout.rightSlots.filter(slot => slot.key === "search"));
     layout.rightSlots = [];
@@ -161,7 +161,7 @@ const BottomBar: React.FC<BottomBarProps> = ({
     },
   };
 
-  if (!dockVisible && !supportsInkChrome) return null;
+  if (!dockVisible && !supportsInkChrome && documentType !== "epub") return null;
 
   return (
     <Animated.View
@@ -223,13 +223,13 @@ const BottomBar: React.FC<BottomBarProps> = ({
           testID="papyrus-floating-bottom-dock"
         >
           {paginated ? <>
-            <Pressable accessibilityRole="button" accessibilityLabel={locale === "pt-BR" ? "Página anterior" : "Previous page"} disabled={!dockVisible || (!onTurnPage && currentPage <= 1)} onPress={() => turnPage(-1)} style={styles.iconOnlyItem}>
+            <Pressable accessibilityRole="button" accessibilityLabel={locale === "pt-BR" ? "Página anterior" : "Previous page"} disabled={!dockVisible || (documentType === "epub" ? epubLocation?.atStart : !onTurnPage && currentPage <= 1)} onPress={() => turnPage(-1)} style={styles.iconOnlyItem}>
               <IconChevronLeft size={MOBILE_CHROME_METRICS.iconSize} color={iconColor(false)} />
             </Pressable>
             <Pressable accessibilityRole="button" accessibilityLabel={locale === "pt-BR" ? "Ir para página" : "Go to page"} onPress={onOpenPages} style={[styles.iconOnlyItem,{minWidth:56}]}>
-              <Text style={{color:iconColor(false),fontWeight:"700",fontSize:13,lineHeight:18,includeFontPadding:false}}>{currentPage}/{pageCount}</Text>
+              <Text style={{color:iconColor(false),fontWeight:"700",fontSize:13,lineHeight:18,includeFontPadding:false}}>{documentType === "epub" ? (epubLocation?.visualPage ? `Cap. ${epubLocation.chapter} · ${epubLocation.visualPage}/${epubLocation.visualPageCount}` : `Cap. ${currentPage}`) : `${currentPage}/${pageCount}`}</Text>
             </Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel={locale === "pt-BR" ? "Próxima página" : "Next page"} disabled={!dockVisible || (!onTurnPage && currentPage >= pageCount)} onPress={() => turnPage(1)} style={styles.iconOnlyItem}>
+            <Pressable accessibilityRole="button" accessibilityLabel={locale === "pt-BR" ? "Próxima página" : "Next page"} disabled={!dockVisible || (documentType === "epub" ? epubLocation?.atEnd : !onTurnPage && currentPage >= pageCount)} onPress={() => turnPage(1)} style={styles.iconOnlyItem}>
               <IconChevronRight size={MOBILE_CHROME_METRICS.iconSize} color={iconColor(false)} />
             </Pressable>
           </> : layout.rightSlots.map((slot) => {

@@ -75,6 +75,7 @@
         var color = /^#[0-9a-f]{6}$/i.test(annotation.color) ? annotation.color : '#FFC928';
         var style = annotation.markupStyle || annotation.type;
         var opacity = Number.isFinite(annotation.opacity) ? Math.max(0,Math.min(1,annotation.opacity)) : 0.35;
+        if(style === 'highlight')opacity=Math.min(0.35,opacity);
         rects.forEach(function(rect) {
           var mark = doc.createElement('div');
           var bodyRect=doc.body.getBoundingClientRect();
@@ -87,8 +88,10 @@
         if (hasNote) {
           var last = rects[rects.length-1], button = doc.createElement('button');
           button.textContent = '●'; button.setAttribute('aria-label',options.labels().comment || '');
-          button.style.cssText = 'position:absolute;pointer-events:auto;border:0;background:transparent;color:'+color+';width:44px;height:44px;left:'+Math.max(0,Math.min(doc.documentElement.clientWidth-44,last.right-doc.body.getBoundingClientRect().left))+'px;top:'+(Math.floor(last.top/44)*44-doc.body.getBoundingClientRect().top)+'px';
-          var key = Math.floor(last.top/44);
+          var pageWidth=Math.max(44, options.pageWidth ? options.pageWidth() : win.innerWidth);
+          var bodyRect=doc.body.getBoundingClientRect(), column=Math.max(0,Math.floor((last.left-bodyRect.left)/pageWidth));
+          button.style.cssText = 'position:absolute;pointer-events:auto;border:0;background:transparent;color:'+color+';width:44px;height:44px;left:'+((column+1)*pageWidth-44)+'px;top:'+(Math.floor(last.top/44)*44-doc.body.getBoundingClientRect().top)+'px';
+          var key = column+":"+Math.floor(last.top/44);
           var neighbors=noteGroups.get(key);
           if(!neighbors){neighbors={button:button,ids:[]};noteGroups.set(key,neighbors);group.appendChild(button);}
           neighbors.ids.push(annotation.id);
@@ -109,10 +112,10 @@
     doc.addEventListener('click',tapMarkup);
     var observer = typeof win.ResizeObserver === 'function' ? new win.ResizeObserver(schedule) : null;
     if (observer) observer.observe(doc.body);
-    win.addEventListener('resize',schedule); doc.addEventListener('load',schedule,true);
+    win.addEventListener('resize',schedule);win.addEventListener('scroll',schedule); doc.addEventListener('load',schedule,true);
     if (doc.fonts && doc.fonts.ready) doc.fonts.ready.then(schedule);
     schedule();
-    return {schedule:schedule, range:function(anchor){return resolveRange(contents,anchor);}, destroy:function(){alive=false;if(frame)win.cancelAnimationFrame(frame);if(observer)observer.disconnect();win.removeEventListener('resize',schedule);doc.removeEventListener('load',schedule,true);doc.removeEventListener('click',tapMarkup);overlay.remove();doc.body.style.position=originalPosition;registry.clear();}};
+    return {schedule:schedule, hit:function(x,y){return hitRegions.some(function(item){return item.rects.some(function(r){return x>=r.left && x<=r.right && y>=r.top && y<=r.bottom;});});}, range:function(anchor){return resolveRange(contents,anchor);}, destroy:function(){alive=false;if(frame)win.cancelAnimationFrame(frame);if(observer)observer.disconnect();win.removeEventListener('resize',schedule);win.removeEventListener('scroll',schedule);doc.removeEventListener('load',schedule,true);doc.removeEventListener('click',tapMarkup);overlay.remove();doc.body.style.position=originalPosition;registry.clear();}};
   }
   return {validAnchor:validAnchor,recoverRange:recoverRange,resolveRange:resolveRange,selection:selection,install:install};
 });
