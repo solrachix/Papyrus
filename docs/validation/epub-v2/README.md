@@ -8,8 +8,9 @@ Bases: Papyrus main `4bb0abb`, aplicativo thoth-stack `6ac33054`.
 - EPUB abre paginado. Swipe avança/retorna páginas visuais do mesmo capítulo. Indicador separa capítulo e página visual.
 - Toque alterna chrome; controles ocultos permanecem ocultos durante navegação. Modo de rolagem também aceita ocultação.
 - Long press seleciona palavra e apresenta menu nativo com ações em português. Nota digitada é salva e seu indicador abre o comentário.
+- Indicador abriu a mesma nota após aumentar a fonte (pixel-note-reflow.png). Editor apresenta quatro ícones com labels e estado ativo (pixel-note-icons.png).
 - Aumento de fonte e alternância paginado/rolagem mantêm a região textual por CFI. Rolagem continua funcional após alternância.
-- 21 testes focados: política/gestos iframe, bridge runtime, troca concorrente de modo, CFI/localização e anotações/reflow.
+- 25 testes focados (incluindo editor, ações com ícones e salvar/cancelar): política/gestos iframe, bridge runtime, troca concorrente de modo, CFI/localização e anotações/reflow.
 - Build UI/DTS e lint focado passaram. Tipos/core/engine foram construídos para os candidatos.
 - Suite geral não está integralmente verde: erros de ambiente/dependências e um contrato nativo de comic também reproduzido na base, registrados em `/tmp/epub-full-tests.log` e `/tmp/epub-baseline-native.log`.
 
