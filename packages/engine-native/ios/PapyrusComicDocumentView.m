@@ -18,6 +18,7 @@ static NSCache<NSString *, UIImage *> *PapyrusComicImageCache(void) {
 @property (nonatomic, strong) UIScrollView *pageScrollView;
 @property (nonatomic, strong) UIImageView *imageView;
 @property (nonatomic, copy) NSString *representedKey;
+@property (nonatomic, assign) BOOL fitWidthInSingleMode;
 @end
 
 @implementation PapyrusComicPageCell
@@ -36,6 +37,23 @@ static NSCache<NSString *, UIImage *> *PapyrusComicImageCache(void) {
   }
   return self;
 }
+- (void)layoutSubviews {
+  [super layoutSubviews];
+  self.pageScrollView.frame = self.contentView.bounds;
+  CGAffineTransform transform = self.imageView.transform;
+  self.imageView.transform = CGAffineTransformIdentity;
+  CGSize size = self.pageScrollView.bounds.size;
+  UIImage *image = self.imageView.image;
+  if (self.fitWidthInSingleMode && image.size.width > 0 && image.size.height > 0) {
+    size.height = MAX(1, size.width * image.size.height / image.size.width);
+  }
+  self.imageView.frame = (CGRect){CGPointZero, size};
+  self.pageScrollView.contentSize = size;
+  BOOL canScroll = self.fitWidthInSingleMode && size.height > self.pageScrollView.bounds.size.height;
+  self.pageScrollView.scrollEnabled = canScroll;
+  self.pageScrollView.alwaysBounceVertical = canScroll;
+  self.imageView.transform = transform;
+}
 - (void)prepareForReuse {
   [super prepareForReuse];
   self.pageScrollView.contentOffset = CGPointZero;
@@ -44,6 +62,7 @@ static NSCache<NSString *, UIImage *> *PapyrusComicImageCache(void) {
   self.pageScrollView.alwaysBounceVertical = NO;
   self.imageView.image = nil;
   self.imageView.transform = CGAffineTransformIdentity;
+  self.fitWidthInSingleMode = NO;
 }
 @end
 
@@ -295,22 +314,10 @@ static NSCache<NSString *, UIImage *> *PapyrusComicImageCache(void) {
 }
 
 - (void)configureCell:(PapyrusComicPageCell *)cell withImage:(UIImage *)image {
-  CGRect bounds = cell.contentView.bounds;
-  cell.pageScrollView.frame = bounds;
-  BOOL fitWidthInSingleMode = [self.layoutMode isEqualToString:@"single"] &&
+  cell.fitWidthInSingleMode = [self.layoutMode isEqualToString:@"single"] &&
     [self.fitMode isEqualToString:@"width"] && image.size.width > 0 && image.size.height > 0;
-  if (fitWidthInSingleMode) {
-    CGFloat height = bounds.size.width * image.size.height / image.size.width;
-    cell.imageView.frame = CGRectMake(0, 0, bounds.size.width, MAX(1, height));
-    cell.pageScrollView.contentSize = cell.imageView.frame.size;
-    cell.pageScrollView.scrollEnabled = height > bounds.size.height;
-    cell.pageScrollView.alwaysBounceVertical = height > bounds.size.height;
-  } else {
-    cell.imageView.frame = cell.pageScrollView.bounds;
-    cell.pageScrollView.contentSize = cell.pageScrollView.bounds.size;
-    cell.pageScrollView.scrollEnabled = NO;
-    cell.pageScrollView.alwaysBounceVertical = NO;
-  }
+  [cell setNeedsLayout];
+  [cell layoutIfNeeded];
 }
 
 - (void)emitErrorForKey:(NSString *)key message:(NSString *)message {

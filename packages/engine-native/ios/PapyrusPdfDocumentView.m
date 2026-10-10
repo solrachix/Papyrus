@@ -2308,6 +2308,7 @@ static NSString *PapyrusHexColorFromUIColor(UIColor *color, CGFloat *opacity) {
   PDFSelection *selection = [page selectionForWordAtPoint:
       [self.pdfView convertPoint:viewPoint toPage:page]];
   if (!selection.string.length) return;
+  [self.pdfView becomeFirstResponder];
   selection.color = [UIColor.systemBlueColor colorWithAlphaComponent:0.30];
   [self.pdfView setCurrentSelection:selection animate:NO];
   [self emitCurrentSelectionIfNeeded];
