@@ -33,6 +33,7 @@ import {
 
 type ProgressPillProps = {
   documentType: DocumentType;
+  navigationInDock?: boolean;
   onPress: () => void;
   onOpenPageJump?: () => void;
   onNavigateToPage?: (page: number) => void;
@@ -45,6 +46,7 @@ const clampPercent = (value: number) =>
 
 export function ProgressPill({
   documentType,
+  navigationInDock = false,
   onPress,
   onOpenPageJump,
   onNavigateToPage,
@@ -199,13 +201,14 @@ export function ProgressPill({
     ? comicLayoutMode === "single" ? "single" : "continuous"
     : viewMode;
   const pillMode = resolveProgressPillMode(progressViewMode, currentPage, pageCount);
+  if (pillMode.kind === "navigation" && navigationInDock) return null;
   if (pillMode.kind === "navigation") {
     const previousDisabled = !onTurnPage && (pillMode.previousPage === null || !onNavigateToPage);
     const nextDisabled = !onTurnPage && (pillMode.nextPage === null || !onNavigateToPage);
     return (
       <View
         pointerEvents="box-none"
-        style={[styles.frame, { top: undefined, bottom: offsets.bottom + MOBILE_CHROME_METRICS.bottomBarVisualHeight + 12, left: offsets.left, right: offsets.right, alignItems: "center" }]}
+        style={[{ position: "absolute", zIndex: 18, bottom: offsets.bottom + MOBILE_CHROME_METRICS.bottomBarVisualHeight + 12, left: offsets.left, right: offsets.right, alignItems: "center" }]}
       >
         <View style={[styles.singlePill, isDark && styles.pillDark]}>
           <Pressable

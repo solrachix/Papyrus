@@ -137,13 +137,7 @@ export function ReadingShell({
       <Topbar
         engine={engine}
         title={title}
-        onOpenOverflow={() => {
-          closeMobileDestination();
-          setInfoOpen(false);
-          setActionsOpen(false);
-          setSettingsOpen(false);
-          setOverflowOpen(true);
-        }}
+        onOpenSettings={() => openDestination("display")}
         onOpenPageJump={() => setPageJumpOpen(true)}
         showPageNavigationControls={false}
       />
@@ -155,7 +149,12 @@ export function ReadingShell({
         />
       </View>
       <ProgressPill
+        navigationInDock
         documentType={documentType}
+        onTurnPage={documentType === "epub" ? direction => {
+          const paginatedEngine = engine as typeof engine & {turnEpubPage?:(direction:-1|1)=>Promise<void>};
+          void paginatedEngine.turnEpubPage?.(direction).catch(() => {});
+        } : undefined}
         onNavigateToPage={navigateToPage}
         onPress={() =>
           openDestination(
@@ -170,6 +169,12 @@ export function ReadingShell({
         onScrubbingChange={setPageScrubActive}
       />
       <BottomBar
+        onNavigateToPage={navigateToPage}
+        onOpenPages={() => setPageJumpOpen(true)}
+        onTurnPage={documentType === "epub" ? direction => {
+          const paginatedEngine = engine as typeof engine & {turnEpubPage?:(direction:-1|1)=>Promise<void>};
+          void paginatedEngine.turnEpubPage?.(direction).catch(error => console.warn("[Papyrus] page navigation failed", error));
+        } : undefined}
         documentType={documentType}
         onOpenDestination={openDestination}
         onOpenInfo={() => openDestination("info")}
@@ -228,6 +233,7 @@ export function ReadingShell({
         }}
       />
       <SettingsSheet
+        onOpenInfo={() => openDestination("info")}
         engine={engine}
         documentType={documentType}
         visible={settingsOpen}

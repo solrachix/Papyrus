@@ -266,7 +266,8 @@ const styles = StyleSheet.create({
     maxWidth: MOBILE_CHROME_METRICS.maxFloatingWidth,
     marginTop: 10,
     paddingHorizontal: 14,
-    paddingVertical: 10,
+    height: MOBILE_CHROME_METRICS.topbarHeight,
+    paddingVertical: 0,
     backgroundColor: "rgba(255,255,255,0.88)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.72)",
@@ -285,7 +286,7 @@ const styles = StyleSheet.create({
   },
   containerIos: {
     height: MOBILE_CHROME_METRICS.topbarHeight,
-    paddingVertical: 6,
+    paddingVertical: 0,
   },
   containerLandscape: {
     maxWidth: undefined,
