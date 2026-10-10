@@ -11,6 +11,7 @@ import {
 import { useViewerStore } from "@papyrus-sdk/core";
 import { DocumentType } from "@papyrus-sdk/types";
 import { getStrings } from "../mobileStrings";
+import { MOBILE_CHROME_METRICS } from "./mobileChromeMetrics";
 import { resolveProgressPillMode } from "./progressPillMode";
 import { IconPageNav } from "../icons";
 import { resolveMobileChromeOffsets } from "./mobileChromeMetrics";
@@ -35,6 +36,7 @@ type ProgressPillProps = {
   onPress: () => void;
   onOpenPageJump?: () => void;
   onNavigateToPage?: (page: number) => void;
+  onTurnPage?: (direction:-1|1) => void;
   onScrubbingChange?: (active: boolean) => void;
 };
 
@@ -46,6 +48,7 @@ export function ProgressPill({
   onPress,
   onOpenPageJump,
   onNavigateToPage,
+  onTurnPage,
   onScrubbingChange,
 }: ProgressPillProps) {
   const {
@@ -197,12 +200,12 @@ export function ProgressPill({
     : viewMode;
   const pillMode = resolveProgressPillMode(progressViewMode, currentPage, pageCount);
   if (pillMode.kind === "navigation") {
-    const previousDisabled = pillMode.previousPage === null || !onNavigateToPage;
-    const nextDisabled = pillMode.nextPage === null || !onNavigateToPage;
+    const previousDisabled = !onTurnPage && (pillMode.previousPage === null || !onNavigateToPage);
+    const nextDisabled = !onTurnPage && (pillMode.nextPage === null || !onNavigateToPage);
     return (
       <View
         pointerEvents="box-none"
-        style={[styles.frame, styles.singleFrame, { top: offsets.progress, right: offsets.right }]}
+        style={[styles.frame, { top: undefined, bottom: offsets.bottom + MOBILE_CHROME_METRICS.bottomBarVisualHeight + 12, left: offsets.left, right: offsets.right, alignItems: "center" }]}
       >
         <View style={[styles.singlePill, isDark && styles.pillDark]}>
           <Pressable
@@ -210,7 +213,7 @@ export function ProgressPill({
             accessibilityLabel={t.previousPage}
             accessibilityState={{ disabled: previousDisabled }}
             disabled={previousDisabled}
-            onPress={() => pillMode.previousPage !== null && onNavigateToPageRef.current?.(pillMode.previousPage)}
+            onPress={() => onTurnPage ? onTurnPage(-1) : pillMode.previousPage !== null && onNavigateToPageRef.current?.(pillMode.previousPage)}
             style={styles.pageArrowHit}
             testID="papyrus-progress-page-previous"
           >
@@ -230,7 +233,7 @@ export function ProgressPill({
             accessibilityLabel={t.nextPage}
             accessibilityState={{ disabled: nextDisabled }}
             disabled={nextDisabled}
-            onPress={() => pillMode.nextPage !== null && onNavigateToPageRef.current?.(pillMode.nextPage)}
+            onPress={() => onTurnPage ? onTurnPage(1) : pillMode.nextPage !== null && onNavigateToPageRef.current?.(pillMode.nextPage)}
             style={styles.pageArrowHit}
             testID="papyrus-progress-page-next"
           >
