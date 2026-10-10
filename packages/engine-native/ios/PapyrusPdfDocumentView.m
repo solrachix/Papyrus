@@ -479,9 +479,6 @@ static NSString *PapyrusHexColorFromUIColor(UIColor *color, CGFloat *opacity) {
 
 - (void)setSelectionActive:(BOOL)selectionActive {
   _selectionActive = selectionActive;
-  if (!selectionActive) {
-    [self clearCurrentSelection];
-  }
 }
 
 - (void)layoutSubviews {
@@ -1761,7 +1758,19 @@ static NSString *PapyrusHexColorFromUIColor(UIColor *color, CGFloat *opacity) {
 
 - (void)handlePdfSelectionChanged:(NSNotification *)notification {
   if (notification.object != self.pdfView) return;
+  [self applyTemporarySelectionColor];
   [self emitCurrentSelectionIfNeeded];
+}
+
+- (void)applyTemporarySelectionColor {
+  PDFSelection *selection = self.pdfView.currentSelection;
+  if (!selection.string.length) return;
+
+  // PDFKit owns selection geometry and its drag handles. Setting the color on
+  // that same selection keeps the highlight attached to text through zoom,
+  // page rotation, and scrolling without adding a screen-space overlay.
+  selection.color = [UIColor.systemBlueColor colorWithAlphaComponent:0.30];
+  [self.pdfView setNeedsDisplay];
 }
 
 - (void)emitCurrentSelectionIfNeeded {
@@ -1933,7 +1942,18 @@ static NSString *PapyrusHexColorFromUIColor(UIColor *color, CGFloat *opacity) {
     return [UIMenu menuWithChildren:@[deleteAction]];
   }
 
-  NSMutableArray<UIMenuElement *> *actions = [NSMutableArray array];
+  NSMutableArray<UIMenuElement *> *rootActions = [NSMutableArray array];
+  NSArray<UIMenuElement *> *localizedSystemActions =
+      PapyrusLocalizedSelectionActions(suggestedActions ?: @[], self.copyLabel, self.selectAllLabel);
+  UIMenuElement *nativeCopyAction = nil;
+  for (UIMenuElement *element in localizedSystemActions) {
+    if ([element isKindOfClass:UICommand.class] &&
+        ((UICommand *)element).action == @selector(copy:)) {
+      nativeCopyAction = element;
+      [rootActions addObject:element];
+      break;
+    }
+  }
 
   if (self.onDefineSelection && self.defineLabel.length > 0 &&
       self.pdfView.currentSelection.string.length > 0 &&
@@ -1947,13 +1967,14 @@ static NSString *PapyrusHexColorFromUIColor(UIColor *color, CGFloat *opacity) {
                 handler:^(__kindof UIAction *action) {
       [weakSelf emitDefineSelection];
     }];
-    [actions addObject:defineAction];
+    [rootActions addObject:defineAction];
   }
 
+  UIAction *highlightAction = nil;
   if (self.onAnnotationCreated && self.annotateLabel.length > 0 &&
       self.pdfView.currentSelection.string.length > 0) {
     __weak typeof(self) weakSelf = self;
-    UIAction *highlightAction = [UIAction
+    highlightAction = [UIAction
         actionWithTitle:self.annotationHighlightLabel
                   image:[UIImage systemImageNamed:@"highlighter"]
              identifier:@"com.papyrus.annotation.highlight"
@@ -1988,15 +2009,25 @@ static NSString *PapyrusHexColorFromUIColor(UIColor *color, CGFloat *opacity) {
                 handler:^(__kindof UIAction *action) {
       [weakSelf emitAnnotationFromCurrentSelectionWithType:@"comment"];
     }];
+    [rootActions addObject:highlightAction];
     UIMenu *annotationMenu = [UIMenu menuWithTitle:self.annotateLabel
-                                         children:@[highlightAction, underlineAction,
-                                                    strikeoutAction, squigglyAction, noteAction]];
-    [actions addObject:annotationMenu];
+                                         children:@[underlineAction, strikeoutAction,
+                                                    squigglyAction, noteAction]];
+    [rootActions addObject:annotationMenu];
   }
 
-  [actions addObjectsFromArray:PapyrusLocalizedSelectionActions(suggestedActions ?: @[], self.copyLabel, self.selectAllLabel)];
+  NSMutableArray<UIMenuElement *> *remainingSystemActions = [NSMutableArray array];
+  for (UIMenuElement *element in localizedSystemActions) {
+    if (element != nativeCopyAction) [remainingSystemActions addObject:element];
+  }
+  [rootActions addObjectsFromArray:remainingSystemActions];
 
-  return [UIMenu menuWithChildren:actions];
+  UIMenu *rootMenu = [UIMenu menuWithChildren:rootActions];
+  if (@available(iOS 16.0, *)) {
+    // UIKit may still choose a platform-specific layout for edit menus.
+    rootMenu.preferredElementSize = UIMenuElementSizeMedium;
+  }
+  return rootMenu;
 }
 
 - (BOOL)isSingleWordSelection:(NSString *)text {
