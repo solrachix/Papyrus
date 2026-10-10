@@ -75,6 +75,7 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
 }) => {
   const {
     viewMode,
+    epubReadingMode,
     uiTheme,
     zoom,
     setDocumentState,
@@ -86,13 +87,14 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
     comicReadingDirection,
   } = useViewerStore();
   const isDark = uiTheme === "dark";
-  const isPaged = viewMode === "single";
+  const isPaged = documentType === "epub" ? epubReadingMode === "paged" : viewMode === "single";
   const isDouble = viewMode === "double";
   const t = getStrings(locale);
   const { height: windowHeight } = useWindowDimensions();
   const sheetMaxHeight = getSettingsSheetMaxHeight(windowHeight);
 
   const handleTransition = (mode: "continuous" | "paged") => {
+    if(documentType === "epub"){setDocumentState({epubReadingMode:mode === "paged" ? "paged" : "chapter-scroll"});return;}
     if (mode === "paged") {
       setDocumentState({ viewMode: "single" });
       return;
@@ -323,7 +325,7 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
                   (!isPaged || isDouble) && styles.optionTextActive,
                 ]}
               >
-                {t.continuous}
+                {documentType === "epub" && locale === "pt-BR" ? "Rolagem por capítulo" : t.continuous}
               </Text>
             </Pressable>
             <Pressable
@@ -348,7 +350,7 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
           </View>
         </View>)}
 
-        {documentType !== "comic" && documentType !== "text" && (<View style={styles.section}>
+        {documentType === "pdf" && (<View style={styles.section}>
           <Text
             style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}
           >

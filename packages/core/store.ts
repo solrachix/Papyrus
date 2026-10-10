@@ -1,6 +1,8 @@
 import { create } from "zustand";
 import {
   ViewMode,
+  EpubReadingMode,
+  EpubReadingLocation,
   Annotation,
   AnnotationReply,
   SearchResult,
@@ -56,6 +58,8 @@ interface ViewerState {
   zoom: number;
   rotation: number;
   viewMode: ViewMode;
+  epubReadingMode: EpubReadingMode;
+  epubLocation: EpubReadingLocation | null;
   viewerMode: PdfViewerMode;
   uiTheme: UITheme;
   pageTheme: PageTheme;
@@ -177,6 +181,8 @@ const getDefaultViewerState = () => ({
   zoom: 1.0,
   rotation: 0,
   viewMode: "continuous" as ViewMode,
+  epubReadingMode: "paged" as EpubReadingMode,
+  epubLocation: null as EpubReadingLocation | null,
   viewerMode: "compat" as PdfViewerMode,
   uiTheme: "light" as UITheme,
   pageTheme: "normal" as PageTheme,
@@ -279,6 +285,7 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
         zoom: config.initialZoom ?? defaults.zoom,
         rotation: config.initialRotation ?? defaults.rotation,
         viewMode: config.initialViewMode ?? defaults.viewMode,
+        epubReadingMode: config.initialEpubReadingMode ?? defaults.epubReadingMode,
         viewerMode: config.viewerMode ?? defaults.viewerMode,
         uiTheme: config.initialUITheme ?? defaults.uiTheme,
         pageTheme: config.initialPageTheme ?? defaults.pageTheme,

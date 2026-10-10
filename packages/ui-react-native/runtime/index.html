@@ -20483,6 +20483,42 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 <!-- @papyrus-comic-runtime:end -->
     <script>
 (function () {
+/* @papyrus-epub-reader:start */
+(function(root){
+  function mode(value){return value==='chapter-scroll'?'chapter-scroll':'paged';}
+  function validCfi(value){return typeof value==='string' && value.length<=4096 && /^epubcfi\([^\n<>]+\)$/.test(value);}
+  function options(value){return {manager:'default',flow:mode(value)==='paged'?'paginated':'scrolled-doc',spread:'none',width:'100%',height:'100%',allowScriptedContent:false};}
+  function gesture(start,end,state){
+    if(!start || !end || state.selected || state.interactive || state.multitouch)return null;
+    var dx=end.x-start.x,dy=end.y-start.y,elapsed=end.time-start.time;
+    if(state.mode==='paged' && Math.abs(dx)>=48 && Math.abs(dx)>Math.abs(dy)*1.5 && elapsed>=0 && elapsed<1500)return (dx<0)!==Boolean(state.rtl)?'next':'prev';
+    if(elapsed>=0 && elapsed<450 && Math.hypot(dx,dy)<=12)return 'tap';
+    return null;
+  }
+  function location(raw,count,readingMode){
+    var start=raw && raw.start;if(!start || !validCfi(start.cfi))return null;
+    var displayed=start.displayed||{},chapter=Math.max(1,(Number(start.index)||0)+1);
+    var visualPage=mode(readingMode)==='paged' && Number.isFinite(displayed.page)?displayed.page:null;
+    var total=mode(readingMode)==='paged' && Number.isFinite(displayed.total)?displayed.total:null;
+    var fraction=total?Math.max(0,(visualPage-1)/total):0;
+    return {version:1,cfi:start.cfi,href:start.href||'',chapter:chapter,chapterCount:count,visualPage:visualPage,visualPageCount:total,progress:Math.min(1,Math.max(0,(chapter-1+fraction)/Math.max(1,count))),mode:mode(readingMode),atStart:Boolean(raw.atStart),atEnd:Boolean(raw.atEnd)};
+  }
+  function install(contents,config){
+    var doc=contents.document,win=contents.window,start=null,blocked=false;
+    function point(e){var t=e.changedTouches&&e.changedTouches[0]||e.touches&&e.touches[0];return t?{x:t.clientX,y:t.clientY,time:Date.now()}:null;}
+    function selected(){return Boolean(String(win.getSelection()||'').trim()) || config.blocked();}
+    function interactive(target){return Boolean(target && target.closest && target.closest('a,button,input,textarea,select,[contenteditable="true"],[data-papyrus-overlay]'));}
+    function begin(e){start=point(e);blocked=e.touches.length!==1 || selected() || interactive(e.target);}
+    function move(e){if(e.touches.length!==1)blocked=true;}
+    function end(e){var action=gesture(start,point(e),{mode:config.mode(),rtl:config.rtl(),selected:selected(),interactive:blocked||interactive(e.target)||Boolean(config.annotationHit && config.annotationHit(point(e))),multitouch:blocked});start=null;if(!config.current())return;if(action==='tap')config.tap();else if(action)config.turn(action==='next'?1:-1);}
+    function cancel(){start=null;blocked=true;}
+    doc.addEventListener('touchstart',begin,{passive:true});doc.addEventListener('touchmove',move,{passive:true});doc.addEventListener('touchend',end,{passive:true});doc.addEventListener('touchcancel',cancel,{passive:true});
+    return function(){doc.removeEventListener('touchstart',begin);doc.removeEventListener('touchmove',move);doc.removeEventListener('touchend',end);doc.removeEventListener('touchcancel',cancel);};
+  }
+  root.PapyrusEpubReader={mode:mode,validCfi:validCfi,options:options,gesture:gesture,location:location,install:install};
+})(typeof window==='undefined'?globalThis:window);
+
+/* @papyrus-epub-reader:end */
 /* @papyrus-epub-annotations:start */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
@@ -20561,6 +20597,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         var color = /^#[0-9a-f]{6}$/i.test(annotation.color) ? annotation.color : '#FFC928';
         var style = annotation.markupStyle || annotation.type;
         var opacity = Number.isFinite(annotation.opacity) ? Math.max(0,Math.min(1,annotation.opacity)) : 0.35;
+        if(style === 'highlight')opacity=Math.min(0.35,opacity);
         rects.forEach(function(rect) {
           var mark = doc.createElement('div');
           var bodyRect=doc.body.getBoundingClientRect();
@@ -20573,8 +20610,10 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         if (hasNote) {
           var last = rects[rects.length-1], button = doc.createElement('button');
           button.textContent = '●'; button.setAttribute('aria-label',options.labels().comment || '');
-          button.style.cssText = 'position:absolute;pointer-events:auto;border:0;background:transparent;color:'+color+';width:44px;height:44px;left:'+Math.max(0,Math.min(doc.documentElement.clientWidth-44,last.right-doc.body.getBoundingClientRect().left))+'px;top:'+(Math.floor(last.top/44)*44-doc.body.getBoundingClientRect().top)+'px';
-          var key = Math.floor(last.top/44);
+          var pageWidth=Math.max(44, options.pageWidth ? options.pageWidth() : win.innerWidth);
+          var bodyRect=doc.body.getBoundingClientRect(), column=Math.max(0,Math.floor((last.left-bodyRect.left)/pageWidth));
+          button.style.cssText = 'position:absolute;pointer-events:auto;border:0;background:transparent;color:'+color+';width:44px;height:44px;left:'+((column+1)*pageWidth-44)+'px;top:'+(Math.floor(last.top/44)*44-doc.body.getBoundingClientRect().top)+'px';
+          var key = column+":"+Math.floor(last.top/44);
           var neighbors=noteGroups.get(key);
           if(!neighbors){neighbors={button:button,ids:[]};noteGroups.set(key,neighbors);group.appendChild(button);}
           neighbors.ids.push(annotation.id);
@@ -20595,10 +20634,10 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     doc.addEventListener('click',tapMarkup);
     var observer = typeof win.ResizeObserver === 'function' ? new win.ResizeObserver(schedule) : null;
     if (observer) observer.observe(doc.body);
-    win.addEventListener('resize',schedule); doc.addEventListener('load',schedule,true);
+    win.addEventListener('resize',schedule);win.addEventListener('scroll',schedule); doc.addEventListener('load',schedule,true);
     if (doc.fonts && doc.fonts.ready) doc.fonts.ready.then(schedule);
     schedule();
-    return {schedule:schedule, range:function(anchor){return resolveRange(contents,anchor);}, destroy:function(){alive=false;if(frame)win.cancelAnimationFrame(frame);if(observer)observer.disconnect();win.removeEventListener('resize',schedule);doc.removeEventListener('load',schedule,true);doc.removeEventListener('click',tapMarkup);overlay.remove();doc.body.style.position=originalPosition;registry.clear();}};
+    return {schedule:schedule, hit:function(x,y){return hitRegions.some(function(item){return item.rects.some(function(r){return x>=r.left && x<=r.right && y>=r.top && y<=r.bottom;});});}, range:function(anchor){return resolveRange(contents,anchor);}, destroy:function(){alive=false;if(frame)win.cancelAnimationFrame(frame);if(observer)observer.disconnect();win.removeEventListener('resize',schedule);win.removeEventListener('scroll',schedule);doc.removeEventListener('load',schedule,true);doc.removeEventListener('click',tapMarkup);overlay.remove();doc.body.style.position=originalPosition;registry.clear();}};
   }
   return {validAnchor:validAnchor,recoverRange:recoverRange,resolveRange:resolveRange,selection:selection,install:install};
 });
@@ -21679,26 +21718,55 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       pageCount,
     });
 
+    if (book.locations?.generate) {
+      const activeBook=book;
+      activeBook.locations.generate(150).then(() => {
+        if (isCurrentLoad() && activeBook===book && epubLocation) {
+          epubLocation.progress=activeBook.locations.percentageFromCfi(epubLocation.cfi);
+          sendEvent('EPUB_LOCATION',{documentSessionId,location:epubLocation});
+        }
+      }).catch(() => {});
+    }
+    return renderEpubRendition(loadId,generation,null);
+  };
+
+  const renderEpubRendition = async (loadId,generation,target) => {
+    const diagnosticPayload={loadId};
+    const isCurrentLoad=()=>generation===epubLoadGeneration;
+    if(epubInteractionCleanup)epubInteractionCleanup();
+    if(rendition)rendition.destroy();
     clearViewer();
-    rendition = book.renderTo(viewer, {
-      manager: 'continuous',
-      allowScriptedContent: false,
-      width: '100%',
-      height: '100%',
-      flow: 'scrolled-continuous',
-      spread: 'none',
-    });
+    rendition = book.renderTo(viewer, window.PapyrusEpubReader.options(epubViewMode === 'single' ? 'paged' : 'chapter-scroll'));
     sendEpubDiagnostic('epub.rendition.created', diagnosticPayload);
 
     if (rendition && rendition.hooks && rendition.hooks.content) {
       const session = documentSessionId;
       const activeRendition = rendition;
       rendition.hooks.content.register((contents) => {
+        const removeGestureListeners = window.PapyrusEpubReader.install(contents, {
+          mode: () => epubViewMode === 'single' ? 'paged' : 'chapter-scroll',
+          rtl: () => book.package?.metadata?.direction === 'rtl' || book.spine?.direction === 'rtl',
+          blocked: () => Boolean(nativeMenuSelection && String(nativeMenuSelection.contents?.window?.getSelection() || '').trim()),
+          annotationHit: point => epubAnnotationRenderers.get(contents)?.hit(point.x,point.y),
+          current: () => session === documentSessionId && activeRendition === rendition,
+          tap: () => sendEvent('EPUB_CONTENT_TAP',{documentSessionId:session}),
+          turn: direction => {
+            epubNavigationQueue = epubNavigationQueue.catch(()=>{}).then(() => {
+              if(session !== documentSessionId || activeRendition !== rendition)return;
+              return direction<0?activeRendition.prev():activeRendition.next();
+            });
+            epubNavigationQueue.catch(error => sendEvent('EPUB_NAVIGATION_ERROR',{message:String(error)}));
+          },
+        });
+        const gestureCleanup = () => {removeGestureListeners();epubSelectionCleanups.delete(gestureCleanup);};
+        epubSelectionCleanups.add(gestureCleanup);
+        contents.__papyrusGestureCleanup=gestureCleanup;
         const href = spineItems[contents.sectionIndex]?.href;
         if (href && window.PapyrusEpubAnnotations) {
           const renderer = window.PapyrusEpubAnnotations.install(contents, {
             href, get documentId() { return annotationDocumentId; },
             isCurrent: () => session === documentSessionId && activeRendition === rendition,
+            pageWidth: () => activeRendition.layout?.width || viewer.clientWidth,
             annotations: () => epubAnnotations, labels: () => annotationLabels,
             onTap: (id, ids) => sendEvent("EPUB_ANNOTATION_TAP", {documentSessionId: session, id, ids}),
           });
@@ -21717,8 +21785,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           typeof selectionWindow.getSelection === 'function'
         ) {
           let selectionTimer = null;
-          let lastSelectionKey = '';
-          let lastSelectionAt = 0;
+
           const reportSelection = () => {
             selectionTimer = null;
             if (session !== documentSessionId || activeRendition !== rendition) return;
@@ -21733,11 +21800,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             try { cfi = contents.cfiFromRange(range); } catch (_) { return; }
             const anchor = window.PapyrusEpubAnnotations?.selection(contents, cfi, href, annotationDocumentId);
             if (!anchor) return;
-            const key = anchor.cfiRange + ':' + anchor.quote;
-            const now = Date.now();
-            if (key === lastSelectionKey && now - lastSelectionAt < 750) return;
-            lastSelectionKey = key;
-            lastSelectionAt = now;
+            if (nativeMenuSelection?.payload?.anchor?.cfiRange === anchor.cfiRange && nativeMenuSelection?.payload?.anchor?.quote === anchor.quote) return;
             const payload = {documentSessionId: session, text: anchor.quote,
               pageIndex: contents.sectionIndex + 1, anchor};
             nativeMenuSelection = {contents, payload};
@@ -21752,6 +21815,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             // The content document still emits selectionchange, so resolve its
             // live Range to a CFI before the native menu action can fire.
             if (text) reportSelection();
+            else if (nativeMenuSelection?.contents === contents) nativeMenuSelection = null;
           };
           selectionDocument.addEventListener('selectionchange', handleSelectionChange);
           const selectionCleanup = () => {
@@ -21774,6 +21838,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       typeof rendition.hooks.unloaded.register === 'function'
     ) {
       rendition.hooks.unloaded.register((view) => {
+        view?.contents?.__papyrusGestureCleanup?.();
         const cleanup = view && view.contents && view.contents.__papyrusSelectionCleanup;
         if (typeof cleanup === 'function') cleanup();
         const renderer = epubAnnotationRenderers.get(view?.contents);
@@ -21789,13 +21854,13 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         if (selectionSession !== documentSessionId || selectionRendition !== rendition) return;
         const href = spineItems[contents.sectionIndex]?.href;
         const anchor = href && window.PapyrusEpubAnnotations?.selection(contents,cfiRange,href,annotationDocumentId);
-        if (!anchor) return;
+        if (!anchor || nativeMenuSelection?.payload?.anchor?.cfiRange === anchor.cfiRange && nativeMenuSelection?.payload?.anchor?.quote === anchor.quote) return;
         epubScrollDiagnostics && epubScrollDiagnostics.setSelectionActive(true);
         const payload = {documentSessionId: selectionSession, text: anchor.quote, pageIndex: contents.sectionIndex+1, anchor};
         nativeMenuSelection = {contents, payload};
         sendEvent('EPUB_TEXT_SELECTED', payload);
       });
-      ['rendered','resized','layout'].forEach(name => rendition.on(name, () => {
+      ['rendered','resized','layout','relocated'].forEach(name => rendition.on(name, () => {
         if (selectionSession === documentSessionId && selectionRendition === rendition) epubAnnotationRenderers.forEach(renderer => renderer.schedule());
       }));
       rendition.on('relocated', (location) => {
@@ -21805,6 +21870,11 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         if (index < 0 && start && start.href) index = getSpineIndexByHref(start.href);
         if (index < 0 || index >= spineItems.length) return;
         epubScrollDiagnostics && epubScrollDiagnostics.relocated(location);
+        epubLocation=window.PapyrusEpubReader.location(location,spineItems.length,epubViewMode==='single'?'paged':'chapter-scroll');
+        if(epubLocation){
+          if(book.locations?.length?.()>0)epubLocation.progress=book.locations.percentageFromCfi(epubLocation.cfi);
+          sendEvent('EPUB_LOCATION',{documentSessionId,location:epubLocation});
+        }
         const nextPage = index + 1;
         if (nextPage === currentPage) return;
         currentPage = nextPage;
@@ -21812,9 +21882,10 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       });
     }
 
+    applyEpubZoom();
     sendEpubDiagnostic('epub.display.start', diagnosticPayload);
     await withEpubStageTimeout(
-      displayEpubPage(0),
+      rendition.display(target || spineItems[0]?.href),
       'rendition.display',
       diagnosticPayload,
     );
@@ -21826,7 +21897,6 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       typeof rendition.manager.on === 'function' &&
       typeof rendition.on === 'function'
     ) {
-      let touchStart = null;
       let lastScrollOffset = -1;
       const manager = rendition.manager;
       epubScrollDiagnostics = createEpubScrollDiagnostics(manager);
@@ -21901,57 +21971,19 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           return result;
         };
       }
-      const getTouchPoint = (event) => {
-        const touch =
-          (event && event.changedTouches && event.changedTouches[0]) ||
-          (event && event.touches && event.touches[0]);
-        if (!touch) return null;
-        const x = Number(touch.screenX ?? touch.clientX);
-        const y = Number(touch.screenY ?? touch.clientY);
-        return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null;
-      };
-      const handleScroll = (event) => {
+      const handleScroll = event => {
         const offsetY = Math.max(0, Number(event && event.top) || 0);
         epubScrollDiagnostics && epubScrollDiagnostics.scroll(event);
-        if (Math.abs(offsetY - lastScrollOffset) < 1) return;
-        lastScrollOffset = offsetY;
-        sendEvent('VIEWER_SCROLL', { offsetY });
+        if (Math.abs(offsetY-lastScrollOffset)<1) return;
+        lastScrollOffset=offsetY;
+        sendEvent('VIEWER_SCROLL',{offsetY});
       };
-      const handleTouchStart = (event) => {
-        touchStart = event?.touches?.length > 1 ? null : getTouchPoint(event);
-        epubScrollDiagnostics && epubScrollDiagnostics.touchStart(event);
-      };
-      const handleTouchMove = (event) => {
-        if (event?.touches?.length > 1) touchStart = null;
-        epubScrollDiagnostics && epubScrollDiagnostics.touchMove(event);
-      };
-      const handleTouchEnd = (event) => {
-        const end = getTouchPoint(event);
-        const start = touchStart;
-        touchStart = null;
-        const selectedText = event?.target?.ownerDocument?.defaultView?.getSelection?.()?.toString().trim() || '';
-        if (!selectedText && start && end && epubViewMode === 'single' && Math.abs(end.x-start.x) >= 48 && Math.abs(end.x-start.x) > Math.abs(end.y-start.y)*1.5) {
-          const active = rendition;
-          const interactionSession = documentSessionId;
-          epubNavigationQueue = epubNavigationQueue.catch(() => {}).then(() => {
-            if (active !== rendition || interactionSession !== documentSessionId) return;
-            return end.x < start.x ? active.next() : active.prev();
-          });
-          epubNavigationQueue.catch(error => sendEvent('EPUB_NAVIGATION_ERROR', {message:String(error)}));
-        } else if (!selectedText && start && end && Math.hypot(end.x - start.x, end.y - start.y) <= 12) {
-          sendEvent('VIEWER_TAP', {});
-        }
-        epubScrollDiagnostics && epubScrollDiagnostics.touchEnd(event);
-      };
-
       manager.on('scroll', handleScroll);
       const handleScrolled = (event) => {
         epubScrollDiagnostics && epubScrollDiagnostics.settled(event);
       };
       manager.on('scrolled', handleScrolled);
-      rendition.on('touchstart', handleTouchStart);
-      rendition.on('touchmove', handleTouchMove);
-      rendition.on('touchend', handleTouchEnd);
+
       epubInteractionCleanup = () => {
         epubSelectionCleanups.forEach((cleanup) => cleanup());
         epubSelectionCleanups.clear();
@@ -21960,16 +21992,9 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         if (originalEnqueue) queue.enqueue = originalEnqueue;
         if (typeof manager.off === 'function') manager.off('scroll', handleScroll);
         if (typeof manager.off === 'function') manager.off('scrolled', handleScrolled);
-        if (typeof rendition.off === 'function') {
-          rendition.off('touchstart', handleTouchStart);
-          rendition.off('touchmove', handleTouchMove);
-          rendition.off('touchend', handleTouchEnd);
-        }
         epubScrollDiagnostics = null;
       };
     }
-    applyEpubZoom();
-
     const outline = await withEpubStageTimeout(
       buildOutline(),
       'outline',
@@ -22107,7 +22132,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   };
 
   let nativeMenuSelection = null;
-  let epubViewMode = "continuous";
+  let epubViewMode = "single";
+  let epubLocation = null;
 
   const handleCommand = async (message) => {
     const { id, kind, payload } = message;
@@ -22120,7 +22146,9 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         epubAnnotations = [];
         annotationDocumentId = undefined;
         zoom = 1.0;
-        epubViewMode = "continuous";
+        epubViewMode = payload.epubMode === "chapter-scroll" ? "continuous" : "single";
+        epubLocation = null;
+        nativeMenuSelection = null;
         epubNavigationRequest += 1;
         epubNavigationQueue = Promise.resolve();
 
@@ -22234,25 +22262,40 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 
       if (kind === 'set-epub-view-mode') {
         if (currentType !== 'epub' || payload.documentSessionId !== documentSessionId) throw new Error('Stale EPUB layout session');
-        epubViewMode = payload.viewMode === 'single' ? 'single' : 'continuous';
-        const active = rendition;
-        epubNavigationQueue = epubNavigationQueue.catch(() => {}).then(() => {
-          if (active !== rendition || payload.documentSessionId !== documentSessionId) return;
-          const flow = epubViewMode === 'single' ? 'paginated' : 'scrolled-continuous';
-          if (active.settings.flow === flow) return;
-          active.flow(flow);
-          return active.q.enqueue(() => Promise.resolve());
-        });
-        await epubNavigationQueue;
-        sendResponse(id,true,null); return;
+        const next=payload.epubMode ? (payload.epubMode==='paged'?'single':'continuous') : (payload.viewMode==='single'?'single':'continuous');
+        {
+          epubNavigationQueue=epubNavigationQueue.catch(()=>{}).then(async()=>{
+            if(payload.documentSessionId!==documentSessionId || next===epubViewMode)return;
+            const target=epubLocation?.cfi;
+            epubViewMode=next;
+            await renderEpubRendition('layout',epubLoadGeneration,target);
+          });
+          await epubNavigationQueue;
+        }
+        sendResponse(id,true,null);return;
+      }
+      if(kind === 'epub-go-to-location'){
+        if(currentType!=='epub' || payload.documentSessionId!==documentSessionId || !window.PapyrusEpubReader.validCfi(payload.cfi))throw new Error('Invalid EPUB location');
+        epubNavigationQueue=epubNavigationQueue.catch(()=>{}).then(()=>payload.documentSessionId===documentSessionId?rendition.display(payload.cfi):undefined);
+        await epubNavigationQueue;sendResponse(id,true,null);return;
       }
 
       if (kind === 'set-zoom') {
-        zoom = Math.max(0.5, Math.min(4.0, payload.zoom || 1.0));
-        applyZoom();
-        sendState();
-        sendResponse(id, true, { zoom });
-        return;
+        const requestedZoom=Math.max(0.5,Math.min(4.0,payload.zoom || 1.0));
+        if(currentType === 'epub') {
+          const session=documentSessionId;
+          epubNavigationQueue=epubNavigationQueue.catch(()=>{}).then(async()=>{
+            if(session!==documentSessionId)return;
+            const active=rendition;
+            const cfi=epubLocation?.cfi;
+            zoom=requestedZoom;applyEpubZoom();
+            // Let the content CSS update before redisplaying the logical anchor.
+            await new Promise(resolve=>(window.requestAnimationFrame || (callback=>setTimeout(callback,0)))(resolve));
+            if(cfi && active===rendition && session===documentSessionId)await active.display(cfi);
+          });
+          await epubNavigationQueue;
+        } else {zoom=requestedZoom;applyZoom();}
+        sendState();sendResponse(id,true,{zoom});return;
       }
 
       if (kind === 'set-rotation') {

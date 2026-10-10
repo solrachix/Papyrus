@@ -88,6 +88,7 @@ import {
 } from "./viewerPerformance";
 
 export interface ViewerProps {
+  documentType?: string;
   engine: DocumentEngine;
   /** Stable file identity, never the native engine/session ID. */
   documentId?: string;
@@ -189,6 +190,7 @@ const scrollViewerListToOffset = (
 };
 
 const Viewer: React.FC<ViewerProps> = ({
+  documentType,
   documentId,
   engine,
   maxPageWidth,
@@ -1965,17 +1967,8 @@ const Viewer: React.FC<ViewerProps> = ({
     [mobilePerf, perfEnabled, scrollPerfSession]
   );
 
-  const handleWebViewScroll = useCallback(
-    (_offsetY: number) => {
-      // EPUB content can scroll inside nested iframes. The runtime does not
-      // always dispatch a matching tap to restore controls on iOS, so never
-      // strand the bottom bar hidden after a WebView scroll.
-      if (!chromeVisibleRef.current) {
-        setMobileChromeVisible(true, "scroll.webview.recover");
-      }
-    },
-    [setMobileChromeVisible]
-  );
+  // Scrolling and relocation preserve the reader's explicit immersive choice.
+  const handleWebViewScroll = useCallback((_offsetY: number) => {}, []);
 
   const handlePageTap = useCallback(() => {
     const nextVisible = resolvePageTapChromeVisibility({
@@ -2233,6 +2226,7 @@ const Viewer: React.FC<ViewerProps> = ({
     return (
       <View style={[styles.container, isDark && styles.containerDark]}>
         <WebViewViewer
+          documentType={documentType}
           engine={engine}
           documentId={documentId}
           onDefineSelection={onDefineSelection}
