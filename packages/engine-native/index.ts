@@ -1416,6 +1416,10 @@ export class WebViewDocumentEngine extends BaseDocumentEngine {
     void this.request("go-to-page", { page });
   }
 
+  turnEpubPage(direction: -1 | 1): Promise<void> {
+    return this.request("epub-turn-page", {direction, documentSessionId:this.documentSessionId}).then(() => undefined);
+  }
+
   setZoom(zoom: number): void {
     this.zoom = Math.max(0.5, Math.min(4.0, zoom));
     void this.request("set-zoom", { zoom: this.zoom });
@@ -1879,6 +1883,11 @@ export class MobileDocumentEngine extends BaseDocumentEngine {
 
   goToPage(page: number): void {
     this.activeEngine.goToPage(page);
+  }
+
+  turnEpubPage(direction: -1 | 1): Promise<void> {
+    const engine = this.activeEngine as DocumentEngine & {turnEpubPage?:(direction:-1|1)=>Promise<void>};
+    return engine.turnEpubPage?.(direction) ?? Promise.resolve();
   }
 
   setZoom(zoom: number): void {

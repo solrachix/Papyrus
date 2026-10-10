@@ -5,6 +5,7 @@ import {
   Pressable,
   StyleSheet,
   useWindowDimensions,
+  Platform,
   type ViewStyle,
 } from "react-native";
 import { useViewerStore } from "@papyrus-sdk/core";
@@ -132,6 +133,7 @@ const Topbar: React.FC<TopbarProps> = ({
         <View
           style={[
             styles.container,
+            Platform.OS === "ios" && styles.containerIos,
             isDark && styles.containerDark,
             isLandscape && styles.containerLandscape,
           ]}
@@ -264,7 +266,8 @@ const styles = StyleSheet.create({
     maxWidth: MOBILE_CHROME_METRICS.maxFloatingWidth,
     marginTop: 10,
     paddingHorizontal: 14,
-    paddingVertical: 10,
+    height: MOBILE_CHROME_METRICS.topbarHeight,
+    paddingVertical: 0,
     backgroundColor: "rgba(255,255,255,0.88)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.72)",
@@ -280,6 +283,10 @@ const styles = StyleSheet.create({
   containerDark: {
     backgroundColor: "rgba(15,17,21,0.88)",
     borderColor: "rgba(71,85,105,0.48)",
+  },
+  containerIos: {
+    height: MOBILE_CHROME_METRICS.topbarHeight,
+    paddingVertical: 0,
   },
   containerLandscape: {
     maxWidth: undefined,

@@ -1425,6 +1425,7 @@
         if (selectionSession === documentSessionId && selectionRendition === rendition) epubAnnotationRenderers.forEach(renderer => renderer.schedule());
       }));
       rendition.on('relocated', (location) => {
+        if (selectionSession !== documentSessionId || selectionRendition !== rendition) return;
         const start = location && location.start;
         let index = start && Number.isInteger(start.index) ? start.index : -1;
         if (index < 0 && start && start.href) index = getSpineIndexByHref(start.href);
@@ -1543,10 +1544,11 @@
         sendEvent('VIEWER_SCROLL', { offsetY });
       };
       const handleTouchStart = (event) => {
-        touchStart = getTouchPoint(event);
+        touchStart = event?.touches?.length > 1 ? null : getTouchPoint(event);
         epubScrollDiagnostics && epubScrollDiagnostics.touchStart(event);
       };
       const handleTouchMove = (event) => {
+        if (event?.touches?.length > 1) touchStart = null;
         epubScrollDiagnostics && epubScrollDiagnostics.touchMove(event);
       };
       const handleTouchEnd = (event) => {
@@ -1554,7 +1556,15 @@
         const start = touchStart;
         touchStart = null;
         const selectedText = event?.target?.ownerDocument?.defaultView?.getSelection?.()?.toString().trim() || '';
-        if (!selectedText && start && end && Math.hypot(end.x - start.x, end.y - start.y) <= 12) {
+        if (!selectedText && start && end && epubViewMode === 'single' && Math.abs(end.x-start.x) >= 48 && Math.abs(end.x-start.x) > Math.abs(end.y-start.y)*1.5) {
+          const active = rendition;
+          const interactionSession = documentSessionId;
+          epubNavigationQueue = epubNavigationQueue.catch(() => {}).then(() => {
+            if (active !== rendition || interactionSession !== documentSessionId) return;
+            return end.x < start.x ? active.next() : active.prev();
+          });
+          epubNavigationQueue.catch(error => sendEvent('EPUB_NAVIGATION_ERROR', {message:String(error)}));
+        } else if (!selectedText && start && end && Math.hypot(end.x - start.x, end.y - start.y) <= 12) {
           sendEvent('VIEWER_TAP', {});
         }
         epubScrollDiagnostics && epubScrollDiagnostics.touchEnd(event);
@@ -1599,6 +1609,8 @@
     return { pageCount, outline };
   };
 
+  let epubNavigationQueue = Promise.resolve();
+  let epubNavigationRequest = 0;
   const displayEpubPage = async (pageIndex) => {
     if (!rendition) return;
     const item = spineItems[pageIndex];
@@ -1608,9 +1620,18 @@
       target,
       pageIndex,
     });
-    await rendition.display(target);
-    currentPage = pageIndex + 1;
-    sendState();
+    const activeRendition = rendition;
+    const session = documentSessionId;
+    const request = ++epubNavigationRequest;
+    const navigation = epubNavigationQueue.catch(() => {}).then(async () => {
+      if (request !== epubNavigationRequest || session !== documentSessionId || activeRendition !== rendition) return;
+      await activeRendition.display(target);
+      if (request !== epubNavigationRequest || session !== documentSessionId || activeRendition !== rendition) return;
+      currentPage = pageIndex + 1;
+      sendState();
+    });
+    epubNavigationQueue = navigation;
+    await navigation;
   };
 
   const getTextContent = async (pageIndex) => {
@@ -1712,6 +1733,7 @@
   };
 
   let nativeMenuSelection = null;
+  let epubViewMode = "continuous";
 
   const handleCommand = async (message) => {
     const { id, kind, payload } = message;
@@ -1724,6 +1746,9 @@
         epubAnnotations = [];
         annotationDocumentId = undefined;
         zoom = 1.0;
+        epubViewMode = "continuous";
+        epubNavigationRequest += 1;
+        epubNavigationQueue = Promise.resolve();
 
         if (currentType === 'text') {
           const result = await loadText(
@@ -1778,17 +1803,23 @@
           epubAnnotationRenderers.forEach(renderer => renderer.schedule());
         } else {
           const annotation = epubAnnotations.find(a => a.id === payload.annotationId);
-          if (!annotation) throw new Error('Annotation not available');
+          if (!annotation || (annotation.anchor.documentId && annotation.anchor.documentId !== annotationDocumentId)) throw new Error('Annotation not available for this document');
           // Navigation uses the CFI, never a synthetic percentage/page rectangle.
           const navigationSession = documentSessionId;
           const activeRendition = rendition;
           // Open the confirmed chapter first, resolve its quote, then navigate its actual range.
-          await activeRendition.display(annotation.anchor.href);
-          if(navigationSession !== documentSessionId || activeRendition !== rendition)throw new Error('Stale EPUB navigation');
-          const contents = activeRendition.getContents().find(c => spineItems[c.sectionIndex]?.href === annotation.anchor.href);
-          const range = contents && window.PapyrusEpubAnnotations.resolveRange(contents,annotation.anchor);
-          if(!range)throw new Error('EPUB anchor unresolved');
-          await activeRendition.display(contents.cfiFromRange(range));
+          epubNavigationRequest += 1;
+          const navigation = epubNavigationQueue.catch(() => {}).then(async () => {
+            if(navigationSession !== documentSessionId || activeRendition !== rendition)throw new Error('Stale EPUB navigation');
+            await activeRendition.display(annotation.anchor.href);
+            if(navigationSession !== documentSessionId || activeRendition !== rendition)throw new Error('Stale EPUB navigation');
+            const contents = activeRendition.getContents().find(c => spineItems[c.sectionIndex]?.href === annotation.anchor.href);
+            const range = contents && window.PapyrusEpubAnnotations.resolveRange(contents,annotation.anchor);
+            if(!range)throw new Error('EPUB anchor unresolved');
+            await activeRendition.display(contents.cfiFromRange(range));
+          });
+          epubNavigationQueue = navigation;
+          await navigation;
         }
         sendResponse(id,true,null); return;
       }
@@ -1813,6 +1844,33 @@
         }
         sendResponse(id, true, { currentPage });
         return;
+      }
+
+      if (kind === 'epub-turn-page') {
+        if (epubViewMode !== 'single') {sendResponse(id,true,null); return;}
+        if (currentType !== 'epub' || payload.documentSessionId !== documentSessionId) throw new Error('Stale EPUB navigation');
+        const active = rendition;
+        epubNavigationQueue = epubNavigationQueue.catch(() => {}).then(() => {
+          if (active !== rendition || payload.documentSessionId !== documentSessionId) return;
+          return payload.direction < 0 ? active.prev() : active.next();
+        });
+        await epubNavigationQueue;
+        sendResponse(id,true,null); return;
+      }
+
+      if (kind === 'set-epub-view-mode') {
+        if (currentType !== 'epub' || payload.documentSessionId !== documentSessionId) throw new Error('Stale EPUB layout session');
+        epubViewMode = payload.viewMode === 'single' ? 'single' : 'continuous';
+        const active = rendition;
+        epubNavigationQueue = epubNavigationQueue.catch(() => {}).then(() => {
+          if (active !== rendition || payload.documentSessionId !== documentSessionId) return;
+          const flow = epubViewMode === 'single' ? 'paginated' : 'scrolled-continuous';
+          if (active.settings.flow === flow) return;
+          active.flow(flow);
+          return active.q.enqueue(() => Promise.resolve());
+        });
+        await epubNavigationQueue;
+        sendResponse(id,true,null); return;
       }
 
       if (kind === 'set-zoom') {

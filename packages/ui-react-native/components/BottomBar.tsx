@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Pressable, StyleSheet, useWindowDimensions } from "react-native";
+import { View, Text, Pressable, StyleSheet, useWindowDimensions } from "react-native";
 import { useViewerStore } from "@papyrus-sdk/core";
 import Animated, { useAnimatedStyle } from "react-native-reanimated";
 import { useNativeInkMotion, useNativeInkSession } from "./useNativeInkChrome";
@@ -7,6 +7,8 @@ import { DocumentType, MobilePrimaryDestination } from "@papyrus-sdk/types";
 import { getStrings } from "../mobileStrings";
 import {
   IconComment,
+  IconChevronLeft,
+  IconChevronRight,
   IconInfo,
   IconSearch,
   IconSettings,
@@ -26,6 +28,9 @@ type BottomBarProps = {
   documentType: DocumentType;
   onOpenInfo: () => void;
   onOpenSettings: () => void;
+  onTurnPage?: (direction: -1 | 1) => void;
+  onNavigateToPage?: (page: number) => void;
+  onOpenPages?: () => void;
   onOpenDestination?: (destination: MobilePrimaryDestination) => void;
 };
 
@@ -34,9 +39,11 @@ const BottomBar: React.FC<BottomBarProps> = ({
   onOpenInfo,
   onOpenSettings,
   onOpenDestination,
+  onTurnPage, onNavigateToPage, onOpenPages,
 }) => {
   const {
     activeMobileDestination,
+    viewMode, comicLayoutMode, currentPage, pageCount,
     mobileDockVisible,
     setDocumentState,
     uiTheme,
@@ -75,6 +82,16 @@ const BottomBar: React.FC<BottomBarProps> = ({
     activeMobileDestination,
     toolDockOpen,
   });
+
+  const paginated = documentType !== "text" && (documentType === "comic" ? comicLayoutMode === "single" : viewMode === "single");
+  if (paginated) {
+    layout.leftSlots.push(...layout.rightSlots.filter(slot => slot.key === "search"));
+    layout.rightSlots = [];
+  }
+  const turnPage = (direction: -1 | 1) => {
+    if (onTurnPage) onTurnPage(direction);
+    else onNavigateToPage?.(currentPage + direction);
+  };
 
   const slotMeta: Record<
     BottomBarSlotKey,
@@ -205,7 +222,17 @@ const BottomBar: React.FC<BottomBarProps> = ({
           ]}
           testID="papyrus-floating-bottom-dock"
         >
-          {layout.rightSlots.map((slot) => {
+          {paginated ? <>
+            <Pressable accessibilityRole="button" accessibilityLabel={locale === "pt-BR" ? "Página anterior" : "Previous page"} disabled={!dockVisible || (!onTurnPage && currentPage <= 1)} onPress={() => turnPage(-1)} style={styles.iconOnlyItem}>
+              <IconChevronLeft size={MOBILE_CHROME_METRICS.iconSize} color={iconColor(false)} />
+            </Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel={locale === "pt-BR" ? "Ir para página" : "Go to page"} onPress={onOpenPages} style={[styles.iconOnlyItem,{minWidth:56}]}>
+              <Text style={{color:iconColor(false),fontWeight:"700",fontSize:13,lineHeight:18,includeFontPadding:false}}>{currentPage}/{pageCount}</Text>
+            </Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel={locale === "pt-BR" ? "Próxima página" : "Next page"} disabled={!dockVisible || (!onTurnPage && currentPage >= pageCount)} onPress={() => turnPage(1)} style={styles.iconOnlyItem}>
+              <IconChevronRight size={MOBILE_CHROME_METRICS.iconSize} color={iconColor(false)} />
+            </Pressable>
+          </> : layout.rightSlots.map((slot) => {
             const meta = slotMeta[slot.key];
             const Icon = meta.icon;
             return (
@@ -263,8 +290,9 @@ const styles = StyleSheet.create({
   island: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 8,
-    paddingHorizontal: 10,
+    height: MOBILE_CHROME_METRICS.bottomBarVisualHeight,
+    paddingVertical: 0,
+    paddingHorizontal: 6,
     backgroundColor: "rgba(255,255,255,0.9)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.72)",
@@ -290,6 +318,8 @@ const styles = StyleSheet.create({
     borderColor: "rgba(71,85,105,0.48)",
   },
   iconOnlyItem: {
+    minWidth: 44,
+    height: 44,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: MOBILE_CHROME_METRICS.bottomBarItemPaddingHorizontal,

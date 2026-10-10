@@ -74,7 +74,7 @@ const WebViewViewer: React.FC<WebViewViewerProps> = ({
   onTap,
 }) => {
   const webViewRef = useRef<WebView>(null);
-  const { pageTheme, annotations, isLoaded, locale, annotationColor, annotationOpacity, addAnnotation, beginAnnotationDraft, setSelectedAnnotation } = useViewerStore();
+  const { pageTheme, viewMode, annotations, isLoaded, locale, annotationColor, annotationOpacity, addAnnotation, beginAnnotationDraft, setSelectedAnnotation } = useViewerStore();
   const [selection,setSelection] = useState<Extract<EpubAnnotationEvent,{kind:"selection"}> | null>(null);
   const t = getStrings(locale);
   const bridgeEngine = engine as WebViewBridgeEngine;
@@ -168,6 +168,11 @@ const WebViewViewer: React.FC<WebViewViewerProps> = ({
     (note !== undefined ? beginAnnotationDraft : addAnnotation)(createContextualAnnotation({id:`annotation-${Date.now()}-${Math.random().toString(36).slice(2)}`,anchor:selected.anchor,pageIndex:selected.pageIndex,style,color:annotationColor,opacity:annotationOpacity,note}));
     setSelection(null);
   };
+
+  useEffect(() => {
+    if (!isLoaded) return;
+    webViewRef.current?.postMessage(JSON.stringify({id:"epub-layout", kind:"set-epub-view-mode", payload:{viewMode, documentSessionId:bridgeEngine.getWebViewDocumentSessionId?.()}}));
+  }, [isLoaded, viewMode, bridgeEngine]);
 
   const sendSelectionCommand = (key: string) => {
     webViewRef.current?.postMessage(JSON.stringify({type: "epub-selection-action", id: "selection-menu", key,

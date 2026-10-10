@@ -4,13 +4,14 @@ import {getAnnotationEditPatch, getAnnotationMarkup, getAnnotationNote, getAnnot
 import type {AnnotationMarkupStyle} from "@papyrus-sdk/types";
 import {getStrings} from "../mobileStrings";
 import {deleteAnnotationAndClearSelection} from "./annotationDeletion";
+import {IconClose} from "../icons";
 import {usePapyrusSafeAreaInsets} from "./PapyrusSafeArea";
 
 const COLORS = ["#fbbf24", "#fb7185", "#60a5fa", "#34d399", "#c084fc"];
-const AnnotationEditor: React.FC = () => {
+const AnnotationEditor: React.FC<{documentId?: string}> = ({documentId}) => {
   const {annotations,annotationDraft,clearAnnotationDraft,addAnnotation,selectedAnnotationId,updateAnnotation,removeAnnotation,setSelectedAnnotation,uiTheme,locale,accentColor} = useViewerStore();
   const annotation = annotationDraft?.id === selectedAnnotationId ? annotationDraft : annotations.find(a => a.id === selectedAnnotationId);
-  const supported = annotation && annotation.type !== "ink";
+  const supported = annotation && annotation.type !== "ink" && (!documentId || !annotation.anchor?.documentId || annotation.anchor.documentId === documentId);
   const [editing,setEditing] = useState(false);
   const [draft,setDraft] = useState("");
   const [color,setColor] = useState(COLORS[0]);
@@ -53,7 +54,7 @@ const AnnotationEditor: React.FC = () => {
     <KeyboardAvoidingView behavior={Platform.OS === "ios"?"padding":undefined} style={styles.host}>
       <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityLabel={t.close} />
       <Animated.View accessibilityViewIsModal style={[styles.card,{backgroundColor:dark?"#17191f":"#fff",marginBottom:Math.max(16,insets.bottom),opacity:progress,transform:[{translateY:progress.interpolate({inputRange:[0,1],outputRange:[12,0]})}]}]}>
-        <View style={styles.header}><Text style={[styles.title,textStyle]}>{editing?t.editNote:t.annotationNote}</Text><Pressable onPress={close} accessibilityRole="button" accessibilityLabel={t.close} style={styles.button}><Text style={textStyle}>×</Text></Pressable></View>
+        <View style={styles.header}><Text style={[styles.title,textStyle]}>{editing?t.editNote:t.annotationNote}</Text><Pressable onPress={close} accessibilityRole="button" accessibilityLabel={t.close} style={[styles.button, {borderRadius:22, backgroundColor:dark?"#242936":"#f1f5f9"}]}><IconClose size={20} color={textStyle.color}/></Pressable></View>
         <ScrollView style={styles.content} keyboardShouldPersistTaps="handled">
           {quote?<Text style={[styles.quote,textStyle]} selectable>{quote}</Text>:null}
           {editing?<>

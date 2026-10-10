@@ -27,6 +27,7 @@ interface SettingsSheetProps {
   visible: boolean;
   onClose: () => void;
   documentType?: DocumentType;
+  onOpenInfo?: () => void;
 }
 
 const PAGE_THEME_OPTIONS: Array<{ value: PageTheme; labelKey: ThemeLabelKey }> =
@@ -70,6 +71,7 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
   visible,
   onClose,
   documentType = "pdf",
+  onOpenInfo,
 }) => {
   const {
     viewMode,
@@ -138,6 +140,7 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
         contentContainerStyle={styles.sheetContent}
         showsVerticalScrollIndicator={false}
       >
+        {onOpenInfo ? <Pressable accessibilityRole="button" onPress={onOpenInfo} style={{minHeight:44,justifyContent:"center",marginBottom:16}}><Text style={[styles.sectionTitle,isDark && styles.sectionTitleDark]}>{t.info}</Text></Pressable> : null}
         {(documentType === "text" || documentType === "epub") && (
           <View style={styles.section}>
             <Text style={[styles.sectionTitle,isDark && styles.sectionTitleDark]}>{locale === "pt-BR" ? "Tamanho da fonte" : "Font size"}</Text>
