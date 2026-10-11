@@ -135,15 +135,22 @@ describe("PapyrusPdfDocumentView native text selection and search highlights", (
     expect(methodBody("selectWordAtViewPoint:")).toContain("setCurrentSelection:selection animate:NO");
   });
 
-  it("clears native selection after a tap outside it or an inactive prop", () => {
+  it("clears native selection after a tap outside it without treating React state as a command", () => {
     const tapBody = methodBody("handleDocumentTap:");
     const inactiveBody = methodBody("setSelectionActive:");
 
     expect(tapBody).toContain("selectionContainsViewPoint:viewPoint");
     expect(tapBody).toMatch(/\[self clearCurrentSelection\];\s*return;/);
-    expect(inactiveBody).toContain("if (!selectionActive)");
-    expect(inactiveBody).toContain("clearCurrentSelection");
+    expect(inactiveBody).not.toContain("clearCurrentSelection");
     expect(manager).toContain("RCT_EXPORT_VIEW_PROPERTY(selectionActive, BOOL)");
+  });
+
+  it("applies the temporary blue color to PDFKit selections made with native handles", () => {
+    const handlerBody = methodBody("handlePdfSelectionChanged:");
+
+    expect(handlerBody).toContain("applyTemporarySelectionColor");
+    expect(source).toContain("selection.color = [UIColor.systemBlueColor colorWithAlphaComponent:0.30]");
+    expect(source).toContain("[self.pdfView setNeedsDisplay]");
   });
 
   it("adds Define to the iOS edit menu while preserving PDFKit actions", () => {
@@ -183,6 +190,9 @@ describe("PapyrusPdfDocumentView native text selection and search highlights", (
     expect(menuBody).toContain("suggestedActions");
     expect(menuBody).toContain("self.defineLabel");
     expect(menuBody).toContain("self.onDefineSelection");
+    expect(menuBody).toContain("rootActions");
+    expect(menuBody).toContain("UIMenuElementSizeMedium");
+    expect(menuBody).toContain('identifier:@"com.papyrus.annotation.highlight"');
     expect(header).toContain("RCTBubblingEventBlock onDefineSelection");
     expect(header).toContain("NSString *defineLabel");
     expect(engineIndex).toContain("onDefineSelection?:");

@@ -297,7 +297,7 @@ describe("Papyrus iOS PDF annotation bridge", () => {
     expect(source).not.toContain("writeToFile:");
   });
 
-  it("adds Define and a localized Annotate submenu without replacing system actions", () => {
+  it("promotes Highlight to the root menu while preserving the system Copy action", () => {
     const menu = method("- (nullable UIMenu *)editMenuInteraction:");
     const attempt = method("- (void)attemptSelectionEditMenuForSignature:");
     expect(menu).toContain("suggestedActions");
@@ -305,9 +305,17 @@ describe("Papyrus iOS PDF annotation bridge", () => {
     expect(menu).toContain("self.defineSelectionMode");
     expect(menu).toContain("isSingleWordSelection");
     expect(menu).toContain("self.onAnnotationCreated");
-    expect(menu.indexOf("actions addObject:defineAction")).toBeLessThan(
-      menu.indexOf("addObjectsFromArray:PapyrusLocalizedSelectionActions")
+    expect(menu.indexOf("action == @selector(copy:)")).toBeLessThan(
+      menu.indexOf("rootActions addObject:defineAction")
     );
+    expect(menu.indexOf("rootActions addObject:defineAction")).toBeLessThan(
+      menu.indexOf("addObjectsFromArray:remainingSystemActions")
+    );
+    expect(menu).toContain("rootActions addObject:highlightAction");
+    expect(menu).toContain("children:@[underlineAction, strikeoutAction");
+    expect(menu).toContain("rootMenu.preferredElementSize = UIMenuElementSizeMedium");
+    expect(menu.match(/PapyrusLocalizedSelectionActions\(suggestedActions/g)).toHaveLength(1);
+    expect(menu).not.toContain("copyAction");
     expect(menu).toContain("UIMenu menuWithTitle:self.annotateLabel");
     for (const title of [
       "annotationHighlightLabel",
