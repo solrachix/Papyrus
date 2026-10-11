@@ -43,6 +43,21 @@ export type DocumentSource =
   | { data: ArrayBuffer | Uint8Array }
   | FileLike;
 
+export type EpubReadingMode = "paged" | "chapter-scroll";
+export interface EpubReadingLocation {
+  version: 1;
+  cfi: string;
+  href: string;
+  chapter: number;
+  chapterCount: number;
+  visualPage: number | null;
+  visualPageCount: number | null;
+  progress: number;
+  mode: EpubReadingMode;
+  atStart: boolean;
+  atEnd: boolean;
+}
+
 export type DocumentType = "pdf" | "epub" | "text" | "comic";
 export type ComicFormat = "cbz" | "cbr";
 export type ComicLayoutMode = "single" | "continuous";
@@ -269,6 +284,7 @@ export interface PapyrusConfig {
   initialZoom?: number;
   initialRotation?: number;
   initialViewMode?: ViewMode;
+  initialEpubReadingMode?: EpubReadingMode;
   viewerMode?: PdfViewerMode;
   initialUITheme?: UITheme;
   initialPageTheme?: PageTheme;

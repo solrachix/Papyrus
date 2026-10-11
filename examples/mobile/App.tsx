@@ -5,7 +5,7 @@
  * @format
  */
 
-import React, {useEffect, useState} from 'react';
+import React, {useEffect, useRef, useState} from 'react';
 import {
   View,
   ActivityIndicator,
@@ -34,6 +34,7 @@ import {
 const BUNDLED_ASSETS = {
   './assets/tracemonkey-pldi-09.pdf': require('./assets/tracemonkey-pldi-09.pdf'),
   './assets/sample.epub': require('./assets/sample.epub'),
+  './assets/epub-paged-validation.epub': require('./assets/epub-paged-validation.epub'),
   './assets/long-test.epub': require('./assets/long-test.epub'),
 } as const;
 
@@ -43,7 +44,7 @@ const resolveBundledAsset = (assetPath: keyof typeof BUNDLED_ASSETS) => {
 };
 
 const LOCAL_WEB_PDF = resolveBundledAsset('./assets/tracemonkey-pldi-09.pdf');
-const SAMPLE_EPUB = resolveBundledAsset('./assets/long-test.epub');
+const SAMPLE_EPUB = resolveBundledAsset('./assets/epub-paged-validation.epub');
 const isMetroAssetUri = (uri?: string) => {
   if (!uri) return false;
   try {
@@ -150,9 +151,12 @@ const App: React.FC = () => {
     'pdf' | 'epub' | 'text' | 'comic'
   >('pdf');
   const [isPicking, setIsPicking] = useState(false);
+  const loadInFlightRef = useRef(false);
+  const [documentLoading, setDocumentLoading] = useState(false);
   const [showDocumentSwitcher, setShowDocumentSwitcher] = useState(true);
   const {
     isLoaded,
+    mobileChromeVisible,
     setDocumentState,
     initializeStore,
     triggerScrollToPage,
@@ -224,6 +228,8 @@ const App: React.FC = () => {
     source: DocumentSource,
     format?: ComicFormat,
   ) => {
+    if(loadInFlightRef.current)return;
+    loadInFlightRef.current=true;setDocumentLoading(true);
     setActiveType(type);
     setDocumentState({
       isLoaded: false,
@@ -251,7 +257,7 @@ const App: React.FC = () => {
         outline,
       });
 
-      if (INITIAL_SDK_CONFIG.initialPage) {
+      if (INITIAL_SDK_CONFIG.initialPage && type === 'pdf') {
         const page = Math.max(
           1,
           Math.min(pageCount || 1, INITIAL_SDK_CONFIG.initialPage),
@@ -261,7 +267,7 @@ const App: React.FC = () => {
       }
     } catch (err) {
       console.error('[Papyrus RN] Engine load failed', err);
-    }
+    } finally {loadInFlightRef.current=false;setDocumentLoading(false);}
   };
 
   const loadDocument = async (type: 'pdf' | 'epub' | 'text' | 'comic') => {
@@ -470,6 +476,8 @@ const App: React.FC = () => {
                   return (
                     <Pressable
                       key={type}
+                      disabled={documentLoading}
+                      accessibilityState={{disabled:documentLoading}}
                       onPress={() => loadDocument(type)}
                       accessibilityRole="button"
                       accessibilityLabel={label}
@@ -504,7 +512,7 @@ const App: React.FC = () => {
                 </Text>
               </Pressable>
             </View>
-          ) : (
+          ) : mobileChromeVisible ? (
             <Pressable
               onPress={() => setShowDocumentSwitcher(true)}
               accessibilityRole="button"
@@ -522,7 +530,7 @@ const App: React.FC = () => {
                 Tipo
               </Text>
             </Pressable>
-          )}
+          ) : null}
         </View>
         {activeType === 'pdf' ? <ToolDock /> : null}
       </View>

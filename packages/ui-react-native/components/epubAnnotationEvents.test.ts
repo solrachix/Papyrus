@@ -19,11 +19,11 @@ describe('EPUB reader recovery contracts', () => {
    expect(runtime).toContain("contents.cfiFromRange(range)");
    expect(runtime).toContain("if (text) reportSelection()");
    expect(runtime).toContain("if (selectionTimer !== null) clearTimeout(selectionTimer)");
-   expect(runtime).toContain("const selectedText = event?.target?.ownerDocument");
+   expect(runtime).toContain("PapyrusEpubReader.install(contents");
   }
  });
- it('does not permanently hide the chrome after scrolling within a WebView', () => {
+ it('does not reveal explicitly hidden chrome after WebView scrolling', () => {
   const viewer=readFileSync(resolve(__dirname,'Viewer.tsx'),'utf8');
-  expect(viewer).toContain('setMobileChromeVisible(true, "scroll.webview.recover")');
+  expect(viewer).not.toContain('setMobileChromeVisible(true, "scroll.webview.recover")');
  });
 });

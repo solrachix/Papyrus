@@ -20,6 +20,7 @@ import { usePapyrusSafeAreaInsets } from "./PapyrusSafeArea";
 
 export interface TopbarProps {
   engine: DocumentEngine;
+  documentType?: string;
   onOpenSettings?: () => void;
   onOpenOverflow?: () => void;
   title?: string;
@@ -32,6 +33,7 @@ export interface TopbarProps {
 
 const Topbar: React.FC<TopbarProps> = ({
   engine,
+  documentType,
   onOpenSettings,
   onOpenOverflow,
   title,
@@ -52,6 +54,9 @@ const Topbar: React.FC<TopbarProps> = ({
     locale,
   } = useViewerStore();
   const inkSession = useNativeInkSession();
+  const chromeVisible = mobileChromeVisible || inkSession.active;
+  const chromeProgress = useNativeInkMotion(chromeVisible, documentType === "epub");
+  const chromeMotion = useAnimatedStyle(() => {"worklet";return {opacity:chromeProgress.value};});
   const t = getStrings(locale);
   const progress = useNativeInkMotion(inkSession.active, inkSession.supported);
   const settingsMotion = useAnimatedStyle((): ViewStyle => {
@@ -114,20 +119,23 @@ const Topbar: React.FC<TopbarProps> = ({
     </Pressable>
   );
 
-  if (!mobileChromeVisible && !inkSession.active) return null;
+  if (!chromeVisible && documentType !== "epub") return null;
 
   return (
     <>
-      <View
+      <Animated.View
         style={[
           styles.chromeFrame,
+          chromeMotion,
           {
             paddingTop: insets.top,
             paddingLeft: MOBILE_CHROME_METRICS.screenPadding + insets.left,
             paddingRight: MOBILE_CHROME_METRICS.screenPadding + insets.right,
           },
         ]}
-        pointerEvents="box-none"
+        pointerEvents={chromeVisible ? "box-none" : "none"}
+        accessibilityElementsHidden={!chromeVisible}
+        importantForAccessibility={chromeVisible ? "auto" : "no-hide-descendants"}
         testID="papyrus-floating-top-controls"
       >
         <View
@@ -245,9 +253,10 @@ const Topbar: React.FC<TopbarProps> = ({
             ) : settingsControl}
           </View>
         </View>
-      </View>
+      </Animated.View>
 
       <PageJumpModal
+        documentType={documentType}
         visible={jumpModalOpen}
         currentPage={currentPage}
         pageCount={pageCount}

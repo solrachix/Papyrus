@@ -188,7 +188,7 @@ describe("mobile comic runtime helpers", () => {
     expect(outlineGuard).toBeLessThan(readyEvent);
   });
 
-  it("uses continuous scrolling for EPUB rendition", () => {
+  it("ships the paginated and chapter-scroll EPUB reading policy", () => {
     const runtime = readFileSync(
       resolve(process.cwd(), "packages/ui-react-native/runtime/runtime.js"),
       "utf8"
@@ -198,18 +198,18 @@ describe("mobile comic runtime helpers", () => {
       "utf8"
     );
 
-    expect(runtime).toContain("manager: 'continuous'");
-    expect(html).toContain("manager: 'continuous'");
-    expect(runtime).toContain("flow: 'scrolled-continuous'");
-    expect(html).toContain("flow: 'scrolled-continuous'");
+    expect(runtime).toContain("manager:'default'");
+    expect(html).toContain("manager:'default'");
+    expect(runtime).toContain("'scrolled-doc'");
+    expect(html).toContain("'scrolled-doc'");
     expect(runtime).toContain("rendition.on('relocated'");
     expect(html).toContain("rendition.on('relocated'");
     expect(runtime).toContain("sendEvent('VIEWER_SCROLL'");
     expect(html).toContain("sendEvent('VIEWER_SCROLL'");
-    expect(runtime).toContain("sendEvent('VIEWER_TAP'");
-    expect(html).toContain("sendEvent('VIEWER_TAP'");
-    expect(runtime).not.toContain("flow: 'paginated'");
-    expect(html).not.toContain("flow: 'paginated'");
+    expect(runtime).toContain("sendEvent('EPUB_CONTENT_TAP'");
+    expect(html).toContain("sendEvent('EPUB_CONTENT_TAP'");
+    expect(runtime).toContain("'paginated'");
+    expect(html).toContain("'paginated'");
   });
 
   it("observes the real EPUB manager queue without changing queue semantics", () => {

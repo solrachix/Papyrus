@@ -1416,6 +1416,14 @@ export class WebViewDocumentEngine extends BaseDocumentEngine {
     void this.request("go-to-page", { page });
   }
 
+  setEpubReadingMode(mode: "paged" | "chapter-scroll"): Promise<void> {
+    return this.request("set-epub-view-mode", {epubMode:mode,documentSessionId:this.documentSessionId}).then(()=>undefined);
+  }
+
+  goToEpubLocation(cfi: string): Promise<void> {
+    return this.request("epub-go-to-location",{cfi,documentSessionId:this.documentSessionId}).then(()=>undefined);
+  }
+
   turnEpubPage(direction: -1 | 1): Promise<void> {
     return this.request("epub-turn-page", {direction, documentSessionId:this.documentSessionId}).then(() => undefined);
   }
@@ -1883,6 +1891,16 @@ export class MobileDocumentEngine extends BaseDocumentEngine {
 
   goToPage(page: number): void {
     this.activeEngine.goToPage(page);
+  }
+
+  setEpubReadingMode(mode: "paged" | "chapter-scroll"): Promise<void> {
+    const engine=this.activeEngine as DocumentEngine & {setEpubReadingMode?:(mode:"paged"|"chapter-scroll")=>Promise<void>};
+    return engine.setEpubReadingMode?.(mode) ?? Promise.reject(new Error("EPUB reading mode unavailable"));
+  }
+
+  goToEpubLocation(cfi: string): Promise<void> {
+    const engine=this.activeEngine as DocumentEngine & {goToEpubLocation?:(cfi:string)=>Promise<void>};
+    return engine.goToEpubLocation?.(cfi) ?? Promise.reject(new Error("EPUB location unavailable"));
   }
 
   turnEpubPage(direction: -1 | 1): Promise<void> {

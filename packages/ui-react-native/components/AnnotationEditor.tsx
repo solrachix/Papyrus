@@ -4,7 +4,7 @@ import {getAnnotationEditPatch, getAnnotationMarkup, getAnnotationNote, getAnnot
 import type {AnnotationMarkupStyle} from "@papyrus-sdk/types";
 import {getStrings} from "../mobileStrings";
 import {deleteAnnotationAndClearSelection} from "./annotationDeletion";
-import {IconClose} from "../icons";
+import {IconClose, IconHighlight, IconUnderline, IconStrikeout, IconComment} from "../icons";
 import {usePapyrusSafeAreaInsets} from "./PapyrusSafeArea";
 
 const COLORS = ["#fbbf24", "#fb7185", "#60a5fa", "#34d399", "#c084fc"];
@@ -60,7 +60,18 @@ const AnnotationEditor: React.FC<{documentId?: string}> = ({documentId}) => {
           {editing?<>
             <TextInput accessibilityLabel={t.editNote} value={draft} onChangeText={setDraft} multiline autoFocus placeholder={t.notePlaceholder} placeholderTextColor={dark?"#9ca3af":"#6b7280"} style={[styles.input,textStyle,{borderColor:dark?"#374151":"#d1d5db"}]} />
             <View style={styles.options}>{COLORS.map(value=><Pressable key={value} accessibilityRole="button" accessibilityLabel={`${t.annotationColor} ${value}`} accessibilityState={{selected:color===value}} onPress={()=>setColor(value)} style={[styles.color,{backgroundColor:value,borderColor:color===value?accentColor:"transparent"}]} />)}</View>
-            <View style={styles.options}>{([["highlight",t.annotationHighlight],["underline",t.annotationUnderline],["strikeout",t.annotationStrikeout],["none",t.annotationIndicatorOnly]] as const).map(([style,label])=><Pressable key={style} onPress={()=>setMarkup(style)} accessibilityRole="button" accessibilityState={{selected:markup===style}} style={[styles.button,markup===style&&{borderColor:accentColor,borderWidth:1}]}><Text style={textStyle}>{label}</Text></Pressable>)}</View>
+            <View style={styles.markupOptions}>{([
+              ["highlight",t.annotationHighlight,IconHighlight],
+              ["underline",t.annotationUnderline,IconUnderline],
+              ["strikeout",t.annotationStrikeout,IconStrikeout],
+              ["none",t.annotationIndicatorOnly,IconComment],
+            ] as const).map(([style,label,Icon])=><Pressable key={style} onPress={()=>setMarkup(style)}
+              accessibilityRole="button" accessibilityLabel={label} accessibilityState={{selected:markup===style}}
+              testID={`annotation-style-${style}`}
+              style={[styles.markupButton,{backgroundColor:dark?"#242936":"#f1f5f9",borderColor:markup===style?accentColor:"transparent"}]}>
+              <View accessible={false} importantForAccessibility="no-hide-descendants"><Icon size={22} color={markup===style?accentColor:textStyle.color}/></View>
+              <Text style={[styles.markupLabel,textStyle]}>{style==="none"?(locale==="pt-BR"?"Indicador":"Indicator"):label}</Text>
+            </Pressable>)}</View>
           </>:<Text style={[styles.note,textStyle]} selectable>{getAnnotationNote(annotation)||t.notePlaceholder}</Text>}
         </ScrollView>
         <View style={styles.actions}>
@@ -72,5 +83,5 @@ const AnnotationEditor: React.FC<{documentId?: string}> = ({documentId}) => {
     </KeyboardAvoidingView>
   </Modal>;
 };
-const styles = StyleSheet.create({host:{flex:1,justifyContent:"flex-end",backgroundColor:"rgba(0,0,0,.18)",paddingHorizontal:12},card:{borderRadius:20,padding:16,maxHeight:"72%",elevation:12},header:{flexDirection:"row",alignItems:"center",justifyContent:"space-between"},title:{fontSize:17,fontWeight:"700"},content:{flexGrow:0},quote:{fontSize:14,lineHeight:21,borderLeftWidth:3,borderLeftColor:"#9ca3af",paddingLeft:10,marginVertical:12},note:{fontSize:16,lineHeight:24,paddingVertical:12},input:{minHeight:112,maxHeight:240,borderWidth:1,borderRadius:12,padding:12,fontSize:16,textAlignVertical:"top"},button:{minWidth:44,minHeight:44,paddingHorizontal:10,borderRadius:10,alignItems:"center",justifyContent:"center"},actions:{flexDirection:"row",alignItems:"center",flexWrap:"wrap",marginTop:12},options:{flexDirection:"row",flexWrap:"wrap",gap:8,marginTop:12},color:{width:44,height:44,borderRadius:22,borderWidth:3}});
+const styles = StyleSheet.create({host:{flex:1,justifyContent:"flex-end",backgroundColor:"rgba(0,0,0,.18)",paddingHorizontal:12},card:{borderRadius:20,padding:16,maxHeight:"72%",elevation:12},header:{flexDirection:"row",alignItems:"center",justifyContent:"space-between"},title:{fontSize:17,fontWeight:"700"},content:{flexGrow:0},quote:{fontSize:14,lineHeight:21,borderLeftWidth:3,borderLeftColor:"#9ca3af",paddingLeft:10,marginVertical:12},note:{fontSize:16,lineHeight:24,paddingVertical:12},input:{minHeight:112,maxHeight:240,borderWidth:1,borderRadius:12,padding:12,fontSize:16,textAlignVertical:"top"},button:{minWidth:44,minHeight:44,paddingHorizontal:10,borderRadius:10,alignItems:"center",justifyContent:"center"},actions:{flexDirection:"row",alignItems:"center",flexWrap:"wrap",marginTop:12},markupOptions:{flexDirection:"row",flexWrap:"wrap",gap:8,marginTop:12},markupButton:{flex:1,minWidth:64,minHeight:64,borderWidth:1,borderRadius:12,paddingHorizontal:4,paddingVertical:8,alignItems:"center",justifyContent:"center",gap:6},markupLabel:{fontSize:11,lineHeight:15,textAlign:"center"},options:{flexDirection:"row",flexWrap:"wrap",gap:8,marginTop:12},color:{width:44,height:44,borderRadius:22,borderWidth:3}});
 export default AnnotationEditor;

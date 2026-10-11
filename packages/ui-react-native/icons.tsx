@@ -601,6 +601,12 @@ export const IconToolStrikeout: React.FC<IconProps> = ({
   </Svg>
 );
 
+export const IconStrikeout: React.FC<IconProps> = ({size = 22, color = defaultColor, strokeWidth = 1.8}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <Path d="M17 5c-1-1-3-2-5-2-3 0-5 2-5 4 0 2 2 3 5 4M17 15c0 2-2 4-5 4-2 0-4-1-5-2M4 12h16" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+  </Svg>
+);
+
 export const IconCopy: React.FC<IconProps> = ({
   size = 20,
   color = defaultColor,

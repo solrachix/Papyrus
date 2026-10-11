@@ -5,6 +5,7 @@ import { NativeSheet } from "./NativeSheet";
 import { getReaderSheetPalette } from "./readerSheetPresentation";
 
 type PageJumpModalProps = {
+  documentType?: string;
   visible: boolean;
   currentPage: number;
   pageCount: number;
@@ -15,6 +16,7 @@ type PageJumpModalProps = {
 };
 
 export function PageJumpModal({
+  documentType,
   visible,
   currentPage,
   pageCount,
@@ -41,8 +43,8 @@ export function PageJumpModal({
       isDark={isDark}
       maxHeight={300}
       showHeader
-      title="Ir para página"
-      closeAccessibilityLabel="Close page jump"
+      title={documentType === "epub" ? "Ir para capítulo" : "Ir para página"}
+      closeAccessibilityLabel="Fechar navegação"
       sheetStyle={{
         paddingHorizontal: 18,
         paddingBottom: 18,
@@ -68,7 +70,7 @@ export function PageJumpModal({
           },
         ]}
         onSubmitEditing={confirmJump}
-        accessibilityLabel="Page jump input"
+        accessibilityLabel={documentType === "epub" ? "Número do capítulo" : "Número da página"}
         testID="papyrus-page-jump-input"
       />
       <View style={styles.actions}>

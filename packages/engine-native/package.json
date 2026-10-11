@@ -1,6 +1,6 @@
 {
   "name": "@papyrus-sdk/engine-native",
-  "version": "0.2.22-beta.9",
+  "version": "0.2.22-beta.9.epub.1",
   "license": "MIT",
   "keywords": [
     "papyrus",
@@ -52,8 +52,8 @@
     "build": "tsup"
   },
   "peerDependencies": {
-    "@papyrus-sdk/core": "0.2.23-beta.3",
-    "@papyrus-sdk/types": "0.2.16-beta.3",
+    "@papyrus-sdk/core": "0.2.23-beta.3.epub.1",
+    "@papyrus-sdk/types": "0.2.16-beta.3.epub.1",
     "react-native": ">=0.81.0"
   },
   "devDependencies": {

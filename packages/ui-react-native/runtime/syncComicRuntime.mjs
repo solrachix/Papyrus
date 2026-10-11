@@ -24,11 +24,13 @@ const runtimeBodyStart = runtime.indexOf("\n(function () {", runtime.indexOf(com
 if (runtimeBodyStart < 0) {
   throw new Error("Main runtime body not found");
 }
-const runtimeBody = runtime.slice(runtimeBodyStart + 1).trim();
+const readerSource=await readFile(resolve(runtimeDirectory,"epubReader.js"),"utf8");
+const readerRuntime=replaceMarkedSource(runtime,"/* @papyrus-epub-reader:start */","/* @papyrus-epub-reader:end */",`\n${readerSource}\n`);
+const runtimeBody = readerRuntime.slice(readerRuntime.indexOf("\n(function () {",readerRuntime.indexOf(comicRuntimeEnd))+1).trim();
 await writeFile(
   runtimePath,
   replaceMarkedSource(
-    runtime,
+    readerRuntime,
     "/* @papyrus-comic-runtime:start */",
     "/* @papyrus-comic-runtime:end */",
     `\n${source.trim()}\n`
@@ -37,12 +39,13 @@ await writeFile(
 
 const htmlPath = resolve(runtimeDirectory, "index.html");
 const html = await readFile(htmlPath, "utf8");
-const htmlWithComicRuntime = replaceMarkedSource(
+let htmlWithComicRuntime = replaceMarkedSource(
   html,
   "<!-- @papyrus-comic-runtime:start -->",
   "<!-- @papyrus-comic-runtime:end -->",
   `\n    <script>\n${source}\n    </script>\n`
 );
+htmlWithComicRuntime=htmlWithComicRuntime.replace(/<!-- @papyrus-epub-reader:start -->[\s\S]*?<!-- @papyrus-epub-reader:end -->\n?/g,"");
 const htmlComicRuntimeEnd = "<!-- @papyrus-comic-runtime:end -->";
 const htmlBodyStart = htmlWithComicRuntime.indexOf(
   "<script>",
