@@ -48,6 +48,25 @@ const logStorePerf = (event: string, payload: Record<string, unknown>) => {
   console.log(`[Papyrus Perf][CoreStore] ${event}`, payload);
 };
 
+/** Keep remote annotation persistence in sync when history restores snapshots. */
+const emitAnnotationDiff = (before: Annotation[], after: Annotation[]) => {
+  const previousById = new Map(before.map((annotation) => [annotation.id, annotation]));
+  const nextById = new Map(after.map((annotation) => [annotation.id, annotation]));
+  for (const annotation of before) {
+    if (!nextById.has(annotation.id)) {
+      papyrusEvents.emit(PapyrusEventType.ANNOTATION_DELETED, { annotationId: annotation.id });
+    }
+  }
+  for (const annotation of after) {
+    const previous = previousById.get(annotation.id);
+    if (!previous) {
+      papyrusEvents.emit(PapyrusEventType.ANNOTATION_CREATED, { annotation });
+    } else if (JSON.stringify(previous) !== JSON.stringify(annotation)) {
+      papyrusEvents.emit(PapyrusEventType.ANNOTATION_UPDATED, { annotation });
+    }
+  }
+};
+
 let setDocumentStateWindowStart = 0;
 let setDocumentStateCallsInWindow = 0;
 
@@ -576,6 +595,7 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
         },
       ].slice(-50),
     });
+    emitAnnotationDiff(state.annotations, previous.annotations);
   },
 
   redoAnnotations: () => {
@@ -594,6 +614,7 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
         },
       ].slice(-50),
     });
+    emitAnnotationDiff(state.annotations, next.annotations);
   },
 
   setSelectedAnnotation: (id) => set({ selectedAnnotationId: id }),

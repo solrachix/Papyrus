@@ -1,6 +1,6 @@
 {
   "name": "@papyrus-sdk/ui-react-native",
-  "version": "0.2.35",
+  "version": "0.2.36",
   "license": "MIT",
   "keywords": [
     "papyrus",
@@ -25,7 +25,9 @@
   },
   "files": [
     "dist",
-    "runtime"
+    "runtime",
+    "!runtime/**/*.test.*",
+    "!runtime/**/*.bench.*"
   ],
   "publishConfig": {
     "access": "public"
@@ -46,9 +48,9 @@
     "react-native-svg": "^15.5.0"
   },
   "peerDependencies": {
-    "@papyrus-sdk/core": "0.2.23",
-    "@papyrus-sdk/engine-native": "0.2.22",
-    "@papyrus-sdk/types": "0.2.16",
+    "@papyrus-sdk/core": "0.2.24",
+    "@papyrus-sdk/engine-native": "0.2.23",
+    "@papyrus-sdk/types": "0.2.17",
     "@react-native-clipboard/clipboard": "^1.16.3",
     "react": ">=18.2.0 <20",
     "react-native": ">=0.81.0",

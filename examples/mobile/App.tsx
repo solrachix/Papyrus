@@ -532,7 +532,7 @@ const App: React.FC = () => {
             </Pressable>
           ) : null}
         </View>
-        {activeType === 'pdf' ? <ToolDock /> : null}
+        {activeType === 'pdf' || activeType === 'epub' ? <ToolDock /> : null}
       </View>
       <AnnotationEditor />
       </Root>

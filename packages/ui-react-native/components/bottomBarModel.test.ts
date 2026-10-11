@@ -20,7 +20,7 @@ describe("buildBottomBarLayout", () => {
     ]);
   });
 
-  it("keeps notes accessible on the left for epub and text", () => {
+  it("offers EPUB annotations while keeping notes accessible on the left", () => {
     const epubLayout = buildBottomBarLayout({
       documentType: "epub",
       activeMobileDestination: "notes",
@@ -32,7 +32,11 @@ describe("buildBottomBarLayout", () => {
       toolDockOpen: false,
     });
 
-    expect(epubLayout.leftSlots.map((slot) => slot.key)).toEqual(["notes"]);
+    expect(epubLayout.leftSlots.map((slot) => slot.key)).toEqual([
+      "annotate",
+      "notes",
+    ]);
+    expect(epubLayout.leftSlots[0]?.active).toBe(false);
     expect(textLayout.leftSlots.map((slot) => slot.key)).toEqual(["notes"]);
     expect(epubLayout.rightSlots.map((slot) => slot.key)).toEqual([
       "search",

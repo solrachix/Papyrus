@@ -44,7 +44,7 @@
     var doc=contents.document,win=contents.window,start=null,blocked=false;
     function point(e){var t=e.changedTouches&&e.changedTouches[0]||e.touches&&e.touches[0];return t?{x:t.clientX,y:t.clientY,time:Date.now()}:null;}
     function selected(){return Boolean(String(win.getSelection()||'').trim()) || config.blocked();}
-    function interactive(target){return Boolean(target && target.closest && target.closest('a,button,input,textarea,select,[contenteditable="true"],[data-papyrus-overlay]'));}
+    function interactive(target){return Boolean(target && target.closest && target.closest('a,button,input,textarea,select,[contenteditable="true"],[data-papyrus-overlay],[data-papyrus-ink-capture]'));}
     function begin(e){start=point(e);blocked=e.touches.length!==1 || selected() || interactive(e.target);}
     function invalidateScroll(finish){if(config.current() && start && finish && config.mode()==='chapter-scroll' && !blocked && !selected() && Math.abs(finish.y-start.y)>12 && Math.abs(finish.y-start.y)>Math.abs(finish.x-start.x) && config.interact)config.interact();}
     function move(e){if(e.touches.length!==1)blocked=true;invalidateScroll(point(e));}

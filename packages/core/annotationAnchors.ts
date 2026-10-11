@@ -1,4 +1,4 @@
-import type {Annotation, AnnotationAnchor, AnnotationMarkupStyle} from "@papyrus-sdk/types";
+import type {Annotation, AnnotationAnchor, AnnotationMarkupStyle, EpubInkData} from "@papyrus-sdk/types";
 
 const integer = (value: unknown): value is number => Number.isSafeInteger(value) && Number(value) >= 0;
 const rect = (value: any) => value && [value.x, value.y, value.width, value.height].every((n: unknown) => typeof n === "number" && Number.isFinite(n) && n >= 0 && n <= 1) && value.x + value.width <= 1.000001 && value.y + value.height <= 1.000001;
@@ -11,6 +11,27 @@ export function validateAnnotationAnchor(value: unknown): value is AnnotationAnc
   if (a.kind === "epub-cfi") return typeof a.cfiRange === "string" && a.cfiRange.length <= 4096 && /^epubcfi\([^\n<>]+\)$/.test(a.cfiRange) && typeof a.href === "string" && a.href.length <= 4096 && !/^(javascript|data):/i.test(a.href) && (a.spineIndex === undefined || integer(a.spineIndex));
   if (a.kind === "pdf-geometry") return integer(a.pageIndex) && Array.isArray(a.rects) && a.rects.length > 0 && a.rects.length <= 2000 && a.rects.every(rect);
   return false;
+}
+
+/** Validates the optional reflow-aware EPUB ink sidecar without changing legacy fields. */
+export function validateEpubInkData(value: unknown): value is EpubInkData {
+  if (!value || typeof value !== "object") return false;
+  const data = value as any;
+  if (data.version !== 1 || data.kind !== "epub-ink" || (data.documentId !== undefined && (typeof data.documentId !== "string" || !data.documentId || data.documentId.length > 4096))) return false;
+  if (data.preset !== undefined && !["ink", "highlight", "underline"].includes(data.preset)) return false;
+  if (!Array.isArray(data.segments) || data.segments.length < 1 || data.segments.length > 64) return false;
+  let pointCount = 0;
+  for (const segment of data.segments) {
+    if (!segment || typeof segment !== "object" || typeof segment.href !== "string" || !segment.href || segment.href.length > 512 || /^(javascript|data):/i.test(segment.href)) return false;
+    if (segment.spineIndex !== undefined && !integer(segment.spineIndex)) return false;
+    if (!Array.isArray(segment.points) || segment.points.length < 2) return false;
+    pointCount += segment.points.length;
+    if (pointCount > 512) return false;
+    for (const point of segment.points) {
+      if (!point || typeof point !== "object" || typeof point.cfiRange !== "string" || point.cfiRange.length > 1024 || !/^epubcfi\([^\n<>]+\)$/.test(point.cfiRange) || typeof point.quote !== "string" || !point.quote || point.quote.length > 32 || ![point.x, point.y].every((n: unknown) => typeof n === "number" && Number.isFinite(n) && Math.abs(n) <= 3)) return false;
+    }
+  }
+  return true;
 }
 
 const utf16Boundary = (text:string,offset:number) => !(offset>0 && offset<text.length && /[\uD800-\uDBFF]/.test(text[offset-1]) && /[\uDC00-\uDFFF]/.test(text[offset]));

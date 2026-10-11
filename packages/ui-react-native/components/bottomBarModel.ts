@@ -30,7 +30,7 @@ export function buildBottomBarLayout({
 }: BuildBottomBarLayoutInput): BottomBarLayout {
   const leftSlots: BottomBarSlot[] = [];
 
-  if (documentType === "pdf") {
+  if (documentType === "pdf" || documentType === "epub") {
     leftSlots.push({
       key: "annotate",
       active: toolDockOpen || activeMobileDestination === "annotate",

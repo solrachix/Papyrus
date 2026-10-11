@@ -10,6 +10,21 @@ describe('EPUB reading policy',()=>{
 });
 
 describe('EPUB iframe gestures', () => {
+ it('does not turn the page when a swipe starts on the ink capture canvas', () => {
+  const d=new JSDOM('<canvas data-papyrus-ink-capture></canvas>',{runScripts:'outside-only'});
+  d.window.eval(readFileSync('packages/ui-react-native/runtime/epubReader.js','utf8'));
+  let turns=0;
+  const cleanup=(d.window as any).PapyrusEpubReader.install({document:d.window.document,window:d.window},{mode:()=> 'paged',rtl:()=>false,blocked:()=>false,current:()=>true,tap:()=>{},turn:()=>turns++});
+  const canvas=d.window.document.querySelector('canvas')!;
+  for(const [type,x] of [['touchstart',200],['touchmove',40],['touchend',40]] as const){
+   const point={clientX:x,clientY:100},event=new d.window.Event(type,{bubbles:true});
+   Object.defineProperties(event,{touches:{value:type==='touchend'?[]:[point]},changedTouches:{value:[point]}});
+   canvas.dispatchEvent(event);
+  }
+  expect(turns).toBe(0);
+  cleanup();
+ });
+
  it('cleans listeners and excludes annotations and links from tap', () => {
   const d=new JSDOM('<p>text</p><a href="#">link</a>',{runScripts:'outside-only'});
   d.window.eval(readFileSync('packages/ui-react-native/runtime/epubReader.js','utf8'));

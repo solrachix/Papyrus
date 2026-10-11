@@ -217,6 +217,28 @@ export interface AnnotationAnchorContext {
   prefix?: string;
   suffix?: string;
 }
+/** Reflow-aware EPUB ink anchors stored alongside legacy static ink geometry. */
+export interface EpubInkPoint {
+  cfiRange: string;
+  quote: string;
+  /** Offset from the glyph origin, in line-height units. */
+  x: number;
+  y: number;
+}
+export interface EpubInkSegment {
+  href: string;
+  spineIndex?: number;
+  points: EpubInkPoint[];
+}
+export type EpubInkPreset = "ink" | "highlight" | "underline";
+export interface EpubInkData {
+  version: 1;
+  kind: "epub-ink";
+  documentId?: string;
+  /** Drawing tool used to create the stroke. Optional for older annotations. */
+  preset?: EpubInkPreset;
+  segments: EpubInkSegment[];
+}
 export type AnnotationAnchor = AnnotationAnchorContext & (
   | {kind: "pdf-geometry"; pageIndex: number; rects: {x: number; y: number; width: number; height: number}[]}
   | {kind: "epub-cfi"; cfiRange: string; href: string; spineIndex?: number}
@@ -231,6 +253,8 @@ export interface AnchoredTextSelection {
 export interface Annotation {
   id: string;
   anchor?: AnnotationAnchor;
+  /** Optional sidecar; older readers continue to use anchor/rect/path. */
+  epubInk?: EpubInkData;
   markupStyle?: AnnotationMarkupStyle;
   /** Note body is independent from the selected quote; absent means legacy. */
   noteContent?: string;

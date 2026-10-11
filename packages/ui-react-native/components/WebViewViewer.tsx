@@ -15,7 +15,7 @@ import {
   parseWebViewState,
 } from "./webViewState";
 
-import { parseEpubAnnotationEvent, type EpubAnnotationEvent } from "./epubAnnotationEvents";
+import { parseEpubAnnotationEvent, resolveEpubInkMode, type EpubAnnotationEvent } from "./epubAnnotationEvents";
 import { getStrings } from "../mobileStrings";
 
 const runtimeAsset = require("../runtime/index.html");
@@ -79,7 +79,7 @@ const WebViewViewer: React.FC<WebViewViewerProps> = ({
 }) => {
   const webViewRef = useRef<WebView>(null);
   const insets=usePapyrusSafeAreaInsets();
-  const { pageTheme, epubReadingMode, setDocumentState, annotations, isLoaded, locale, annotationColor, annotationOpacity, addAnnotation, beginAnnotationDraft, setSelectedAnnotation } = useViewerStore();
+  const { pageTheme, epubReadingMode, setDocumentState, annotations, isLoaded, locale, annotationColor, annotationOpacity, inkStrokeWidth, activeTool, activeDrawToolPreset, addAnnotation, beginAnnotationDraft, setSelectedAnnotation } = useViewerStore();
   const [selection,setSelection] = useState<Extract<EpubAnnotationEvent,{kind:"selection"}> | null>(null);
   const t = getStrings(locale);
   const bridgeEngine = engine as WebViewBridgeEngine;
@@ -179,6 +179,16 @@ const WebViewViewer: React.FC<WebViewViewerProps> = ({
     webViewRef.current?.postMessage(JSON.stringify({id:"epub-layout", kind:"set-epub-view-mode", payload:{epubMode:epubReadingMode, documentSessionId:bridgeEngine.getWebViewDocumentSessionId?.()}}));
   }, [isLoaded, epubReadingMode, bridgeEngine]);
 
+  useEffect(() => {
+    if (!isLoaded || documentType !== "epub") return;
+    const inkMode=resolveEpubInkMode({documentType,isLoaded,activeTool,preset:activeDrawToolPreset,color:annotationColor,opacity:annotationOpacity,strokeWidth:inkStrokeWidth});
+    if(!inkMode)return;
+    webViewRef.current?.postMessage(JSON.stringify({id:`epub-ink-mode-${Date.now()}`,kind:"set-epub-ink-mode",payload:{
+      ...inkMode,
+      documentSessionId:bridgeEngine.getWebViewDocumentSessionId?.(),
+    }}));
+  }, [isLoaded,documentType,activeTool,activeDrawToolPreset,annotationColor,annotationOpacity,inkStrokeWidth,bridgeEngine]);
+
   const sendSelectionCommand = (key: string) => {
     webViewRef.current?.postMessage(JSON.stringify({type: "epub-selection-action", id: "selection-menu", key,
       documentSessionId: bridgeEngine.getWebViewDocumentSessionId?.()}));
@@ -231,6 +241,10 @@ const WebViewViewer: React.FC<WebViewViewerProps> = ({
       if(group.length>1)Alert.alert(t.annotationNote,undefined,[...group.map(a=>({text:(a.noteContent || a.anchor?.quote || a.content || '').slice(0,100),onPress:()=>setSelectedAnnotation(a.id)})),{text:t.cancel,style:'cancel'}]);
       else setSelectedAnnotation(annotationEvent.id);
       return;}
+    if (annotationEvent?.kind === "ink" && isLoaded && annotationEvent.session === bridgeEngine.getWebViewDocumentSessionId?.()) {
+      addAnnotation(annotationEvent.annotation);
+      setSelection(null);
+    }
     const interaction = parseWebViewInteraction(raw);
     if (interaction?.kind === "scroll") onScrollOffset?.(interaction.offsetY);
     if (interaction?.kind === "tap") onTap?.();
