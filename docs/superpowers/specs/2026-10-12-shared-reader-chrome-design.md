@@ -21,9 +21,9 @@ The app retains its `ReaderEngineAdapter` as the integration boundary. It transl
 ### Shared presentation units
 
 - **Header:** title, back/settings actions, visibility, theme, accent, and layout inputs. The existing Papyrus wrapper continues to provide Papyrus navigation and settings behavior.
-- **Bottom controls and progress:** the Papyrus visual arrangement and spacing are reused. Controls are shown or disabled from the selected engine's capabilities. Progress changes are sent through adapter callbacks; the component does not translate between Papyrus CFIs and Readium locators.
-- **Settings sheet:** one visual sheet for theme, font size, and contents entry. The adapter supplies the options supported by its engine. Papyrus retains its existing options, including high contrast where supported; Readium does not display unsupported options.
-- **Contents sheet/list:** one shared sheet and hierarchical list presentation. Papyrus retains its existing outline behavior; Readium supplies its flattened table of contents and its own selection callback.
+- **Bottom controls and progress:** the Papyrus visual arrangement and spacing are reused. Navigation controls are shown or disabled from the selected engine's capabilities. The shared progress presentation displays a label and optional fraction; pressing it calls an optional adapter callback to open that engine's progress navigation. This phase does not add Readium page scrubbing or translate between Papyrus CFIs and Readium locators. Papyrus keeps its existing scrub interaction through its compatibility wrapper.
+- **Settings sheet:** one visual sheet for theme, font size, and contents entry, plus an optional Search action when supported. The adapter supplies options and callbacks supported by its engine. Papyrus retains its existing options, including high contrast and Search; Readium does not display unsupported options. The app host sequences Search until the settings modal has dismissed.
+- **Contents sheet/list:** one shared sheet and hierarchical list presentation. Papyrus retains its existing outline behavior; Readium supplies its flattened table of contents and its own selection callback. If the TOC is empty, the entry point is hidden and the sheet cannot be opened. If it becomes empty while already open, the sheet shows a localized empty state and remains closable.
 
 The shared components are controlled views: values arrive as props and interactions call callbacks. Papyrus-specific data and actions remain in the existing wrappers. The Readium UI never renders annotation, freehand ink, or ToolDock actions until a Readium implementation exists.
 
@@ -33,6 +33,7 @@ The shared components are controlled views: values arrive as props and interacti
 - Papyrus behavior outside the iOS EPUB route remains unchanged.
 - Controls whose capability is absent are hidden or disabled consistently; no control is presented as working when its engine action is unavailable.
 - Existing modal-dismiss sequencing is preserved: opening search or contents from settings occurs only after the settings modal has dismissed.
+- Search is shown only when the selected engine exposes both the capability and callback. Readium currently exposes neither; Papyrus search remains available.
 - Each engine continues to store its own reading position. Switching engines does not convert or overwrite CFIs and Readium locators.
 - Annotation and freehand tools remain Papyrus-only in this phase. Sharing their appearance alone must not imply Readium support.
 
@@ -51,14 +52,14 @@ The adapter remains responsible for engine readiness, fallback, and mapping comm
 
 ## Verification and acceptance criteria
 
-1. Papyrus-backed legacy components keep their current public API and existing behavior on non-iOS-EPUB routes.
+1. Papyrus-backed legacy components keep their current public API and existing behavior on all routes, including Papyrus iOS EPUB and non-iOS EPUB routes.
 2. Papyrus and Readium iOS EPUB routes render the same shared header, bottom-control, settings, and contents presentation components.
-3. Adapter tests verify navigation, theme/font updates, TOC selection, readiness/disabled states, and capability-gated controls without asserting engine internals.
-4. Component tests cover the shared views and Papyrus wrappers, including high-contrast availability and modal dismissal sequencing.
+3. Adapter tests verify navigation, theme/font updates, TOC selection, Search capability gating, readiness/disabled states, and progress callbacks without asserting engine internals.
+4. Component tests cover the shared views and Papyrus wrappers, including high-contrast availability, empty-TOC handling, Search capability gating, and modal dismissal sequencing.
 5. SDK package build and type checks pass; mobile type checking and focused reader tests pass.
 6. A TestFlight smoke check remains required for visual layout, safe-area spacing, navigation gestures, modal transitions, and Papyrus ToolDock interaction before any OTA is considered. Automated tests do not establish WKWebView or native interaction behavior.
 7. The implementation changes JavaScript/TypeScript only. It is an OTA candidate only for a compatible installed runtime, after the app's OTA policy checks; this design does not claim publication or device application.
 
 ## Test focus
 
-SDK tests should verify controlled props produce the expected shared visuals and callbacks, while wrapper tests ensure Papyrus state is mapped into those props without changing legacy actions. Mobile tests should verify each adapter's snapshot-to-props mapping, capability gating, theme and font actions, TOC destination selection, and modal transitions. Keep tests focused on observable contracts rather than component implementation details.
+SDK tests should verify controlled props produce the expected shared visuals and callbacks, while wrapper tests ensure Papyrus state is mapped into those props without changing legacy actions, including EPUB progress scrubbing. Mobile tests should verify each adapter's snapshot-to-props mapping, capability gating, theme/font/Search actions, progress callbacks, empty/non-empty TOC behavior, destination selection, and modal transitions. Readium progress remains display-only except for its optional open-progress action; no scrubbing support is claimed. Keep tests focused on observable contracts rather than component implementation details.
