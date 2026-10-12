@@ -32,7 +32,7 @@ The shared components are controlled views: values arrive as props and interacti
 - Switching between Papyrus and Readium changes EPUB rendering and engine-specific capabilities, not the header, control styling, settings-sheet layout, or contents-sheet presentation.
 - Papyrus behavior outside the iOS EPUB route remains unchanged.
 - Controls whose capability is absent are hidden or disabled consistently; no control is presented as working when its engine action is unavailable.
-- Existing modal-dismiss sequencing is preserved: opening search or contents from settings occurs only after the settings modal has dismissed.
+- The app-level shared-chrome orchestrator owns modal sequencing. Requests from settings to open Search or Contents run only after the settings modal has dismissed; the controlled settings view emits intent and does not present another modal itself.
 - Search is shown only when the selected engine exposes both the capability and callback. Readium currently exposes neither; Papyrus search remains available.
 - Each engine continues to store its own reading position. Switching engines does not convert or overwrite CFIs and Readium locators.
 - Annotation and freehand tools remain Papyrus-only in this phase. Sharing their appearance alone must not imply Readium support.
@@ -48,7 +48,7 @@ The shared components are controlled views: values arrive as props and interacti
 
 ## Failure and capability handling
 
-The adapter remains responsible for engine readiness, fallback, and mapping commands. The shared views render the latest snapshot and disable actions while the engine is not ready or an action is unavailable. A missing TOC produces the existing empty state or removes the entry point according to the current component contract; it must not create a dead modal. Papyrus continues to use its current error and loading behavior.
+The adapter remains responsible for engine readiness, fallback, and mapping commands. The shared views render the latest snapshot and disable actions while the engine is not ready or an action is unavailable. When the TOC is empty, hide its entry point and do not open the sheet. If it becomes empty while the sheet is already open, show the localized empty state and keep the close action available. Papyrus continues to use its current error and loading behavior.
 
 ## Verification and acceptance criteria
 
