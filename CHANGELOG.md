@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-10-12
+
+### Fixed
+
+- EPUB freehand ink now previews against the iframe viewport while the pointer is moving, including paginated layouts whose body is wider or offset from the visible page.
+
+### Published packages
+
+| Package | Version |
+| --- | --- |
+| `@papyrus-sdk/ui-react-native` | `0.2.37` |
+
 ## 2026-09-16
 
 ### Changed

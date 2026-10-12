@@ -39,8 +39,8 @@ describe('EPUB contextual anchors',()=>{
 
 it('captures finger or pencil input only in EPUB ink mode and cancels incomplete gestures',()=>{
  document.body.innerHTML='<p>'+('word'.repeat(100))+'</p>';
- const originalCreateRange=document.createRange.bind(document),originalRAF=window.requestAnimationFrame,originalInnerWidth=window.innerWidth;
- Object.defineProperty(window,'innerWidth',{configurable:true,value:2785944});Object.defineProperty(document.body,'clientWidth',{configurable:true,value:412});Object.defineProperty(document.body,'clientHeight',{configurable:true,value:839});
+ const originalCreateRange=document.createRange.bind(document),originalRAF=window.requestAnimationFrame,originalInnerWidth=window.innerWidth,originalInnerHeight=window.innerHeight;
+ Object.defineProperty(window,'innerWidth',{configurable:true,value:412});Object.defineProperty(window,'innerHeight',{configurable:true,value:839});Object.defineProperty(document.body,'clientWidth',{configurable:true,value:412});Object.defineProperty(document.body,'clientHeight',{configurable:true,value:839});
  let rangeCalls=0;document.createRange=()=>{rangeCalls++;const range=originalCreateRange();const bounds=()=>({left:10+range.startOffset*10,right:10+range.endOffset*10,top:10,bottom:26,width:Math.max(1,(range.endOffset-range.startOffset)*10),height:16});Object.defineProperty(range,'getClientRects',{value:()=>[bounds()]});Object.defineProperty(range,'getBoundingClientRect',{value:bounds});return range;};
  let queue:FrameRequestCallback[]=[];window.requestAnimationFrame=cb=>{queue.push(cb);return queue.length;};
  const commits:any[]=[];let cfiCalls=0,current=true;const contents={document,window,sectionIndex:0,range:(cfi:string)=>{const offset=Number(cfi.match(/:(\d+)\)$/)?.[1]||0),node=document.querySelector('p')!.firstChild!,range=document.createRange();range.setStart(node,offset);range.setEnd(node,Math.min(offset+1,node.textContent!.length));return range;},cfiFromRange:(range:Range)=>{cfiCalls++;return `epubcfi(/6/2!/4/2:${range.startOffset})`;}};
@@ -60,7 +60,7 @@ it('captures finger or pencil input only in EPUB ink mode and cancels incomplete
  event('pointerdown',12,14);event('pointermove',22,14);renderer.setInkMode({enabled:false});event('pointerup',32,14);expect(commits).toHaveLength(2);
  renderer.setInkMode({enabled:true,color:'#2563eb',opacity:1,strokeWidth:.006});event('pointerdown',12,14);event('pointermove',22,14);current=false;event('pointermove',24,14);event('pointerup',32,14);expect(commits).toHaveLength(2);
  current=true;event('pointerdown',12,14);event('pointermove',22,14);renderer.destroy();event('pointerup',32,14);expect(commits).toHaveLength(2);expect(document.querySelector('[data-papyrus-ink-capture]')).toBeNull();
- window.requestAnimationFrame=originalRAF;document.createRange=originalCreateRange;Object.defineProperty(window,'innerWidth',{configurable:true,value:originalInnerWidth});delete (document.body as any).clientWidth;delete (document.body as any).clientHeight;
+ window.requestAnimationFrame=originalRAF;document.createRange=originalCreateRange;Object.defineProperty(window,'innerWidth',{configurable:true,value:originalInnerWidth});Object.defineProperty(window,'innerHeight',{configurable:true,value:originalInnerHeight});delete (document.body as any).clientWidth;delete (document.body as any).clientHeight;
 });
 
 it('shows an SVG preview before release and commits ink, highlighter, and underline presets',()=>{
@@ -98,6 +98,52 @@ it('shows an SVG preview before release and commits ink, highlighter, and underl
  } finally {
   renderer?.destroy();window.requestAnimationFrame=originalRAF;document.createRange=originalCreateRange;
   if(originalWidth)Object.defineProperty(window,'innerWidth',originalWidth);else delete (window as any).innerWidth;
+  if(originalBodyWidth)Object.defineProperty(document.body,'clientWidth',originalBodyWidth);else delete (document.body as any).clientWidth;
+  if(originalBodyHeight)Object.defineProperty(document.body,'clientHeight',originalBodyHeight);else delete (document.body as any).clientHeight;
+ }
+});
+
+it('keeps the live preview aligned to the iframe viewport when the EPUB body is shifted',()=>{
+ document.body.innerHTML='<p>word word word</p>';
+ const originalRAF=window.requestAnimationFrame;
+ const originalWidth=Object.getOwnPropertyDescriptor(window,'innerWidth');
+ const originalHeight=Object.getOwnPropertyDescriptor(window,'innerHeight');
+ const originalBodyWidth=Object.getOwnPropertyDescriptor(document.body,'clientWidth');
+ const originalBodyHeight=Object.getOwnPropertyDescriptor(document.body,'clientHeight');
+ const originalBodyRect=document.body.getBoundingClientRect.bind(document.body);
+ let renderer:any;
+ try {
+  Object.defineProperty(window,'innerWidth',{configurable:true,value:390});
+  Object.defineProperty(window,'innerHeight',{configurable:true,value:844});
+  Object.defineProperty(document.body,'clientWidth',{configurable:true,value:900});
+  Object.defineProperty(document.body,'clientHeight',{configurable:true,value:2200});
+  document.body.getBoundingClientRect=()=>({left:100,top:200,right:1000,bottom:2400,width:900,height:2200,toJSON:()=>({})}) as DOMRect;
+  window.requestAnimationFrame=()=>1;
+  renderer=annotations.install({document,window,sectionIndex:0},{
+   href:'chapter.xhtml',spineIndex:0,isCurrent:()=>true,annotations:()=>[],labels:()=>({}),onTap:()=>{},
+  });
+  const canvas=document.querySelector('[data-papyrus-ink-capture]') as HTMLCanvasElement;
+  expect(canvas.style.width).toBe('390px');
+  expect(canvas.style.height).toBe('844px');
+  renderer.setInkMode({enabled:true,preset:'ink',color:'#2563eb',opacity:1,strokeWidth:.006});
+  const event=(name:string,x:number,y:number)=>{
+   const input=new MouseEvent(name,{bubbles:true,cancelable:true,button:0,clientX:x,clientY:y});
+   Object.defineProperty(input,'pointerId',{value:7});
+   canvas.dispatchEvent(input);
+  };
+  event('pointerdown',18,29);
+  event('pointermove',23,31);
+  const preview=document.querySelector('[data-papyrus-ink-preview]') as SVGPathElement|null;
+  expect(preview).not.toBeNull();
+  expect(preview?.closest('[data-papyrus-ink-preview-overlay]')?.getAttribute('width')).toBe('390');
+  expect(preview?.closest('[data-papyrus-ink-preview-overlay]')?.getAttribute('height')).toBe('844');
+  expect(preview?.getAttribute('d')).toContain('M 18.0 29.0 L 23.0 31.0');
+ } finally {
+  renderer?.destroy();
+  window.requestAnimationFrame=originalRAF;
+  document.body.getBoundingClientRect=originalBodyRect;
+  if(originalWidth)Object.defineProperty(window,'innerWidth',originalWidth);else delete (window as any).innerWidth;
+  if(originalHeight)Object.defineProperty(window,'innerHeight',originalHeight);else delete (window as any).innerHeight;
   if(originalBodyWidth)Object.defineProperty(document.body,'clientWidth',originalBodyWidth);else delete (document.body as any).clientWidth;
   if(originalBodyHeight)Object.defineProperty(document.body,'clientHeight',originalBodyHeight);else delete (document.body as any).clientHeight;
  }
