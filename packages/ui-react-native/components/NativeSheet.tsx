@@ -32,6 +32,7 @@ export type NativeSheetProps = {
   closeAccessibilityLabel?: string;
   showHeader?: boolean;
   sheetStyle?: StyleProp<ViewStyle>;
+  onDismiss?: () => void;
 };
 
 export function NativeSheet({
@@ -44,6 +45,7 @@ export function NativeSheet({
   closeAccessibilityLabel = "Close sheet",
   showHeader = false,
   sheetStyle,
+  onDismiss,
 }: NativeSheetProps) {
   const insets = usePapyrusSafeAreaInsets();
   const palette = getNativeSheetPalette(Boolean(isDark));
@@ -107,6 +109,7 @@ export function NativeSheet({
       animationType="none"
       transparent
       visible={rendered}
+      onDismiss={onDismiss}
       onRequestClose={onClose}
     >
       <View style={[styles.root, tabletLayout?.root]}>

@@ -1,6 +1,6 @@
 # Papyrus Shared EPUB Reader Chrome Design
 
-**Status:** Design approved; written-spec review pending.
+**Status:** Design and written-spec review approved.
 
 ## Goal
 
@@ -44,7 +44,7 @@ The shared components are controlled views: values arrive as props and interacti
 - Keep the app adapter contract app-owned unless an SDK-level type proves necessary for the controlled component props. The SDK should not depend on Papel Amassado-specific storage, navigation, analytics, or modal policies.
 - Limit app migration to iOS EPUB rendering. Android EPUB and non-EPUB formats continue through their current paths.
 - Do not change Readium native code, add native dependencies, implement Readium annotations, or alter cross-engine progress synchronization.
-- Do not publish an npm package or OTA as part of this implementation phase. Package release and OTA remain separate actions after review and runtime compatibility checks.
+- After code review and package validation, publish only the required Papyrus UI SDK package. If the installed TestFlight runtime and channel are compatible, publish the requested iOS-only experimental OTA to that verified test channel; use the candidate for the first real-device smoke check. Hold any wider rollout until the user confirms the smoke results. If OTA cannot safely reach the installed build, prepare the candidate through the existing Xcode Cloud TestFlight workflow instead.
 
 ## Failure and capability handling
 
@@ -57,8 +57,8 @@ The adapter remains responsible for engine readiness, fallback, and mapping comm
 3. Adapter tests verify navigation, theme/font updates, TOC selection, Search capability gating, readiness/disabled states, and progress callbacks without asserting engine internals.
 4. Component tests cover the shared views and Papyrus wrappers, including high-contrast availability, empty-TOC handling, Search capability gating, and modal dismissal sequencing.
 5. SDK package build and type checks pass; mobile type checking and focused reader tests pass.
-6. A TestFlight smoke check remains required for visual layout, safe-area spacing, navigation gestures, modal transitions, and Papyrus ToolDock interaction before any OTA is considered. Automated tests do not establish WKWebView or native interaction behavior.
-7. The implementation changes JavaScript/TypeScript only. It is an OTA candidate only for a compatible installed runtime, after the app's OTA policy checks; this design does not claim publication or device application.
+6. The experimental TestFlight candidate must be smoke-tested for visual layout, safe-area spacing, navigation gestures, modal transitions, and Papyrus ToolDock interaction. Because the changed UI itself is the candidate under test, this smoke happens on the requested experimental OTA (or Xcode Cloud build if OTA is incompatible); automated tests do not establish WKWebView or native interaction behavior. Do not widen release until the user confirms the result.
+7. The implementation changes JavaScript/TypeScript only. It remains an OTA candidate only for a compatible installed runtime, after the app's OTA policy checks. Publishing the update does not prove download or execution on the device.
 
 ## Test focus
 

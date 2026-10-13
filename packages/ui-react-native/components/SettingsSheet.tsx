@@ -21,8 +21,9 @@ import { IconZoomIn, IconZoomOut } from "../icons";
 import { resetEngineRotation } from "./rotationReset";
 import { NativeSheet, NativeSheetScrollView } from "./NativeSheet";
 import { getSettingsSheetMaxHeight } from "./settingsSheetLayout";
+import ReaderSettingsView from "./sharedReaderChrome/ReaderSettingsView";
 
-interface SettingsSheetProps {
+export interface SettingsSheetProps {
   engine: DocumentEngine;
   visible: boolean;
   onClose: () => void;
@@ -127,6 +128,88 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
     setDocumentState({ zoom: next });
   };
 
+  if (documentType === "epub") {
+    const themeSwatches: Record<PageTheme, { swatchColor: string; swatchForegroundColor?: string }> = {
+      normal: { swatchColor: "#ffffff" },
+      sepia: { swatchColor: "#e8dcc3" },
+      dark: { swatchColor: "#10151f" },
+      "high-contrast": { swatchColor: "#ffffff", swatchForegroundColor: "#111827" },
+    };
+    return (
+      <ReaderSettingsView
+        visible={visible}
+        title={locale === "pt-BR" ? "Exibição" : "Display"}
+        isDark={isDark}
+        accentColor={accentColor}
+        onClose={onClose}
+        appearanceOptions={[
+          { value: "light", label: t.light },
+          { value: "dark", label: t.dark },
+        ]}
+        appearanceValue={uiTheme}
+        appearanceLabel={t.appearance}
+        onAppearanceChange={(value) => setDocumentState({ uiTheme: value as "light" | "dark" })}
+        themeOptions={PAGE_THEME_OPTIONS.map((option) => ({
+          value: option.value,
+          label: t[option.labelKey],
+          ...themeSwatches[option.value],
+        }))}
+        selectedTheme={pageTheme}
+        themeLabel={t.pageTheme}
+        onThemeChange={(value) => setDocumentState({ pageTheme: value as PageTheme })}
+        fontSize={{
+          value: zoom,
+          min: 0.7,
+          max: 2,
+          step: 0.1,
+          onChange: (value) => {
+            engine.setZoom(value);
+            setDocumentState({ zoom: value });
+          },
+        }}
+        fontSizeLabel={locale === "pt-BR" ? "Tamanho da fonte" : "Font size"}
+        transitionOptions={[
+          { value: "continuous", label: locale === "pt-BR" ? "Rolagem por capítulo" : t.continuous },
+          { value: "paged", label: t.pageByPage },
+        ]}
+        selectedTransition={isPaged ? "paged" : "continuous"}
+        transitionLabel={t.pageTransition}
+        onTransitionChange={(value) => handleTransition(value === "paged" ? "paged" : "continuous")}
+        actions={onOpenInfo ? [{ key: "info", label: t.info, onPress: onOpenInfo }] : []}
+      >
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}>{t.rotate}</Text>
+          <View style={styles.optionRow}>
+            <Pressable onPress={() => handleRotate("counterclockwise")} style={[styles.optionButton, isDark && styles.optionButtonDark]}>
+              <Text style={[styles.optionText, isDark && styles.optionTextDark]}>{t.counterclockwise}</Text>
+            </Pressable>
+            {Platform.OS === "ios" ? (
+              <Pressable onPress={handleResetRotation} style={[styles.optionButton, isDark && styles.optionButtonDark]}>
+                <Text style={[styles.optionText, isDark && styles.optionTextDark]}>{t.rotationOriginal}</Text>
+              </Pressable>
+            ) : null}
+            <Pressable onPress={() => handleRotate("clockwise")} style={[styles.optionButton, isDark && styles.optionButtonDark]}>
+              <Text style={[styles.optionText, isDark && styles.optionTextDark]}>{t.clockwise}</Text>
+            </Pressable>
+          </View>
+        </View>
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}>{t.language}</Text>
+          <View style={styles.optionRow}>
+            {(["en", "pt-BR"] as const).map((value) => {
+              const selected = locale === value;
+              return (
+                <Pressable key={value} accessibilityRole="button" accessibilityState={{ selected }} onPress={() => setDocumentState({ locale: value })} style={[styles.optionButton, isDark && styles.optionButtonDark, selected && styles.optionButtonActive, selected && { backgroundColor: accentColor }]}>
+                  <Text style={[styles.optionText, isDark && styles.optionTextDark, selected && styles.optionTextActive]}>{value === "en" ? t.english : t.portuguese}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+      </ReaderSettingsView>
+    );
+  }
+
   return (
     <NativeSheet
       visible={visible}
@@ -143,13 +226,12 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
         showsVerticalScrollIndicator={false}
       >
         {onOpenInfo ? <Pressable accessibilityRole="button" onPress={onOpenInfo} style={{minHeight:44,justifyContent:"center",marginBottom:16}}><Text style={[styles.sectionTitle,isDark && styles.sectionTitleDark]}>{t.info}</Text></Pressable> : null}
-        {(documentType === "text" || documentType === "epub") && (
+        {documentType === "text" && (
           <View style={styles.section}>
             <Text style={[styles.sectionTitle,isDark && styles.sectionTitleDark]}>{locale === "pt-BR" ? "Tamanho da fonte" : "Font size"}</Text>
             <View style={{flexDirection:"row",alignItems:"center",gap:12}}>
               {[-0.1,0.1].map(delta=><Pressable key={delta} accessibilityRole="button" accessibilityLabel={locale === "pt-BR" ? (delta<0?"Diminuir fonte":"Aumentar fonte") : (delta<0?"Decrease font":"Increase font")} onPress={()=>{
                 const next=Math.max(0.7,Math.min(2,zoom+delta));
-                if(documentType === "epub")engine.setZoom(next);
                 setDocumentState({zoom:next});
               }} style={{minWidth:44,minHeight:44,justifyContent:"center",alignItems:"center"}}><Text style={{fontSize:20,color:isDark?"#fff":"#111"}}>{delta<0?"A−":"A+"}</Text></Pressable>)}
               <Text style={{color:isDark?"#fff":"#111"}}>{Math.round(zoom*100)}%</Text>
@@ -325,7 +407,7 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
                   (!isPaged || isDouble) && styles.optionTextActive,
                 ]}
               >
-                {documentType === "epub" && locale === "pt-BR" ? "Rolagem por capítulo" : t.continuous}
+                {t.continuous}
               </Text>
             </Pressable>
             <Pressable

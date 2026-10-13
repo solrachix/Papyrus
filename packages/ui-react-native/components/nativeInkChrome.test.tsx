@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useViewerStore } from "@papyrus-sdk/core";
 import Topbar from "./Topbar";
 import BottomBar from "./BottomBar";
+import SettingsSheet from "./SettingsSheet";
 
 const platform = vi.hoisted(() => ({OS: "ios", Version: 18}));
 const motion = vi.hoisted(() => ({reduced: false, timing: vi.fn(), listener: null as null | ((value: boolean) => void)}));
@@ -39,6 +40,18 @@ vi.mock("../icons", () => {
 });
 vi.mock("./PageJumpModal", () => ({PageJumpModal: () => null}));
 vi.mock("./PapyrusSafeArea", () => ({usePapyrusSafeAreaInsets: () => ({top: 47, bottom: 34, left: 0, right: 0})}));
+vi.mock("./NativeSheet", async () => {
+  const React = await import("react");
+  return {
+    NativeSheet: ({visible, title, children, onClose}: any) => visible
+      ? React.createElement("section", null,
+          React.createElement("h1", null, title),
+          React.createElement("button", {onClick: onClose, "aria-label": "Close sheet"}, "×"),
+          children)
+      : null,
+    NativeSheetScrollView: ({children}: any) => React.createElement("div", null, children),
+  };
+});
 
 const initial = useViewerStore.getState();
 const engine = {goToPage: vi.fn()} as any;
@@ -100,6 +113,15 @@ describe("PencilKit chrome", () => {
     expect(screen.queryByTestId("papyrus-floating-top-controls")).toBeNull();
   });
 
+  it("keeps the EPUB header mounted while applying its animated hidden state", () => {
+    useViewerStore.setState({nativePdfViewerActive: false, mobileChromeVisible: false});
+    render(<Topbar engine={engine} documentType="epub" title="Tarzan" />);
+
+    const header = screen.getByTestId("papyrus-floating-top-controls");
+    expect(header.getAttribute("data-pointer-events")).toBe("none");
+    expect(header.getAttribute("data-native-style")).toContain('"opacity":0');
+  });
+
   it.each([["android", 35], ["ios", 15]])("preserves ordinary chrome on %s %s", (os, version) => {
     platform.OS = os as string; platform.Version = version as number;
     useViewerStore.setState({activeTool: "ink"}); render(bars());
@@ -136,5 +158,43 @@ describe("PencilKit chrome", () => {
     useViewerStore.setState({activeTool: "ink", locale: "en"}); render(bars());
     const done = screen.getByRole("button", {name: "Done"});
     expect(done.getAttribute("data-native-style")).toContain('"minHeight":44');
+  });
+
+  it("keeps EPUB progress navigation tied to the progress action", () => {
+    const onOpenPages = vi.fn();
+    useViewerStore.setState({
+      documentType: "epub" as any,
+      epubReadingMode: "paged",
+      epubLocation: {
+        version: 1,
+        cfi: "epubcfi(/6/2!/4/2:0)",
+        href: "chapter.xhtml",
+        chapter: 7,
+        chapterCount: 10,
+        visualPage: 2,
+        visualPageCount: 4,
+        progress: 0.6,
+        mode: "paged",
+        atStart: false,
+        atEnd: false,
+      },
+    });
+    render(<BottomBar documentType="epub" onOpenInfo={vi.fn()} onOpenSettings={vi.fn()} onOpenPages={onOpenPages} onTurnPage={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole("button", {name: "Cap. 7 · 2/4"}));
+
+    expect(onOpenPages).toHaveBeenCalledOnce();
+  });
+
+  it("keeps high contrast and font actions mapped from the Papyrus EPUB settings", () => {
+    const engine = {setZoom: vi.fn(), getRotation: () => 0, rotate: vi.fn()} as any;
+    useViewerStore.setState({locale: "en", pageTheme: "normal", zoom: 1});
+    render(<SettingsSheet engine={engine} documentType="epub" visible onClose={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole("button", {name: "Tema High contrast"}));
+    fireEvent.click(screen.getByRole("button", {name: "Aumentar tamanho do texto"}));
+
+    expect(useViewerStore.getState().pageTheme).toBe("high-contrast");
+    expect(engine.setZoom).toHaveBeenCalledWith(1.1);
   });
 });
