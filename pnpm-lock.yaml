@@ -358,7 +358,7 @@ importers:
   packages/engine-native:
     devDependencies:
       '@papyrus-sdk/core':
-        specifier: 0.2.24
+        specifier: 0.2.25
         version: link:../core
       '@papyrus-sdk/types':
         specifier: 0.2.17

@@ -11,6 +11,7 @@
     "build": "pnpm -r --workspace-concurrency=1 build",
     "build:changed": "node scripts/publish-changed.js --build-only",
     "test:phase1": "vitest run",
+    "test:epub-annotation-package-contract": "node scripts/test-epub-annotation-package-contract.cjs",
     "bench:zoom": "pnpm --filter @papyrus-sdk/core build && node scripts/benchmarks/zoom-performance.mjs",
     "fixtures:mobile": "node scripts/benchmarks/generate-mobile-pdf-fixtures.mjs --write",
     "fixtures:mobile:check": "node scripts/benchmarks/generate-mobile-pdf-fixtures.mjs --check",

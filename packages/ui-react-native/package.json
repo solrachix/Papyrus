@@ -1,6 +1,6 @@
 {
   "name": "@papyrus-sdk/ui-react-native",
-  "version": "0.2.39",
+  "version": "0.2.40",
   "license": "MIT",
   "keywords": [
     "papyrus",
@@ -48,8 +48,8 @@
     "react-native-svg": "^15.5.0"
   },
   "peerDependencies": {
-    "@papyrus-sdk/core": "0.2.24",
-    "@papyrus-sdk/engine-native": "0.2.23",
+    "@papyrus-sdk/core": "0.2.25",
+    "@papyrus-sdk/engine-native": "0.2.24",
     "@papyrus-sdk/types": "0.2.17",
     "@react-native-clipboard/clipboard": "^1.16.3",
     "react": ">=18.2.0 <20",
