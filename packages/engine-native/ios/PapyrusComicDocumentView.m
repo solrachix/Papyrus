@@ -1,9 +1,21 @@
 #import "PapyrusComicDocumentView.h"
+#import "PapyrusComicZoomGeometry.h"
 #import "../vendor/libarchive/PapyrusComicArchive.h"
 #import <ImageIO/ImageIO.h>
 #import <math.h>
+#import <os/log.h>
+#import <os/signpost.h>
 
 static NSString * const PapyrusComicCellId = @"PapyrusComicPageCell";
+static os_log_t PapyrusComicZoomSignpostLog(void) {
+  static os_log_t log;
+  static dispatch_once_t once;
+  dispatch_once(&once, ^{
+    log = os_log_create("com.papyrus.sdk", "ComicZoom");
+  });
+  return log;
+}
+
 static NSCache<NSString *, UIImage *> *PapyrusComicImageCache(void) {
   static NSCache<NSString *, UIImage *> *cache;
   static dispatch_once_t once;
@@ -66,9 +78,180 @@ static NSCache<NSString *, UIImage *> *PapyrusComicImageCache(void) {
 }
 @end
 
+@interface PapyrusComicContinuousLayout : UICollectionViewLayout
+@property (nonatomic, assign) CGFloat zoomScale;
+- (void)configureWithPageCount:(NSInteger)pageCount
+                  viewportSize:(CGSize)viewportSize
+                       fitPage:(BOOL)fitPage
+                    imageSizes:(NSDictionary<NSNumber *, NSValue *> *)imageSizes;
+- (void)updateImageSizes:(NSDictionary<NSNumber *, NSValue *> *)imageSizes;
+@end
+
+@interface PapyrusComicContinuousLayout ()
+@property (nonatomic, assign) NSInteger pageCount;
+@property (nonatomic, assign) CGSize viewportSize;
+@property (nonatomic, assign) BOOL fitPage;
+@property (nonatomic, copy) NSDictionary<NSNumber *, NSValue *> *imageSizes;
+@property (nonatomic, strong) NSMutableData *prefixHeights;
+@property (nonatomic, assign) BOOL geometryDirty;
+@end
+
+@implementation PapyrusComicContinuousLayout
+- (instancetype)init {
+  self = [super init];
+  if (self) {
+    _zoomScale = 1.0;
+    _geometryDirty = YES;
+    _imageSizes = @{};
+  }
+  return self;
+}
+
+- (void)configureWithPageCount:(NSInteger)pageCount
+                  viewportSize:(CGSize)viewportSize
+                       fitPage:(BOOL)fitPage
+                    imageSizes:(NSDictionary<NSNumber *, NSValue *> *)imageSizes {
+  NSInteger safePageCount = MAX(0, pageCount);
+  NSDictionary<NSNumber *, NSValue *> *safeImageSizes = imageSizes ?: @{};
+  BOOL changed = self.pageCount != safePageCount ||
+    !CGSizeEqualToSize(self.viewportSize, viewportSize) ||
+    self.fitPage != fitPage ||
+    ![self.imageSizes isEqualToDictionary:safeImageSizes];
+  if (!changed) return;
+  self.pageCount = safePageCount;
+  self.viewportSize = viewportSize;
+  self.fitPage = fitPage;
+  self.imageSizes = [safeImageSizes copy];
+  self.geometryDirty = YES;
+  [self invalidateLayout];
+}
+
+- (void)updateImageSizes:(NSDictionary<NSNumber *, NSValue *> *)imageSizes {
+  if (imageSizes.count == 0) return;
+  NSMutableDictionary<NSNumber *, NSValue *> *merged = [self.imageSizes mutableCopy] ?: [NSMutableDictionary dictionary];
+  const double *prefix = (const double *)self.prefixHeights.bytes;
+  NSUInteger count = (NSUInteger)MAX(0, self.pageCount);
+  BOOL hasPrefix = !self.geometryDirty && self.prefixHeights.length >= sizeof(double) * (count + 1);
+  NSMutableData *heightDeltasData = hasPrefix ? [NSMutableData dataWithLength:sizeof(double) * count] : nil;
+  double *heightDeltas = (double *)heightDeltasData.mutableBytes;
+  CGFloat width = MAX(1.0, self.viewportSize.width);
+  CGFloat height = MAX(1.0, self.viewportSize.height);
+
+  [imageSizes enumerateKeysAndObjectsUsingBlock:^(NSNumber *pageNumber, NSValue *sizeValue, BOOL *stop) {
+    #pragma unused(stop)
+    NSInteger page = pageNumber.integerValue;
+    if (page < 0 || (NSUInteger)page >= count) return;
+    NSValue *oldValue = merged[pageNumber];
+    if ([oldValue isEqual:sizeValue]) return;
+    CGSize size = sizeValue.CGSizeValue;
+    double nextHeight = PapyrusComicContinuousPageHeight(size.width, size.height,
+        width, height, self.fitPage, 1.0);
+    if (hasPrefix) {
+      double oldHeight = prefix[page + 1] - prefix[page];
+      heightDeltas[page] = nextHeight - oldHeight;
+    }
+    merged[pageNumber] = sizeValue;
+  }];
+
+  self.imageSizes = [merged copy];
+  if (!hasPrefix) {
+    self.geometryDirty = YES;
+    [self invalidateLayout];
+    return;
+  }
+
+  double *mutablePrefix = (double *)self.prefixHeights.mutableBytes;
+  PapyrusComicContinuousApplyHeightDeltas(mutablePrefix, heightDeltas, count);
+  [self invalidateLayout];
+}
+
+- (void)setZoomScale:(CGFloat)zoomScale {
+  CGFloat safeZoom = PapyrusComicClampZoom(zoomScale);
+  if (fabs(safeZoom - _zoomScale) < 0.0001) return;
+  _zoomScale = safeZoom;
+  // Page aspect ratios and prefix heights are unchanged by zoom. Invalidating
+  // asks UIKit for attributes only in its queried visible rect; it does not
+  // rebuild the document geometry cache for every pinch update.
+  [self invalidateLayout];
+}
+
+- (void)prepareLayout {
+  [super prepareLayout];
+  CGSize measuredViewport = self.collectionView.bounds.size;
+  if (measuredViewport.width > 0 && !CGSizeEqualToSize(measuredViewport, self.viewportSize)) {
+    self.viewportSize = measuredViewport;
+    self.geometryDirty = YES;
+  }
+  if (!self.geometryDirty) return;
+
+  NSUInteger count = (NSUInteger)MAX(0, self.pageCount);
+  self.prefixHeights = [NSMutableData dataWithLength:sizeof(double) * (count + 1)];
+  double *prefix = (double *)self.prefixHeights.mutableBytes;
+  prefix[0] = 0.0;
+  CGFloat width = MAX(1.0, self.viewportSize.width);
+  CGFloat height = MAX(1.0, self.viewportSize.height);
+  for (NSUInteger page = 0; page < count; page++) {
+    CGSize imageSize = self.imageSizes[@(page)] ? self.imageSizes[@(page)].CGSizeValue : CGSizeZero;
+    double pageHeight = PapyrusComicContinuousPageHeight(imageSize.width, imageSize.height,
+        width, height, self.fitPage, 1.0);
+    prefix[page + 1] = prefix[page] + pageHeight;
+  }
+  self.geometryDirty = NO;
+}
+
+- (CGSize)collectionViewContentSize {
+  if (self.geometryDirty) [self prepareLayout];
+  const double *prefix = (const double *)self.prefixHeights.bytes;
+  NSUInteger count = (NSUInteger)MAX(0, self.pageCount);
+  return CGSizeMake(PapyrusComicContinuousContentWidth(self.viewportSize.width, self.zoomScale),
+                    PapyrusComicContinuousDocumentHeight(prefix, count, self.zoomScale));
+}
+
+- (UICollectionViewLayoutAttributes *)layoutAttributesForPage:(NSUInteger)page {
+  if (self.geometryDirty) [self prepareLayout];
+  NSUInteger count = (NSUInteger)MAX(0, self.pageCount);
+  const double *prefix = (const double *)self.prefixHeights.bytes;
+  PapyrusComicLayoutFrame frame = PapyrusComicContinuousPageFrame(prefix, count, page,
+      self.viewportSize.width, self.zoomScale);
+  if (frame.width <= 0.0 || frame.height <= 0.0) return nil;
+  NSIndexPath *indexPath = [NSIndexPath indexPathForItem:(NSInteger)page inSection:0];
+  UICollectionViewLayoutAttributes *attributes = [UICollectionViewLayoutAttributes layoutAttributesForCellWithIndexPath:indexPath];
+  attributes.frame = CGRectMake(frame.originX, frame.originY, frame.width, frame.height);
+  return attributes;
+}
+
+- (UICollectionViewLayoutAttributes *)layoutAttributesForItemAtIndexPath:(NSIndexPath *)indexPath {
+  if (indexPath.section != 0 || indexPath.item < 0 || indexPath.item >= self.pageCount) return nil;
+  return [self layoutAttributesForPage:(NSUInteger)indexPath.item];
+}
+
+- (NSArray<UICollectionViewLayoutAttributes *> *)layoutAttributesForElementsInRect:(CGRect)rect {
+  if (self.geometryDirty) [self prepareLayout];
+  NSUInteger count = (NSUInteger)MAX(0, self.pageCount);
+  const double *prefix = (const double *)self.prefixHeights.bytes;
+  NSUInteger page = PapyrusComicContinuousFirstVisiblePage(prefix, count,
+      CGRectGetMinY(rect), self.zoomScale);
+  if (page >= count) return @[];
+
+  NSMutableArray<UICollectionViewLayoutAttributes *> *attributes = [NSMutableArray array];
+  while (page < count) {
+    UICollectionViewLayoutAttributes *attribute = [self layoutAttributesForPage:page];
+    if (!attribute || CGRectGetMinY(attribute.frame) >= CGRectGetMaxY(rect)) break;
+    if (CGRectIntersectsRect(attribute.frame, rect)) [attributes addObject:attribute];
+    page++;
+  }
+  return attributes;
+}
+
+- (BOOL)shouldInvalidateLayoutForBoundsChange:(CGRect)newBounds {
+  return !CGSizeEqualToSize(newBounds.size, self.viewportSize);
+}
+@end
+
 @interface PapyrusComicDocumentView () <UIGestureRecognizerDelegate>
 @property (nonatomic, strong) UICollectionView *collectionView;
 @property (nonatomic, strong) UICollectionViewFlowLayout *flowLayout;
+@property (nonatomic, strong) PapyrusComicContinuousLayout *continuousLayout;
 @property (nonatomic, strong) UIPinchGestureRecognizer *pinchRecognizer;
 @property (nonatomic, strong) UITapGestureRecognizer *doubleTapRecognizer;
 @property (nonatomic, strong) UIPanGestureRecognizer *pagePanRecognizer;
@@ -82,6 +265,9 @@ static NSCache<NSString *, UIImage *> *PapyrusComicImageCache(void) {
 @property (nonatomic, assign) BOOL pendingNavigation;
 @property (nonatomic, assign) CGPoint panOffset;
 @property (nonatomic, assign) CGPoint panGestureStartOffset;
+- (void)updateContinuousLayoutGeometry;
+- (UICollectionViewLayoutAttributes *)layoutAttributesForItemAtIndexPath:(NSIndexPath *)indexPath;
+- (CGSize)pageSizeAtIndex:(NSInteger)page;
 @end
 
 @implementation PapyrusComicDocumentView
@@ -104,6 +290,7 @@ static NSCache<NSString *, UIImage *> *PapyrusComicImageCache(void) {
     _flowLayout = [[UICollectionViewFlowLayout alloc] init];
     _flowLayout.minimumLineSpacing = 0;
     _flowLayout.minimumInteritemSpacing = 0;
+    _continuousLayout = [[PapyrusComicContinuousLayout alloc] init];
     _collectionView = [[UICollectionView alloc] initWithFrame:self.bounds collectionViewLayout:_flowLayout];
     _collectionView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     _collectionView.dataSource = self;
@@ -132,8 +319,25 @@ static NSCache<NSString *, UIImage *> *PapyrusComicImageCache(void) {
     [_collectionView addGestureRecognizer:_pagePanRecognizer];
     [self applyLayoutMode];
     [self applyTheme];
+    [self updateContinuousLayoutGeometry];
   }
   return self;
+}
+
+- (void)updateContinuousLayoutGeometry {
+  CGSize viewport = self.viewportSize;
+  if (viewport.width <= 0 || viewport.height <= 0) viewport = self.collectionView.bounds.size;
+  // Recover dimensions already held in the bounded image cache only when
+  // document geometry changes, never on each pinch update.
+  for (NSInteger page = 0; page < self.pageCount; page++) [self pageSizeAtIndex:page];
+  [self.continuousLayout configureWithPageCount:self.pageCount
+                                    viewportSize:viewport
+                                         fitPage:[self.fitMode isEqualToString:@"page"]
+                                      imageSizes:self.pageSizes];
+}
+
+- (UICollectionViewLayoutAttributes *)layoutAttributesForItemAtIndexPath:(NSIndexPath *)indexPath {
+  return [self.collectionView.collectionViewLayout layoutAttributesForItemAtIndexPath:indexPath];
 }
 
 // Anchors reference the page, not an absolute document offset. Heights can change
@@ -145,7 +349,7 @@ static NSCache<NSString *, UIImage *> *PapyrusComicImageCache(void) {
   UICollectionViewLayoutAttributes *nearest = nil;
   CGFloat distance = CGFLOAT_MAX;
   for (NSIndexPath *path in self.collectionView.indexPathsForVisibleItems) {
-    UICollectionViewLayoutAttributes *attributes = [self.flowLayout layoutAttributesForItemAtIndexPath:path];
+    UICollectionViewLayoutAttributes *attributes = [self layoutAttributesForItemAtIndexPath:path];
     if (!attributes) continue;
     CGFloat next = ABS(CGRectGetMidY(attributes.frame) - center.y);
     if (next < distance) { nearest = attributes; distance = next; }
@@ -153,7 +357,10 @@ static NSCache<NSString *, UIImage *> *PapyrusComicImageCache(void) {
   }
   if (!nearest || nearest.frame.size.height <= 0) return nil;
   return @{ @"pageIndex": @([self logicalPageForItem:nearest.indexPath.item]),
-            @"fraction": @(MAX(0, MIN(1, (center.y - nearest.frame.origin.y) / nearest.frame.size.height))) };
+            @"fractionX": @(PapyrusComicZoomAnchorFraction(self.collectionView.contentOffset.x, viewport.width / 2,
+                                                             nearest.frame.origin.x, nearest.frame.size.width)),
+            @"fraction": @(PapyrusComicZoomAnchorFraction(self.collectionView.contentOffset.y, viewport.height / 2,
+                                                           nearest.frame.origin.y, nearest.frame.size.height)) };
 }
 
 - (void)restoreScrollAnchor:(NSDictionary *)anchor {
@@ -162,14 +369,19 @@ static NSCache<NSString *, UIImage *> *PapyrusComicImageCache(void) {
   NSInteger page = [anchor[@"pageIndex"] integerValue];
   if (page < 0 || page >= self.pageCount) return;
   NSInteger item = [self itemForLogicalPage:page + 1];
-  UICollectionViewLayoutAttributes *attributes = [self.flowLayout layoutAttributesForItemAtIndexPath:[NSIndexPath indexPathForItem:item inSection:0]];
+  UICollectionViewLayoutAttributes *attributes = [self layoutAttributesForItemAtIndexPath:[NSIndexPath indexPathForItem:item inSection:0]];
   if (!attributes) return;
-  CGFloat y = attributes.frame.origin.y + [anchor[@"fraction"] doubleValue] * attributes.frame.size.height - self.collectionView.bounds.size.height / 2;
-  CGFloat minimum = -self.collectionView.adjustedContentInset.top;
-  CGFloat maximum = MAX(minimum, self.collectionView.contentSize.height - self.collectionView.bounds.size.height + self.collectionView.adjustedContentInset.bottom);
+  CGFloat x = PapyrusComicZoomAnchorOffset(attributes.frame.origin.x, attributes.frame.size.width,
+      [anchor[@"fractionX"] doubleValue], self.collectionView.bounds.size.width / 2,
+      self.collectionView.contentSize.width, self.collectionView.bounds.size.width,
+      self.collectionView.adjustedContentInset.left, self.collectionView.adjustedContentInset.right);
+  CGFloat y = PapyrusComicZoomAnchorOffset(attributes.frame.origin.y, attributes.frame.size.height,
+      [anchor[@"fraction"] doubleValue], self.collectionView.bounds.size.height / 2,
+      self.collectionView.contentSize.height, self.collectionView.bounds.size.height,
+      self.collectionView.adjustedContentInset.top, self.collectionView.adjustedContentInset.bottom);
   BOOL wasApplying = self.applyingProgrammaticPage;
   self.applyingProgrammaticPage = YES;
-  [self.collectionView setContentOffset:CGPointMake(self.collectionView.contentOffset.x, MAX(minimum, MIN(maximum, y))) animated:NO];
+  [self.collectionView setContentOffset:CGPointMake(x, y) animated:NO];
   self.applyingProgrammaticPage = wasApplying;
 }
 
@@ -190,11 +402,16 @@ static NSCache<NSString *, UIImage *> *PapyrusComicImageCache(void) {
   self.applyingProgrammaticPage = YES;
   self.viewportSize = size;
   self.flowLayout.itemSize = size;
-  [self.flowLayout invalidateLayout];
+  if ([self.layoutMode isEqualToString:@"continuous"]) {
+    [self updateContinuousLayoutGeometry];
+    self.continuousLayout.zoomScale = self.zoom;
+  } else {
+    [self.flowLayout invalidateLayout];
+  }
   [self.collectionView layoutIfNeeded];
   for (PapyrusComicPageCell *cell in self.collectionView.visibleCells) {
     [self configureCell:cell withImage:cell.imageView.image];
-    cell.imageView.transform = [self imageTransform];
+    [self applyImageTransformToCell:cell];
   }
   if (self.pendingNavigation || ![self.layoutMode isEqualToString:@"continuous"]) {
     [self scrollToCurrentPageAnimated:NO];
@@ -209,6 +426,7 @@ static NSCache<NSString *, UIImage *> *PapyrusComicImageCache(void) {
   _engineId = [engineId copy];
   [self.pageSizes removeAllObjects];
   [self.pendingPageSizes removeAllObjects];
+  [self updateContinuousLayoutGeometry];
   @synchronized (self.reportedErrors) { [self.reportedErrors removeAllObjects]; }
   self.pendingNavigation = YES;
   [self.collectionView reloadData];
@@ -219,6 +437,7 @@ static NSCache<NSString *, UIImage *> *PapyrusComicImageCache(void) {
   _documentGeneration = value;
   [self.pageSizes removeAllObjects];
   [self.pendingPageSizes removeAllObjects];
+  [self updateContinuousLayoutGeometry];
   @synchronized (self.reportedErrors) { [self.reportedErrors removeAllObjects]; }
   self.pendingNavigation = YES;
   [self.collectionView reloadData];
@@ -229,6 +448,7 @@ static NSCache<NSString *, UIImage *> *PapyrusComicImageCache(void) {
   if (_pageCount == count) return;
   _pageCount = count;
   _currentPage = count > 0 ? MIN(self.requestedPage, count) : self.requestedPage;
+  [self updateContinuousLayoutGeometry];
   self.pendingNavigation = YES;
   [self.collectionView reloadData];
   [self scrollToCurrentPageAnimated:NO];
@@ -246,6 +466,7 @@ static NSCache<NSString *, UIImage *> *PapyrusComicImageCache(void) {
   NSString *mode = [value isEqualToString:@"continuous"] ? @"continuous" : @"single";
   if ([_layoutMode isEqualToString:mode]) return;
   _layoutMode = mode;
+  self.panOffset = CGPointZero;
   [self applyLayoutMode];
   self.pendingNavigation = YES;
   [self.collectionView reloadData];
@@ -258,7 +479,8 @@ static NSCache<NSString *, UIImage *> *PapyrusComicImageCache(void) {
   self.applyingProgrammaticPage = YES;
   NSDictionary *anchor = [self captureScrollAnchorForViewport:self.collectionView.bounds.size];
   _fitMode = mode;
-  [self.flowLayout invalidateLayout];
+  if ([self.layoutMode isEqualToString:@"continuous"]) [self updateContinuousLayoutGeometry];
+  [self.collectionView.collectionViewLayout invalidateLayout];
   [self.collectionView reloadData];
   [self.collectionView layoutIfNeeded];
   if ([self.layoutMode isEqualToString:@"continuous"]) [self restoreScrollAnchor:anchor];
@@ -280,18 +502,117 @@ static NSCache<NSString *, UIImage *> *PapyrusComicImageCache(void) {
   self.applyingProgrammaticPage = wasApplying;
 }
 - (void)setZoom:(CGFloat)value {
-  _zoom = MAX(1, MIN(5, value));
-  self.collectionView.panGestureRecognizer.enabled = _zoom <= 1.0;
-  self.pagePanRecognizer.enabled = _zoom > 1.0;
-  if (_zoom <= 1.0) self.panOffset = CGPointZero;
-  for (PapyrusComicPageCell *cell in self.collectionView.visibleCells) {
-    cell.imageView.transform = [self imageTransform];
+  CGFloat target = PapyrusComicClampZoom(value);
+  if (fabs(target - _zoom) < 0.0001) {
+    [self updateZoomGestureAvailability];
+    return;
   }
+  CGPoint focus = CGPointMake(self.collectionView.bounds.size.width / 2, self.collectionView.bounds.size.height / 2);
+  if ([self.layoutMode isEqualToString:@"continuous"]) [self applyContinuousZoom:target atFocus:focus];
+  else [self applySingleZoom:target atFocus:focus];
 }
 
 - (CGAffineTransform)imageTransform {
   CGAffineTransform transform = CGAffineTransformMakeTranslation(self.panOffset.x, self.panOffset.y);
   return CGAffineTransformScale(transform, self.zoom, self.zoom);
+}
+
+- (void)applyImageTransformToCell:(PapyrusComicPageCell *)cell {
+  cell.imageView.transform = [self.layoutMode isEqualToString:@"continuous"] ? CGAffineTransformIdentity : [self imageTransform];
+}
+
+- (void)updateZoomGestureAvailability {
+  BOOL continuous = [self.layoutMode isEqualToString:@"continuous"];
+  BOOL collectionCanPan = continuous || self.zoom <= 1.0;
+  BOOL pageCanPan = !continuous && self.zoom > 1.0;
+  if (self.collectionView.panGestureRecognizer.enabled != collectionCanPan) {
+    self.collectionView.panGestureRecognizer.enabled = collectionCanPan;
+  }
+  if (self.pagePanRecognizer.enabled != pageCanPan) self.pagePanRecognizer.enabled = pageCanPan;
+}
+
+- (NSDictionary *)captureContinuousZoomAnchorAtFocus:(CGPoint)focus {
+  if (![self.layoutMode isEqualToString:@"continuous"] || self.pageCount <= 0) return nil;
+  CGPoint contentFocus = CGPointMake(self.collectionView.contentOffset.x + focus.x,
+                                     self.collectionView.contentOffset.y + focus.y);
+  UICollectionViewLayoutAttributes *nearest = nil;
+  CGFloat nearestDistance = CGFLOAT_MAX;
+  for (NSIndexPath *path in self.collectionView.indexPathsForVisibleItems) {
+    UICollectionViewLayoutAttributes *attributes = [self layoutAttributesForItemAtIndexPath:path];
+    if (!attributes || attributes.frame.size.width <= 0 || attributes.frame.size.height <= 0) continue;
+    if (CGRectContainsPoint(attributes.frame, contentFocus)) { nearest = attributes; break; }
+    CGFloat dx = MAX(CGRectGetMinX(attributes.frame) - contentFocus.x, MAX(0, contentFocus.x - CGRectGetMaxX(attributes.frame)));
+    CGFloat dy = MAX(CGRectGetMinY(attributes.frame) - contentFocus.y, MAX(0, contentFocus.y - CGRectGetMaxY(attributes.frame)));
+    CGFloat distance = dx * dx + dy * dy;
+    if (distance < nearestDistance) { nearest = attributes; nearestDistance = distance; }
+  }
+  if (!nearest) return nil;
+  return @{ @"pageIndex": @([self logicalPageForItem:nearest.indexPath.item]),
+            @"fractionX": @(PapyrusComicZoomAnchorFraction(self.collectionView.contentOffset.x, focus.x,
+                                                             nearest.frame.origin.x, nearest.frame.size.width)),
+            @"fractionY": @(PapyrusComicZoomAnchorFraction(self.collectionView.contentOffset.y, focus.y,
+                                                             nearest.frame.origin.y, nearest.frame.size.height)) };
+}
+
+- (void)restoreContinuousZoomAnchor:(NSDictionary *)anchor atFocus:(CGPoint)focus {
+  if (!anchor || ![self.layoutMode isEqualToString:@"continuous"] || self.pendingNavigation) return;
+  NSInteger page = [anchor[@"pageIndex"] integerValue];
+  if (page < 0 || page >= self.pageCount) return;
+  NSInteger item = [self itemForLogicalPage:page + 1];
+  NSIndexPath *path = [NSIndexPath indexPathForItem:item inSection:0];
+  UICollectionViewLayoutAttributes *attributes = [self layoutAttributesForItemAtIndexPath:path];
+  if (!attributes) return;
+  CGFloat x = PapyrusComicZoomAnchorOffset(attributes.frame.origin.x, attributes.frame.size.width,
+      [anchor[@"fractionX"] doubleValue], focus.x, self.collectionView.contentSize.width,
+      self.collectionView.bounds.size.width, self.collectionView.adjustedContentInset.left,
+      self.collectionView.adjustedContentInset.right);
+  CGFloat y = PapyrusComicZoomAnchorOffset(attributes.frame.origin.y, attributes.frame.size.height,
+      [anchor[@"fractionY"] doubleValue], focus.y, self.collectionView.contentSize.height,
+      self.collectionView.bounds.size.height, self.collectionView.adjustedContentInset.top,
+      self.collectionView.adjustedContentInset.bottom);
+  BOOL wasApplying = self.applyingProgrammaticPage;
+  self.applyingProgrammaticPage = YES;
+  [self.collectionView setContentOffset:CGPointMake(x, y) animated:NO];
+  self.applyingProgrammaticPage = wasApplying;
+}
+
+- (void)applyContinuousZoom:(CGFloat)target atFocus:(CGPoint)focus {
+  CGFloat next = PapyrusComicClampZoom(target);
+  if (fabs(next - self.zoom) < 0.0001) return;
+  os_log_t signpostLog = PapyrusComicZoomSignpostLog();
+  os_signpost_id_t signpostId = os_signpost_id_generate(signpostLog);
+  os_signpost_interval_begin(signpostLog, signpostId, "ContinuousZoom");
+  NSDictionary *anchor = [self captureContinuousZoomAnchorAtFocus:focus];
+  _zoom = next;
+  self.panOffset = CGPointZero;
+  [self updateZoomGestureAvailability];
+  BOOL wasApplying = self.applyingProgrammaticPage;
+  self.applyingProgrammaticPage = YES;
+  self.continuousLayout.zoomScale = next;
+  [self.collectionView layoutIfNeeded];
+  [self restoreContinuousZoomAnchor:anchor atFocus:focus];
+  self.applyingProgrammaticPage = wasApplying;
+  if (!wasApplying) [self emitVisiblePage];
+  os_signpost_interval_end(signpostLog, signpostId, "ContinuousZoom");
+}
+
+- (void)applySingleZoom:(CGFloat)target atFocus:(CGPoint)focus {
+  CGFloat previous = MAX(1, self.zoom);
+  CGFloat next = PapyrusComicClampZoom(target);
+  if (next <= 1.0) {
+    self.panOffset = CGPointZero;
+  } else {
+    CGFloat ratio = next / previous;
+    CGPoint center = CGPointMake(self.collectionView.bounds.size.width / 2, self.collectionView.bounds.size.height / 2);
+    CGFloat maxX = self.collectionView.bounds.size.width * (next - 1.0) / 2.0;
+    CGFloat maxY = self.collectionView.bounds.size.height * (next - 1.0) / 2.0;
+    CGFloat x = ratio * self.panOffset.x + (1 - ratio) * (focus.x - center.x);
+    CGFloat y = ratio * self.panOffset.y + (1 - ratio) * (focus.y - center.y);
+    self.panOffset = CGPointMake(MAX(-maxX, MIN(maxX, x)), MAX(-maxY, MIN(maxY, y)));
+  }
+  _zoom = next;
+  [self updateZoomGestureAvailability];
+  for (PapyrusComicPageCell *cell in self.collectionView.visibleCells) [self applyImageTransformToCell:cell];
 }
 - (void)setPageTheme:(NSString *)value {
   _pageTheme = [value copy] ?: @"normal";
@@ -300,10 +621,23 @@ static NSCache<NSString *, UIImage *> *PapyrusComicImageCache(void) {
 
 - (void)applyLayoutMode {
   BOOL continuous = [self.layoutMode isEqualToString:@"continuous"];
-  self.flowLayout.scrollDirection = continuous ? UICollectionViewScrollDirectionVertical : UICollectionViewScrollDirectionHorizontal;
+  self.flowLayout.scrollDirection = UICollectionViewScrollDirectionHorizontal;
+  self.flowLayout.itemSize = self.collectionView.bounds.size;
   self.collectionView.pagingEnabled = !continuous;
   self.collectionView.semanticContentAttribute = [self.readingDirection isEqualToString:@"rtl"] ? UISemanticContentAttributeForceRightToLeft : UISemanticContentAttributeForceLeftToRight;
-  [self.flowLayout invalidateLayout];
+  if (continuous) {
+    [self updateContinuousLayoutGeometry];
+    self.continuousLayout.zoomScale = self.zoom;
+    if (self.collectionView.collectionViewLayout != self.continuousLayout) {
+      [self.collectionView setCollectionViewLayout:self.continuousLayout animated:NO];
+    }
+  } else {
+    if (self.collectionView.collectionViewLayout != self.flowLayout) {
+      [self.collectionView setCollectionViewLayout:self.flowLayout animated:NO];
+    }
+    [self.flowLayout invalidateLayout];
+  }
+  [self updateZoomGestureAvailability];
 }
 
 - (void)applyTheme {
@@ -367,7 +701,7 @@ static NSCache<NSString *, UIImage *> *PapyrusComicImageCache(void) {
   cell.representedKey = key;
   cell.imageView.image = [PapyrusComicImageCache() objectForKey:key];
   [self configureCell:cell withImage:cell.imageView.image];
-  cell.imageView.transform = [self imageTransform];
+  [self applyImageTransformToCell:cell];
   if (!cell.imageView.image && engineId.length > 0 && generation > 0) {
     NSInteger maximumEdge = MAX(1024, (NSInteger)MAX(self.bounds.size.width, self.bounds.size.height) * 2);
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
@@ -410,7 +744,7 @@ static NSCache<NSString *, UIImage *> *PapyrusComicImageCache(void) {
         if ([cell.representedKey isEqualToString:key]) {
           cell.imageView.image = page;
           [self configureCell:cell withImage:page];
-          cell.imageView.transform = [self imageTransform];
+          [self applyImageTransformToCell:cell];
         }
       });
     });
@@ -421,17 +755,21 @@ static NSCache<NSString *, UIImage *> *PapyrusComicImageCache(void) {
 // Keep geometry fixed during the native gesture; one compensation happens at idle.
 - (void)applyPendingPageSizes {
   if (self.collectionView.dragging || self.collectionView.decelerating) return;
+  if (self.pinchRecognizer.state == UIGestureRecognizerStateBegan || self.pinchRecognizer.state == UIGestureRecognizerStateChanged) return;
   if (self.pendingViewportLayout) { [self setNeedsLayout]; [self layoutIfNeeded]; }
   if (self.pendingPageSizes.count == 0) return;
   NSDictionary *anchor = [self captureScrollAnchorForViewport:self.collectionView.bounds.size];
   BOOL wasApplying = self.applyingProgrammaticPage;
   self.applyingProgrammaticPage = YES;
+  NSDictionary<NSNumber *, NSValue *> *pageSizeUpdates = [self.pendingPageSizes copy];
   [self.pageSizes addEntriesFromDictionary:self.pendingPageSizes];
   [self.pendingPageSizes removeAllObjects];
-  [self.flowLayout invalidateLayout];
+  [self.continuousLayout updateImageSizes:pageSizeUpdates];
+  [self.collectionView.collectionViewLayout invalidateLayout];
   [self.collectionView layoutIfNeeded];
   [self restoreScrollAnchor:anchor];
   self.applyingProgrammaticPage = wasApplying;
+  if (!wasApplying) [self emitVisiblePage];
 }
 
 - (CGSize)pageSizeAtIndex:(NSInteger)page {
@@ -445,16 +783,8 @@ static NSCache<NSString *, UIImage *> *PapyrusComicImageCache(void) {
 }
 
 - (CGSize)collectionView:(UICollectionView *)collectionView layout:(UICollectionViewLayout *)layout sizeForItemAtIndexPath:(NSIndexPath *)indexPath {
-  #pragma unused(layout)
-  if (![self.layoutMode isEqualToString:@"continuous"]) return collectionView.bounds.size;
-  NSInteger page = [self logicalPageForItem:indexPath.item];
-  CGSize imageSize = [self pageSizeAtIndex:page];
-  CGSize viewport = self.pendingViewportLayout && self.viewportSize.width > 0 ? self.viewportSize : collectionView.bounds.size;
-  if (imageSize.width <= 0 || imageSize.height <= 0) return viewport;
-  CGFloat width = viewport.width;
-  CGFloat height = width * imageSize.height / imageSize.width;
-  if ([self.fitMode isEqualToString:@"page"]) height = MIN(height, viewport.height);
-  return CGSizeMake(width, MAX(1, height));
+  #pragma unused(layout, indexPath)
+  return collectionView.bounds.size;
 }
 
 - (void)scrollViewDidEndDragging:(UIScrollView *)scrollView willDecelerate:(BOOL)decelerate {
@@ -496,26 +826,20 @@ static NSCache<NSString *, UIImage *> *PapyrusComicImageCache(void) {
       self.pinchRecognizer.state == UIGestureRecognizerStateChanged) return;
   CGFloat previous = MAX(1, self.zoom);
   CGFloat target = previous > 1.05 ? 1.0 : 2.0;
-  CGPoint focus = [recognizer locationInView:self.collectionView];
-  CGPoint center = CGPointMake(CGRectGetMidX(self.collectionView.bounds),
-                               CGRectGetMidY(self.collectionView.bounds));
-  if (target <= 1.0) {
-    self.panOffset = CGPointZero;
-  } else {
-    CGFloat ratio = target / previous;
-    CGFloat maxX = self.collectionView.bounds.size.width * (target - 1.0) / 2.0;
-    CGFloat maxY = self.collectionView.bounds.size.height * (target - 1.0) / 2.0;
-    CGFloat x = ratio * self.panOffset.x + (1 - ratio) * (focus.x - center.x);
-    CGFloat y = ratio * self.panOffset.y + (1 - ratio) * (focus.y - center.y);
-    self.panOffset = CGPointMake(MAX(-maxX, MIN(maxX, x)), MAX(-maxY, MIN(maxY, y)));
-  }
-  self.zoom = target;
+  CGPoint focus = [recognizer locationInView:self];
+  if ([self.layoutMode isEqualToString:@"continuous"]) [self applyContinuousZoom:target atFocus:focus];
+  else [self applySingleZoom:target atFocus:focus];
   if (self.onZoomChanged) self.onZoomChanged(@{ @"zoom": @(self.zoom) });
 }
 
 - (void)handlePinch:(UIPinchGestureRecognizer *)recognizer {
   if (recognizer.state == UIGestureRecognizerStateChanged) {
-    self.zoom = MAX(1, MIN(5, self.zoom * recognizer.scale));
+    CGFloat target = PapyrusComicClampZoom(self.zoom * recognizer.scale);
+    // The collection fills this view. Its own UIScrollView coordinates can
+    // include contentOffset; the enclosing view keeps the focus viewport-local.
+    CGPoint focus = [recognizer locationInView:self];
+    if ([self.layoutMode isEqualToString:@"continuous"]) [self applyContinuousZoom:target atFocus:focus];
+    else [self applySingleZoom:target atFocus:focus];
     recognizer.scale = 1;
   } else if (recognizer.state == UIGestureRecognizerStateEnded || recognizer.state == UIGestureRecognizerStateCancelled || recognizer.state == UIGestureRecognizerStateFailed) {
     [self applyPendingPageSizes];
@@ -529,12 +853,12 @@ static NSCache<NSString *, UIImage *> *PapyrusComicImageCache(void) {
 
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldReceiveTouch:(UITouch *)touch {
   #pragma unused(touch)
-  if (gestureRecognizer == self.pagePanRecognizer) return self.zoom > 1.0;
+  if (gestureRecognizer == self.pagePanRecognizer) return ![self.layoutMode isEqualToString:@"continuous"] && self.zoom > 1.0;
   return YES;
 }
 
 - (void)handlePagePan:(UIPanGestureRecognizer *)recognizer {
-  if (self.zoom <= 1.0) return;
+  if ([self.layoutMode isEqualToString:@"continuous"] || self.zoom <= 1.0) return;
   if (recognizer.state == UIGestureRecognizerStateBegan) {
     self.panGestureStartOffset = self.panOffset;
   } else if (recognizer.state == UIGestureRecognizerStateChanged) {
@@ -545,7 +869,7 @@ static NSCache<NSString *, UIImage *> *PapyrusComicImageCache(void) {
       MAX(-maxX, MIN(maxX, translation.x + self.panGestureStartOffset.x)),
       MAX(-maxY, MIN(maxY, translation.y + self.panGestureStartOffset.y))
     );
-    for (PapyrusComicPageCell *cell in self.collectionView.visibleCells) cell.imageView.transform = [self imageTransform];
+    for (PapyrusComicPageCell *cell in self.collectionView.visibleCells) [self applyImageTransformToCell:cell];
   } else if (recognizer.state == UIGestureRecognizerStateEnded || recognizer.state == UIGestureRecognizerStateCancelled || recognizer.state == UIGestureRecognizerStateFailed) {
     [self applyPendingPageSizes];
   }

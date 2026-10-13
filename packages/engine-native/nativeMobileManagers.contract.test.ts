@@ -176,6 +176,16 @@ describe("native TXT and comic view registration contracts", () => {
     expect(androidComicView).toContain("itemParams.height = Math.max(1, recyclerView.getHeight())");
   });
 
+  it("uses a virtualized custom layout for oversized continuous iOS comic pages", () => {
+    const iosComicView = read("packages/engine-native/ios/PapyrusComicDocumentView.m");
+
+    expect(iosComicView).toContain("PapyrusComicContinuousLayout : UICollectionViewLayout");
+    expect(iosComicView).toContain("layoutAttributesForElementsInRect:");
+    expect(iosComicView).toContain("PapyrusComicContinuousPageFrame");
+    expect(iosComicView).toContain("setCollectionViewLayout:self.continuousLayout animated:NO");
+    expect(iosComicView).not.toContain("PapyrusComicZoomFlowLayout");
+  });
+
   it("returns cached comic thumbnail file URIs without sending image data over the bridge", () => {
     const iosModule = read("packages/engine-native/ios/PapyrusNativeEngine.m");
     const androidModule = read("packages/engine-native/android/src/main/java/com/papyrus/engine/PapyrusNativeEngineModule.java");
@@ -265,7 +275,8 @@ describe("native TXT and comic view registration contracts", () => {
 
 describe("comic viewport stability", () => {
   const source = read("packages/engine-native/ios/PapyrusComicDocumentView.m");
-  const method = (name: string) => source.match(new RegExp(`- \\(void\\)${name}[^\\n]*\\{([\\s\\S]*?)\\n\\}`))?.[1] ?? "";
+  const viewSource = source.slice(source.indexOf("@implementation PapyrusComicDocumentView"));
+  const method = (name: string) => viewSource.match(new RegExp(`- \\(void\\)${name}[^\\n]*\\{([\\s\\S]*?)\\n\\}`))?.[1] ?? "";
   it("reports observed pages without requesting a scroll", () => {
     expect(method("emitVisiblePage")).toContain("self.applyingProgrammaticPage || self.pendingNavigation || self.pageCount <= 0");
     expect(method("emitVisiblePage")).toContain("_currentPage = page;");
@@ -291,7 +302,9 @@ describe("comic viewport stability", () => {
   it("reads cached dimensions before sizing a reopened page", () => {
     expect(source).toContain("- (CGSize)pageSizeAtIndex:");
     expect(source).toContain("self.pageSizes[@(page)] = [NSValue valueWithCGSize:cached.size]");
-    expect(source).toContain("CGSize imageSize = [self pageSizeAtIndex:page]");
+    const geometry = source.match(/- \(void\)updateContinuousLayoutGeometry \{([\s\S]*?)\n\}/)?.[1] ?? "";
+    expect(geometry).toContain("for (NSInteger page = 0; page < self.pageCount; page++)");
+    expect(geometry).toContain("[self pageSizeAtIndex:page]");
   });
   it("does not reload unchanged settings", () => {
     for (const name of ["setPageCount", "setLayoutMode", "setFitMode", "setReadingDirection"]) {
@@ -327,5 +340,100 @@ describe("comic double-tap and stable pinch contracts", () => {
     expect(src).toContain("previous > 1.05 ? 1.0 : 2.0");
     expect(src).toContain("self.panOffset = CGPointZero");
     expect(src).toContain("self.onZoomChanged(@{ @\"zoom\": @(self.zoom) })");
+  });
+});
+
+describe("iOS continuous comic zoom geometry", () => {
+  const fullSource = read("packages/engine-native/ios/PapyrusComicDocumentView.m");
+  const src = fullSource.split("@implementation PapyrusComicDocumentView")[1] ?? "";
+  const method = (name: string) => src.match(new RegExp(`- \\(void\\)${name}[^\\n]*\\{([\\s\\S]*?)\\n\\}`))?.[1] ?? "";
+
+  it("sizes continuous pages from cached prefix geometry and leaves single sizing to FlowLayout", () => {
+    const layout = fullSource.split("@implementation PapyrusComicContinuousLayout")[1]?.split("@interface PapyrusComicDocumentView")[0] ?? "";
+    const sizing = src.split("sizeForItemAtIndexPath:")[1]?.split("- (void)scrollView")[0] ?? "";
+    expect(layout).toContain("PapyrusComicContinuousContentWidth");
+    expect(layout).toContain("PapyrusComicContinuousPageHeight");
+    expect(layout).toContain("PapyrusComicContinuousPageFrame");
+    expect(sizing).toContain("return collectionView.bounds.size");
+  });
+
+  it("anchors continuous pinch zoom at the actual finger focus", () => {
+    expect(method("handlePinch")).toContain("locationInView:self]");
+    expect(method("handleDoubleTap")).toContain("locationInView:self]");
+    expect(method("setZoom")).toContain("bounds.size.width / 2, self.collectionView.bounds.size.height / 2");
+    expect(src).toContain("PapyrusComicZoomAnchorFraction");
+    expect(src).toContain("PapyrusComicZoomAnchorOffset");
+    expect(src).toContain("restoreContinuousZoomAnchor");
+  });
+
+  it("scales continuous cell geometry instead of transforming images inside fixed cells", () => {
+    const applyImageTransform = src.split("- (void)applyImageTransformToCell:")[1]?.split("\n}")[0] ?? "";
+    expect(applyImageTransform).toContain('[self.layoutMode isEqualToString:@"continuous"] ? CGAffineTransformIdentity');
+    expect(applyImageTransform).toContain(": [self imageTransform]");
+  });
+
+  it("skips a continuous relayout when clamping produces no zoom change", () => {
+    const apply = src.match(/- \(void\)applyContinuousZoom:[^\n]*\{([\s\S]*?)\n\}/)?.[1] ?? "";
+    expect(apply).toContain("fabs(next - self.zoom) < 0.0001");
+    expect(apply.indexOf("fabs(next - self.zoom)")).toBeLessThan(apply.indexOf("self.continuousLayout.zoomScale = next"));
+  });
+
+  it("suppresses transient page events during relayout and reports the restored viewport", () => {
+    const apply = src.match(/- \(void\)applyContinuousZoom:[^\n]*\{([\s\S]*?)\n\}/)?.[1] ?? "";
+    const suppress = apply.indexOf("self.applyingProgrammaticPage = YES");
+    const invalidate = apply.indexOf("self.continuousLayout.zoomScale = next");
+    const restore = apply.indexOf("restoreContinuousZoomAnchor");
+    const release = apply.lastIndexOf("self.applyingProgrammaticPage = wasApplying");
+    const reconcile = apply.indexOf("[self emitVisiblePage]");
+    expect(suppress).toBeGreaterThanOrEqual(0);
+    expect(suppress).toBeLessThan(invalidate);
+    expect(invalidate).toBeLessThan(restore);
+    expect(restore).toBeLessThan(release);
+    expect(release).toBeLessThan(reconcile);
+  });
+
+  it("does not rebuild prefix geometry for each zoom scale update", () => {
+    const layout = fullSource.split("@implementation PapyrusComicContinuousLayout")[1]?.split("@interface PapyrusComicDocumentView")[0] ?? "";
+    const zoomSetter = layout.match(/- \(void\)setZoomScale:[^\n]*\{([\s\S]*?)\n\}/)?.[1] ?? "";
+
+    expect(zoomSetter).toContain("[self invalidateLayout]");
+    expect(zoomSetter).not.toContain("geometryDirty = YES");
+    expect(zoomSetter).not.toContain("prepareLayout");
+    expect(layout).toContain("updateImageSizes:");
+    expect(layout).toContain("PapyrusComicContinuousApplyHeightDeltas");
+  });
+
+  it("records native continuous pinch duration for Instruments", () => {
+    const apply = src.match(/- \(void\)applyContinuousZoom:[^\n]*\{([\s\S]*?)\n\}/)?.[1] ?? "";
+
+    expect(apply).toContain("os_signpost_interval_begin");
+    expect(apply).toContain("os_signpost_interval_end");
+    expect(fullSource).toContain("os_log_create(\"com.papyrus.sdk\", \"ComicZoom\")");
+  });
+
+  it("reconciles the visible page after asynchronous dimensions restore the scroll anchor", () => {
+    const apply = src.match(/- \(void\)applyPendingPageSizes[^\n]*\{([\s\S]*?)\n\}/)?.[1] ?? "";
+    const restore = apply.indexOf("restoreScrollAnchor");
+    const release = apply.indexOf("self.applyingProgrammaticPage = wasApplying");
+    const reconcile = apply.indexOf("[self emitVisiblePage]");
+    expect(restore).toBeGreaterThanOrEqual(0);
+    expect(restore).toBeLessThan(release);
+    expect(release).toBeLessThan(reconcile);
+  });
+
+  it("leaves continuous panning to the virtualized collection and defers async geometry during pinch", () => {
+    const gestures = method("updateZoomGestureAvailability");
+    expect(gestures).toContain("BOOL pageCanPan = !continuous && self.zoom > 1.0");
+    expect(gestures).toContain("BOOL collectionCanPan = continuous || self.zoom <= 1.0");
+    expect(fullSource).toContain("PapyrusComicContinuousContentWidth(self.viewportSize.width, self.zoomScale)");
+    expect(fullSource).toContain("PapyrusComicContinuousFirstVisiblePage(prefix, count");
+    expect(method("applyPendingPageSizes")).toContain("UIGestureRecognizerStateChanged");
+  });
+
+  it("retains the single-page viewport sizing and image transform path", () => {
+    const sizing = src.split("sizeForItemAtIndexPath:")[1]?.split("- (void)scrollView")[0] ?? "";
+    expect(sizing).toContain("return collectionView.bounds.size");
+    expect(src).toContain(": [self imageTransform]");
+    expect(method("handlePagePan")).toContain("self.zoom <= 1.0");
   });
 });
