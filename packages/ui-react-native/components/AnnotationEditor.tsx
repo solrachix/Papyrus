@@ -1,11 +1,12 @@
 import React, {useEffect, useRef, useState} from "react";
-import {AccessibilityInfo, Alert, Animated, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View} from "react-native";
+import {AccessibilityInfo, Alert, Animated, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View} from "react-native";
 import {getAnnotationEditPatch, getAnnotationMarkup, getAnnotationNote, getAnnotationQuote, useViewerStore} from "@papyrus-sdk/core";
 import type {AnnotationMarkupStyle} from "@papyrus-sdk/types";
 import {getStrings} from "../mobileStrings";
 import {deleteAnnotationAndClearSelection} from "./annotationDeletion";
 import {IconClose, IconHighlight, IconUnderline, IconStrikeout, IconComment} from "../icons";
 import {usePapyrusSafeAreaInsets} from "./PapyrusSafeArea";
+import {ReaderOrientationModal} from "./ReaderOrientationModal";
 
 const COLORS = ["#fbbf24", "#fb7185", "#60a5fa", "#34d399", "#c084fc"];
 const AnnotationEditor: React.FC<{documentId?: string}> = ({documentId}) => {
@@ -50,7 +51,7 @@ const AnnotationEditor: React.FC<{documentId?: string}> = ({documentId}) => {
   const remove = () => Alert.alert(t.deleteAnnotation,t.deleteAnnotationConfirmation,[{text:t.cancel,style:"cancel"},{text:t.deleteAnnotation,style:"destructive",onPress:()=>deleteAnnotationAndClearSelection(annotation.id,removeAnnotation,setSelectedAnnotation)}]);
   const textStyle = {color:dark?"#f9fafb":"#111827"};
   const quote = getAnnotationQuote(annotation);
-  return <Modal visible transparent animationType="none" onRequestClose={close}>
+  return <ReaderOrientationModal visible transparent animationType="none" onRequestClose={close}>
     <KeyboardAvoidingView behavior={Platform.OS === "ios"?"padding":undefined} style={styles.host}>
       <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityLabel={t.close} />
       <Animated.View accessibilityViewIsModal style={[styles.card,{backgroundColor:dark?"#17191f":"#fff",marginBottom:Math.max(16,insets.bottom),opacity:progress,transform:[{translateY:progress.interpolate({inputRange:[0,1],outputRange:[12,0]})}]}]}>
@@ -81,7 +82,7 @@ const AnnotationEditor: React.FC<{documentId?: string}> = ({documentId}) => {
         </View>
       </Animated.View>
     </KeyboardAvoidingView>
-  </Modal>;
+  </ReaderOrientationModal>;
 };
 const styles = StyleSheet.create({host:{flex:1,justifyContent:"flex-end",backgroundColor:"rgba(0,0,0,.18)",paddingHorizontal:12},card:{borderRadius:20,padding:16,maxHeight:"72%",elevation:12},header:{flexDirection:"row",alignItems:"center",justifyContent:"space-between"},title:{fontSize:17,fontWeight:"700"},content:{flexGrow:0},quote:{fontSize:14,lineHeight:21,borderLeftWidth:3,borderLeftColor:"#9ca3af",paddingLeft:10,marginVertical:12},note:{fontSize:16,lineHeight:24,paddingVertical:12},input:{minHeight:112,maxHeight:240,borderWidth:1,borderRadius:12,padding:12,fontSize:16,textAlignVertical:"top"},button:{minWidth:44,minHeight:44,paddingHorizontal:10,borderRadius:10,alignItems:"center",justifyContent:"center"},actions:{flexDirection:"row",alignItems:"center",flexWrap:"wrap",marginTop:12},markupOptions:{flexDirection:"row",flexWrap:"wrap",gap:8,marginTop:12},markupButton:{flex:1,minWidth:64,minHeight:64,borderWidth:1,borderRadius:12,paddingHorizontal:4,paddingVertical:8,alignItems:"center",justifyContent:"center",gap:6},markupLabel:{fontSize:11,lineHeight:15,textAlign:"center"},options:{flexDirection:"row",flexWrap:"wrap",gap:8,marginTop:12},color:{width:44,height:44,borderRadius:22,borderWidth:3}});
 export default AnnotationEditor;

@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
   FlatList,
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -15,6 +14,7 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { IconClose } from "../icons";
+import { ReaderOrientationModal } from "./ReaderOrientationModal";
 import {
   getNativeSheetLayoutStyles,
   getNativeSheetSizeStyle,
@@ -113,7 +113,7 @@ export function NativeSheet({
   if (!rendered) return null;
 
   return (
-    <Modal
+    <ReaderOrientationModal
       animationType="none"
       transparent
       visible={rendered}
@@ -177,7 +177,7 @@ export function NativeSheet({
           {children}
         </Animated.View>
       </View>
-    </Modal>
+    </ReaderOrientationModal>
   );
 }
 

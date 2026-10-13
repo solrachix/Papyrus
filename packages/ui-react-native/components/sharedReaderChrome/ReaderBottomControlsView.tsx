@@ -145,7 +145,7 @@ const styles = StyleSheet.create({
   iconOnlyItem: { minWidth: 44, height: 44, alignItems: "center", justifyContent: "center", paddingHorizontal: MOBILE_CHROME_METRICS.bottomBarItemPaddingHorizontal, paddingVertical: MOBILE_CHROME_METRICS.bottomBarItemPaddingVertical },
   itemActive: { transform: [{ translateY: -2 }] },
   itemIcon: { width: MOBILE_CHROME_METRICS.iconBoxSize, height: MOBILE_CHROME_METRICS.iconBoxSize, alignItems: "center", justifyContent: "center" },
-  progressHit: { flex: 1, minWidth: 62, height: 44, justifyContent: "center", alignItems: "center", paddingHorizontal: 8 },
+  progressHit: { flex: 1, flexShrink: 0, minWidth: 96, height: 44, justifyContent: "center", alignItems: "center", paddingHorizontal: 8 },
   progressLabel: { maxWidth: 150, color: "#111827", fontSize: 12, lineHeight: 16, fontWeight: "700", textAlign: "center" },
   progressLabelDark: { color: "#e5e7eb" },
   progressTrack: { width: "100%", height: 2, marginTop: 3, backgroundColor: "rgba(127,127,127,0.3)", borderRadius: 1, overflow: "hidden" },
