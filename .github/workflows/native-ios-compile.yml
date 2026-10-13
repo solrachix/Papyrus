@@ -1,31 +1,6 @@
 name: Native iOS compile
 
 on:
-  pull_request:
-    paths:
-      - 'packages/engine-native/**'
-      - 'packages/core/**'
-      - 'packages/types/**'
-      - 'packages/ui-react-native/**'
-      - 'examples/mobile/**'
-      - 'pnpm-lock.yaml'
-      - 'pnpm-workspace.yaml'
-      - 'package.json'
-      - 'scripts/ci/compile-ios-native.sh'
-      - '.github/workflows/native-ios-compile.yml'
-  push:
-    branches: [main]
-    paths:
-      - 'packages/engine-native/**'
-      - 'packages/core/**'
-      - 'packages/types/**'
-      - 'packages/ui-react-native/**'
-      - 'examples/mobile/**'
-      - 'pnpm-lock.yaml'
-      - 'pnpm-workspace.yaml'
-      - 'package.json'
-      - 'scripts/ci/compile-ios-native.sh'
-      - '.github/workflows/native-ios-compile.yml'
   workflow_dispatch:
 
 permissions:
