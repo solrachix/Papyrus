@@ -93,6 +93,13 @@ an empty list renders the supplied empty message and leaves the sheet closable.
 Readium support should not expose annotation or freehand controls unless that
 engine implements those capabilities.
 
+EPUB renderers can share the same localized text-selection actions through
+`getReaderSelectionActionOptions(locale)`. The stable IDs are `copy`,
+`highlight`, `underline`, `note`, and `consult`; `normalizeReaderSelectionActionId`
+also accepts Papyrus's older `comment` and `define` IDs. A host can pass these
+options to a native selection menu and route the selected text/locator to its
+annotation store without translating one engine's locator into another format.
+
 ## Topbar Customization
 
 `Topbar` supports replacing the default "Papyrus" text and logo.

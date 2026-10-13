@@ -1,5 +1,5 @@
 import {describe, expect, it} from "vitest";
-import {resolveTextAnchorRange, validateAnnotationAnchor, validateEpubInkData, getAnnotationNote, getAnnotationMarkup, createContextualAnnotation,adaptLegacyAnnotation,getAnnotationEditPatch} from "./annotationAnchors";
+import {resolveTextAnchorRange, validateAnnotationAnchor, validateEpubInkData, getAnnotationNote, getAnnotationMarkup, getAnnotationQuote, createContextualAnnotation,adaptLegacyAnnotation,getAnnotationEditPatch} from "./annotationAnchors";
 
 describe("contextual annotation anchors", () => {
   it("keeps UTF16 offsets including surrogate pairs without normalizing content", () => {
@@ -29,6 +29,16 @@ describe("contextual annotation anchors", () => {
 });
 
 it("preserves quote when adding a note to legacy markup",()=>{const old={id:"a",type:"highlight" as const,pageIndex:0,rect:{x:.1,y:.2,width:.3,height:.1},color:"#fbbf24",content:"quote",createdAt:1};const updated={...old,...getAnnotationEditPatch(old,"body","underline","#60a5fa")};expect(updated.content).toBe("quote");expect(getAnnotationNote(updated)).toBe("body");expect(adaptLegacyAnnotation(old,"pdf","file").anchor?.kind).toBe("pdf-geometry");expect(adaptLegacyAnnotation(old,"epub","file").anchor).toBeUndefined();});
+it("preserves a Readium selection quote through note edit, serialization, and reopen",()=>{
+  const original={id:"readium-note",type:"comment" as const,pageIndex:4,rect:{x:0,y:0,width:0,height:0},color:"#fbbf24",content:"selected EPUB text",noteContent:"first note",createdAt:1,readiumLocator:{href:"OPS/chapter.xhtml",type:"application/xhtml+xml",text:{highlight:"selected EPUB text"}}};
+  expect(getAnnotationQuote(original)).toBe("selected EPUB text");
+  const patch=getAnnotationEditPatch(original,"edited note","none","#60a5fa");
+  expect(patch).not.toHaveProperty("content");
+  const reopened=JSON.parse(JSON.stringify({...original,...patch}));
+  expect(getAnnotationQuote(reopened)).toBe("selected EPUB text");
+  expect(getAnnotationNote(reopened)).toBe("edited note");
+  expect(reopened.readiumLocator.text.highlight).toBe("selected EPUB text");
+});
 it('rejects half an emoji even when persisted quote matches that half',()=>{expect(resolveTextAnchorRange('A😀B',{version:1,kind:'text-range',encoding:'utf-16',start:1,end:2,quote:'\uD83D'})).toBeNull();});
 
 describe('EPUB ink sidecar compatibility',()=>{

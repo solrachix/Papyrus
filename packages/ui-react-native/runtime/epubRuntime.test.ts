@@ -44,5 +44,17 @@ describe('EPUB runtime bridge',()=>{
   expect(r.renditions.at(-1).options.flow).toBe('paginated');
   expect(r.renditions.at(-1).display).toHaveBeenCalledWith(cfi);
  });
+ it('keeps a positive page for relative chapter anchors and never turns an unresolved href into page zero',async()=>{
+  const r=runtime();r.book.spine.items=[{href:'OPS/chapter.xhtml'}];
+  await r.send('load','load',{type:'epub',documentSessionId:'s',source:{kind:'base64',data:'AA=='}});
+  const resolved=await r.send('resolved','epub-go-to-destination',{dest:{kind:'href',value:'OPS/chapter.xhtml#part-1'},documentSessionId:'s'});
+  expect(r.renditions[0].display).toHaveBeenCalledWith('OPS/chapter.xhtml#part-1');
+  expect(resolved.data).toBe(0);
+  const unresolved=await r.send('unresolved','epub-go-to-destination',{dest:{kind:'href',value:'../OPS/chapter.xhtml#part-1'},documentSessionId:'s'});
+  expect(r.renditions[0].display).toHaveBeenLastCalledWith('../OPS/chapter.xhtml#part-1');
+  expect(unresolved.data).toBeNull();
+  const latestState=r.messages.filter(message=>message.type==='state').at(-1);
+  expect(latestState?.payload.currentPage).toBe(1);
+ });
  it('keeps TXT zoom independent of EPUB state',async()=>{const r=runtime();await r.send('load','load',{type:'text',source:{kind:'text',text:'sample'}});expect((await r.send('zoom','set-zoom',{zoom:1.2})).ok).toBe(true);});
 });

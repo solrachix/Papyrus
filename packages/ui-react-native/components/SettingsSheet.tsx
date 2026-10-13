@@ -22,6 +22,7 @@ import { resetEngineRotation } from "./rotationReset";
 import { NativeSheet, NativeSheetScrollView } from "./NativeSheet";
 import { getSettingsSheetMaxHeight } from "./settingsSheetLayout";
 import ReaderSettingsView from "./sharedReaderChrome/ReaderSettingsView";
+import { getReaderSheetPalette, toReaderSheetTheme } from "./readerSheetPresentation";
 
 export interface SettingsSheetProps {
   engine: DocumentEngine;
@@ -88,6 +89,8 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
     comicReadingDirection,
   } = useViewerStore();
   const isDark = uiTheme === "dark";
+  const sheetTheme = toReaderSheetTheme(pageTheme);
+  const sheetPalette = getReaderSheetPalette(sheetTheme);
   const isPaged = documentType === "epub" ? epubReadingMode === "paged" : viewMode === "single";
   const isDouble = viewMode === "double";
   const t = getStrings(locale);
@@ -140,6 +143,7 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
         visible={visible}
         title={locale === "pt-BR" ? "Exibição" : "Display"}
         isDark={isDark}
+        sheetTheme={sheetTheme}
         accentColor={accentColor}
         onClose={onClose}
         appearanceOptions={[
@@ -178,29 +182,29 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
         actions={onOpenInfo ? [{ key: "info", label: t.info, onPress: onOpenInfo }] : []}
       >
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}>{t.rotate}</Text>
+          <Text style={[styles.sectionTitle, { color: sheetPalette.text }]}>{t.rotate}</Text>
           <View style={styles.optionRow}>
-            <Pressable onPress={() => handleRotate("counterclockwise")} style={[styles.optionButton, isDark && styles.optionButtonDark]}>
-              <Text style={[styles.optionText, isDark && styles.optionTextDark]}>{t.counterclockwise}</Text>
+            <Pressable onPress={() => handleRotate("counterclockwise")} style={[styles.optionButton, { backgroundColor: sheetPalette.elevatedSurface, borderColor: sheetPalette.divider }]}>
+              <Text style={[styles.optionText, { color: sheetPalette.text }]}>{t.counterclockwise}</Text>
             </Pressable>
             {Platform.OS === "ios" ? (
-              <Pressable onPress={handleResetRotation} style={[styles.optionButton, isDark && styles.optionButtonDark]}>
-                <Text style={[styles.optionText, isDark && styles.optionTextDark]}>{t.rotationOriginal}</Text>
+              <Pressable onPress={handleResetRotation} style={[styles.optionButton, { backgroundColor: sheetPalette.elevatedSurface, borderColor: sheetPalette.divider }]}>
+                <Text style={[styles.optionText, { color: sheetPalette.text }]}>{t.rotationOriginal}</Text>
               </Pressable>
             ) : null}
-            <Pressable onPress={() => handleRotate("clockwise")} style={[styles.optionButton, isDark && styles.optionButtonDark]}>
-              <Text style={[styles.optionText, isDark && styles.optionTextDark]}>{t.clockwise}</Text>
+            <Pressable onPress={() => handleRotate("clockwise")} style={[styles.optionButton, { backgroundColor: sheetPalette.elevatedSurface, borderColor: sheetPalette.divider }]}>
+              <Text style={[styles.optionText, { color: sheetPalette.text }]}>{t.clockwise}</Text>
             </Pressable>
           </View>
         </View>
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}>{t.language}</Text>
+          <Text style={[styles.sectionTitle, { color: sheetPalette.text }]}>{t.language}</Text>
           <View style={styles.optionRow}>
             {(["en", "pt-BR"] as const).map((value) => {
               const selected = locale === value;
               return (
-                <Pressable key={value} accessibilityRole="button" accessibilityState={{ selected }} onPress={() => setDocumentState({ locale: value })} style={[styles.optionButton, isDark && styles.optionButtonDark, selected && styles.optionButtonActive, selected && { backgroundColor: accentColor }]}>
-                  <Text style={[styles.optionText, isDark && styles.optionTextDark, selected && styles.optionTextActive]}>{value === "en" ? t.english : t.portuguese}</Text>
+                <Pressable key={value} accessibilityRole="button" accessibilityState={{ selected }} onPress={() => setDocumentState({ locale: value })} style={[styles.optionButton, { backgroundColor: sheetPalette.elevatedSurface, borderColor: sheetPalette.divider }, selected && styles.optionButtonActive, selected && { backgroundColor: accentColor }]}>
+                  <Text style={[styles.optionText, { color: selected ? "#ffffff" : sheetPalette.text }, selected && styles.optionTextActive]}>{value === "en" ? t.english : t.portuguese}</Text>
                 </Pressable>
               );
             })}
