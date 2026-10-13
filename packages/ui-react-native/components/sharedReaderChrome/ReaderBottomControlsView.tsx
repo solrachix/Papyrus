@@ -115,7 +115,7 @@ export default function ReaderBottomControlsView({
                   onPress={navigation.onOpenProgress}
                   style={styles.progressHit}
                 >
-                  <Text style={[styles.progressLabel, isDark && styles.progressLabelDark]}>{navigation.progressLabel}</Text>
+                  <Text numberOfLines={1} ellipsizeMode="tail" style={[styles.progressLabel, isDark && styles.progressLabelDark]}>{navigation.progressLabel}</Text>
                   {fraction !== undefined ? (
                     <View style={styles.progressTrack} testID="reader-shared-progress-track">
                       <View style={[styles.progressValue, { width: `${fraction * 100}%`, backgroundColor: accentColor }]} testID="reader-shared-progress-value" />
@@ -135,7 +135,7 @@ export default function ReaderBottomControlsView({
 }
 
 const styles = StyleSheet.create({
-  frame: { position: "absolute", left: 0, right: 0, bottom: 0, zIndex: 20, paddingHorizontal: MOBILE_CHROME_METRICS.screenPadding, alignItems: "center" },
+  frame: { position: "absolute", left: 0, right: 0, bottom: 0, zIndex: 20, alignItems: "center" },
   row: { width: "100%", maxWidth: MOBILE_CHROME_METRICS.maxFloatingWidth, flexDirection: "row", justifyContent: "flex-start", alignItems: "center", gap: 10 },
   rowLandscape: { maxWidth: undefined },
   island: { flexDirection: "row", alignItems: "center", height: MOBILE_CHROME_METRICS.bottomBarVisualHeight, paddingVertical: 0, paddingHorizontal: 6, backgroundColor: "rgba(255,255,255,0.9)", borderWidth: 1, borderColor: "rgba(255,255,255,0.72)", borderRadius: 24, shadowColor: "#0f172a", shadowOpacity: 0.12, shadowRadius: 18, shadowOffset: { width: 0, height: 10 }, elevation: 10 },

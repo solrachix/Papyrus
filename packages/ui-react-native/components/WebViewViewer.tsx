@@ -17,6 +17,11 @@ import {
 
 import { parseEpubAnnotationEvent, resolveEpubInkMode, type EpubAnnotationEvent } from "./epubAnnotationEvents";
 import { getStrings } from "../mobileStrings";
+import {
+  getReaderSelectionActionOptions,
+  normalizeReaderSelectionActionId,
+  READER_SELECTION_ACTIONS,
+} from "./sharedReaderChrome/readerSelectionActions";
 
 const runtimeAsset = require("../runtime/index.html");
 type RuntimeSource = { html: string; baseUrl?: string } | { uri: string };
@@ -196,12 +201,10 @@ const WebViewViewer: React.FC<WebViewViewerProps> = ({
   // WebView binds positional item IDs when the menu opens. Keep the order
   // stable while selection handles move; enforce Define eligibility on action.
   const selectionMenuItems = [
-    {key: "copy", label: t.copy},
-    ...(onDefineSelection ? [{key: "define", label: t.define}] : []),
-    {key: "highlight", label: t.annotationHighlight},
-    {key: "underline", label: t.annotationUnderline},
+    ...getReaderSelectionActionOptions(locale)
+      .filter(action => action.id !== READER_SELECTION_ACTIONS.consult || Boolean(onDefineSelection))
+      .map(action => ({key: action.id, label: action.label})),
     {key: "strikeout", label: t.annotationStrikeout},
-    {key: "comment", label: t.annotationNote},
     {key: "selectAll", label: t.selectAll},
   ];
 
@@ -219,7 +222,7 @@ const WebViewViewer: React.FC<WebViewViewerProps> = ({
       }
       if(message.type === "event" && message.name === "EPUB_CONTENT_TAP" && message.payload?.documentSessionId === bridgeEngine.getWebViewDocumentSessionId?.())onTap?.();
       if (message.type === "event" && message.name === "EPUB_SELECTION_ACTION") {
-        action = message.payload?.action;
+        action = normalizeReaderSelectionActionId(message.payload?.action) ?? message.payload?.action;
         annotationRaw = JSON.stringify({...message, name: "EPUB_TEXT_SELECTED"});
       }
     } catch { /* The bridge parser handles other messages. */ }
@@ -227,13 +230,13 @@ const WebViewViewer: React.FC<WebViewViewerProps> = ({
     if (annotationEvent?.kind === "selection") {
       if (!action) setSelection(annotationEvent);
       else if (action === "copy") { Clipboard.setString(annotationEvent.text); setSelection(null); }
-      else if (action === "define") {
+      else if (action === READER_SELECTION_ACTIONS.consult) {
         if (defineSelectionMode !== "single-word" || /^\S{1,64}$/.test(annotationEvent.text.trim())) onDefineSelection?.(annotationEvent);
         else Alert.alert(t.define, t.defineSingleWordHint);
         setSelection(null);
-      } else if (["highlight", "underline", "strikeout", "comment"].includes(action)) {
-        annotateSelection(action === "comment" ? "highlight" : action as AnnotationMarkupStyle,
-          action === "comment" ? "" : undefined, annotationEvent);
+      } else if (["highlight", "underline", "strikeout", READER_SELECTION_ACTIONS.note].includes(action)) {
+        annotateSelection(action === READER_SELECTION_ACTIONS.note ? "highlight" : action as AnnotationMarkupStyle,
+          action === READER_SELECTION_ACTIONS.note ? "" : undefined, annotationEvent);
       }
     }
     if (annotationEvent?.kind === "tap" && annotations.some(a => a.id === annotationEvent.id)) {setSelection(null);

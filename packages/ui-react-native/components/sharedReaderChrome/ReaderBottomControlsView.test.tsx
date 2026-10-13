@@ -6,7 +6,7 @@ import ReaderBottomControlsView from "./ReaderBottomControlsView";
 vi.mock("react-native", async () => {
   const React = await import("react");
   const View = ({ children, testID, style }: any) => React.createElement("div", { "data-testid": testID, "data-native-style": JSON.stringify(style) }, children);
-  const Text = ({ children }: any) => React.createElement("span", null, children);
+  const Text = ({ children, numberOfLines, ellipsizeMode }: any) => React.createElement("span", { "data-number-of-lines": numberOfLines, "data-ellipsize-mode": ellipsizeMode }, children);
   const Pressable = ({ children, onPress, accessibilityLabel, disabled, testID }: any) =>
     React.createElement("button", { onClick: onPress, "aria-label": accessibilityLabel, disabled, "data-testid": testID }, children);
   return { View, Text, Pressable, StyleSheet: { create: (styles: any) => styles } };
@@ -45,6 +45,8 @@ describe("ReaderBottomControlsView", () => {
     fireEvent.click(screen.getByRole("button", { name: "Próximo capítulo" }));
     expect([onContents, onPrevious, onProgress, onNext].map((fn) => fn.mock.calls.length)).toEqual([1, 1, 1, 1]);
     expect(screen.getByTestId("reader-shared-progress-value")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Cap. 10 · 1/3" }).textContent).toBe("Cap. 10 · 1/3");
+    expect(screen.getByRole("button", { name: "Cap. 10 · 1/3" }).firstElementChild?.getAttribute("data-number-of-lines")).toBe("1");
   });
 
   it("disables unavailable navigation and omits absent action groups", () => {

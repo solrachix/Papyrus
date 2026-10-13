@@ -20,13 +20,19 @@ import {
   getNativeSheetSizeStyle,
 } from "./nativeSheetLayout";
 import { usePapyrusSafeAreaInsets } from "./PapyrusSafeArea";
-import { getNativeSheetPalette } from "./readerSheetPresentation";
+import {
+  getReaderSheetPalette,
+  type ReaderSheetPalette,
+  type ReaderSheetTheme,
+} from "./readerSheetPresentation";
 
 export type NativeSheetProps = {
   visible: boolean;
   onClose: () => void;
   children: React.ReactNode;
   isDark?: boolean;
+  sheetTheme?: ReaderSheetTheme;
+  sheetPalette?: ReaderSheetPalette;
   maxHeight?: number | string;
   title?: string;
   closeAccessibilityLabel?: string;
@@ -40,6 +46,8 @@ export function NativeSheet({
   onClose,
   children,
   isDark,
+  sheetTheme,
+  sheetPalette,
   maxHeight,
   title,
   closeAccessibilityLabel = "Close sheet",
@@ -48,7 +56,7 @@ export function NativeSheet({
   onDismiss,
 }: NativeSheetProps) {
   const insets = usePapyrusSafeAreaInsets();
-  const palette = getNativeSheetPalette(Boolean(isDark));
+  const palette = sheetPalette ?? getReaderSheetPalette(sheetTheme ?? Boolean(isDark));
   const { height: windowHeight, width: windowWidth } = useWindowDimensions();
   const tabletLayout = getNativeSheetLayoutStyles(windowWidth);
   const [rendered, setRendered] = useState(visible);
@@ -125,13 +133,12 @@ export function NativeSheet({
           style={[
             styles.sheet,
             tabletLayout?.sheet,
-            isDark && styles.sheetDark,
             getNativeSheetSizeStyle(maxHeight),
             { paddingBottom: insets.bottom },
             {
-              backgroundColor: palette.backgroundColor,
-              borderTopColor: palette.borderColor,
-              borderBottomColor: palette.borderColor,
+              backgroundColor: palette.surface,
+              borderTopColor: palette.divider,
+              borderBottomColor: palette.divider,
             },
             sheetStyle,
             {
@@ -150,7 +157,7 @@ export function NativeSheet({
             <View style={styles.header}>
               <View style={styles.headerSpacer} />
               <Text
-                style={[styles.title, { color: palette.textColor }]}
+                style={[styles.title, { color: palette.text }]}
                 numberOfLines={1}
               >
                 {title}
@@ -159,12 +166,11 @@ export function NativeSheet({
                 onPress={onClose}
                 style={[
                   styles.closeButton,
-                  isDark && styles.closeButtonDark,
-                  { backgroundColor: palette.closeBackgroundColor },
+                  { backgroundColor: palette.closeSurface },
                 ]}
                 accessibilityLabel={closeAccessibilityLabel}
               >
-                <IconClose size={18} color={palette.textColor} />
+                <IconClose size={18} color={palette.text} />
               </Pressable>
             </View>
           ) : null}
@@ -206,10 +212,6 @@ const styles = StyleSheet.create({
     borderBottomColor: "#e5e7eb",
     backgroundColor: "#ffffff",
   },
-  sheetDark: {
-    borderTopColor: "#1f2937",
-    backgroundColor: "#0f1115",
-  },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -229,17 +231,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "#f1f5f9",
   },
-  closeButtonDark: {
-    backgroundColor: "#111827",
-  },
   title: {
     flex: 1,
     textAlign: "center",
     fontSize: 18,
     fontWeight: "800",
     color: "#111827",
-  },
-  titleDark: {
-    color: "#f8fafc",
   },
 });

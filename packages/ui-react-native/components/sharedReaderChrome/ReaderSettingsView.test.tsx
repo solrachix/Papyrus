@@ -15,8 +15,12 @@ vi.mock("react-native", async () => {
 });
 vi.mock("../NativeSheet", async () => {
   const React = await import("react");
-  const Sheet = ({ visible, title, children, onClose }: any) => visible
-    ? React.createElement("section", { "aria-label": title },
+  const Sheet = ({ visible, title, children, onClose, sheetPalette }: any) => visible
+    ? React.createElement("section", {
+        "aria-label": title,
+        "data-sheet-background": sheetPalette?.surface,
+        "data-sheet-text": sheetPalette?.text,
+      },
         React.createElement("h1", null, title),
         React.createElement("button", { onClick: onClose, "aria-label": "Close sheet" }, "×"),
         children)
@@ -35,7 +39,8 @@ describe("ReaderSettingsView", () => {
       <ReaderSettingsView
         visible
         title="Configurações de leitura"
-        isDark={false}
+        isDark
+        sheetTheme="sepia"
         accentColor="#e54f8a"
         selectedTheme="sepia"
         themeOptions={[
@@ -49,6 +54,8 @@ describe("ReaderSettingsView", () => {
         actions={[{ key: "contents", label: "Abrir sumário", onPress: onContents }]}
       />,
     );
+    expect(screen.getByRole("region", { name: "Configurações de leitura" }).getAttribute("data-sheet-background")).toBe("#f7f0de");
+    expect(screen.getByRole("region", { name: "Configurações de leitura" }).getAttribute("data-sheet-text")).toBe("#4a3825");
     expect(screen.getByRole("button", { name: "Tema Sépia" }).getAttribute("aria-pressed")).toBe("true");
     fireEvent.click(screen.getByRole("button", { name: "Tema Alto contraste" }));
     fireEvent.click(screen.getByRole("button", { name: "Diminuir tamanho do texto" }));

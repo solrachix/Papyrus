@@ -1513,9 +1513,11 @@
 
     const mapItem = (item) => {
       const title = item.label || item.title || '';
-      const pageIndex = getSpineIndexByHref(item.href || '');
+      const href = item.href || '';
+      const pageIndex = getSpineIndexByHref(href);
       const children = Array.isArray(item.subitems) ? item.subitems.map(mapItem) : [];
       const outlineItem = { title, pageIndex };
+      if (href) outlineItem.dest = { kind: 'href', value: href };
       if (children.length > 0) outlineItem.children = children;
       return outlineItem;
     };
@@ -2233,6 +2235,32 @@
         if(currentType!=='epub' || payload.documentSessionId!==documentSessionId || !window.PapyrusEpubReader.validCfi(payload.cfi))throw new Error('Invalid EPUB location');
         epubNavigationQueue=epubNavigationQueue.catch(()=>{}).then(()=>{if(payload.documentSessionId!==documentSessionId)return;epubResizeAnchor?.invalidate();return rendition.display(payload.cfi);});
         await epubNavigationQueue;sendResponse(id,true,null);return;
+      }
+
+      if (kind === 'epub-go-to-destination') {
+        const destination = payload.dest;
+        const href = typeof destination === 'string'
+          ? destination
+          : destination && destination.kind === 'href'
+            ? destination.value
+            : null;
+        if (currentType !== 'epub' || payload.documentSessionId !== documentSessionId || typeof href !== 'string' || !href) {
+          throw new Error('Invalid EPUB destination');
+        }
+        const activeRendition = rendition;
+        const navigation = epubNavigationQueue.catch(() => {}).then(async () => {
+          if (payload.documentSessionId !== documentSessionId || activeRendition !== rendition) return null;
+          epubResizeAnchor?.invalidate();
+          await activeRendition.display(href);
+          const pageIndex = getPageIndex(href);
+          if (pageIndex !== null) currentPage = pageIndex + 1;
+          sendState();
+          return pageIndex;
+        });
+        epubNavigationQueue = navigation;
+        const pageIndex = await navigation;
+        sendResponse(id, true, pageIndex);
+        return;
       }
 
       if (kind === 'set-zoom') {

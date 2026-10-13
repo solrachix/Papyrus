@@ -30,6 +30,15 @@ export { default as ReaderSettingsView } from "./components/sharedReaderChrome/R
 export type { ReaderSettingsViewProps } from "./components/sharedReaderChrome/ReaderSettingsView";
 export { default as ReaderContentsView } from "./components/sharedReaderChrome/ReaderContentsView";
 export type { ReaderContentsViewProps } from "./components/sharedReaderChrome/ReaderContentsView";
+export {
+  getReaderSelectionActionOptions,
+  normalizeReaderSelectionActionId,
+  READER_SELECTION_ACTIONS,
+} from "./components/sharedReaderChrome/readerSelectionActions";
+export type {
+  ReaderSelectionActionId,
+  ReaderSelectionActionOption,
+} from "./components/sharedReaderChrome/readerSelectionActions";
 export type {
   ReaderBottomAction,
   ReaderChoiceOption,

@@ -1,4 +1,6 @@
-import type { Locale } from "@papyrus-sdk/types";
+import type { Locale, PageTheme } from "@papyrus-sdk/types";
+
+export type ReaderSheetTheme = "light" | "sepia" | "dark" | "high-contrast";
 
 export type ReaderSheetPalette = {
   surface: string;
@@ -30,11 +32,47 @@ const DARK_PALETTE: ReaderSheetPalette = {
   closeSurface: "#1b2230",
 };
 
-export const getReaderSheetPalette = (isDark: boolean): ReaderSheetPalette =>
-  isDark ? DARK_PALETTE : LIGHT_PALETTE;
+const SEPIA_PALETTE: ReaderSheetPalette = {
+  surface: "#f7f0de",
+  elevatedSurface: "#f0e6cc",
+  activeSurface: "#e8d9b7",
+  text: "#4a3825",
+  mutedText: "#76634d",
+  divider: "#d6c6a6",
+  closeSurface: "#eadfc5",
+};
 
-export const getNativeSheetPalette = (isDark: boolean) => {
-  const palette = getReaderSheetPalette(isDark);
+const HIGH_CONTRAST_PALETTE: ReaderSheetPalette = {
+  surface: "#000000",
+  elevatedSurface: "#000000",
+  activeSurface: "#1a1a1a",
+  text: "#ffffff",
+  mutedText: "#ffffff",
+  divider: "#ffffff",
+  closeSurface: "#000000",
+};
+
+export const toReaderSheetTheme = (pageTheme: PageTheme): ReaderSheetTheme =>
+  pageTheme === "normal" ? "light" : pageTheme;
+
+export const getReaderSheetPalette = (
+  theme: boolean | ReaderSheetTheme,
+): ReaderSheetPalette => {
+  const normalized = typeof theme === "boolean" ? (theme ? "dark" : "light") : theme;
+  switch (normalized) {
+    case "sepia":
+      return SEPIA_PALETTE;
+    case "dark":
+      return DARK_PALETTE;
+    case "high-contrast":
+      return HIGH_CONTRAST_PALETTE;
+    default:
+      return LIGHT_PALETTE;
+  }
+};
+
+export const getNativeSheetPalette = (theme: boolean | ReaderSheetTheme) => {
+  const palette = getReaderSheetPalette(theme);
   return {
     backgroundColor: palette.surface,
     borderColor: palette.divider,

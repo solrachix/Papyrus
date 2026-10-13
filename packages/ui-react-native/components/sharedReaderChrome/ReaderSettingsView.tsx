@@ -1,12 +1,17 @@
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { NativeSheet, NativeSheetScrollView } from "../NativeSheet";
+import {
+  getReaderSheetPalette,
+  type ReaderSheetTheme,
+} from "../readerSheetPresentation";
 import type { ReaderChoiceOption, ReaderSheetAction } from "./types";
 
 export interface ReaderSettingsViewProps {
   visible: boolean;
   title: string;
   isDark: boolean;
+  sheetTheme?: ReaderSheetTheme;
   accentColor: string;
   onClose: () => void;
   onDismiss?: () => void;
@@ -31,14 +36,14 @@ export interface ReaderSettingsViewProps {
 const ChoiceButtons = ({
   options,
   selected,
-  isDark,
+  palette,
   accentColor,
   onSelect,
   accessibilityLabelPrefix = "Tema",
 }: {
   options: ReaderChoiceOption[];
   selected?: string;
-  isDark: boolean;
+  palette: ReturnType<typeof getReaderSheetPalette>;
   accentColor: string;
   onSelect?: (value: string) => void;
   accessibilityLabelPrefix?: string;
@@ -54,12 +59,12 @@ const ChoiceButtons = ({
           accessibilityState={{ selected: active }}
           disabled={!onSelect}
           onPress={() => onSelect?.(option.value)}
-          style={[styles.themeOption, isDark && styles.themeOptionDark, active && { borderColor: accentColor, borderWidth: 2 }]}
+          style={[styles.themeOption, { backgroundColor: active ? palette.activeSurface : palette.elevatedSurface, borderColor: active ? accentColor : palette.divider }, active && { borderWidth: 2 }]}
         >
-          <View style={[styles.swatch, { backgroundColor: option.swatchColor ?? "#ffffff", borderColor: active ? accentColor : isDark ? "#374151" : "#d1d5db" }]}>
+          <View style={[styles.swatch, { backgroundColor: option.swatchColor ?? "#ffffff", borderColor: active ? accentColor : palette.divider }]}>
             {option.swatchForegroundColor ? <View style={[styles.swatchInset, { backgroundColor: option.swatchForegroundColor }]} /> : null}
           </View>
-          <Text style={[styles.themeLabel, isDark && styles.textDark, active && { color: accentColor }]}>{option.label}</Text>
+          <Text style={[styles.themeLabel, { color: active ? accentColor : palette.text }]}>{option.label}</Text>
         </Pressable>
       );
     })}
@@ -70,6 +75,7 @@ export default function ReaderSettingsView({
   visible,
   title,
   isDark,
+  sheetTheme,
   accentColor,
   onClose,
   onDismiss,
@@ -90,6 +96,7 @@ export default function ReaderSettingsView({
   actions = [],
   children,
 }: ReaderSettingsViewProps) {
+  const palette = getReaderSheetPalette(sheetTheme ?? isDark);
   const adjustFontSize = (delta: -1 | 1) => {
     if (!fontSize) return;
     const next = Math.max(fontSize.min, Math.min(fontSize.max, fontSize.value + fontSize.step * delta));
@@ -102,6 +109,8 @@ export default function ReaderSettingsView({
       onClose={onClose}
       onDismiss={onDismiss}
       isDark={isDark}
+      sheetTheme={sheetTheme}
+      sheetPalette={palette}
       maxHeight="82%"
       title={title}
       showHeader
@@ -110,33 +119,33 @@ export default function ReaderSettingsView({
       <NativeSheetScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {appearanceOptions?.length && onAppearanceChange ? (
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, isDark && styles.textDark]}>{appearanceLabel}</Text>
-            <ChoiceButtons options={appearanceOptions} selected={appearanceValue} isDark={isDark} accentColor={accentColor} onSelect={onAppearanceChange} accessibilityLabelPrefix="Aparência" />
+            <Text style={[styles.sectionTitle, { color: palette.text }]}>{appearanceLabel}</Text>
+            <ChoiceButtons options={appearanceOptions} selected={appearanceValue} palette={palette} accentColor={accentColor} onSelect={onAppearanceChange} accessibilityLabelPrefix="Aparência" />
           </View>
         ) : null}
         {themeOptions?.length && onThemeChange ? (
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, isDark && styles.textDark]}>{themeLabel}</Text>
-            <ChoiceButtons options={themeOptions} selected={selectedTheme} isDark={isDark} accentColor={accentColor} onSelect={onThemeChange} />
+            <Text style={[styles.sectionTitle, { color: palette.text }]}>{themeLabel}</Text>
+            <ChoiceButtons options={themeOptions} selected={selectedTheme} palette={palette} accentColor={accentColor} onSelect={onThemeChange} />
           </View>
         ) : null}
         {fontSize ? (
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, isDark && styles.textDark]}>{fontSizeLabel}</Text>
+            <Text style={[styles.sectionTitle, { color: palette.text }]}>{fontSizeLabel}</Text>
             <View style={styles.fontControls}>
-              <Pressable accessibilityRole="button" accessibilityLabel="Diminuir tamanho do texto" disabled={fontSize.value <= fontSize.min} onPress={() => adjustFontSize(-1)} style={[styles.fontButton, isDark && styles.fontButtonDark]}>
-                <Text style={[styles.fontButtonText, isDark && styles.textDark]}>A−</Text>
+              <Pressable accessibilityRole="button" accessibilityLabel="Diminuir tamanho do texto" disabled={fontSize.value <= fontSize.min} onPress={() => adjustFontSize(-1)} style={[styles.fontButton, { backgroundColor: palette.elevatedSurface, borderColor: palette.divider }]}>
+                <Text style={[styles.fontButtonText, { color: palette.text }]}>A−</Text>
               </Pressable>
-              <Text accessibilityLabel={`Tamanho do texto ${Math.round(fontSize.value * 100)} por cento`} style={[styles.fontValue, isDark && styles.textDark]}>{Math.round(fontSize.value * 100)}%</Text>
-              <Pressable accessibilityRole="button" accessibilityLabel="Aumentar tamanho do texto" disabled={fontSize.value >= fontSize.max} onPress={() => adjustFontSize(1)} style={[styles.fontButton, isDark && styles.fontButtonDark]}>
-                <Text style={[styles.fontButtonText, isDark && styles.textDark]}>A+</Text>
+              <Text accessibilityLabel={`Tamanho do texto ${Math.round(fontSize.value * 100)} por cento`} style={[styles.fontValue, { color: palette.text }]}>{Math.round(fontSize.value * 100)}%</Text>
+              <Pressable accessibilityRole="button" accessibilityLabel="Aumentar tamanho do texto" disabled={fontSize.value >= fontSize.max} onPress={() => adjustFontSize(1)} style={[styles.fontButton, { backgroundColor: palette.elevatedSurface, borderColor: palette.divider }]}>
+                <Text style={[styles.fontButtonText, { color: palette.text }]}>A+</Text>
               </Pressable>
             </View>
           </View>
         ) : null}
         {transitionOptions?.length && onTransitionChange ? (
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, isDark && styles.textDark]}>{transitionLabel}</Text>
+            <Text style={[styles.sectionTitle, { color: palette.text }]}>{transitionLabel}</Text>
             <View style={styles.choiceRow}>
               {transitionOptions.map((option) => {
                 const active = selectedTransition === option.value;
@@ -147,9 +156,9 @@ export default function ReaderSettingsView({
                     accessibilityLabel={`Modo ${option.label}`}
                     accessibilityState={{ selected: active }}
                     onPress={() => onTransitionChange(option.value)}
-                    style={[styles.modeButton, isDark && styles.modeButtonDark, active && { backgroundColor: accentColor }]}
+                    style={[styles.modeButton, { backgroundColor: active ? accentColor : palette.elevatedSurface, borderColor: active ? accentColor : palette.divider }]}
                   >
-                    <Text style={[styles.themeLabel, isDark && styles.textDark, active && styles.modeTextActive]}>{option.label}</Text>
+                    <Text style={[styles.themeLabel, { color: active ? "#ffffff" : palette.text }]}>{option.label}</Text>
                   </Pressable>
                 );
               })}
@@ -157,10 +166,10 @@ export default function ReaderSettingsView({
           </View>
         ) : null}
         {actions.map((action) => (
-          <Pressable key={action.key} accessibilityRole="button" accessibilityLabel={action.label} onPress={action.onPress} style={[styles.actionRow, isDark && styles.actionRowDark]}>
+          <Pressable key={action.key} accessibilityRole="button" accessibilityLabel={action.label} onPress={action.onPress} style={[styles.actionRow, { borderBottomColor: palette.divider }]}>
             {action.icon}
-            <Text style={[styles.actionLabel, isDark && styles.textDark]}>{action.label}</Text>
-            <Text style={[styles.actionChevron, isDark && styles.textDark]}>›</Text>
+            <Text style={[styles.actionLabel, { color: palette.text }]}>{action.label}</Text>
+            <Text style={[styles.actionChevron, { color: palette.text }]}>›</Text>
           </Pressable>
         ))}
         {children}
@@ -173,23 +182,17 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: 18, paddingBottom: 24 },
   section: { marginBottom: 16 },
   sectionTitle: { fontSize: 12, lineHeight: 16, fontWeight: "800", color: "#111827", marginBottom: 8 },
-  textDark: { color: "#e5e7eb" },
   choiceRow: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  themeOption: { minWidth: 76, alignItems: "center", paddingVertical: 10, paddingHorizontal: 8, borderRadius: 16, borderWidth: 1.5, borderColor: "#d1d5db", backgroundColor: "#f9fafb" },
-  themeOptionDark: { borderColor: "#374151", backgroundColor: "#111827" },
+  themeOption: { minWidth: 76, alignItems: "center", paddingVertical: 10, paddingHorizontal: 8, borderRadius: 16, borderWidth: 1.5 },
   swatch: { width: 34, height: 34, borderRadius: 17, marginBottom: 8, overflow: "hidden", borderWidth: 1, alignItems: "center", justifyContent: "center" },
   swatchInset: { position: "absolute", left: 0, top: 0, bottom: 0, width: "50%" },
-  themeLabel: { fontSize: 11, lineHeight: 15, fontWeight: "700", color: "#111827", textAlign: "center" },
+  themeLabel: { fontSize: 11, lineHeight: 15, fontWeight: "700", textAlign: "center" },
   fontControls: { flexDirection: "row", alignItems: "center", gap: 12 },
-  fontButton: { minWidth: 48, minHeight: 44, borderRadius: 12, borderWidth: 1, borderColor: "#d1d5db", alignItems: "center", justifyContent: "center", backgroundColor: "#f9fafb" },
-  fontButtonDark: { backgroundColor: "#111827", borderColor: "#374151" },
+  fontButton: { minWidth: 48, minHeight: 44, borderRadius: 12, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   fontButtonText: { fontSize: 18, lineHeight: 24, fontWeight: "700", color: "#111827" },
-  modeButton: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, borderWidth: 1, borderColor: "#d1d5db", backgroundColor: "#e5e7eb" },
-  modeButtonDark: { backgroundColor: "#111827", borderColor: "#374151" },
-  modeTextActive: { color: "#ffffff" },
-  fontValue: { minWidth: 52, textAlign: "center", fontSize: 12, lineHeight: 18, fontWeight: "700", color: "#111827" },
-  actionRow: { minHeight: 52, flexDirection: "row", alignItems: "center", gap: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#e5e7eb" },
-  actionRowDark: { borderBottomColor: "#374151" },
-  actionLabel: { flex: 1, fontSize: 14, fontWeight: "700", color: "#111827" },
-  actionChevron: { fontSize: 24, lineHeight: 28, color: "#111827" },
+  modeButton: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, borderWidth: 1 },
+  fontValue: { minWidth: 52, textAlign: "center", fontSize: 12, lineHeight: 18, fontWeight: "700" },
+  actionRow: { minHeight: 52, flexDirection: "row", alignItems: "center", gap: 12, borderBottomWidth: StyleSheet.hairlineWidth },
+  actionLabel: { flex: 1, fontSize: 14, fontWeight: "700" },
+  actionChevron: { fontSize: 24, lineHeight: 28 },
 });

@@ -3,6 +3,7 @@ import {
   getAnnotationKindLabel,
   getNativeSheetPalette,
   getReaderSheetPalette,
+  toReaderSheetTheme,
 } from "./readerSheetPresentation";
 
 describe("reader sheet presentation", () => {
@@ -37,5 +38,36 @@ describe("reader sheet presentation", () => {
   it("uses the same neutral palette for the shared native sheet", () => {
     expect(getNativeSheetPalette(true).backgroundColor).toBe("#111318");
     expect(getNativeSheetPalette(false).backgroundColor).toBe("#fbfaf6");
+  });
+
+  it("maps each page theme to a complete settings-sheet palette", () => {
+    expect(toReaderSheetTheme("normal")).toBe("light");
+    expect(getReaderSheetPalette("light")).toMatchObject({
+      surface: "#fbfaf6",
+      text: "#17263b",
+    });
+    expect(getReaderSheetPalette("sepia")).toMatchObject({
+      surface: "#f7f0de",
+      elevatedSurface: "#f0e6cc",
+      activeSurface: "#e8d9b7",
+      text: "#4a3825",
+      mutedText: "#76634d",
+      divider: "#d6c6a6",
+      closeSurface: "#eadfc5",
+    });
+    expect(getReaderSheetPalette("dark")).toMatchObject({
+      surface: "#111318",
+      text: "#f7f1e8",
+    });
+    expect(getReaderSheetPalette("high-contrast")).toMatchObject({
+      surface: "#000000",
+      elevatedSurface: "#000000",
+      activeSurface: "#1a1a1a",
+      text: "#ffffff",
+      mutedText: "#ffffff",
+      divider: "#ffffff",
+      closeSurface: "#000000",
+    });
+    expect(toReaderSheetTheme("high-contrast")).toBe("high-contrast");
   });
 });
