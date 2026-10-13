@@ -57,6 +57,42 @@ await engine.load({ type: 'pdf', source: { uri: 'https://example.com/book.pdf' }
 />
 ```
 
+## Shared reader chrome
+
+`ReaderHeaderView`, `ReaderBottomControlsView`, `ReaderSettingsView`, and
+`ReaderContentsView` are controlled presentation components. They accept the
+display state and callbacks as props and do not read a Papyrus store or create a
+document engine. Existing `Topbar`, `BottomBar`, `SettingsSheet`, and
+`RightSheet` remain Papyrus-backed compatibility components and reuse the same
+presentation layer for their mobile EPUB chrome.
+
+Use these views when an application hosts a different reading engine but wants
+to keep Papyrus's reader controls. Keep engine state, capability checks,
+navigation, and modal sequencing in the host adapter:
+
+```tsx
+import {
+  ReaderHeaderView,
+  ReaderBottomControlsView,
+  ReaderSettingsView,
+  ReaderContentsView,
+} from '@papyrus-sdk/ui-react-native';
+
+<ReaderHeaderView
+  title={book.title}
+  isDark={theme === 'dark'}
+  leadingAccessory={<BackButton onPress={goBack} />}
+  trailingAccessory={<SettingsButton onPress={openSettings} />}
+/>
+```
+
+The bottom controls accept capability-filtered action lists and optional
+navigation callbacks. Settings expose only supplied theme/font choices and
+actions. Contents accept flattened entries with a `depth` value for hierarchy;
+an empty list renders the supplied empty message and leaves the sheet closable.
+Readium support should not expose annotation or freehand controls unless that
+engine implements those capabilities.
+
 ## Topbar Customization
 
 `Topbar` supports replacing the default "Papyrus" text and logo.

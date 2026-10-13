@@ -40,6 +40,8 @@ import {
 } from "./readerSheetPresentation";
 import { shouldRemoveThumbnailClipping } from "./thumbnailClipping";
 import { resolveNoteQuoteParts } from "./noteQuoteLayout";
+import ReaderContentsView from "./sharedReaderChrome/ReaderContentsView";
+import { flattenOutline, navigateEpubOutlineEntry } from "./rightSheetOutline";
 
 export interface RightSheetProps {
   engine: DocumentEngine;
@@ -535,6 +537,44 @@ const RightSheet: React.FC<RightSheetProps> = ({
   );
 
   if (!sidebarRightOpen) return null;
+
+  if (
+    documentType === "epub" &&
+    !showingNotes &&
+    !showingProgress &&
+    pagesMode === "summary"
+  ) {
+    const epubEngine = engine as DocumentEngine & {
+      goToDestination?: (dest: NonNullable<(typeof outline)[number]["dest"]>) => Promise<number | null>;
+    };
+    const contentsEntries = flattenOutline(outline, Boolean(epubEngine.goToDestination));
+    const selectEpubEntry = (entry: (typeof contentsEntries)[number]) => {
+      void navigateEpubOutlineEntry({
+        item: entry.value,
+        goToDestination: epubEngine.goToDestination?.bind(engine),
+        navigateToPageIndex: (pageIndex) => {
+          engine.goToPage(pageIndex + 1);
+          setDocumentState({ currentPage: pageIndex + 1 });
+          triggerScrollToPage(pageIndex);
+        },
+        close: closeSheet,
+      });
+    };
+
+    return (
+      <ReaderContentsView
+        visible
+        title={t.contents}
+        isDark={isDark}
+        accentColor={accentColor}
+        entries={contentsEntries}
+        onSelect={selectEpubEntry}
+        onClose={closeSheet}
+        emptyMessage={t.noSummary}
+        closeAccessibilityLabel={`${t.close} ${t.contents.toLowerCase()}`}
+      />
+    );
+  }
 
   return (
     <NativeSheet

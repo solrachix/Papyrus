@@ -5,7 +5,6 @@ import {
   Pressable,
   StyleSheet,
   useWindowDimensions,
-  Platform,
   type ViewStyle,
 } from "react-native";
 import { useViewerStore } from "@papyrus-sdk/core";
@@ -17,6 +16,7 @@ import { DocumentEngine } from "@papyrus-sdk/types";
 import { MOBILE_CHROME_METRICS } from "./mobileChromeMetrics";
 import { PageJumpModal } from "./PageJumpModal";
 import { usePapyrusSafeAreaInsets } from "./PapyrusSafeArea";
+import ReaderHeaderView from "./sharedReaderChrome/ReaderHeaderView";
 
 export interface TopbarProps {
   engine: DocumentEngine;
@@ -119,141 +119,93 @@ const Topbar: React.FC<TopbarProps> = ({
     </Pressable>
   );
 
+  const pageNavigation = showPageNavigationControls ? (
+    <View style={styles.pageGroup}>
+      <Pressable onPress={() => handlePageChange(-1)} style={[styles.pageButton, isDark && styles.pageButtonDark]}>
+        <IconChevronLeft size={MOBILE_CHROME_METRICS.iconSize} color={navIconColor} />
+      </Pressable>
+      <Pressable onPress={openJumpModal} style={styles.pageIndicatorHit} accessibilityLabel="Page jump">
+        <Text style={[styles.pageIndicator, isDark && styles.pageIndicatorDark]}>{currentPage}/{pageCount}</Text>
+      </Pressable>
+      <Pressable onPress={() => handlePageChange(1)} style={[styles.pageButton, isDark && styles.pageButtonDark]}>
+        <IconChevronRight size={MOBILE_CHROME_METRICS.iconSize} color={navIconColor} />
+      </Pressable>
+    </View>
+  ) : null;
+
+  const leadingAccessory = onLogoPress ? (
+    <Pressable
+      onPress={() => {
+        // Keep the viewer mounted so the existing native flush and JS annotation persistence can finish before navigation.
+        if (inkSession.active) inkSession.finish();
+        else onLogoPress();
+      }}
+      accessibilityRole="button"
+      accessibilityLabel={logoAccessibilityLabel}
+      style={styles.logoSlot}
+    >
+      {logoElement}
+    </Pressable>
+  ) : <View style={styles.logoSlot}>{logoElement}</View>;
+
+  const trailingAccessory = (
+    <View
+      style={[styles.rightGroup, inkSession.supported && styles.annotationActionSlot]}
+      testID="papyrus-topbar-action-slot"
+    >
+      {inkSession.supported ? (
+        <>
+          <Animated.View
+            style={[styles.settingsSlot, settingsMotion]}
+            pointerEvents={inkSession.active ? "none" : "auto"}
+            accessibilityElementsHidden={inkSession.active}
+            importantForAccessibility={inkSession.active ? "no-hide-descendants" : "auto"}
+          >
+            {settingsControl}
+          </Animated.View>
+          <Animated.View
+            style={[styles.doneSlot, doneMotion]}
+            pointerEvents={inkSession.active ? "auto" : "none"}
+            accessibilityElementsHidden={!inkSession.active}
+            importantForAccessibility={inkSession.active ? "auto" : "no-hide-descendants"}
+          >
+            <Pressable
+              onPress={inkSession.finish}
+              disabled={!inkSession.active}
+              style={styles.doneButton}
+              accessibilityRole="button"
+              accessibilityLabel={t.done}
+              testID="papyrus-topbar-ink-done"
+            >
+              <Text style={styles.doneButtonText}>✓ {t.done}</Text>
+            </Pressable>
+          </Animated.View>
+        </>
+      ) : settingsControl}
+    </View>
+  );
+
   if (!chromeVisible && documentType !== "epub") return null;
 
   return (
     <>
-      <Animated.View
-        style={[
-          styles.chromeFrame,
-          chromeMotion,
-          {
-            paddingTop: insets.top,
-            paddingLeft: MOBILE_CHROME_METRICS.screenPadding + insets.left,
-            paddingRight: MOBILE_CHROME_METRICS.screenPadding + insets.right,
-          },
-        ]}
+      <ReaderHeaderView
+        title={title ?? "Papyrus"}
+        visible={chromeVisible || documentType === "epub"}
+        isDark={isDark}
+        leadingAccessory={leadingAccessory}
+        centerAccessory={pageNavigation}
+        trailingAccessory={trailingAccessory}
+        onTitlePress={openJumpModal}
+        titleDisabled={pageCount <= 0}
+        titleAccessibilityLabel="Open page jump"
+        insets={insets}
+        isLandscape={isLandscape}
+        testID="papyrus-floating-top-controls"
         pointerEvents={chromeVisible ? "box-none" : "none"}
         accessibilityElementsHidden={!chromeVisible}
-        importantForAccessibility={chromeVisible ? "auto" : "no-hide-descendants"}
-        testID="papyrus-floating-top-controls"
-      >
-        <View
-          style={[
-            styles.container,
-            Platform.OS === "ios" && styles.containerIos,
-            isDark && styles.containerDark,
-            isLandscape && styles.containerLandscape,
-          ]}
-        >
-          <View style={styles.leftGroup}>
-            {onLogoPress ? (
-              <Pressable
-                onPress={() => {
-                  // Keep the viewer mounted so the existing native flush and
-                  // JS annotation persistence can finish before navigation.
-                  if (inkSession.active) inkSession.finish();
-                  else onLogoPress();
-                }}
-                accessibilityRole="button"
-                accessibilityLabel={logoAccessibilityLabel}
-                style={styles.logoSlot}
-              >
-                {logoElement}
-              </Pressable>
-            ) : (
-              <View style={styles.logoSlot}>{logoElement}</View>
-            )}
-            <Pressable
-              onPress={openJumpModal}
-              disabled={pageCount <= 0}
-              style={styles.titleHit}
-              accessibilityLabel="Open page jump"
-            >
-              <Text
-                numberOfLines={1}
-                style={[styles.brandText, isDark && styles.brandTextDark]}
-              >
-                {title ?? "Papyrus"}
-              </Text>
-            </Pressable>
-          </View>
-
-          {showPageNavigationControls ? (
-            <View style={styles.pageGroup}>
-              <>
-                <Pressable
-                  onPress={() => handlePageChange(-1)}
-                  style={[styles.pageButton, isDark && styles.pageButtonDark]}
-                >
-                  <IconChevronLeft
-                    size={MOBILE_CHROME_METRICS.iconSize}
-                    color={navIconColor}
-                  />
-                </Pressable>
-                <Pressable
-                  onPress={openJumpModal}
-                  style={styles.pageIndicatorHit}
-                  accessibilityLabel="Page jump"
-                >
-                  <Text
-                    style={[
-                      styles.pageIndicator,
-                      isDark && styles.pageIndicatorDark,
-                    ]}
-                  >
-                    {currentPage}/{pageCount}
-                  </Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => handlePageChange(1)}
-                  style={[styles.pageButton, isDark && styles.pageButtonDark]}
-                >
-                  <IconChevronRight
-                    size={MOBILE_CHROME_METRICS.iconSize}
-                    color={navIconColor}
-                  />
-                </Pressable>
-              </>
-            </View>
-          ) : null}
-
-          <View
-            style={[styles.rightGroup, inkSession.supported && styles.annotationActionSlot]}
-            testID="papyrus-topbar-action-slot"
-          >
-            {inkSession.supported ? (
-              <>
-                <Animated.View
-                  style={[styles.settingsSlot, settingsMotion]}
-                  pointerEvents={inkSession.active ? "none" : "auto"}
-                  accessibilityElementsHidden={inkSession.active}
-                  importantForAccessibility={inkSession.active ? "no-hide-descendants" : "auto"}
-                >
-                  {settingsControl}
-                </Animated.View>
-                <Animated.View
-                  style={[styles.doneSlot, doneMotion]}
-                  pointerEvents={inkSession.active ? "auto" : "none"}
-                  accessibilityElementsHidden={!inkSession.active}
-                  importantForAccessibility={inkSession.active ? "auto" : "no-hide-descendants"}
-                >
-                  <Pressable
-                    onPress={inkSession.finish}
-                    disabled={!inkSession.active}
-                    style={styles.doneButton}
-                    accessibilityRole="button"
-                    accessibilityLabel={t.done}
-                    testID="papyrus-topbar-ink-done"
-                  >
-                    <Text style={styles.doneButtonText}>✓ {t.done}</Text>
-                  </Pressable>
-                </Animated.View>
-              </>
-            ) : settingsControl}
-          </View>
-        </View>
-      </Animated.View>
+        style={chromeMotion}
+      />
 
       <PageJumpModal
         documentType={documentType}
