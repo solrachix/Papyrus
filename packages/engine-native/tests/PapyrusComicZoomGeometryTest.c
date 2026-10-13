@@ -15,6 +15,37 @@ int main(void) {
 
   assert_near(PapyrusComicZoomedExtent(400.0, 2.0), 800.0);
   assert_near(PapyrusComicZoomedExtent(0.0, 3.0), 3.0);
+
+  // A custom vertical layout may make pages wider than the viewport while
+  // preserving exact continuity and querying only pages intersecting a rect.
+  const double comicPagePrefix[] = {0.0, 640.0, 1600.0, 2000.0};
+  assert_near(PapyrusComicContinuousContentWidth(390.0, 1.0), 390.0);
+  assert_near(PapyrusComicContinuousDocumentHeight(comicPagePrefix, 3, 1.0), 2000.0);
+  assert_near(PapyrusComicContinuousContentWidth(390.0, 3.0), 1170.0);
+  assert_near(PapyrusComicContinuousDocumentHeight(comicPagePrefix, 3, 3.0), 6000.0);
+  PapyrusComicLayoutFrame firstPage = PapyrusComicContinuousPageFrame(comicPagePrefix, 3, 0, 390.0, 3.0);
+  PapyrusComicLayoutFrame secondPage = PapyrusComicContinuousPageFrame(comicPagePrefix, 3, 1, 390.0, 3.0);
+  assert_near(firstPage.originY, 0.0);
+  assert_near(firstPage.width, 1170.0);
+  assert_near(firstPage.height, 1920.0);
+  assert_near(firstPage.originY + firstPage.height, secondPage.originY);
+  assert_near(secondPage.originY, 1920.0);
+  assert_near(secondPage.height, 2880.0);
+  assert(PapyrusComicContinuousFirstVisiblePage(comicPagePrefix, 3, 0.0, 3.0) == 0);
+  assert(PapyrusComicContinuousFirstVisiblePage(comicPagePrefix, 3, 1920.0, 3.0) == 1);
+  assert(PapyrusComicContinuousFirstVisiblePage(comicPagePrefix, 3, 4800.0, 3.0) == 2);
+  assert(PapyrusComicContinuousFirstVisiblePage(comicPagePrefix, 3, 6000.0, 3.0) == 3);
+  assert(PapyrusComicContinuousFirstVisiblePage(NULL, 0, 0.0, 3.0) == 0);
+
+  double resizedPagePrefix[] = {0.0, 100.0, 200.0, 300.0, 400.0};
+  const double resizedPageDeltas[] = {-20.0, 0.0, 50.0, 0.0};
+  PapyrusComicContinuousApplyHeightDeltas(resizedPagePrefix, resizedPageDeltas, 4);
+  assert_near(resizedPagePrefix[0], 0.0);
+  assert_near(resizedPagePrefix[1], 80.0);
+  assert_near(resizedPagePrefix[2], 180.0);
+  assert_near(resizedPagePrefix[3], 330.0);
+  assert_near(resizedPagePrefix[4], 430.0);
+
   assert_near(PapyrusComicContinuousPageHeight(400.0, 800.0, 400.0, 700.0, 0, 2.0), 1600.0);
   assert_near(PapyrusComicContinuousPageHeight(400.0, 800.0, 400.0, 700.0, 1, 2.0), 1400.0);
   assert_near(PapyrusComicContinuousPageHeight(600.0, 900.0, 400.0, 700.0, 0, 1.0), 600.0);
