@@ -11,6 +11,7 @@ describe("Papyrus EPUB destinations", () => {
       expect(source).toContain("if (href) outlineItem.dest = { kind: 'href', value: href };");
       expect(source).toContain("kind === 'epub-go-to-destination'");
       expect(source).toContain("await activeRendition.display(href)");
+      expect(source).toContain("pageIndex >= 0");
       expect(source).toContain("payload.documentSessionId !== documentSessionId");
     }
   });

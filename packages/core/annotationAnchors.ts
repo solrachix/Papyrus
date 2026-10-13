@@ -58,8 +58,17 @@ export function getAnnotationNote(annotation: Annotation): string {
 export function getAnnotationMarkup(annotation: Annotation): AnnotationMarkupStyle {
   return annotation.markupStyle ?? (["highlight", "underline", "strikeout", "squiggly"].includes(annotation.type) ? annotation.type as AnnotationMarkupStyle : "none");
 }
+function getReadiumSelectionQuote(annotation: Annotation): string | undefined {
+  const locator = (annotation as Annotation & {
+    readiumLocator?: {text?: {highlight?: unknown}};
+  }).readiumLocator;
+  const highlight = locator?.text?.highlight;
+  return typeof highlight === "string" && highlight.length > 0 && highlight.length <= 100000
+    ? highlight
+    : undefined;
+}
 export function getAnnotationQuote(annotation: Annotation): string {
-  return annotation.anchor?.quote ?? ((annotation.type !== "comment" && annotation.type !== "text") ? annotation.content ?? "" : "");
+  return annotation.anchor?.quote ?? getReadiumSelectionQuote(annotation) ?? ((annotation.type !== "comment" && annotation.type !== "text") ? annotation.content ?? "" : "");
 }
 export function createContextualAnnotation(input: {id: string; anchor: AnnotationAnchor; pageIndex: number; style: AnnotationMarkupStyle; color: string; opacity?: number; note?: string; now?: number}): Annotation {
   if (!validateAnnotationAnchor(input.anchor)) throw new Error("Invalid annotation anchor");
@@ -95,5 +104,6 @@ export function adaptLegacyAnnotation(annotation: Annotation, format: 'pdf'|'tex
 }
 export function getAnnotationEditPatch(annotation:Annotation,note:string,style:AnnotationMarkupStyle,color:string):Partial<Annotation> {
   // content remains the original quote for legacy markup; old note bodies remain readable.
-  return {noteContent:note,markupStyle:style,color,...(!annotation.anchor && (annotation.type==='comment'||annotation.type==='text')?{content:note}:{})};
+  const hasReadiumSelectionQuote = Boolean(getReadiumSelectionQuote(annotation));
+  return {noteContent:note,markupStyle:style,color,...(!annotation.anchor && !hasReadiumSelectionQuote && (annotation.type==='comment'||annotation.type==='text')?{content:note}:{})};
 }

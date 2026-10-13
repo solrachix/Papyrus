@@ -2253,9 +2253,10 @@
           epubResizeAnchor?.invalidate();
           await activeRendition.display(href);
           const pageIndex = getPageIndex(href);
-          if (pageIndex !== null) currentPage = pageIndex + 1;
+          const resolvedPageIndex = Number.isSafeInteger(pageIndex) && pageIndex >= 0 ? pageIndex : null;
+          if (resolvedPageIndex !== null) currentPage = resolvedPageIndex + 1;
           sendState();
-          return pageIndex;
+          return resolvedPageIndex;
         });
         epubNavigationQueue = navigation;
         const pageIndex = await navigation;

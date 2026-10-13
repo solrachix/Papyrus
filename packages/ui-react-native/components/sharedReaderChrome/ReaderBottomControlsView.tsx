@@ -6,7 +6,10 @@ import type { ReaderBottomAction } from "./types";
 export interface ReaderBottomNavigation {
   canGoBackward: boolean;
   canGoForward: boolean;
+  /** Short primary position text, such as "24% lido". */
   progressLabel: string;
+  /** Optional lower-priority chapter name, truncated independently from progress. */
+  progressDetailLabel?: string;
   progressFraction?: number;
   onPrevious?: () => void;
   onOpenProgress?: () => void;
@@ -108,14 +111,19 @@ export default function ReaderBottomControlsView({
                 </Pressable>
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={navigation.progressLabel}
+                  accessibilityLabel={navigation.progressDetailLabel
+                    ? `${navigation.progressLabel} · ${navigation.progressDetailLabel}`
+                    : navigation.progressLabel}
                   accessibilityHint={navigation.progressAccessibilityHint}
                   accessibilityState={{ disabled: !enabled || !navigation.onOpenProgress }}
                   disabled={!enabled || !navigation.onOpenProgress}
                   onPress={navigation.onOpenProgress}
                   style={styles.progressHit}
                 >
-                  <Text numberOfLines={1} ellipsizeMode="tail" style={[styles.progressLabel, isDark && styles.progressLabelDark]}>{navigation.progressLabel}</Text>
+                  <Text testID="reader-shared-progress-primary" numberOfLines={1} ellipsizeMode="clip" style={[styles.progressLabel, isDark && styles.progressLabelDark]}>{navigation.progressLabel}</Text>
+                  {navigation.progressDetailLabel ? (
+                    <Text testID="reader-shared-progress-detail" numberOfLines={1} ellipsizeMode="tail" style={[styles.progressDetail, isDark && styles.progressDetailDark]}>{navigation.progressDetailLabel}</Text>
+                  ) : null}
                   {fraction !== undefined ? (
                     <View style={styles.progressTrack} testID="reader-shared-progress-track">
                       <View style={[styles.progressValue, { width: `${fraction * 100}%`, backgroundColor: accentColor }]} testID="reader-shared-progress-value" />
@@ -146,8 +154,10 @@ const styles = StyleSheet.create({
   itemActive: { transform: [{ translateY: -2 }] },
   itemIcon: { width: MOBILE_CHROME_METRICS.iconBoxSize, height: MOBILE_CHROME_METRICS.iconBoxSize, alignItems: "center", justifyContent: "center" },
   progressHit: { flex: 1, flexShrink: 0, minWidth: 96, height: 44, justifyContent: "center", alignItems: "center", paddingHorizontal: 8 },
-  progressLabel: { maxWidth: 150, color: "#111827", fontSize: 12, lineHeight: 16, fontWeight: "700", textAlign: "center" },
+  progressLabel: { maxWidth: 132, flexShrink: 0, color: "#111827", fontSize: 12, lineHeight: 16, fontWeight: "700", textAlign: "center" },
   progressLabelDark: { color: "#e5e7eb" },
+  progressDetail: { maxWidth: 140, color: "#4b5563", fontSize: 9, lineHeight: 11, fontWeight: "500", textAlign: "center" },
+  progressDetailDark: { color: "#9ca3af" },
   progressTrack: { width: "100%", height: 2, marginTop: 3, backgroundColor: "rgba(127,127,127,0.3)", borderRadius: 1, overflow: "hidden" },
   progressValue: { height: "100%", borderRadius: 1 },
 });
