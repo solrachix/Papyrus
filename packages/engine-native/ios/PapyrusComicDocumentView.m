@@ -557,6 +557,7 @@ static NSCache<NSString *, UIImage *> *PapyrusComicImageCache(void) {
   [self.collectionView layoutIfNeeded];
   [self restoreScrollAnchor:anchor];
   self.applyingProgrammaticPage = wasApplying;
+  if (!wasApplying) [self emitVisiblePage];
 }
 
 - (CGSize)pageSizeAtIndex:(NSInteger)page {

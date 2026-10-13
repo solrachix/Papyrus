@@ -376,6 +376,16 @@ describe("iOS continuous comic zoom geometry", () => {
     expect(release).toBeLessThan(reconcile);
   });
 
+  it("reconciles the visible page after asynchronous dimensions restore the scroll anchor", () => {
+    const apply = src.match(/- \(void\)applyPendingPageSizes[^\n]*\{([\s\S]*?)\n\}/)?.[1] ?? "";
+    const restore = apply.indexOf("restoreScrollAnchor");
+    const release = apply.indexOf("self.applyingProgrammaticPage = wasApplying");
+    const reconcile = apply.indexOf("[self emitVisiblePage]");
+    expect(restore).toBeGreaterThanOrEqual(0);
+    expect(restore).toBeLessThan(release);
+    expect(release).toBeLessThan(reconcile);
+  });
+
   it("leaves continuous panning to the virtualized collection and defers async geometry during pinch", () => {
     const gestures = method("updateZoomGestureAvailability");
     expect(gestures).toContain("BOOL pageCanPan = !continuous && self.zoom > 1.0");
