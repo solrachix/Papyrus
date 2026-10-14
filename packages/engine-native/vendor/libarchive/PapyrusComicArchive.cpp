@@ -17,6 +17,10 @@
 #include <unordered_map>
 #include <vector>
 
+#if defined(PAPYRUS_COMIC_PREINDEX_DIMENSIONS)
+#include "PapyrusComicImageDimensions.h"
+#endif
+
 namespace fs = std::filesystem;
 
 namespace {
@@ -26,12 +30,18 @@ constexpr std::uint64_t kMaximumExtractedPageCacheBytes = 80ULL * 1024ULL * 1024
 constexpr std::size_t kMaximumEntries = 50000;
 constexpr std::size_t kMaximumArchiveEntries = 200000;
 constexpr std::size_t kIoBlockSize = 64 * 1024;
+#if defined(PAPYRUS_COMIC_PREINDEX_DIMENSIONS)
+constexpr std::size_t kMaximumImageHeaderBytesPerPage = 256 * 1024;
+constexpr std::size_t kMaximumImageHeaderScanBytes = 16 * 1024 * 1024;
+#endif
 
 struct ComicPage {
   std::string name;
   std::string normalized_name;
   std::uint64_t declared_size = 0;
   std::size_t archive_ordinal = 0;
+  int image_width = 0;
+  int image_height = 0;
 };
 
 struct ComicDocument {
@@ -151,6 +161,40 @@ Reader new_reader(std::string &error) {
   return reader;
 }
 
+#if defined(PAPYRUS_COMIC_PREINDEX_DIMENSIONS)
+bool read_image_dimensions(archive *reader, std::size_t &remaining_budget, int *width, int *height) {
+  const std::size_t limit = std::min(kMaximumImageHeaderBytesPerPage, remaining_budget);
+  if (limit == 0) return false;
+
+  std::vector<std::uint8_t> prefix;
+  std::size_t target = std::min<std::size_t>(1024, limit);
+  bool entry_ended = false;
+  while (target > 0) {
+    const std::size_t previous_size = prefix.size();
+    prefix.resize(target);
+    std::size_t filled = previous_size;
+    while (filled < target) {
+      const la_ssize_t count = archive_read_data(reader, prefix.data() + filled, target - filled);
+      if (count <= 0) {
+        prefix.resize(filled);
+        entry_ended = true;
+        break;
+      }
+      filled += static_cast<std::size_t>(count);
+    }
+
+    if (!prefix.empty() && papyrus_comic_parse_image_dimensions(prefix.data(), prefix.size(), width, height)) {
+      remaining_budget -= prefix.size();
+      return true;
+    }
+    if (entry_ended || prefix.size() >= limit) break;
+    target = std::min(limit, std::max(target + 1, target * 2));
+  }
+  remaining_budget -= std::min(remaining_budget, prefix.size());
+  return false;
+}
+#endif
+
 std::shared_ptr<ComicDocument> find_document(const char *engine_id, int generation) {
   std::lock_guard<std::mutex> guard(g_documents_lock);
   const auto found = g_documents.find(key_for(engine_id, generation));
@@ -210,6 +254,9 @@ extern "C" int papyrus_comic_open(const char *engine_id,
 
   archive_entry *entry = nullptr;
   std::size_t ordinal = 0;
+#if defined(PAPYRUS_COMIC_PREINDEX_DIMENSIONS)
+  std::size_t remaining_dimension_budget = kMaximumImageHeaderScanBytes;
+#endif
   for (;;) {
     const int status = archive_read_next_header(reader.get(), &entry);
     if (status == ARCHIVE_EOF) break;
@@ -225,7 +272,11 @@ extern "C" int papyrus_comic_open(const char *engine_id,
     if (archive_entry_filetype(entry) == AE_IFREG && !archive_entry_symlink(entry) &&
         !archive_entry_hardlink(entry) && is_supported_image(name) &&
         declared_size >= 0 && static_cast<std::uint64_t>(declared_size) <= kMaximumEntryBytes) {
-      document->pages.push_back({name, name, static_cast<std::uint64_t>(declared_size), ordinal});
+      ComicPage page{name, name, static_cast<std::uint64_t>(declared_size), ordinal};
+#if defined(PAPYRUS_COMIC_PREINDEX_DIMENSIONS)
+      read_image_dimensions(reader.get(), remaining_dimension_budget, &page.image_width, &page.image_height);
+#endif
+      document->pages.push_back(std::move(page));
       if (document->pages.size() > kMaximumEntries) {
         write_error(error_buffer, error_buffer_size, "Comic archive has too many page entries");
         return 0;
@@ -255,6 +306,20 @@ extern "C" int papyrus_comic_open(const char *engine_id,
     g_documents[key] = document;
   }
   if (page_count) *page_count = static_cast<int>(document->pages.size());
+  return 1;
+}
+
+extern "C" int papyrus_comic_get_page_dimensions(const char *engine_id,
+                                                  int generation,
+                                                  int page_index,
+                                                  int *width,
+                                                  int *height) {
+  auto document = find_document(engine_id, generation);
+  if (!document || page_index < 0 || static_cast<std::size_t>(page_index) >= document->pages.size()) return 0;
+  const ComicPage &page = document->pages[static_cast<std::size_t>(page_index)];
+  if (page.image_width <= 0 || page.image_height <= 0) return 0;
+  if (width) *width = page.image_width;
+  if (height) *height = page.image_height;
   return 1;
 }
 

@@ -26,8 +26,10 @@ import { getStrings } from "../mobileStrings";
 import {
   getRightSheetThumbnailLayout,
   resolveRightSheetHeight,
+  shouldUseComicImagePreview,
   supportsPageThumbnails,
 } from "./rightSheetLayout";
+import { getComicPreviewWithRetry } from "./comicPreviewRetry";
 import { getNativeSheetWidth } from "./nativeSheetLayout";
 import {
   NativeSheet,
@@ -135,15 +137,14 @@ const PageThumbnail: React.FC<{
     const previewEngine = engine as DocumentEngine & {
       getPagePreview?: (index: number) => Promise<string | null>;
     };
-    const request = previewEngine.getPagePreview?.(pageIndex);
-    if (!request) return;
-    void request
-      .then((uri) => {
-        if (active) setPreviewUri(uri);
-      })
-      .catch(() => {
-        if (active) setPreviewUri(null);
-      });
+    if (typeof previewEngine.getPagePreview !== "function") return;
+    setPreviewUri(null);
+    void getComicPreviewWithRetry(
+      () => previewEngine.getPagePreview!(pageIndex),
+      () => !active,
+    ).then((uri) => {
+      if (active) setPreviewUri(uri);
+    });
 
     return () => {
       active = false;
@@ -198,6 +199,49 @@ const PageThumbnail: React.FC<{
         {pageIndex + 1}
       </Text>
     </Pressable>
+  );
+};
+
+const ComicProgressPreview: React.FC<{
+  engine: DocumentEngine;
+  pageIndex: number;
+  isDark: boolean;
+}> = ({ engine, pageIndex, isDark }) => {
+  const [previewUri, setPreviewUri] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    const previewEngine = engine as DocumentEngine & {
+      getPagePreview?: (index: number) => Promise<string | null>;
+    };
+    if (typeof previewEngine.getPagePreview !== "function") return;
+    setPreviewUri(null);
+    void getComicPreviewWithRetry(
+      () => previewEngine.getPagePreview!(pageIndex),
+      () => !active,
+    ).then((uri) => {
+        if (active) setPreviewUri(uri);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [engine, pageIndex]);
+
+  return (
+    <View
+      style={[styles.progressPreview, isDark && styles.progressPreviewDark]}
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+    >
+      {previewUri ? (
+        <Image
+          source={{ uri: previewUri }}
+          resizeMode="contain"
+          style={styles.progressPreviewImage}
+        />
+      ) : null}
+    </View>
   );
 };
 
@@ -295,11 +339,15 @@ const RightSheet: React.FC<RightSheetProps> = ({
   const hasNativePageView = Boolean(
     UIManager.getViewManagerConfig?.("PapyrusPageView"),
   );
-  const useNativePreview = renderTarget !== "webview" && hasNativePageView;
-  const useImagePreview =
-    documentType === "comic" &&
-    renderTarget === "webview" &&
-    typeof engine.getPagePreview === "function";
+  const useNativePreview =
+    renderTarget !== "webview" &&
+    renderTarget !== "native-comic" &&
+    hasNativePageView;
+  const useImagePreview = shouldUseComicImagePreview(
+    documentType,
+    renderTarget,
+    typeof engine.getPagePreview === "function",
+  );
   const thumbnailDimensionsCacheRef = useRef<
     Map<number, { width: number; height: number }>
   >(new Map());
@@ -704,42 +752,57 @@ const RightSheet: React.FC<RightSheetProps> = ({
                 renderItem={renderThumbnailItem}
               />
             ) : showingProgress ? (
-              <NativeSheetScrollView
+              <NativeSheetFlatList
+                data={progressEntries}
+                keyExtractor={(entry) => `progress-${entry.pageIndex}`}
                 contentContainerStyle={styles.summaryContent}
                 showsVerticalScrollIndicator={false}
-              >
-                {progressEntries.map((entry) => {
+                initialNumToRender={6}
+                maxToRenderPerBatch={4}
+                windowSize={3}
+                extraData={currentPage}
+                renderItem={({ item: entry }) => {
                   const isActive = entry.pageIndex + 1 === currentPage;
                   return (
                     <Pressable
-                      key={`progress-${entry.pageIndex}`}
                       onPress={() => jumpToPage(entry.pageIndex)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${entry.percent}%, ${t.page} ${entry.pageIndex + 1}`}
                       style={[
                         styles.progressRow,
                         isDark && styles.progressRowDark,
                         isActive && { borderColor: accentColor },
                       ]}
                     >
-                      <Text
-                        style={[
-                          styles.progressLabel,
-                          isDark && styles.progressLabelDark,
-                        ]}
-                      >
-                        {entry.percent}%
-                      </Text>
-                      <Text
-                        style={[
-                          styles.progressMeta,
-                          isDark && styles.progressMetaDark,
-                        ]}
-                      >
-                        {t.page} {entry.pageIndex + 1}
-                      </Text>
+                      {useImagePreview ? (
+                        <ComicProgressPreview
+                          engine={engine}
+                          pageIndex={entry.pageIndex}
+                          isDark={isDark}
+                        />
+                      ) : null}
+                      <View style={styles.progressLabels}>
+                        <Text
+                          style={[
+                            styles.progressLabel,
+                            isDark && styles.progressLabelDark,
+                          ]}
+                        >
+                          {entry.percent}%
+                        </Text>
+                        <Text
+                          style={[
+                            styles.progressMeta,
+                            isDark && styles.progressMetaDark,
+                          ]}
+                        >
+                          {t.page} {entry.pageIndex + 1}
+                        </Text>
+                      </View>
                     </Pressable>
                   );
-                })}
-              </NativeSheetScrollView>
+                }}
+              />
             ) : (
               <NativeSheetScrollView
                 contentContainerStyle={styles.summaryContent}
@@ -1100,7 +1163,7 @@ const styles = StyleSheet.create({
   },
   progressRow: {
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: 8,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: "#e5e7eb",
@@ -1108,7 +1171,8 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    justifyContent: "flex-start",
+    gap: 12,
   },
   progressRowDark: {
     backgroundColor: "#111827",
@@ -1129,6 +1193,31 @@ const styles = StyleSheet.create({
   },
   progressMetaDark: {
     color: "#94a3b8",
+  },
+  progressLabels: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  progressPreview: {
+    width: 42,
+    height: 56,
+    borderRadius: 7,
+    overflow: "hidden",
+    backgroundColor: "#ffffff",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "#e5e7eb",
+  },
+  progressPreviewDark: {
+    backgroundColor: "#0b0f14",
+    borderColor: "#334155",
+  },
+  progressPreviewImage: {
+    width: "100%",
+    height: "100%",
   },
 });
 

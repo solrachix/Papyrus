@@ -22,6 +22,12 @@ int papyrus_comic_extract_page(const char *engine_id,
                                char *error_buffer,
                                size_t error_buffer_size);
 
+int papyrus_comic_get_page_dimensions(const char *engine_id,
+                                      int generation,
+                                      int page_index,
+                                      int *width,
+                                      int *height);
+
 void papyrus_comic_close(const char *engine_id, int generation);
 void papyrus_comic_close_engine(const char *engine_id);
 

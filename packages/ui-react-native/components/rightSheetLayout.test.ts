@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   getRightSheetThumbnailLayout,
   resolveRightSheetHeight,
+  shouldUseComicImagePreview,
   supportsPageThumbnails,
 } from "./rightSheetLayout";
 
@@ -53,5 +54,24 @@ describe("getRightSheetThumbnailLayout", () => {
       cardWidth: 0,
       frameWidth: 0,
     });
+  });
+});
+
+describe("shouldUseComicImagePreview", () => {
+  it("uses native-generated comic previews for native and web comic engines", () => {
+    expect(shouldUseComicImagePreview("comic", "native-comic", true)).toBe(
+      true,
+    );
+    expect(shouldUseComicImagePreview("comic", "webview", true)).toBe(true);
+  });
+
+  it("does not request image previews for unsupported readers", () => {
+    expect(shouldUseComicImagePreview("comic", "native-comic", false)).toBe(
+      false,
+    );
+    expect(shouldUseComicImagePreview("pdf", "native-comic", true)).toBe(
+      false,
+    );
+    expect(shouldUseComicImagePreview("epub", "webview", true)).toBe(false);
   });
 });

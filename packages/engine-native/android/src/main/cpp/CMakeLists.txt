@@ -95,6 +95,7 @@ if(ANDROID)
     PapyrusComicArchiveJni.cpp
   )
   papyrus_set_cxx17(papyrus_comic)
+  target_compile_definitions(papyrus_comic PRIVATE PAPYRUS_COMIC_PREINDEX_DIMENSIONS=1)
   target_compile_options(papyrus_comic PRIVATE -Wall -Werror)
   target_link_options(papyrus_comic PRIVATE "-Wl,-z,max-page-size=16384")
   target_include_directories(papyrus_comic PRIVATE
@@ -127,8 +128,14 @@ endif()
 
 if(PAPYRUS_COMIC_ARCHIVE_HOST_TESTS)
   enable_testing()
-  find_package(ZLIB REQUIRED)
   set(PAPYRUS_LIBARCHIVE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../../vendor/libarchive)
+  add_executable(papyrus_comic_image_dimensions_test PapyrusComicImageDimensionsTest.cpp)
+  papyrus_set_cxx17(papyrus_comic_image_dimensions_test)
+  target_compile_options(papyrus_comic_image_dimensions_test PRIVATE -Wall -Wextra -Werror)
+  target_include_directories(papyrus_comic_image_dimensions_test PRIVATE ${PAPYRUS_LIBARCHIVE_DIR})
+  add_test(NAME papyrus_comic_image_dimensions_test COMMAND papyrus_comic_image_dimensions_test)
+
+  find_package(ZLIB REQUIRED)
   set(PAPYRUS_LIBARCHIVE_SOURCES
     ${PAPYRUS_LIBARCHIVE_DIR}/libarchive/archive_acl.c
     ${PAPYRUS_LIBARCHIVE_DIR}/libarchive/archive_check_magic.c
@@ -186,6 +193,7 @@ if(PAPYRUS_COMIC_ARCHIVE_HOST_TESTS)
   )
   papyrus_set_cxx17(papyrus_comic_archive_test)
   target_compile_options(papyrus_comic_archive_test PRIVATE -Wall -Wextra -Werror)
+  target_compile_definitions(papyrus_comic_archive_test PRIVATE PAPYRUS_COMIC_PREINDEX_DIMENSIONS=1)
   target_include_directories(papyrus_comic_archive_test PRIVATE ${PAPYRUS_LIBARCHIVE_DIR})
   target_link_libraries(papyrus_comic_archive_test PRIVATE papyrus_archive_host)
   add_test(NAME papyrus_comic_archive_test COMMAND papyrus_comic_archive_test

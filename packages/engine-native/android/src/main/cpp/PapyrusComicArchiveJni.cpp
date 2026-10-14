@@ -53,6 +53,21 @@ Java_com_papyrus_engine_PapyrusComicArchiveNative_extractPage(JNIEnv *env, jclas
   return env->NewStringUTF(path);
 }
 
+extern "C" JNIEXPORT jintArray JNICALL
+Java_com_papyrus_engine_PapyrusComicArchiveNative_getPageDimensions(JNIEnv *env, jclass,
+                                                                    jstring engine_id,
+                                                                    jint generation,
+                                                                    jint page_index) {
+  const std::string engine = from_java(env, engine_id);
+  int width = 0;
+  int height = 0;
+  if (!papyrus_comic_get_page_dimensions(engine.c_str(), generation, page_index, &width, &height)) return nullptr;
+  jint values[2] = {width, height};
+  jintArray dimensions = env->NewIntArray(2);
+  if (dimensions) env->SetIntArrayRegion(dimensions, 0, 2, values);
+  return dimensions;
+}
+
 extern "C" JNIEXPORT void JNICALL
 Java_com_papyrus_engine_PapyrusComicArchiveNative_close(JNIEnv *env, jclass,
                                                          jstring engine_id,
