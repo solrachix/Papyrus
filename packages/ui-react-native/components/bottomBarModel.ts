@@ -37,10 +37,12 @@ export function buildBottomBarLayout({
     });
   }
 
-  leftSlots.push({
-    key: "notes",
-    active: activeMobileDestination === "notes",
-  });
+  if (documentType !== "comic") {
+    leftSlots.push({
+      key: "notes",
+      active: activeMobileDestination === "notes",
+    });
+  }
 
   return {
     leftSlots,

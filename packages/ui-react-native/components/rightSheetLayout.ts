@@ -1,4 +1,4 @@
-import type { DocumentType } from "@papyrus-sdk/types";
+import type { DocumentType, RenderTargetType } from "@papyrus-sdk/types";
 
 type ResolveRightSheetHeightInput = {
   windowHeight: number;
@@ -27,3 +27,12 @@ export const resolveRightSheetHeight = ({
 
 export const supportsPageThumbnails = (documentType: DocumentType): boolean =>
   documentType !== "text" && documentType !== "epub";
+
+export const shouldUseComicImagePreview = (
+  documentType: DocumentType,
+  renderTarget: RenderTargetType | undefined,
+  hasPagePreview: boolean,
+): boolean =>
+  documentType === "comic" &&
+  (renderTarget === "native-comic" || renderTarget === "webview") &&
+  hasPagePreview;

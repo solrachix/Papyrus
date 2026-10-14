@@ -38,6 +38,8 @@ import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
 
 public class PapyrusNativeEngineModule extends ReactContextBaseJavaModule {
   private static final Object COMIC_THUMBNAIL_CACHE_LOCK = new Object();
@@ -46,6 +48,7 @@ public class PapyrusNativeEngineModule extends ReactContextBaseJavaModule {
   private static final long MAX_COMIC_ARCHIVE_BYTES = 512L * 1024L * 1024L;
   private final ReactApplicationContext reactContext;
   private final ExecutorService executor = Executors.newSingleThreadExecutor();
+  private final ThreadPoolExecutor comicPreviewExecutor = PapyrusComicPreviewExecutor.create();
   private final ConcurrentHashMap<String, File> comicSourceFiles = new ConcurrentHashMap<>();
   private long renderRequestCounter = 0;
 
@@ -200,7 +203,8 @@ public class PapyrusNativeEngineModule extends ReactContextBaseJavaModule {
 
   @ReactMethod
   public void getComicPagePreview(String engineId, int generation, int pageIndex, int maxEdge, Promise promise) {
-    executor.execute(() -> {
+    try {
+      comicPreviewExecutor.execute(() -> {
       Bitmap bitmap = null;
       try {
         String path = PapyrusComicArchiveNative.extractPage(engineId, generation, pageIndex);
@@ -252,7 +256,11 @@ public class PapyrusNativeEngineModule extends ReactContextBaseJavaModule {
       } finally {
         if (bitmap != null && !bitmap.isRecycled()) bitmap.recycle();
       }
-    });
+      });
+    } catch (RejectedExecutionException queueFull) {
+      promise.reject(PapyrusComicPreviewExecutor.QUEUE_FULL_ERROR_CODE,
+        "Comic preview queue is busy; retry shortly.", queueFull);
+    }
   }
 
   private static void pruneComicThumbnailCache(File directory, File preserve) {
