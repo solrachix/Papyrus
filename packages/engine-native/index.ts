@@ -428,6 +428,7 @@ export type PapyrusComicDocumentViewProps = ViewProps & {
   zoom?: number;
   pageTheme?: PageTheme;
   onPageChanged?: (event: { nativeEvent: { page: number } }) => void;
+  onPageTap?: (event: { nativeEvent: { page: number } }) => void;
   onZoomChanged?: (event: { nativeEvent: { zoom: number } }) => void;
   onError?: (event: { nativeEvent: { message: string } }) => void;
 };

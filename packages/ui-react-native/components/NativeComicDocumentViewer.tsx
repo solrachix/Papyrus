@@ -16,8 +16,10 @@ type ComicEngineAccess = DocumentEngine & {
 
 export default function NativeComicDocumentViewer({
   engine,
+  onPageTap,
 }: {
   engine: DocumentEngine;
+  onPageTap?: () => void;
 }) {
   const nativeEngine = engine as ComicEngineAccess;
   const engineId = nativeEngine.getNativeComicEngineId?.() ?? undefined;
@@ -58,6 +60,7 @@ export default function NativeComicDocumentViewer({
         nativeEngine.goToPage(page);
         setDocumentState({ currentPage: page });
       },
+      onPageTap: () => onPageTap?.(),
       onZoomChanged: (event: Parameters<NonNullable<PapyrusComicDocumentViewProps["onZoomChanged"]>>[0]) => {
         const nextZoom = Math.max(1, Math.min(5, event.nativeEvent.zoom));
         nativeEngine.setZoom(nextZoom);
@@ -74,6 +77,7 @@ export default function NativeComicDocumentViewer({
       fitMode,
       layoutMode,
       nativeEngine,
+      onPageTap,
       pageCount,
       pageTheme,
       readingDirection,

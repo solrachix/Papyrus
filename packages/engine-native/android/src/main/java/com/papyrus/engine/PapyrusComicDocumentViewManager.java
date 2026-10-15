@@ -16,6 +16,7 @@ public final class PapyrusComicDocumentViewManager extends SimpleViewManager<Pap
   @Nullable @Override public Map<String, Object> getExportedCustomBubblingEventTypeConstants() {
     return MapBuilder.<String, Object>builder()
       .put("onPageChanged", MapBuilder.of("phasedRegistrationNames", MapBuilder.of("bubbled", "onPageChanged")))
+      .put("onPageTap", MapBuilder.of("phasedRegistrationNames", MapBuilder.of("bubbled", "onPageTap")))
       .put("onZoomChanged", MapBuilder.of("phasedRegistrationNames", MapBuilder.of("bubbled", "onZoomChanged")))
       .put("onError", MapBuilder.of("phasedRegistrationNames", MapBuilder.of("bubbled", "onError")))
       .build();

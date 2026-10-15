@@ -253,6 +253,7 @@ static NSCache<NSString *, UIImage *> *PapyrusComicImageCache(void) {
 @property (nonatomic, strong) UICollectionViewFlowLayout *flowLayout;
 @property (nonatomic, strong) PapyrusComicContinuousLayout *continuousLayout;
 @property (nonatomic, strong) UIPinchGestureRecognizer *pinchRecognizer;
+@property (nonatomic, strong) UITapGestureRecognizer *singleTapRecognizer;
 @property (nonatomic, strong) UITapGestureRecognizer *doubleTapRecognizer;
 @property (nonatomic, strong) UIPanGestureRecognizer *pagePanRecognizer;
 @property (nonatomic, assign) BOOL applyingProgrammaticPage;
@@ -311,6 +312,13 @@ static NSCache<NSString *, UIImage *> *PapyrusComicImageCache(void) {
     _doubleTapRecognizer.cancelsTouchesInView = YES;
     _doubleTapRecognizer.delegate = self;
     [_collectionView addGestureRecognizer:_doubleTapRecognizer];
+    _singleTapRecognizer = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleSingleTap:)];
+    _singleTapRecognizer.numberOfTapsRequired = 1;
+    _singleTapRecognizer.numberOfTouchesRequired = 1;
+    _singleTapRecognizer.cancelsTouchesInView = NO;
+    _singleTapRecognizer.delegate = self;
+    [_singleTapRecognizer requireGestureRecognizerToFail:_doubleTapRecognizer];
+    [_collectionView addGestureRecognizer:_singleTapRecognizer];
     _pagePanRecognizer = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handlePagePan:)];
     _pagePanRecognizer.minimumNumberOfTouches = 1;
     _pagePanRecognizer.maximumNumberOfTouches = 1;
@@ -830,6 +838,13 @@ static NSCache<NSString *, UIImage *> *PapyrusComicImageCache(void) {
   if ([self.layoutMode isEqualToString:@"continuous"]) [self applyContinuousZoom:target atFocus:focus];
   else [self applySingleZoom:target atFocus:focus];
   if (self.onZoomChanged) self.onZoomChanged(@{ @"zoom": @(self.zoom) });
+}
+
+- (void)handleSingleTap:(UITapGestureRecognizer *)recognizer {
+  if (recognizer.state != UIGestureRecognizerStateRecognized ||
+      self.pinchRecognizer.state == UIGestureRecognizerStateChanged ||
+      self.pageCount <= 0) return;
+  if (self.onPageTap) self.onPageTap(@{ @"page": @(self.currentPage) });
 }
 
 - (void)handlePinch:(UIPinchGestureRecognizer *)recognizer {

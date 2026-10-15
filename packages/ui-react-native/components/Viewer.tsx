@@ -2256,7 +2256,7 @@ const Viewer: React.FC<ViewerProps> = ({
   if (isNativeComicViewer) {
     return (
       <View style={[styles.container, isDark && styles.containerDark]}>
-        <NativeComicDocumentViewer engine={engine} />
+        <NativeComicDocumentViewer engine={engine} onPageTap={handlePageTap} />
       </View>
     );
   }

@@ -95,6 +95,11 @@ public final class PapyrusComicDocumentView extends FrameLayout {
         emitZoom();
         return true;
       }
+      @Override public boolean onSingleTapConfirmed(MotionEvent event) {
+        if (scaleDetector.isInProgress() || pageCount <= 0) return false;
+        emitPageTap();
+        return true;
+      }
     });
     setLayoutMode(layoutMode);
     applyTheme();
@@ -228,9 +233,9 @@ public final class PapyrusComicDocumentView extends FrameLayout {
 
   @Override public boolean dispatchTouchEvent(android.view.MotionEvent event) {
     scaleDetector.onTouchEvent(event);
-    if (event.getPointerCount() == 1 && !scaleDetector.isInProgress()) {
-      tapDetector.onTouchEvent(event);
-    }
+    // Feed pointer transitions too so a pinch cancels a pending single tap,
+    // while the detector still arbitrates a single tap against double-tap zoom.
+    tapDetector.onTouchEvent(event);
     if (event.getActionMasked() == android.view.MotionEvent.ACTION_POINTER_UP && event.getPointerCount() > 1) {
       int remaining = event.getActionIndex() == 0 ? 1 : 0;
       lastPanX = event.getX(remaining); lastPanY = event.getY(remaining);
@@ -309,6 +314,12 @@ public final class PapyrusComicDocumentView extends FrameLayout {
     com.facebook.react.bridge.WritableMap payload = Arguments.createMap();
     payload.putDouble("zoom", zoom);
     context.getJSModule(RCTEventEmitter.class).receiveEvent(getId(), "onZoomChanged", payload);
+  }
+  private void emitPageTap() {
+    ReactContext context = (ReactContext) getContext();
+    com.facebook.react.bridge.WritableMap payload = Arguments.createMap();
+    payload.putInt("page", currentPage);
+    context.getJSModule(RCTEventEmitter.class).receiveEvent(getId(), "onPageTap", payload);
   }
   private void emitError(String key, String message, String sourceEngineId, int sourceGeneration) {
     synchronized (emittedErrors) {

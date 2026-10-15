@@ -16,6 +16,7 @@ RCT_EXPORT_VIEW_PROPERTY(readingDirection, NSString)
 RCT_EXPORT_VIEW_PROPERTY(zoom, CGFloat)
 RCT_EXPORT_VIEW_PROPERTY(pageTheme, NSString)
 RCT_EXPORT_VIEW_PROPERTY(onPageChanged, RCTBubblingEventBlock)
+RCT_EXPORT_VIEW_PROPERTY(onPageTap, RCTBubblingEventBlock)
 RCT_EXPORT_VIEW_PROPERTY(onZoomChanged, RCTBubblingEventBlock)
 RCT_EXPORT_VIEW_PROPERTY(onError, RCTBubblingEventBlock)
 + (BOOL)requiresMainQueueSetup { return YES; }
