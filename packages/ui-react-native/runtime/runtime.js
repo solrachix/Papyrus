@@ -121,6 +121,17 @@
     if(elapsed>=0 && elapsed<450 && Math.hypot(dx,dy)<=12)return 'tap';
     return null;
   }
+  // Chapter-scroll renders one spine item at a time. A vertical drag that
+  // starts at a chapter edge and pulls past it continues into the neighbour.
+  var CHAPTER_PULL_DISTANCE=96;
+  function chapterPull(start,point,state){
+    if(!start || !point || !state || mode(state.mode)!=='chapter-scroll' || state.selected || state.interactive || state.multitouch || !state.edge)return null;
+    var dx=point.x-start.x,dy=point.y-start.y;
+    if(Math.abs(dy)<12 || Math.abs(dy)<=Math.abs(dx)*1.5)return null;
+    var direction=dy<0 && state.edge.bottom?'next':dy>0 && state.edge.top?'prev':null;
+    if(!direction)return null;
+    return {direction:direction,progress:Math.min(1,Math.abs(dy)/CHAPTER_PULL_DISTANCE)};
+  }
   function location(raw,count,readingMode,geometry){
     var start=raw && raw.start;if(!start || !validCfi(start.cfi))return null;
     var displayed=start.displayed||{},chapter=Math.max(1,(Number(start.index)||0)+1);
@@ -153,20 +164,22 @@
     return {cfi:function(){return anchor;},invalidate:function(){anchor=null;},destroy:function(){if(manager.resize===resize)manager.resize=original;anchor=null;}};
   }
   function install(contents,config){
-    var doc=contents.document,win=contents.window,start=null,blocked=false;
+    var doc=contents.document,win=contents.window,start=null,blocked=false,edge=null,pull=null;
     function point(e){var t=e.changedTouches&&e.changedTouches[0]||e.touches&&e.touches[0];return t?{x:t.clientX,y:t.clientY,time:Date.now()}:null;}
     function selected(){return Boolean(String(win.getSelection()||'').trim()) || config.blocked();}
     function interactive(target){return Boolean(target && target.closest && target.closest('a,button,input,textarea,select,[contenteditable="true"],[data-papyrus-overlay],[data-papyrus-ink-capture]'));}
-    function begin(e){start=point(e);blocked=e.touches.length!==1 || selected() || interactive(e.target);}
+    function showPull(next){if(next===pull || next && pull && next.direction===pull.direction && next.progress===pull.progress)return;pull=next;if(config.pull)config.pull(next);}
+    function begin(e){start=point(e);blocked=e.touches.length!==1 || selected() || interactive(e.target);edge=!blocked && config.mode()==='chapter-scroll' && config.edge?config.edge():null;showPull(null);}
+    function pullAt(finish){return config.current()?chapterPull(start,finish,{mode:config.mode(),edge:edge,selected:selected(),interactive:blocked,multitouch:blocked}):null;}
     function invalidateScroll(finish){if(config.current() && start && finish && config.mode()==='chapter-scroll' && !blocked && !selected() && Math.abs(finish.y-start.y)>12 && Math.abs(finish.y-start.y)>Math.abs(finish.x-start.x) && config.interact)config.interact();}
-    function move(e){if(e.touches.length!==1)blocked=true;invalidateScroll(point(e));}
-    function end(e){var finish=point(e);invalidateScroll(finish);var action=gesture(start,finish,{mode:config.mode(),rtl:config.rtl(),selected:selected(),interactive:blocked||interactive(e.target)||Boolean(config.annotationHit && config.annotationHit(point(e))),multitouch:blocked});start=null;if(!config.current())return;if(action==='tap')config.tap();else if(action)config.turn(action==='next'?1:-1);}
-    function cancel(){start=null;blocked=true;}
+    function move(e){if(e.touches.length!==1)blocked=true;var finish=point(e);invalidateScroll(finish);showPull(blocked?null:pullAt(finish));}
+    function end(e){var finish=point(e);invalidateScroll(finish);var chapter=blocked?null:pullAt(finish);showPull(null);var action=gesture(start,finish,{mode:config.mode(),rtl:config.rtl(),selected:selected(),interactive:blocked||interactive(e.target)||Boolean(config.annotationHit && config.annotationHit(point(e))),multitouch:blocked});start=null;edge=null;if(!config.current())return;if(chapter && chapter.progress>=1)config.turn(chapter.direction==='next'?1:-1,'chapter-pull');else if(action==='tap')config.tap();else if(action)config.turn(action==='next'?1:-1);}
+    function cancel(){start=null;blocked=true;edge=null;showPull(null);}
     function link(e){if(config.current() && e.target?.closest?.('a') && config.interact)config.interact();}
     doc.addEventListener('touchstart',begin,{passive:true});doc.addEventListener('touchmove',move,{passive:true});doc.addEventListener('touchend',end,{passive:true});doc.addEventListener('touchcancel',cancel,{passive:true});doc.addEventListener('click',link);
-    return function(){doc.removeEventListener('touchstart',begin);doc.removeEventListener('touchmove',move);doc.removeEventListener('touchend',end);doc.removeEventListener('touchcancel',cancel);doc.removeEventListener('click',link);};
+    return function(){showPull(null);doc.removeEventListener('touchstart',begin);doc.removeEventListener('touchmove',move);doc.removeEventListener('touchend',end);doc.removeEventListener('touchcancel',cancel);doc.removeEventListener('click',link);};
   }
-  root.PapyrusEpubReader={mode:mode,validCfi:validCfi,options:options,gesture:gesture,location:location,installResizeAnchor:installResizeAnchor,install:install};
+  root.PapyrusEpubReader={mode:mode,validCfi:validCfi,options:options,gesture:gesture,chapterPull:chapterPull,location:location,installResizeAnchor:installResizeAnchor,install:install};
 })(typeof window==='undefined'?globalThis:window);
 
 /* @papyrus-epub-reader:end */
@@ -1660,6 +1673,46 @@
     return renderEpubRendition(loadId,generation,null);
   };
 
+  const epubScrollEdge = (activeRendition) => {
+    const container = activeRendition && activeRendition.manager && activeRendition.manager.container;
+    if (!container || epubViewMode === 'single') return null;
+    const top = container.scrollTop <= 2;
+    const bottom = container.scrollTop + container.clientHeight >= container.scrollHeight - 2;
+    const section = activeRendition.manager.views && typeof activeRendition.manager.views.first === 'function'
+      ? activeRendition.manager.views.first()?.section
+      : null;
+    return {
+      top: top && Boolean(section ? section.prev() : true),
+      bottom: bottom && Boolean(section ? section.next() : true),
+    };
+  };
+
+  let epubChapterPullIndicator = null;
+  const showEpubChapterPull = (pull) => {
+    if (!pull) {
+      if (epubChapterPullIndicator) epubChapterPullIndicator.style.opacity = '0';
+      return;
+    }
+    if (!epubChapterPullIndicator || !epubChapterPullIndicator.isConnected) {
+      const indicator = document.createElement('div');
+      indicator.setAttribute('data-papyrus-chapter-pull', '');
+      indicator.setAttribute('aria-hidden', 'true');
+      indicator.style.cssText = 'position:fixed;left:50%;width:44px;height:44px;margin-left:-22px;border-radius:22px;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:40;opacity:0;transition:opacity 120ms ease,background-color 120ms ease;box-shadow:0 4px 14px rgba(0,0,0,0.25);';
+      indicator.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg>';
+      document.body.appendChild(indicator);
+      epubChapterPullIndicator = indicator;
+    }
+    const indicator = epubChapterPullIndicator;
+    const ready = pull.progress >= 1;
+    const next = pull.direction === 'next';
+    indicator.style.top = next ? '' : '96px';
+    indicator.style.bottom = next ? '120px' : '';
+    indicator.style.color = '#ffffff';
+    indicator.style.backgroundColor = ready ? 'rgba(67,56,202,0.95)' : 'rgba(17,24,39,0.72)';
+    indicator.style.opacity = String(Math.max(0.2, Math.min(1, pull.progress)));
+    indicator.style.transform = `translateY(${(next ? 1 : -1) * (1 - pull.progress) * 24}px) rotate(${next ? 0 : 180}deg) scale(${0.75 + 0.25 * pull.progress})`;
+  };
+
   const renderEpubRendition = async (loadId,generation,target) => {
     const diagnosticPayload={loadId};
     const isCurrentLoad=()=>generation===epubLoadGeneration;
@@ -1680,12 +1733,19 @@
           annotationHit: point => epubAnnotationRenderers.get(contents)?.hit(point.x,point.y),
           current: () => session === documentSessionId && activeRendition === rendition,
           interact: () => epubResizeAnchor?.invalidate(),
+          edge: () => epubScrollEdge(activeRendition),
+          pull: pull => showEpubChapterPull(session === documentSessionId && activeRendition === rendition ? pull : null),
           tap: () => sendEvent('EPUB_CONTENT_TAP',{documentSessionId:session}),
-          turn: direction => {
-            epubNavigationQueue = epubNavigationQueue.catch(()=>{}).then(() => {
+          turn: (direction, source) => {
+            epubNavigationQueue = epubNavigationQueue.catch(()=>{}).then(async () => {
               if(session !== documentSessionId || activeRendition !== rendition)return;
               epubResizeAnchor?.invalidate();
-              return direction<0?activeRendition.prev():activeRendition.next();
+              if(direction>=0)return activeRendition.next();
+              await activeRendition.prev();
+              // Pulling back from a chapter start lands on the end of the
+              // previous chapter, where the reader came from.
+              const container=source==='chapter-pull' && activeRendition===rendition ? activeRendition.manager?.container : null;
+              if(container)container.scrollTop=Math.max(0,container.scrollHeight-container.clientHeight);
             });
             epubNavigationQueue.catch(error => sendEvent('EPUB_NAVIGATION_ERROR',{message:String(error)}));
           },
