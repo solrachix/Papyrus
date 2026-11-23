@@ -36,4 +36,8 @@ describe('native EPUB menu dispatch',()=>{
  it('consumes each action once',()=>{
   const f=fixture();f.send('comment');f.send('comment');expect(f.messages).toHaveLength(1);
  });
+ it('forwards the menu keys the viewer actually sends (note, consult)',()=>{
+  for(const key of ['note','consult']){const f=fixture();f.send(key);
+   expect(f.messages).toContainEqual(expect.objectContaining({name:'EPUB_SELECTION_ACTION',payload:expect.objectContaining({action:key,text:'word'})}));}
+ });
 });
