@@ -54,4 +54,25 @@ export interface ReaderSettingsChoiceGroup {
   value: string;
   options: ReaderChoiceOption[];
   onChange: (value: string) => void;
+  /**
+   * "choice" (default): one option is selected (`value`).
+   * "action": momentary buttons with no persistent selection (e.g. rotate
+   * left/right); `value` is "" and onChange runs the tapped option.
+   */
+  kind?: "choice" | "action";
+}
+
+/** A −/+ stepper row (zoom, font size). Same shape as ReaderSettingsView's fontSize. */
+export interface ReaderSettingsStepper {
+  key: string;
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  onChange: (value: number) => void;
+  /** Value as shown to the reader, e.g. "120%". */
+  formattedValue: string;
+  decreaseLabel: string;
+  increaseLabel: string;
 }

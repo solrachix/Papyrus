@@ -140,6 +140,8 @@ type Strings = {
   go: string;
   closeNavigation: string;
   dragToClose: string;
+  zoomIn: string;
+  zoomOut: string;
 };
 
 const STRINGS: Record<Locale, Strings> = {
@@ -283,6 +285,8 @@ const STRINGS: Record<Locale, Strings> = {
     go: "Go",
     closeNavigation: "Close navigation",
     dragToClose: "Drag down to close",
+    zoomIn: "Zoom in",
+    zoomOut: "Zoom out",
   },
   "pt-BR": {
     pages: "Páginas",
@@ -424,6 +428,8 @@ const STRINGS: Record<Locale, Strings> = {
     go: "Ir",
     closeNavigation: "Fechar navegação",
     dragToClose: "Arraste para baixo para fechar",
+    zoomIn: "Aumentar zoom",
+    zoomOut: "Diminuir zoom",
   },
 };
 

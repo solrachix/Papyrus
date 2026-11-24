@@ -24,6 +24,12 @@ import { getSettingsSheetMaxHeight } from "./settingsSheetLayout";
 import ReaderSettingsView from "./sharedReaderChrome/ReaderSettingsView";
 import { resolveReaderSheetAppearance } from "./readerSheetPresentation";
 import { getEpubTypographyGroups } from "./epubTypographyOptions";
+import {
+  getReaderZoomMin,
+  READER_ZOOM_MAX,
+  resolveLayoutViewMode,
+  resolveTransitionViewMode,
+} from "./readerFormatSettings";
 
 export interface SettingsSheetProps {
   engine: DocumentEngine;
@@ -107,21 +113,12 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
 
   const handleTransition = (mode: "continuous" | "paged") => {
     if(documentType === "epub"){setDocumentState({epubReadingMode:mode === "paged" ? "paged" : "chapter-scroll"});return;}
-    if (mode === "paged") {
-      setDocumentState({ viewMode: "single" });
-      return;
-    }
-    setDocumentState({ viewMode: isDouble ? "double" : "continuous" });
+    setDocumentState({ viewMode: resolveTransitionViewMode(viewMode, mode) });
   };
 
   const handleLayout = (layout: "single" | "double") => {
-    if (layout === "double") {
-      setDocumentState({ viewMode: "double" });
-      return;
-    }
-    if (viewMode === "double") {
-      setDocumentState({ viewMode: "continuous" });
-    }
+    const next = resolveLayoutViewMode(viewMode, layout);
+    if (next !== viewMode) setDocumentState({ viewMode: next });
   };
 
   const handleRotate = (direction: "clockwise" | "counterclockwise") => {
@@ -134,7 +131,7 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
   };
 
   const handleZoom = (delta: number) => {
-    const next = Math.max(documentType === "comic" ? 1 : 0.5, Math.min(4, zoom + delta));
+    const next = Number(Math.max(getReaderZoomMin(documentType), Math.min(READER_ZOOM_MAX, zoom + delta)).toFixed(2));
     engine.setZoom(next);
     setDocumentState({ zoom: next });
   };
@@ -532,6 +529,8 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
           <View style={styles.optionRow}>
             <Pressable
               onPress={() => handleZoom(-0.1)}
+              accessibilityRole="button"
+              accessibilityLabel={t.zoomOut}
               style={[styles.optionButton, { backgroundColor: sheetPalette.elevatedSurface }]}
             >
               <IconZoomOut size={16} color={sheetPalette.text} />
@@ -543,6 +542,8 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
             </View>
             <Pressable
               onPress={() => handleZoom(0.1)}
+              accessibilityRole="button"
+              accessibilityLabel={t.zoomIn}
               style={[styles.optionButton, { backgroundColor: sheetPalette.elevatedSurface }]}
             >
               <IconZoomIn size={16} color={sheetPalette.text} />
