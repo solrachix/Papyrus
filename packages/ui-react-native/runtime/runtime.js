@@ -1550,6 +1550,40 @@
     return toc.map(mapItem);
   };
 
+  let epubPageTheme = null;
+  const EPUB_THEME_STYLE_ID = 'papyrus-page-theme';
+  const applyEpubThemeToContents = (contents) => {
+    const doc = contents && contents.document;
+    if (!doc || !doc.head) return;
+    let style = doc.getElementById(EPUB_THEME_STYLE_ID);
+    const theme = epubPageTheme;
+    if (!theme || !theme.background) {
+      if (style) style.remove();
+      return;
+    }
+    if (!style) {
+      style = doc.createElement('style');
+      style.id = EPUB_THEME_STYLE_ID;
+      doc.head.appendChild(style);
+    }
+    let css = 'html, body { background: ' + theme.background + ' !important; }';
+    if (theme.foreground) {
+      // The annotation layer keeps its own colours: highlights are backgrounds.
+      css += ' html, body { color: ' + theme.foreground + ' !important; }' +
+        ' body *:not(img):not(svg):not(svg *):not([data-papyrus-overlay]):not([data-papyrus-overlay] *) { color: inherit !important; background-color: transparent !important; border-color: currentColor; }' +
+        ' a, a * { color: ' + (theme.link || theme.foreground) + ' !important; }';
+    }
+    style.textContent = css;
+  };
+  const applyEpubTheme = () => {
+    const background = epubPageTheme && epubPageTheme.background ? epubPageTheme.background : '#ffffff';
+    document.documentElement.style.background = background;
+    document.body.style.background = background;
+    if (viewer) viewer.style.background = background;
+    if (!rendition || typeof rendition.getContents !== 'function') return;
+    try { rendition.getContents().forEach(applyEpubThemeToContents); } catch (error) {}
+  };
+
   const applyEpubZoom = () => {
     if (!rendition || !rendition.themes) return;
     const fontSize = `${Math.round(zoom * 100)}%`;
@@ -1733,6 +1767,10 @@
     clearViewer();
     rendition = book.renderTo(viewer, window.PapyrusEpubReader.options(epubViewMode === 'single' ? 'paged' : 'chapter-scroll'));
     sendEpubDiagnostic('epub.rendition.created', diagnosticPayload);
+    if (rendition && rendition.hooks && rendition.hooks.content) {
+      rendition.hooks.content.register((contents) => applyEpubThemeToContents(contents));
+    }
+    applyEpubTheme();
 
     if (rendition && rendition.hooks && rendition.hooks.content) {
       const session = documentSessionId;
@@ -2296,6 +2334,16 @@
           await epubNavigationQueue;
         }
         sendResponse(id,true,null);return;
+      }
+      if (kind === 'set-epub-theme') {
+        const color = (value) => typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value) ? value : null;
+        const next = payload && payload.theme ? payload.theme : null;
+        epubPageTheme = next && color(next.background)
+          ? {background: color(next.background), foreground: color(next.foreground), link: color(next.link)}
+          : null;
+        applyEpubTheme();
+        sendResponse(id, true, null);
+        return;
       }
       if (kind === 'set-epub-ink-mode') {
         if(currentType!=='epub'||!documentSessionId||payload.documentSessionId!==documentSessionId)throw new Error('Stale EPUB ink session');
