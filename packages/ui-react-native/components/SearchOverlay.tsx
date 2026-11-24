@@ -285,7 +285,9 @@ const styles = StyleSheet.create({
   result: { paddingVertical: 12, paddingHorizontal: 6, borderBottomWidth: StyleSheet.hairlineWidth, gap: 4, borderRadius: 10 },
   resultLabel: { fontSize: 11, fontWeight: "800" },
   snippet: { fontSize: 14, lineHeight: 20 },
-  match: { fontWeight: "800" },
+  // Background only: a bolder nested span is measured at the regular
+  // width on Android, so the highlight stopped short of the last letter.
+  match: {},
   navigatorFrame: { position: "absolute", left: 0, right: 0, zIndex: 24 },
   navigator: {
     flexDirection: "row",

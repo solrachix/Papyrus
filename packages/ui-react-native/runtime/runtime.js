@@ -2239,7 +2239,23 @@
     const wasLoaded = Boolean(section.contents);
     const doc = await section.load(activeBook.load.bind(activeBook));
     const root = doc && (doc.body || doc.documentElement || doc);
-    const text = String((root && root.textContent) || '').replace(/\s+/g, ' ').trim();
+    // textContent glues block elements together ("UvasFábulas"); walk the
+    // text nodes and separate those that sit in different blocks.
+    const parts = [];
+    const BLOCK = /^(p|div|h[1-6]|li|blockquote|section|article|header|footer|figcaption|td|th|dt|dd|pre|br|hr)$/i;
+    const walk = (node) => {
+      if (!node) return;
+      if (node.nodeType === 3) { parts.push(node.nodeValue); return; }
+      if (node.nodeType !== 1) return;
+      const tag = node.nodeName || '';
+      if (/^(script|style|head|title)$/i.test(tag)) return;
+      const block = BLOCK.test(tag);
+      if (block) parts.push(' ');
+      for (let child = node.firstChild; child; child = child.nextSibling) walk(child);
+      if (block) parts.push(' ');
+    };
+    walk(root);
+    const text = parts.join('').replace(/\s+/g, ' ').trim();
     if (!wasLoaded && typeof section.unload === 'function') section.unload();
     if (activeBook === book) epubSectionTextCache.set(key, {book: activeBook, text});
     return text;
