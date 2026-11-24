@@ -648,7 +648,7 @@ const RightSheet: React.FC<RightSheetProps> = ({
               onPress={showingProgress ? undefined : onOpenPageJump}
               disabled={showingProgress || pageCount <= 0}
               style={styles.pageStatusHit}
-              accessibilityLabel="Open page jump"
+              accessibilityLabel={t.goToPage}
             >
               <Text
                 style={[styles.pageStatus, isDark && styles.pageStatusDark]}

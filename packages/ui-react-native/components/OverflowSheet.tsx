@@ -1,6 +1,7 @@
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useViewerStore } from "@papyrus-sdk/core";
+import { getStrings } from "../mobileStrings";
 import { NativeSheet } from "./NativeSheet";
 import { getReaderSheetPalette } from "./readerSheetPresentation";
 
@@ -10,7 +11,7 @@ type OverflowSheetProps = {
   onOpenActions: () => void;
 };
 
-const actionLabels = [{ key: "actions", label: "Document actions" }] as const;
+const actionKeys = [{ key: "actions", labelKey: "documentActions" }] as const;
 
 export function OverflowSheet({
   visible,
@@ -18,6 +19,8 @@ export function OverflowSheet({
   onOpenActions,
 }: OverflowSheetProps) {
   const isDark = useViewerStore((state) => state.uiTheme === "dark");
+  const t = getStrings(useViewerStore((state) => state.locale));
+  const actionLabels = actionKeys.map((action) => ({ key: action.key, label: t[action.labelKey] }));
   const palette = getReaderSheetPalette(isDark);
 
   return (
@@ -27,8 +30,8 @@ export function OverflowSheet({
       isDark={isDark}
       maxHeight="45%"
       showHeader
-      title="More"
-      closeAccessibilityLabel="Close more actions"
+      title={t.more}
+      closeAccessibilityLabel={t.closeMore}
       sheetStyle={{
         paddingHorizontal: 16,
         paddingBottom: 16,

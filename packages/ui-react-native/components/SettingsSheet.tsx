@@ -144,7 +144,7 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
     return (
       <ReaderSettingsView
         visible={visible}
-        title={locale === "pt-BR" ? "Exibição" : "Display"}
+        title={t.display}
         isDark={isDark}
         sheetTheme={sheetTheme}
         accentColor={accentColor}
@@ -174,10 +174,10 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
             setDocumentState({ zoom: value });
           },
         }}
-        fontSizeLabel={locale === "pt-BR" ? "Tamanho da fonte" : "Font size"}
+        fontSizeLabel={t.fontSize}
         choiceGroups={getEpubTypographyGroups(epubTypography, locale, setEpubTypography)}
         transitionOptions={[
-          { value: "continuous", label: locale === "pt-BR" ? "Rolagem por capítulo" : t.continuous },
+          { value: "continuous", label: t.chapterScroll },
           { value: "paged", label: t.pageByPage },
         ]}
         selectedTransition={isPaged ? "paged" : "continuous"}
@@ -225,8 +225,8 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
       isDark={isDark}
       maxHeight={sheetMaxHeight}
       showHeader
-      title={locale === "pt-BR" ? "Exibicao" : "Display"}
-      closeAccessibilityLabel="Close settings"
+      title={t.display}
+      closeAccessibilityLabel={t.closeSettings}
     >
       <NativeSheetScrollView
         style={styles.sheet}
@@ -236,9 +236,9 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
         {onOpenInfo ? <Pressable accessibilityRole="button" onPress={onOpenInfo} style={{minHeight:44,justifyContent:"center",marginBottom:16}}><Text style={[styles.sectionTitle,isDark && styles.sectionTitleDark]}>{t.info}</Text></Pressable> : null}
         {documentType === "text" && (
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle,isDark && styles.sectionTitleDark]}>{locale === "pt-BR" ? "Tamanho da fonte" : "Font size"}</Text>
+            <Text style={[styles.sectionTitle,isDark && styles.sectionTitleDark]}>{t.fontSize}</Text>
             <View style={{flexDirection:"row",alignItems:"center",gap:12}}>
-              {[-0.1,0.1].map(delta=><Pressable key={delta} accessibilityRole="button" accessibilityLabel={locale === "pt-BR" ? (delta<0?"Diminuir fonte":"Aumentar fonte") : (delta<0?"Decrease font":"Increase font")} onPress={()=>{
+              {[-0.1,0.1].map(delta=><Pressable key={delta} accessibilityRole="button" accessibilityLabel={delta<0?t.decreaseFont:t.increaseFont} onPress={()=>{
                 const next=Math.max(0.7,Math.min(2,zoom+delta));
                 setDocumentState({zoom:next});
               }} style={{minWidth:44,minHeight:44,justifyContent:"center",alignItems:"center"}}><Text style={{fontSize:20,color:isDark?"#fff":"#111"}}>{delta<0?"A−":"A+"}</Text></Pressable>)}

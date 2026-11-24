@@ -43,3 +43,42 @@ describe("mobile selection toolbar strings", () => {
     });
   });
 });
+
+describe("Brazilian Portuguese reader strings", () => {
+  const pt = getStrings("pt-BR") as Record<string, string>;
+  const en = getStrings("en") as Record<string, string>;
+
+  it("covers every English key", () => {
+    expect(Object.keys(pt).sort()).toEqual(Object.keys(en).sort());
+    for (const [key, value] of Object.entries(pt)) {
+      expect(value, key).toBeTruthy();
+    }
+  });
+
+  it("uses accented Portuguese in the display settings", () => {
+    expect(pt).toMatchObject({
+      display: "Exibição",
+      appearance: "Aparência",
+      pageTransition: "Transição de página",
+      continuous: "Contínuo",
+      pageByPage: "Página por página",
+      singlePage: "Página única",
+      doublePage: "Página dupla",
+      clockwise: "Sentido horário",
+      counterclockwise: "Sentido anti-horário",
+      pageTheme: "Tema da página",
+      themeSepia: "Sépia",
+      english: "Inglês",
+      portuguese: "Português (BR)",
+      comicFitWidth: "Ajustar à largura",
+    });
+  });
+
+  it("never falls back to unaccented spellings", () => {
+    const unaccented =
+      /\b(Pagina|pagina|Paginas|paginas|Sumario|sumario|Transicao|Continuo|unica|horario|Aparencia|Exibicao|Sepia|Ingles|Portugues|anotacoes|titulo|Informacoes|configuracoes|navegacao|Numero|capitulo|acoes)\b/;
+    for (const [key, value] of Object.entries(pt)) {
+      expect(value, key).not.toMatch(unaccented);
+    }
+  });
+});

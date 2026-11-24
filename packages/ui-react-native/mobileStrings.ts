@@ -122,6 +122,24 @@ type Strings = {
   showResults: string;
   closeSearch: string;
   searchHint: string;
+  display: string;
+  fontSize: string;
+  decreaseFont: string;
+  increaseFont: string;
+  chapterScroll: string;
+  closeSettings: string;
+  closeMore: string;
+  documentActions: string;
+  closeDocumentActions: string;
+  share: string;
+  export: string;
+  goToPage: string;
+  goToChapter: string;
+  pageNumber: string;
+  chapterNumber: string;
+  go: string;
+  closeNavigation: string;
+  dragToClose: string;
 };
 
 const STRINGS: Record<Locale, Strings> = {
@@ -247,9 +265,27 @@ const STRINGS: Record<Locale, Strings> = {
     showResults: "Show results",
     closeSearch: "Close search",
     searchHint: "Type a word or phrase and press search.",
+    display: "Display",
+    fontSize: "Font size",
+    decreaseFont: "Decrease font size",
+    increaseFont: "Increase font size",
+    chapterScroll: "Continuous",
+    closeSettings: "Close settings",
+    closeMore: "Close more actions",
+    documentActions: "Document actions",
+    closeDocumentActions: "Close document actions",
+    share: "Share",
+    export: "Export",
+    goToPage: "Go to page",
+    goToChapter: "Go to chapter",
+    pageNumber: "Page number",
+    chapterNumber: "Chapter number",
+    go: "Go",
+    closeNavigation: "Close navigation",
+    dragToClose: "Drag down to close",
   },
   "pt-BR": {
-    pages: "Paginas",
+    pages: "Páginas",
     contents: "Conteúdo",
     progress: "Progresso",
     search: "Buscar",
@@ -264,50 +300,50 @@ const STRINGS: Record<Locale, Strings> = {
     read: "Ler",
     edit: "Editar",
     done: "Concluir",
-    page: "Pagina",
-    summary: "Sumario",
-    pagesTab: "Paginas",
-    summaryTab: "Sumario",
-    searchPlaceholder: "Pesquisar texto...",
+    page: "Página",
+    summary: "Sumário",
+    pagesTab: "Páginas",
+    summaryTab: "Sumário",
+    searchPlaceholder: "Buscar no texto…",
     searchGo: "Buscar",
     allResults: "Todos os resultados",
     results: "resultados",
-    searching: "Pesquisando...",
+    searching: "Buscando…",
     noResults: "Nenhum resultado.",
-    noSummary: "Sem sumario.",
-    noAnnotations: "Sem anotacoes.",
-    untitled: "Sem titulo",
-    pageTransition: "Transicao de pagina",
-    continuous: "Continuo",
-    pageByPage: "Pagina por pagina",
+    noSummary: "Sem sumário.",
+    noAnnotations: "Nenhuma anotação ainda.",
+    untitled: "Sem título",
+    pageTransition: "Transição de página",
+    continuous: "Contínuo",
+    pageByPage: "Página por página",
     layout: "Layout",
-    singlePage: "Pagina unica",
-    doublePage: "Pagina dupla",
+    singlePage: "Página única",
+    doublePage: "Página dupla",
     rotate: "Girar",
-    clockwise: "Sentido horario",
-    counterclockwise: "Sentido anti-horario",
+    clockwise: "Sentido horário",
+    counterclockwise: "Sentido anti-horário",
     rotationOriginal: "Original / 0°",
     zoom: "Zoom",
-    highlight: "Marca texto",
-    strike: "Risco",
+    highlight: "Destacar",
+    strike: "Riscar",
     text: "Texto",
     note: "Nota",
     editNote: "Editar nota",
-    notePlaceholder: "Escreva sua nota...",
+    notePlaceholder: "Escreva sua nota…",
     cancel: "Cancelar",
     save: "Salvar",
     language: "Idioma",
-    english: "Ingles",
-    portuguese: "Portugues (BR)",
-    appearance: "Aparencia",
+    english: "Inglês",
+    portuguese: "Português (BR)",
+    appearance: "Aparência",
     light: "Claro",
     dark: "Escuro",
-    pageTheme: "Tema da pagina",
+    pageTheme: "Tema da página",
     themeOriginal: "Original",
-    themeSepia: "Sepia",
+    themeSepia: "Sépia",
     themeDark: "Escuro",
     themeContrast: "Contraste",
-    info: "Info",
+    info: "Informações",
     more: "Mais",
     close: "Fechar",
     copy: "Copiar",
@@ -370,6 +406,24 @@ const STRINGS: Record<Locale, Strings> = {
     showResults: "Ver resultados",
     closeSearch: "Fechar busca",
     searchHint: "Digite uma palavra ou frase e toque em buscar.",
+    display: "Exibição",
+    fontSize: "Tamanho da fonte",
+    decreaseFont: "Diminuir tamanho da fonte",
+    increaseFont: "Aumentar tamanho da fonte",
+    chapterScroll: "Rolagem por capítulo",
+    closeSettings: "Fechar configurações",
+    closeMore: "Fechar mais ações",
+    documentActions: "Ações do documento",
+    closeDocumentActions: "Fechar ações do documento",
+    share: "Compartilhar",
+    export: "Exportar",
+    goToPage: "Ir para página",
+    goToChapter: "Ir para capítulo",
+    pageNumber: "Número da página",
+    chapterNumber: "Número do capítulo",
+    go: "Ir",
+    closeNavigation: "Fechar navegação",
+    dragToClose: "Arraste para baixo para fechar",
   },
 };
 
