@@ -5,7 +5,7 @@ import {
   getReaderSheetPalette,
   type ReaderSheetTheme,
 } from "../readerSheetPresentation";
-import type { ReaderChoiceOption, ReaderSheetAction } from "./types";
+import type { ReaderChoiceOption, ReaderSettingsChoiceGroup, ReaderSheetAction } from "./types";
 
 export interface ReaderSettingsViewProps {
   visible: boolean;
@@ -29,6 +29,11 @@ export interface ReaderSettingsViewProps {
   onThemeChange?: (value: string) => void;
   fontSize?: { value: number; min: number; max: number; step: number; onChange: (value: number) => void };
   fontSizeLabel?: string;
+  /**
+   * Extra single-choice rows shown under the font size, e.g. EPUB typography
+   * from getEpubTypographyGroups (font, line spacing, margins, alignment).
+   */
+  choiceGroups?: ReaderSettingsChoiceGroup[];
   actions?: ReaderSheetAction[];
   children?: React.ReactNode;
 }
@@ -93,6 +98,7 @@ export default function ReaderSettingsView({
   onThemeChange,
   fontSize,
   fontSizeLabel = "Tamanho da fonte",
+  choiceGroups = [],
   actions = [],
   children,
 }: ReaderSettingsViewProps) {
@@ -143,6 +149,28 @@ export default function ReaderSettingsView({
             </View>
           </View>
         ) : null}
+        {choiceGroups.map((group) => (
+          <View key={group.key} style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: palette.text }]}>{group.label}</Text>
+            <View style={styles.choiceRow}>
+              {group.options.map((option) => {
+                const active = group.value === option.value;
+                return (
+                  <Pressable
+                    key={option.value}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${group.label} ${option.label}`}
+                    accessibilityState={{ selected: active }}
+                    onPress={() => group.onChange(option.value)}
+                    style={[styles.modeButton, { backgroundColor: active ? accentColor : palette.elevatedSurface, borderColor: active ? accentColor : palette.divider }]}
+                  >
+                    <Text style={[styles.themeLabel, { color: active ? "#ffffff" : palette.text }]}>{option.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        ))}
         {transitionOptions?.length && onTransitionChange ? (
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: palette.text }]}>{transitionLabel}</Text>

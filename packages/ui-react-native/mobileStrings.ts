@@ -102,6 +102,19 @@ type Strings = {
   undo: string;
   redo: string;
   strokeWidth: string;
+  typographyFont: string;
+  typographyOriginal: string;
+  typographySerif: string;
+  typographySans: string;
+  typographyMono: string;
+  typographyLineHeight: string;
+  typographyMargins: string;
+  typographyNarrow: string;
+  typographyMedium: string;
+  typographyWide: string;
+  typographyAlignment: string;
+  typographyJustify: string;
+  typographyLeft: string;
 };
 
 const STRINGS: Record<Locale, Strings> = {
@@ -207,6 +220,19 @@ const STRINGS: Record<Locale, Strings> = {
     undo: "Undo",
     redo: "Redo",
     strokeWidth: "Stroke width",
+    typographyFont: "Font",
+    typographyOriginal: "Original",
+    typographySerif: "Serif",
+    typographySans: "Sans serif",
+    typographyMono: "Monospace",
+    typographyLineHeight: "Line spacing",
+    typographyMargins: "Margins",
+    typographyNarrow: "Narrow",
+    typographyMedium: "Medium",
+    typographyWide: "Wide",
+    typographyAlignment: "Alignment",
+    typographyJustify: "Justified",
+    typographyLeft: "Left",
   },
   "pt-BR": {
     pages: "Paginas",
@@ -310,6 +336,19 @@ const STRINGS: Record<Locale, Strings> = {
     undo: "Desfazer",
     redo: "Refazer",
     strokeWidth: "Espessura",
+    typographyFont: "Fonte",
+    typographyOriginal: "Original",
+    typographySerif: "Serifada",
+    typographySans: "Sem serifa",
+    typographyMono: "Monoespaçada",
+    typographyLineHeight: "Espaçamento entre linhas",
+    typographyMargins: "Margens",
+    typographyNarrow: "Estreita",
+    typographyMedium: "Média",
+    typographyWide: "Larga",
+    typographyAlignment: "Alinhamento",
+    typographyJustify: "Justificado",
+    typographyLeft: "À esquerda",
   },
 };
 

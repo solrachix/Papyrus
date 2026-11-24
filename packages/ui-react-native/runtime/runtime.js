@@ -187,6 +187,30 @@
     if(![x,y,r.width,r.height].every(Number.isFinite))return null;
     return {x:Math.round(x),y:Math.round(y),width:Math.round(r.width),height:Math.round(r.height)};
   }
+  // Reader typography. Every rule skips the annotation layer so highlights,
+  // ink and note buttons keep their own geometry and fonts.
+  var TYPE_FONTS={serif:'Georgia, "Iowan Old Style", "Times New Roman", "Noto Serif", serif',sans:'-apple-system, Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif',mono:'ui-monospace, Menlo, "Roboto Mono", "DejaVu Sans Mono", monospace'};
+  var TYPE_MARGINS={narrow:'0.5em',medium:'1.5em',wide:'3em'};
+  var NOT_OVERLAY=':not([data-papyrus-overlay]):not([data-papyrus-overlay] *)';
+  function typography(value){
+    var v=value||{},line=Number(v.lineHeight);
+    return {fontFamily:TYPE_FONTS[v.fontFamily]?v.fontFamily:'original',lineHeight:Number.isFinite(line)&&line>=1&&line<=2.5?Math.round(line*100)/100:null,
+      margin:TYPE_MARGINS[v.margin]?v.margin:'original',textAlign:v.textAlign==='justify'||v.textAlign==='left'?v.textAlign:'original'};
+  }
+  function typographyCss(value){
+    var t=typography(value),css='';
+    if(t.fontFamily!=='original'){
+      // Code keeps a monospace face unless the reader chose monospace anyway.
+      css+='html, body, body *'+NOT_OVERLAY+':not(code):not(pre):not(kbd):not(samp):not(code *):not(pre *) { font-family: '+TYPE_FONTS[t.fontFamily]+' !important; }';
+    }
+    if(t.lineHeight!==null)css+=' body, body *'+NOT_OVERLAY+' { line-height: '+t.lineHeight+' !important; }';
+    if(t.margin!=='original')css+=' body > *'+NOT_OVERLAY+':not(img):not(svg):not(hr) { margin-left: '+TYPE_MARGINS[t.margin]+' !important; margin-right: '+TYPE_MARGINS[t.margin]+' !important; }';
+    if(t.textAlign!=='original'){
+      css+=' body p, body li, body blockquote, body dd, body div'+NOT_OVERLAY+' { text-align: '+t.textAlign+' !important; }';
+      if(t.textAlign==='justify')css+=' body p { -webkit-hyphens: auto; hyphens: auto; }';
+    }
+    return css.trim();
+  }
   function install(contents,config){
     var doc=contents.document,win=contents.window,start=null,blocked=false,edge=null,pull=null;
     function point(e){var t=e.changedTouches&&e.changedTouches[0]||e.touches&&e.touches[0];return t?{x:t.clientX,y:t.clientY,time:Date.now()}:null;}
@@ -203,7 +227,7 @@
     doc.addEventListener('touchstart',begin,{passive:true});doc.addEventListener('touchmove',move,{passive:true});doc.addEventListener('touchend',end,{passive:true});doc.addEventListener('touchcancel',cancel,{passive:true});doc.addEventListener('click',link);
     return function(){showPull(null);doc.removeEventListener('touchstart',begin);doc.removeEventListener('touchmove',move);doc.removeEventListener('touchend',end);doc.removeEventListener('touchcancel',cancel);doc.removeEventListener('click',link);};
   }
-  root.PapyrusEpubReader={mode:mode,validCfi:validCfi,options:options,gesture:gesture,chapterPull:chapterPull,location:location,installResizeAnchor:installResizeAnchor,selectionRect:selectionRect,install:install};
+  root.PapyrusEpubReader={mode:mode,validCfi:validCfi,options:options,gesture:gesture,chapterPull:chapterPull,location:location,installResizeAnchor:installResizeAnchor,selectionRect:selectionRect,typography:typography,typographyCss:typographyCss,install:install};
 })(typeof window==='undefined'?globalThis:window);
 
 /* @papyrus-epub-reader:end */
@@ -1623,6 +1647,25 @@
     }
     style.textContent = css;
   };
+  let epubTypography = null;
+  const EPUB_TYPOGRAPHY_STYLE_ID = 'papyrus-typography';
+  const applyEpubTypographyToContents = (contents) => {
+    const doc = contents && contents.document;
+    if (!doc || !doc.head) return;
+    let style = doc.getElementById(EPUB_TYPOGRAPHY_STYLE_ID);
+    const css = window.PapyrusEpubReader.typographyCss(epubTypography);
+    if (!css) {
+      if (style) style.remove();
+      return;
+    }
+    if (!style) {
+      style = doc.createElement('style');
+      style.id = EPUB_TYPOGRAPHY_STYLE_ID;
+    }
+    // Last in <head> so it wins over the publisher sheets of equal weight.
+    doc.head.appendChild(style);
+    style.textContent = css;
+  };
   const applyEpubTheme = () => {
     const background = epubPageTheme && epubPageTheme.background ? epubPageTheme.background : '#ffffff';
     document.documentElement.style.background = background;
@@ -1817,6 +1860,7 @@
     sendEpubDiagnostic('epub.rendition.created', diagnosticPayload);
     if (rendition && rendition.hooks && rendition.hooks.content) {
       rendition.hooks.content.register((contents) => applyEpubThemeToContents(contents));
+      rendition.hooks.content.register((contents) => applyEpubTypographyToContents(contents));
     }
     applyEpubTheme();
 
@@ -2420,6 +2464,27 @@
           ? {background: color(next.background), foreground: color(next.foreground), link: color(next.link)}
           : null;
         applyEpubTheme();
+        sendResponse(id, true, null);
+        return;
+      }
+      if (kind === 'set-epub-typography') {
+        const next = window.PapyrusEpubReader.typography(payload && payload.typography);
+        const reader = window.PapyrusEpubReader;
+        if (reader.typographyCss(next) === reader.typographyCss(epubTypography)) {sendResponse(id, true, null); return;}
+        if (currentType !== 'epub' || !rendition) {epubTypography = next; sendResponse(id, true, null); return;}
+        const session = documentSessionId;
+        // Typography reflows the chapter: keep the reader on the same CFI,
+        // like set-zoom, through the serialized navigation queue.
+        epubNavigationQueue = epubNavigationQueue.catch(() => {}).then(async () => {
+          if (session !== documentSessionId) return;
+          const active = rendition;
+          const cfi = epubResizeAnchor?.cfi() || epubLocation?.cfi;
+          epubTypography = next;
+          try { active.getContents().forEach(applyEpubTypographyToContents); } catch (error) {}
+          await new Promise(resolve => (window.requestAnimationFrame || (callback => setTimeout(callback, 0)))(resolve));
+          if (cfi && active === rendition && session === documentSessionId) await active.display(cfi);
+        });
+        await epubNavigationQueue;
         sendResponse(id, true, null);
         return;
       }

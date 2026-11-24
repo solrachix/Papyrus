@@ -57,4 +57,33 @@ describe('EPUB runtime bridge',()=>{
   expect(latestState?.payload.currentPage).toBe(1);
  });
  it('keeps TXT zoom independent of EPUB state',async()=>{const r=runtime();await r.send('load','load',{type:'text',source:{kind:'text',text:'sample'}});expect((await r.send('zoom','set-zoom',{zoom:1.2})).ok).toBe(true);});
+ it('applies typography to chapter documents and keeps the reader on its CFI',async()=>{
+  const r=runtime();await r.send('load','load',{type:'epub',documentSessionId:'s',source:{kind:'base64',data:'AA=='}});
+  const cfi='epubcfi(/6/2!/4/2:10)';r.renditions[0].emit('relocated',{start:{index:0,cfi,displayed:{page:2,total:8}}});
+  const chapter=new JSDOM('<html><head><style id="publisher">p{}</style></head><body><p>text</p></body></html>');
+  const contents={document:chapter.window.document,window:chapter.window,sectionIndex:0};
+  r.renditions[0].getContents=()=>[contents];
+  r.renditions[0].display.mockClear();
+  expect((await r.send('type','set-epub-typography',{typography:{fontFamily:'serif',lineHeight:1.8,margin:'narrow',textAlign:'left'}})).ok).toBe(true);
+  const style=chapter.window.document.getElementById('papyrus-typography')!;
+  expect(style.textContent).toContain('line-height: 1.8');
+  expect(chapter.window.document.head.lastElementChild).toBe(style);
+  expect(r.renditions[0].display).toHaveBeenCalledWith(cfi);
+  // Same values: no reflow, no navigation.
+  r.renditions[0].display.mockClear();
+  await r.send('same','set-epub-typography',{typography:{fontFamily:'serif',lineHeight:1.8,margin:'narrow',textAlign:'left'}});
+  expect(r.renditions[0].display).not.toHaveBeenCalled();
+  // Back to the publisher CSS removes the style.
+  await r.send('reset','set-epub-typography',{typography:{}});
+  expect(chapter.window.document.getElementById('papyrus-typography')).toBeNull();
+ });
+ it('applies the current typography to chapters loaded later',async()=>{
+  const r=runtime();await r.send('load','load',{type:'epub',documentSessionId:'s',source:{kind:'base64',data:'AA=='}});
+  r.renditions[0].getContents=()=>[];
+  await r.send('type','set-epub-typography',{typography:{textAlign:'justify'}});
+  const chapter=new JSDOM('<html><head></head><body><p>text</p></body></html>');
+  const hook=r.renditions[0].hooks.content.register.mock.calls.map((call:any)=>call[0]).find((fn:any)=>String(fn).includes('applyEpubTypographyToContents'));
+  hook({document:chapter.window.document,window:chapter.window,sectionIndex:0});
+  expect(chapter.window.document.getElementById('papyrus-typography')?.textContent).toContain('text-align: justify');
+ });
 });
