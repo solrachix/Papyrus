@@ -4,7 +4,7 @@ import { useViewerStore } from "@papyrus-sdk/core";
 import { DocumentType } from "@papyrus-sdk/types";
 import { getStrings } from "../mobileStrings";
 import { NativeSheet, NativeSheetScrollView } from "./NativeSheet";
-import { getReaderSheetPalette } from "./readerSheetPresentation";
+import { useReaderSheetAppearance } from "./useReaderSheetAppearance";
 
 type SearchResultsSheetProps = {
   documentType: DocumentType;
@@ -27,13 +27,11 @@ export function SearchResultsSheet({
     setDocumentState,
     triggerScrollToPage,
     triggerScrollToTextOffset,
-    uiTheme,
     accentColor,
   } = useViewerStore();
   const results =
     documentType === "text" ? textSearchResults : searchResults;
-  const isDark = uiTheme === "dark";
-  const palette = getReaderSheetPalette(isDark);
+  const { isDark, sheetTheme, palette } = useReaderSheetAppearance();
   const t = getStrings(locale);
   const getResultLabel = (pageIndex: number) => {
     if (documentType === "pdf") return `${t.page} ${pageIndex + 1}`;
@@ -50,6 +48,8 @@ export function SearchResultsSheet({
       visible={visible}
       onClose={onClose}
       isDark={isDark}
+      sheetTheme={sheetTheme}
+      sheetPalette={palette}
       maxHeight="72%"
       showHeader
       title={t.allResults}

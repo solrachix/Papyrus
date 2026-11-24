@@ -1,8 +1,9 @@
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { useViewerStore } from "@papyrus-sdk/core";
+import { getStrings } from "../mobileStrings";
 import { NativeSheet } from "./NativeSheet";
-import { getReaderSheetPalette } from "./readerSheetPresentation";
+import { useReaderSheetAppearance } from "./useReaderSheetAppearance";
 
 type DocumentActionsSheetProps = {
   visible: boolean;
@@ -13,19 +14,21 @@ export function DocumentActionsSheet({
   visible,
   onClose,
 }: DocumentActionsSheetProps) {
-  const { uiTheme } = useViewerStore();
-  const isDark = uiTheme === "dark";
-  const palette = getReaderSheetPalette(isDark);
+  const { locale } = useViewerStore();
+  const t = getStrings(locale);
+  const { isDark, sheetTheme, palette } = useReaderSheetAppearance();
 
   return (
     <NativeSheet
       visible={visible}
       onClose={onClose}
       isDark={isDark}
+      sheetTheme={sheetTheme}
+      sheetPalette={palette}
       maxHeight="55%"
       showHeader
-      title="Document actions"
-      closeAccessibilityLabel="Close document actions"
+      title={t.documentActions}
+      closeAccessibilityLabel={t.closeDocumentActions}
       sheetStyle={{
         paddingHorizontal: 16,
         paddingBottom: 16,
@@ -43,7 +46,7 @@ export function DocumentActionsSheet({
             },
           ]}
         >
-          <Text style={[styles.actionText, { color: palette.text }]}>Share</Text>
+          <Text style={[styles.actionText, { color: palette.text }]}>{t.share}</Text>
         </View>
         <View
           style={[
@@ -54,7 +57,7 @@ export function DocumentActionsSheet({
             },
           ]}
         >
-          <Text style={[styles.actionText, { color: palette.text }]}>Export</Text>
+          <Text style={[styles.actionText, { color: palette.text }]}>{t.export}</Text>
         </View>
       </View>
     </NativeSheet>

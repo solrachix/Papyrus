@@ -22,15 +22,27 @@ import { resetEngineRotation } from "./rotationReset";
 import { NativeSheet, NativeSheetScrollView } from "./NativeSheet";
 import { getSettingsSheetMaxHeight } from "./settingsSheetLayout";
 import ReaderSettingsView from "./sharedReaderChrome/ReaderSettingsView";
-import { getReaderSheetPalette, toReaderSheetTheme } from "./readerSheetPresentation";
+import { resolveReaderSheetAppearance } from "./readerSheetPresentation";
 import { getEpubTypographyGroups } from "./epubTypographyOptions";
+import {
+  getReaderZoomMin,
+  READER_ZOOM_MAX,
+  resolveLayoutViewMode,
+  resolveTransitionViewMode,
+} from "./readerFormatSettings";
 
 export interface SettingsSheetProps {
   engine: DocumentEngine;
   visible: boolean;
   onClose: () => void;
   documentType?: DocumentType;
+  /** EPUB only: adds an "Informações" row. PDF/comic hosts reach info elsewhere. */
   onOpenInfo?: () => void;
+  /**
+   * Hide the Claro/Escuro appearance choice when the host app controls the
+   * UI theme itself. The page theme (Original/Sépia/Escuro/Contraste) stays.
+   */
+  hideAppearance?: boolean;
 }
 
 const PAGE_THEME_OPTIONS: Array<{ value: PageTheme; labelKey: ThemeLabelKey }> =
@@ -75,6 +87,7 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
   onClose,
   documentType = "pdf",
   onOpenInfo,
+  hideAppearance = false,
 }) => {
   const {
     viewMode,
@@ -91,9 +104,7 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
     epubTypography,
     setEpubTypography,
   } = useViewerStore();
-  const isDark = uiTheme === "dark";
-  const sheetTheme = toReaderSheetTheme(pageTheme);
-  const sheetPalette = getReaderSheetPalette(sheetTheme);
+  const { isDark, sheetTheme, palette: sheetPalette } = resolveReaderSheetAppearance(pageTheme);
   const isPaged = documentType === "epub" ? epubReadingMode === "paged" : viewMode === "single";
   const isDouble = viewMode === "double";
   const t = getStrings(locale);
@@ -102,21 +113,12 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
 
   const handleTransition = (mode: "continuous" | "paged") => {
     if(documentType === "epub"){setDocumentState({epubReadingMode:mode === "paged" ? "paged" : "chapter-scroll"});return;}
-    if (mode === "paged") {
-      setDocumentState({ viewMode: "single" });
-      return;
-    }
-    setDocumentState({ viewMode: isDouble ? "double" : "continuous" });
+    setDocumentState({ viewMode: resolveTransitionViewMode(viewMode, mode) });
   };
 
   const handleLayout = (layout: "single" | "double") => {
-    if (layout === "double") {
-      setDocumentState({ viewMode: "double" });
-      return;
-    }
-    if (viewMode === "double") {
-      setDocumentState({ viewMode: "continuous" });
-    }
+    const next = resolveLayoutViewMode(viewMode, layout);
+    if (next !== viewMode) setDocumentState({ viewMode: next });
   };
 
   const handleRotate = (direction: "clockwise" | "counterclockwise") => {
@@ -129,7 +131,7 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
   };
 
   const handleZoom = (delta: number) => {
-    const next = Math.max(documentType === "comic" ? 1 : 0.5, Math.min(4, zoom + delta));
+    const next = Number(Math.max(getReaderZoomMin(documentType), Math.min(READER_ZOOM_MAX, zoom + delta)).toFixed(2));
     engine.setZoom(next);
     setDocumentState({ zoom: next });
   };
@@ -144,12 +146,12 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
     return (
       <ReaderSettingsView
         visible={visible}
-        title={locale === "pt-BR" ? "Exibição" : "Display"}
+        title={t.display}
         isDark={isDark}
         sheetTheme={sheetTheme}
         accentColor={accentColor}
         onClose={onClose}
-        appearanceOptions={[
+        appearanceOptions={hideAppearance ? undefined : [
           { value: "light", label: t.light },
           { value: "dark", label: t.dark },
         ]}
@@ -174,10 +176,10 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
             setDocumentState({ zoom: value });
           },
         }}
-        fontSizeLabel={locale === "pt-BR" ? "Tamanho da fonte" : "Font size"}
+        fontSizeLabel={t.fontSize}
         choiceGroups={getEpubTypographyGroups(epubTypography, locale, setEpubTypography)}
         transitionOptions={[
-          { value: "continuous", label: locale === "pt-BR" ? "Rolagem por capítulo" : t.continuous },
+          { value: "continuous", label: t.chapterScroll },
           { value: "paged", label: t.pageByPage },
         ]}
         selectedTransition={isPaged ? "paged" : "continuous"}
@@ -201,19 +203,6 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
             </Pressable>
           </View>
         </View>
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: sheetPalette.text }]}>{t.language}</Text>
-          <View style={styles.optionRow}>
-            {(["en", "pt-BR"] as const).map((value) => {
-              const selected = locale === value;
-              return (
-                <Pressable key={value} accessibilityRole="button" accessibilityState={{ selected }} onPress={() => setDocumentState({ locale: value })} style={[styles.optionButton, { backgroundColor: sheetPalette.elevatedSurface, borderColor: sheetPalette.divider }, selected && styles.optionButtonActive, selected && { backgroundColor: accentColor }]}>
-                  <Text style={[styles.optionText, { color: selected ? "#ffffff" : sheetPalette.text }, selected && styles.optionTextActive]}>{value === "en" ? t.english : t.portuguese}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
       </ReaderSettingsView>
     );
   }
@@ -223,32 +212,33 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
       visible={visible}
       onClose={onClose}
       isDark={isDark}
+      sheetTheme={sheetTheme}
+      sheetPalette={sheetPalette}
       maxHeight={sheetMaxHeight}
       showHeader
-      title={locale === "pt-BR" ? "Exibicao" : "Display"}
-      closeAccessibilityLabel="Close settings"
+      title={t.display}
+      closeAccessibilityLabel={t.closeSettings}
     >
       <NativeSheetScrollView
         style={styles.sheet}
         contentContainerStyle={styles.sheetContent}
         showsVerticalScrollIndicator={false}
       >
-        {onOpenInfo ? <Pressable accessibilityRole="button" onPress={onOpenInfo} style={{minHeight:44,justifyContent:"center",marginBottom:16}}><Text style={[styles.sectionTitle,isDark && styles.sectionTitleDark]}>{t.info}</Text></Pressable> : null}
         {documentType === "text" && (
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle,isDark && styles.sectionTitleDark]}>{locale === "pt-BR" ? "Tamanho da fonte" : "Font size"}</Text>
+            <Text style={[styles.sectionTitle,{ color: sheetPalette.text }]}>{t.fontSize}</Text>
             <View style={{flexDirection:"row",alignItems:"center",gap:12}}>
-              {[-0.1,0.1].map(delta=><Pressable key={delta} accessibilityRole="button" accessibilityLabel={locale === "pt-BR" ? (delta<0?"Diminuir fonte":"Aumentar fonte") : (delta<0?"Decrease font":"Increase font")} onPress={()=>{
+              {[-0.1,0.1].map(delta=><Pressable key={delta} accessibilityRole="button" accessibilityLabel={delta<0?t.decreaseFont:t.increaseFont} onPress={()=>{
                 const next=Math.max(0.7,Math.min(2,zoom+delta));
                 setDocumentState({zoom:next});
-              }} style={{minWidth:44,minHeight:44,justifyContent:"center",alignItems:"center"}}><Text style={{fontSize:20,color:isDark?"#fff":"#111"}}>{delta<0?"A−":"A+"}</Text></Pressable>)}
-              <Text style={{color:isDark?"#fff":"#111"}}>{Math.round(zoom*100)}%</Text>
+              }} style={{minWidth:44,minHeight:44,justifyContent:"center",alignItems:"center"}}><Text style={{fontSize:20,color:sheetPalette.text}}>{delta<0?"A−":"A+"}</Text></Pressable>)}
+              <Text style={{color:sheetPalette.text}}>{Math.round(zoom*100)}%</Text>
             </View>
           </View>
         )}
         {documentType === "comic" && (
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}>
+            <Text style={[styles.sectionTitle, { color: sheetPalette.text }]}>
               {t.comicMode}
             </Text>
             <View style={styles.optionRow}>
@@ -258,16 +248,16 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
                   <Pressable
                     key={mode}
                     onPress={() => setDocumentState({ comicLayoutMode: mode })}
-                    style={[styles.optionButton, isDark && styles.optionButtonDark, active && styles.optionButtonActive, active && { backgroundColor: accentColor }]}
+                    style={[styles.optionButton, { backgroundColor: sheetPalette.elevatedSurface }, active && styles.optionButtonActive, active && { backgroundColor: accentColor }]}
                   >
-                    <Text style={[styles.optionText, isDark && styles.optionTextDark, active && styles.optionTextActive]}>
+                    <Text style={[styles.optionText, { color: sheetPalette.text }, active && styles.optionTextActive]}>
                       {mode === "single" ? t.comicSingle : t.comicContinuous}
                     </Text>
                   </Pressable>
                 );
               })}
             </View>
-            <Text style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}>
+            <Text style={[styles.sectionTitle, { color: sheetPalette.text }]}>
               {t.comicFit}
             </Text>
             <View style={styles.optionRow}>
@@ -277,16 +267,16 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
                   <Pressable
                     key={mode}
                     onPress={() => setDocumentState({ comicFitMode: mode })}
-                    style={[styles.optionButton, isDark && styles.optionButtonDark, active && styles.optionButtonActive, active && { backgroundColor: accentColor }]}
+                    style={[styles.optionButton, { backgroundColor: sheetPalette.elevatedSurface }, active && styles.optionButtonActive, active && { backgroundColor: accentColor }]}
                   >
-                    <Text style={[styles.optionText, isDark && styles.optionTextDark, active && styles.optionTextActive]}>
+                    <Text style={[styles.optionText, { color: sheetPalette.text }, active && styles.optionTextActive]}>
                       {mode === "width" ? t.comicFitWidth : t.comicFitPage}
                     </Text>
                   </Pressable>
                 );
               })}
             </View>
-            <Text style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}>
+            <Text style={[styles.sectionTitle, { color: sheetPalette.text }]}>
               {t.comicDirection}
             </Text>
             <View style={styles.optionRow}>
@@ -296,9 +286,9 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
                   <Pressable
                     key={direction}
                     onPress={() => setDocumentState({ comicReadingDirection: direction })}
-                    style={[styles.optionButton, isDark && styles.optionButtonDark, active && styles.optionButtonActive, active && { backgroundColor: accentColor }]}
+                    style={[styles.optionButton, { backgroundColor: sheetPalette.elevatedSurface }, active && styles.optionButtonActive, active && { backgroundColor: accentColor }]}
                   >
-                    <Text style={[styles.optionText, isDark && styles.optionTextDark, active && styles.optionTextActive]}>
+                    <Text style={[styles.optionText, { color: sheetPalette.text }, active && styles.optionTextActive]}>
                       {direction === "ltr" ? t.comicLtr : t.comicRtl}
                     </Text>
                   </Pressable>
@@ -308,9 +298,9 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
           </View>
         )}
 
-        <View style={styles.section}>
+        {!hideAppearance && (<View style={styles.section}>
           <Text
-            style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}
+            style={[styles.sectionTitle, { color: sheetPalette.text }]}
           >
             {t.appearance}
           </Text>
@@ -319,7 +309,7 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
               onPress={() => setDocumentState({ uiTheme: "light" })}
               style={[
                 styles.optionButton,
-                isDark && styles.optionButtonDark,
+                { backgroundColor: sheetPalette.elevatedSurface },
                 uiTheme === "light" && styles.optionButtonActive,
                 uiTheme === "light" && { backgroundColor: accentColor },
               ]}
@@ -327,7 +317,7 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
               <Text
                 style={[
                   styles.optionText,
-                  isDark && styles.optionTextDark,
+                  { color: sheetPalette.text },
                   uiTheme === "light" && styles.optionTextActive,
                 ]}
               >
@@ -338,7 +328,7 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
               onPress={() => setDocumentState({ uiTheme: "dark" })}
               style={[
                 styles.optionButton,
-                isDark && styles.optionButtonDark,
+                { backgroundColor: sheetPalette.elevatedSurface },
                 uiTheme === "dark" && styles.optionButtonActive,
                 uiTheme === "dark" && { backgroundColor: accentColor },
               ]}
@@ -346,7 +336,7 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
               <Text
                 style={[
                   styles.optionText,
-                  isDark && styles.optionTextDark,
+                  { color: sheetPalette.text },
                   uiTheme === "dark" && styles.optionTextActive,
                 ]}
               >
@@ -354,11 +344,11 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
               </Text>
             </Pressable>
           </View>
-        </View>
+        </View>)}
 
         <View style={styles.section}>
           <Text
-            style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}
+            style={[styles.sectionTitle, { color: sheetPalette.text }]}
           >
             {t.pageTheme}
           </Text>
@@ -371,7 +361,7 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
                   onPress={() => setDocumentState({ pageTheme: option.value })}
                   style={[
                     styles.themeOptionButton,
-                    isDark && styles.themeOptionButtonDark,
+                    { borderColor: sheetPalette.divider, backgroundColor: sheetPalette.elevatedSurface },
                     active && styles.themeOptionButtonActive,
                     active && { borderColor: accentColor },
                   ]}
@@ -380,7 +370,7 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
                   <Text
                     style={[
                       styles.themeOptionLabel,
-                      isDark && styles.themeOptionLabelDark,
+                      { color: sheetPalette.text },
                       active && { color: accentColor },
                     ]}
                   >
@@ -394,7 +384,7 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
 
         {documentType !== "comic" && documentType !== "text" && (<View style={styles.section}>
           <Text
-            style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}
+            style={[styles.sectionTitle, { color: sheetPalette.text }]}
           >
             {t.pageTransition}
           </Text>
@@ -403,7 +393,7 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
               onPress={() => handleTransition("continuous")}
               style={[
                 styles.optionButton,
-                isDark && styles.optionButtonDark,
+                { backgroundColor: sheetPalette.elevatedSurface },
                 (!isPaged || isDouble) && styles.optionButtonActive,
                 (!isPaged || isDouble) && { backgroundColor: accentColor },
               ]}
@@ -411,7 +401,7 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
               <Text
                 style={[
                   styles.optionText,
-                  isDark && styles.optionTextDark,
+                  { color: sheetPalette.text },
                   (!isPaged || isDouble) && styles.optionTextActive,
                 ]}
               >
@@ -422,7 +412,7 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
               onPress={() => handleTransition("paged")}
               style={[
                 styles.optionButton,
-                isDark && styles.optionButtonDark,
+                { backgroundColor: sheetPalette.elevatedSurface },
                 isPaged && styles.optionButtonActive,
                 isPaged && { backgroundColor: accentColor },
               ]}
@@ -430,7 +420,7 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
               <Text
                 style={[
                   styles.optionText,
-                  isDark && styles.optionTextDark,
+                  { color: sheetPalette.text },
                   isPaged && styles.optionTextActive,
                 ]}
               >
@@ -442,7 +432,7 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
 
         {documentType === "pdf" && (<View style={styles.section}>
           <Text
-            style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}
+            style={[styles.sectionTitle, { color: sheetPalette.text }]}
           >
             {t.layout}
           </Text>
@@ -451,7 +441,7 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
               onPress={() => handleLayout("single")}
               style={[
                 styles.optionButton,
-                isDark && styles.optionButtonDark,
+                { backgroundColor: sheetPalette.elevatedSurface },
                 !isDouble && styles.optionButtonActive,
                 !isDouble && { backgroundColor: accentColor },
               ]}
@@ -459,7 +449,7 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
               <Text
                 style={[
                   styles.optionText,
-                  isDark && styles.optionTextDark,
+                  { color: sheetPalette.text },
                   !isDouble && styles.optionTextActive,
                 ]}
               >
@@ -470,7 +460,7 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
               onPress={() => handleLayout("double")}
               style={[
                 styles.optionButton,
-                isDark && styles.optionButtonDark,
+                { backgroundColor: sheetPalette.elevatedSurface },
                 isDouble && styles.optionButtonActive,
                 isDouble && { backgroundColor: accentColor },
               ]}
@@ -478,7 +468,7 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
               <Text
                 style={[
                   styles.optionText,
-                  isDark && styles.optionTextDark,
+                  { color: sheetPalette.text },
                   isDouble && styles.optionTextActive,
                 ]}
               >
@@ -490,17 +480,17 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
 
         {documentType !== "comic" && documentType !== "text" && (<View style={styles.section}>
           <Text
-            style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}
+            style={[styles.sectionTitle, { color: sheetPalette.text }]}
           >
             {t.rotate}
           </Text>
           <View style={styles.optionRow}>
             <Pressable
               onPress={() => handleRotate("counterclockwise")}
-              style={[styles.optionButton, isDark && styles.optionButtonDark]}
+              style={[styles.optionButton, { backgroundColor: sheetPalette.elevatedSurface }]}
             >
               <Text
-                style={[styles.optionText, isDark && styles.optionTextDark]}
+                style={[styles.optionText, { color: sheetPalette.text }]}
               >
                 {t.counterclockwise}
               </Text>
@@ -508,10 +498,10 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
             {Platform.OS === "ios" && (
               <Pressable
                 onPress={handleResetRotation}
-                style={[styles.optionButton, isDark && styles.optionButtonDark]}
+                style={[styles.optionButton, { backgroundColor: sheetPalette.elevatedSurface }]}
               >
                 <Text
-                  style={[styles.optionText, isDark && styles.optionTextDark]}
+                  style={[styles.optionText, { color: sheetPalette.text }]}
                 >
                   {t.rotationOriginal}
                 </Text>
@@ -519,10 +509,10 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
             )}
             <Pressable
               onPress={() => handleRotate("clockwise")}
-              style={[styles.optionButton, isDark && styles.optionButtonDark]}
+              style={[styles.optionButton, { backgroundColor: sheetPalette.elevatedSurface }]}
             >
               <Text
-                style={[styles.optionText, isDark && styles.optionTextDark]}
+                style={[styles.optionText, { color: sheetPalette.text }]}
               >
                 {t.clockwise}
               </Text>
@@ -532,78 +522,35 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
 
         {documentType !== "text" && (<View style={styles.section}>
           <Text
-            style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}
+            style={[styles.sectionTitle, { color: sheetPalette.text }]}
           >
             {t.zoom}
           </Text>
           <View style={styles.optionRow}>
             <Pressable
               onPress={() => handleZoom(-0.1)}
-              style={[styles.optionButton, isDark && styles.optionButtonDark]}
+              accessibilityRole="button"
+              accessibilityLabel={t.zoomOut}
+              style={[styles.optionButton, { backgroundColor: sheetPalette.elevatedSurface }]}
             >
-              <IconZoomOut size={16} color={isDark ? "#e5e7eb" : "#111827"} />
+              <IconZoomOut size={16} color={sheetPalette.text} />
             </Pressable>
             <View style={styles.zoomValue}>
-              <Text style={[styles.zoomText, isDark && styles.zoomTextDark]}>
+              <Text style={[styles.zoomText, { color: sheetPalette.text }]}>
                 {Math.round(zoom * 100)}%
               </Text>
             </View>
             <Pressable
               onPress={() => handleZoom(0.1)}
-              style={[styles.optionButton, isDark && styles.optionButtonDark]}
+              accessibilityRole="button"
+              accessibilityLabel={t.zoomIn}
+              style={[styles.optionButton, { backgroundColor: sheetPalette.elevatedSurface }]}
             >
-              <IconZoomIn size={16} color={isDark ? "#e5e7eb" : "#111827"} />
+              <IconZoomIn size={16} color={sheetPalette.text} />
             </Pressable>
           </View>
         </View>)}
 
-        <View style={styles.section}>
-          <Text
-            style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}
-          >
-            {t.language}
-          </Text>
-          <View style={styles.optionRow}>
-            <Pressable
-              onPress={() => setDocumentState({ locale: "en" })}
-              style={[
-                styles.optionButton,
-                isDark && styles.optionButtonDark,
-                locale === "en" && styles.optionButtonActive,
-                locale === "en" && { backgroundColor: accentColor },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.optionText,
-                  isDark && styles.optionTextDark,
-                  locale === "en" && styles.optionTextActive,
-                ]}
-              >
-                {t.english}
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={() => setDocumentState({ locale: "pt-BR" })}
-              style={[
-                styles.optionButton,
-                isDark && styles.optionButtonDark,
-                locale === "pt-BR" && styles.optionButtonActive,
-                locale === "pt-BR" && { backgroundColor: accentColor },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.optionText,
-                  isDark && styles.optionTextDark,
-                  locale === "pt-BR" && styles.optionTextActive,
-                ]}
-              >
-                {t.portuguese}
-              </Text>
-            </Pressable>
-          </View>
-        </View>
       </NativeSheetScrollView>
     </NativeSheet>
   );
@@ -626,9 +573,6 @@ const styles = StyleSheet.create({
     color: "#111827",
     marginBottom: 8,
   },
-  sectionTitleDark: {
-    color: "#e5e7eb",
-  },
   optionRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -642,9 +586,6 @@ const styles = StyleSheet.create({
     marginRight: 8,
     marginBottom: 8,
   },
-  optionButtonDark: {
-    backgroundColor: "#111827",
-  },
   optionButtonActive: {
     backgroundColor: "#2563eb",
   },
@@ -652,9 +593,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "700",
     color: "#111827",
-  },
-  optionTextDark: {
-    color: "#e5e7eb",
   },
   optionTextActive: {
     color: "#ffffff",
@@ -673,10 +611,6 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: "#d1d5db",
     backgroundColor: "#f9fafb",
-  },
-  themeOptionButtonDark: {
-    borderColor: "#374151",
-    backgroundColor: "#111827",
   },
   themeOptionButtonActive: {
     borderWidth: 2,
@@ -722,9 +656,6 @@ const styles = StyleSheet.create({
     color: "#111827",
     textAlign: "center",
   },
-  themeOptionLabelDark: {
-    color: "#e5e7eb",
-  },
   zoomValue: {
     minWidth: 52,
     alignItems: "center",
@@ -734,9 +665,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
     color: "#111827",
-  },
-  zoomTextDark: {
-    color: "#e5e7eb",
   },
 });
 

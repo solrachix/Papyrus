@@ -46,9 +46,28 @@ export type {
   ReaderContentsEntry,
   ReaderHeaderAction,
   ReaderSettingsChoiceGroup,
+  ReaderSettingsStepper,
   ReaderSheetAction,
 } from "./components/sharedReaderChrome/types";
 export { getEpubTypographyGroups } from "./components/epubTypographyOptions";
+export {
+  createReaderFormatSettingsSetters,
+  getReaderFormatSettingsGroups,
+  getReaderZoomStepper,
+} from "./components/readerFormatSettings";
+export type {
+  ReaderFormatSettingsSetters,
+  ReaderFormatSettingsState,
+} from "./components/readerFormatSettings";
+export {
+  getReaderSheetPalette,
+  resolveReaderSheetAppearance,
+  toReaderSheetTheme,
+} from "./components/readerSheetPresentation";
+export type {
+  ReaderSheetPalette,
+  ReaderSheetTheme,
+} from "./components/readerSheetPresentation";
 export type { ToolDockProps } from "./components/ToolDock";
 export { MOBILE_CHROME_METRICS } from "./components/mobileChromeMetrics";
 export {

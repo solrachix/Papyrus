@@ -1,15 +1,18 @@
 import React, { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { useViewerStore } from "@papyrus-sdk/core";
+import { getStrings } from "../mobileStrings";
 import { resolvePageJumpTarget } from "./pageJumpModel";
 import { NativeSheet } from "./NativeSheet";
-import { getReaderSheetPalette } from "./readerSheetPresentation";
+import { useReaderSheetAppearance } from "./useReaderSheetAppearance";
 
 type PageJumpModalProps = {
   documentType?: string;
   visible: boolean;
   currentPage: number;
   pageCount: number;
-  isDark: boolean;
+  /** @deprecated The sheet follows the viewer page theme. */
+  isDark?: boolean;
   accentColor: string;
   onClose: () => void;
   onConfirm: (page: number) => void;
@@ -20,13 +23,13 @@ export function PageJumpModal({
   visible,
   currentPage,
   pageCount,
-  isDark,
   accentColor,
   onClose,
   onConfirm,
 }: PageJumpModalProps) {
+  const t = getStrings(useViewerStore((state) => state.locale));
   const [value, setValue] = useState(`${currentPage}`);
-  const palette = getReaderSheetPalette(isDark);
+  const { isDark, sheetTheme, palette } = useReaderSheetAppearance();
   useEffect(() => {
     if (visible) setValue(`${currentPage}`);
   }, [currentPage, visible]);
@@ -41,10 +44,12 @@ export function PageJumpModal({
       visible={visible}
       onClose={onClose}
       isDark={isDark}
+      sheetTheme={sheetTheme}
+      sheetPalette={palette}
       maxHeight={300}
       showHeader
-      title={documentType === "epub" ? "Ir para capítulo" : "Ir para página"}
-      closeAccessibilityLabel="Fechar navegação"
+      title={documentType === "epub" ? t.goToChapter : t.goToPage}
+      closeAccessibilityLabel={t.closeNavigation}
       sheetStyle={{
         paddingHorizontal: 18,
         paddingBottom: 18,
@@ -70,7 +75,7 @@ export function PageJumpModal({
           },
         ]}
         onSubmitEditing={confirmJump}
-        accessibilityLabel={documentType === "epub" ? "Número do capítulo" : "Número da página"}
+        accessibilityLabel={documentType === "epub" ? t.chapterNumber : t.pageNumber}
         testID="papyrus-page-jump-input"
       />
       <View style={styles.actions}>
@@ -82,7 +87,7 @@ export function PageJumpModal({
           ]}
         >
           <Text style={[styles.actionText, { color: palette.text }]}>
-            Cancelar
+            {t.cancel}
           </Text>
         </Pressable>
         <Pressable
@@ -90,7 +95,7 @@ export function PageJumpModal({
           style={[styles.actionButton, { backgroundColor: accentColor }]}
           testID="papyrus-page-jump-confirm"
         >
-          <Text style={[styles.actionText, styles.actionTextPrimary]}>Ir</Text>
+          <Text style={[styles.actionText, styles.actionTextPrimary]}>{t.go}</Text>
         </Pressable>
       </View>
     </NativeSheet>

@@ -4,7 +4,7 @@ import { useViewerStore } from "@papyrus-sdk/core";
 import { DocumentType } from "@papyrus-sdk/types";
 import { NativeSheet, NativeSheetScrollView } from "./NativeSheet";
 import { buildInfoRows } from "./infoSheetModel";
-import { getReaderSheetPalette } from "./readerSheetPresentation";
+import { useReaderSheetAppearance } from "./useReaderSheetAppearance";
 
 type InfoSheetProps = {
   visible: boolean;
@@ -29,8 +29,7 @@ export function InfoSheet({
     pageTheme,
     locale,
   } = useViewerStore();
-  const isDark = uiTheme === "dark";
-  const palette = getReaderSheetPalette(isDark);
+  const { isDark, sheetTheme, palette } = useReaderSheetAppearance();
   const isPortuguese = locale === "pt-BR";
   const rows = buildInfoRows({
     title,
@@ -50,6 +49,8 @@ export function InfoSheet({
       visible={visible}
       onClose={onClose}
       isDark={isDark}
+      sheetTheme={sheetTheme}
+      sheetPalette={palette}
       maxHeight="88%"
       showHeader
       title={isPortuguese ? "Informações" : "Information"}

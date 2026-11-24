@@ -38,8 +38,9 @@ import {
 } from "./NativeSheet";
 import {
   getAnnotationKindLabel,
-  getReaderSheetPalette,
+  type ReaderSheetPalette,
 } from "./readerSheetPresentation";
+import { useReaderSheetAppearance } from "./useReaderSheetAppearance";
 import { shouldRemoveThumbnailClipping } from "./thumbnailClipping";
 import { resolveNoteQuoteParts } from "./noteQuoteLayout";
 import ReaderContentsView from "./sharedReaderChrome/ReaderContentsView";
@@ -78,11 +79,41 @@ const resolvePositiveInt = (
   return Math.max(min, Math.min(max, rounded));
 };
 
+const themedStylesCache = new WeakMap<ReaderSheetPalette, ReturnType<typeof buildThemedStyles>>();
+
+const buildThemedStyles = (palette: ReaderSheetPalette) => ({
+  sheetTitle: { color: palette.text },
+  pageStatus: { color: palette.mutedText },
+  closeButton: { backgroundColor: palette.closeSurface, borderColor: palette.divider },
+  segmented: { backgroundColor: palette.elevatedSurface },
+  segmentText: { color: palette.text },
+  thumbCard: { backgroundColor: palette.elevatedSurface, borderColor: palette.divider },
+  thumbFallback: { backgroundColor: palette.surface },
+  thumbFallbackText: { color: palette.text },
+  thumbLabel: { color: palette.text },
+  outlineText: { color: palette.text },
+  emptyText: { color: palette.mutedText },
+  progressRow: { backgroundColor: palette.elevatedSurface, borderColor: palette.divider },
+  progressLabel: { color: palette.text },
+  progressMeta: { color: palette.mutedText },
+  progressPreview: { backgroundColor: palette.surface, borderColor: palette.divider },
+});
+
+/** Page-theme colours layered over the base styles (light/sepia/dark/contrast). */
+const themedStyles = (palette: ReaderSheetPalette) => {
+  let cached = themedStylesCache.get(palette);
+  if (!cached) {
+    cached = buildThemedStyles(palette);
+    themedStylesCache.set(palette, cached);
+  }
+  return cached;
+};
+
 const PageThumbnail: React.FC<{
   engine: DocumentEngine;
   pageIndex: number;
   isActive: boolean;
-  isDark: boolean;
+  palette: ReaderSheetPalette;
   zoom: number;
   cardWidth: number;
   frameWidth: number;
@@ -96,7 +127,7 @@ const PageThumbnail: React.FC<{
   engine,
   pageIndex,
   isActive,
-  isDark,
+  palette,
   zoom,
   cardWidth,
   frameWidth,
@@ -163,7 +194,7 @@ const PageThumbnail: React.FC<{
       style={[
         styles.thumbCard,
         { width: cardWidth },
-        isDark && styles.thumbCardDark,
+        themedStyles(palette).thumbCard,
         isActive && styles.thumbCardActive,
         isActive && { borderColor: accentColor },
       ]}
@@ -182,12 +213,12 @@ const PageThumbnail: React.FC<{
           />
         ) : (
           <View
-            style={[styles.thumbFallback, isDark && styles.thumbFallbackDark]}
+            style={[styles.thumbFallback, themedStyles(palette).thumbFallback]}
           >
             <Text
               style={[
                 styles.thumbFallbackText,
-                isDark && styles.thumbFallbackTextDark,
+                themedStyles(palette).thumbFallbackText,
               ]}
             >
               {pageIndex + 1}
@@ -195,7 +226,7 @@ const PageThumbnail: React.FC<{
           </View>
         )}
       </View>
-      <Text style={[styles.thumbLabel, isDark && styles.thumbLabelDark]}>
+      <Text style={[styles.thumbLabel, themedStyles(palette).thumbLabel]}>
         {pageIndex + 1}
       </Text>
     </Pressable>
@@ -205,8 +236,8 @@ const PageThumbnail: React.FC<{
 const ComicProgressPreview: React.FC<{
   engine: DocumentEngine;
   pageIndex: number;
-  isDark: boolean;
-}> = ({ engine, pageIndex, isDark }) => {
+  palette: ReaderSheetPalette;
+}> = ({ engine, pageIndex, palette }) => {
   const [previewUri, setPreviewUri] = useState<string | null>(null);
 
   useEffect(() => {
@@ -230,7 +261,7 @@ const ComicProgressPreview: React.FC<{
 
   return (
     <View
-      style={[styles.progressPreview, isDark && styles.progressPreviewDark]}
+      style={[styles.progressPreview, themedStyles(palette).progressPreview]}
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
     >
@@ -248,10 +279,10 @@ const ComicProgressPreview: React.FC<{
 const OutlineNode: React.FC<{
   item: OutlineItem;
   depth?: number;
-  isDark: boolean;
+  palette: ReaderSheetPalette;
   onSelect: (pageIndex: number) => void;
   untitledLabel: string;
-}> = ({ item, depth = 0, isDark, onSelect, untitledLabel }) => {
+}> = ({ item, depth = 0, palette, onSelect, untitledLabel }) => {
   const hasChildren = item.children && item.children.length > 0;
   const isClickable = item.pageIndex >= 0;
 
@@ -266,7 +297,7 @@ const OutlineNode: React.FC<{
         <Text
           style={[
             styles.outlineText,
-            isDark && styles.outlineTextDark,
+            themedStyles(palette).outlineText,
             !isClickable && styles.outlineTextMuted,
           ]}
           numberOfLines={2}
@@ -280,7 +311,7 @@ const OutlineNode: React.FC<{
               key={`${child.title}-${index}`}
               item={child}
               depth={depth + 1}
-              isDark={isDark}
+              palette={palette}
               onSelect={onSelect}
               untitledLabel={untitledLabel}
             />
@@ -302,7 +333,6 @@ const RightSheet: React.FC<RightSheetProps> = ({
     sidebarRightTab,
     outline,
     annotations,
-    uiTheme,
     setDocumentState,
     triggerScrollToPage,
     setSelectedAnnotation,
@@ -325,8 +355,7 @@ const RightSheet: React.FC<RightSheetProps> = ({
         : "summary",
     );
   }, [documentType]);
-  const isDark = uiTheme === "dark";
-  const palette = getReaderSheetPalette(isDark);
+  const { isDark, sheetTheme, palette } = useReaderSheetAppearance();
   const t = getStrings(locale);
   const showingNotes = sidebarRightTab === "annotations";
   const sheetHeight = resolveRightSheetHeight({
@@ -554,7 +583,7 @@ const RightSheet: React.FC<RightSheetProps> = ({
           engine={engine}
           pageIndex={item}
           isActive={item + 1 === currentPage}
-          isDark={isDark}
+          palette={palette}
           zoom={zoom}
           cardWidth={cardWidth}
           frameWidth={frameWidth}
@@ -574,8 +603,8 @@ const RightSheet: React.FC<RightSheetProps> = ({
       engine,
       frameWidth,
       getThumbnailFrameHeight,
-      isDark,
       jumpToPage,
+      palette,
       resolvedThumbsPrewarmCount,
       useNativePreview,
       useImagePreview,
@@ -614,6 +643,7 @@ const RightSheet: React.FC<RightSheetProps> = ({
         visible
         title={t.contents}
         isDark={isDark}
+        sheetTheme={sheetTheme}
         accentColor={accentColor}
         entries={contentsEntries}
         onSelect={selectEpubEntry}
@@ -629,6 +659,8 @@ const RightSheet: React.FC<RightSheetProps> = ({
       visible={sidebarRightOpen}
       onClose={closeSheet}
       isDark={isDark}
+      sheetTheme={sheetTheme}
+      sheetPalette={palette}
       maxHeight={sheetHeight}
       closeAccessibilityLabel={`${t.close} ${
         showingNotes ? t.notes.toLowerCase() : t.contents.toLowerCase()
@@ -640,7 +672,7 @@ const RightSheet: React.FC<RightSheetProps> = ({
     >
       <View style={styles.sheet}>
         <View style={styles.header}>
-          <Text style={[styles.sheetTitle, isDark && styles.sheetTitleDark]}>
+          <Text style={[styles.sheetTitle, themedStyles(palette).sheetTitle]}>
             {showingNotes ? t.notes : navigationTitle}
           </Text>
           {!showingNotes ? (
@@ -648,10 +680,10 @@ const RightSheet: React.FC<RightSheetProps> = ({
               onPress={showingProgress ? undefined : onOpenPageJump}
               disabled={showingProgress || pageCount <= 0}
               style={styles.pageStatusHit}
-              accessibilityLabel="Open page jump"
+              accessibilityLabel={t.goToPage}
             >
               <Text
-                style={[styles.pageStatus, isDark && styles.pageStatusDark]}
+                style={[styles.pageStatus, themedStyles(palette).pageStatus]}
               >
                 {showingProgress
                   ? `${Math.round(
@@ -667,7 +699,7 @@ const RightSheet: React.FC<RightSheetProps> = ({
               showingNotes ? t.notes.toLowerCase() : t.contents.toLowerCase()
             }`}
             onPress={closeSheet}
-            style={[styles.closeButton, isDark && styles.closeButtonDark]}
+            style={[styles.closeButton, themedStyles(palette).closeButton]}
           >
             <IconClose size={18} color={palette.text} />
           </Pressable>
@@ -678,7 +710,7 @@ const RightSheet: React.FC<RightSheetProps> = ({
             {!showingProgress ? (
               <View style={styles.pageHeader}>
                 <View
-                  style={[styles.segmented, isDark && styles.segmentedDark]}
+                  style={[styles.segmented, themedStyles(palette).segmented]}
                 >
                   {supportsThumbnails ? (
                     <Pressable
@@ -695,7 +727,7 @@ const RightSheet: React.FC<RightSheetProps> = ({
                       <Text
                         style={[
                           styles.segmentText,
-                          isDark && styles.segmentTextDark,
+                          themedStyles(palette).segmentText,
                           pagesMode === "thumbnails" &&
                             styles.segmentTextActive,
                         ]}
@@ -717,7 +749,7 @@ const RightSheet: React.FC<RightSheetProps> = ({
                     <Text
                       style={[
                         styles.segmentText,
-                        isDark && styles.segmentTextDark,
+                        themedStyles(palette).segmentText,
                         pagesMode === "summary" && styles.segmentTextActive,
                       ]}
                     >
@@ -770,7 +802,7 @@ const RightSheet: React.FC<RightSheetProps> = ({
                       accessibilityLabel={`${entry.percent}%, ${t.page} ${entry.pageIndex + 1}`}
                       style={[
                         styles.progressRow,
-                        isDark && styles.progressRowDark,
+                        themedStyles(palette).progressRow,
                         isActive && { borderColor: accentColor },
                       ]}
                     >
@@ -778,14 +810,14 @@ const RightSheet: React.FC<RightSheetProps> = ({
                         <ComicProgressPreview
                           engine={engine}
                           pageIndex={entry.pageIndex}
-                          isDark={isDark}
+                          palette={palette}
                         />
                       ) : null}
                       <View style={styles.progressLabels}>
                         <Text
                           style={[
                             styles.progressLabel,
-                            isDark && styles.progressLabelDark,
+                            themedStyles(palette).progressLabel,
                           ]}
                         >
                           {entry.percent}%
@@ -793,7 +825,7 @@ const RightSheet: React.FC<RightSheetProps> = ({
                         <Text
                           style={[
                             styles.progressMeta,
-                            isDark && styles.progressMetaDark,
+                            themedStyles(palette).progressMeta,
                           ]}
                         >
                           {t.page} {entry.pageIndex + 1}
@@ -810,7 +842,7 @@ const RightSheet: React.FC<RightSheetProps> = ({
               >
                 {outline.length === 0 ? (
                   <Text
-                    style={[styles.emptyText, isDark && styles.emptyTextDark]}
+                    style={[styles.emptyText, themedStyles(palette).emptyText]}
                   >
                     {t.noSummary}
                   </Text>
@@ -819,7 +851,7 @@ const RightSheet: React.FC<RightSheetProps> = ({
                     <OutlineNode
                       key={`${item.title}-${index}`}
                       item={item}
-                      isDark={isDark}
+                      palette={palette}
                       untitledLabel={t.untitled}
                       onSelect={jumpToPage}
                     />
@@ -834,7 +866,7 @@ const RightSheet: React.FC<RightSheetProps> = ({
             showsVerticalScrollIndicator={false}
           >
             {annotations.length === 0 ? (
-              <Text style={[styles.emptyText, isDark && styles.emptyTextDark]}>
+              <Text style={[styles.emptyText, themedStyles(palette).emptyText]}>
                 {t.noAnnotations}
               </Text>
             ) : (
@@ -919,7 +951,8 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: 16,
-    paddingTop: 16,
+    // NativeSheet's drag handle sits above this header.
+    paddingTop: 4,
     paddingBottom: 14,
     marginBottom: 0,
     gap: 8,
@@ -932,9 +965,6 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: "#111827",
     flex: 1,
-  },
-  sheetTitleDark: {
-    color: "#f8fafc",
   },
   pagesContent: {
     paddingHorizontal: 16,
@@ -956,9 +986,6 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 8,
   },
-  pageStatusDark: {
-    color: "#e5e7eb",
-  },
   closeButton: {
     width: 42,
     height: 42,
@@ -969,18 +996,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#d9e1ec",
   },
-  closeButtonDark: {
-    backgroundColor: "#1b2230",
-    borderColor: "#2b3445",
-  },
   segmented: {
     flexDirection: "row",
     backgroundColor: "#e5e7eb",
     borderRadius: 999,
     padding: 2,
-  },
-  segmentedDark: {
-    backgroundColor: "#111827",
   },
   segmentButton: {
     paddingHorizontal: 10,
@@ -994,9 +1014,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "700",
     color: "#111827",
-  },
-  segmentTextDark: {
-    color: "#e5e7eb",
   },
   segmentTextActive: {
     color: "#ffffff",
@@ -1015,10 +1032,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#e5e7eb",
     alignItems: "center",
-  },
-  thumbCardDark: {
-    backgroundColor: "#111827",
-    borderColor: "#1f2937",
   },
   thumbCardActive: {
     borderColor: "#2563eb",
@@ -1042,25 +1055,16 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "#ffffff",
   },
-  thumbFallbackDark: {
-    backgroundColor: "#0b0f14",
-  },
   thumbFallbackText: {
     fontSize: 18,
     fontWeight: "800",
     color: "#1f2937",
-  },
-  thumbFallbackTextDark: {
-    color: "#e5e7eb",
   },
   thumbLabel: {
     marginTop: 6,
     fontSize: 11,
     fontWeight: "700",
     color: "#111827",
-  },
-  thumbLabelDark: {
-    color: "#e5e7eb",
   },
   content: {
     paddingHorizontal: 16,
@@ -1084,9 +1088,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#111827",
   },
-  outlineTextDark: {
-    color: "#e5e7eb",
-  },
   outlineTextMuted: {
     color: "#9ca3af",
   },
@@ -1095,9 +1096,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#6b7280",
   },
-  emptyTextDark: {
-    color: "#9ca3af",
-  },
   noteCard: {
     padding: 12,
     borderRadius: 12,
@@ -1105,10 +1103,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#e5e7eb",
     marginBottom: 12,
-  },
-  noteCardDark: {
-    backgroundColor: "#111827",
-    borderColor: "#1f2937",
   },
   noteHeader: {
     flexDirection: "row",
@@ -1126,16 +1120,10 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#111827",
   },
-  noteTitleDark: {
-    color: "#e5e7eb",
-  },
   noteType: {
     fontSize: 10,
     fontWeight: "800",
     color: "#2563eb",
-  },
-  noteTypeDark: {
-    color: "#60a5fa",
   },
   noteContent: {
     fontSize: 11,
@@ -1158,9 +1146,6 @@ const styles = StyleSheet.create({
   noteQuoteText: {
     flex: 1,
   },
-  noteContentDark: {
-    color: "#9ca3af",
-  },
   progressRow: {
     paddingHorizontal: 14,
     paddingVertical: 8,
@@ -1174,25 +1159,15 @@ const styles = StyleSheet.create({
     justifyContent: "flex-start",
     gap: 12,
   },
-  progressRowDark: {
-    backgroundColor: "#111827",
-    borderColor: "#1f2937",
-  },
   progressLabel: {
     fontSize: 13,
     fontWeight: "800",
     color: "#111827",
   },
-  progressLabelDark: {
-    color: "#f8fafc",
-  },
   progressMeta: {
     fontSize: 11,
     fontWeight: "700",
     color: "#64748b",
-  },
-  progressMetaDark: {
-    color: "#94a3b8",
   },
   progressLabels: {
     flex: 1,
@@ -1210,10 +1185,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#ffffff",
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: "#e5e7eb",
-  },
-  progressPreviewDark: {
-    backgroundColor: "#0b0f14",
-    borderColor: "#334155",
   },
   progressPreviewImage: {
     width: "100%",
