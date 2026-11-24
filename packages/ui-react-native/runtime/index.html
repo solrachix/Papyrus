@@ -20711,6 +20711,23 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     var anchor = {version:1,kind:'epub-cfi',cfiRange:cfiRange,href:href,spineIndex:contents.sectionIndex,documentId:documentId,quote:range.toString(),prefix:before.toString().slice(-48),suffix:after.toString().slice(0,48)};
     return validAnchor(anchor) ? anchor : null;
   }
+  // Ink eraser hit test: rendered stroke polylines (body coordinates) keyed by
+  // annotation id. Returns the id of the top-most stroke within reach.
+  function inkHitAt(entries, x, y, slop) {
+    var found = null;
+    entries.forEach(function(entry, id) {
+      var reach = Math.max(0, slop || 0) + (entry.stroke || 0) / 2;
+      entry.paths.forEach(function(points) {
+        for (var i = 0; i < points.length; i++) {
+          var a = points[i], b = points[i + 1] || a;
+          var dx = b.x - a.x, dy = b.y - a.y, length = dx * dx + dy * dy;
+          var t = length ? Math.max(0, Math.min(1, ((x - a.x) * dx + (y - a.y) * dy) / length)) : 0;
+          if (Math.hypot(x - (a.x + t * dx), y - (a.y + t * dy)) <= reach) { found = id; return; }
+        }
+      });
+    });
+    return found;
+  }
   function install(contents, options) {
     var doc = contents.document, win = contents.window, alive = true, frame = 0;
     var overlay = doc.createElement('div'); overlay.dataset.papyrusOverlay = 'annotations';
@@ -20719,7 +20736,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     if(win.getComputedStyle(doc.body).position==='static')doc.body.style.position='relative';
     doc.body.appendChild(overlay);
     var registry = new Map(), hitRegions = [];
-    var inkRegistry = new Map(), rangeCache = new Map(), spatialIndex = null, activeGesture = null, inkConfig = {enabled:false,preset:'ink'};
+    var inkRegistry = new Map(), inkHitPaths = new Map(), rangeCache = new Map(), spatialIndex = null, activeGesture = null, inkConfig = {enabled:false,preset:'ink'};
     var inkSvg = doc.createElementNS('http://www.w3.org/2000/svg','svg');
     inkSvg.setAttribute('data-papyrus-ink-overlay','');
     inkSvg.style.cssText = 'position:absolute;left:0;top:0;overflow:visible;pointer-events:none;z-index:1';
@@ -20800,11 +20817,12 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       keep.add(annotation.id);
       var group=inkRegistry.get(annotation.id);
       if (!group) { group=doc.createElementNS('http://www.w3.org/2000/svg','g'); group.setAttribute('data-epub-ink-id',annotation.id); inkSvg.appendChild(group); inkRegistry.set(annotation.id,group); }
-      group.replaceChildren();
+      group.replaceChildren();group.style.display='';
       var color=/^#[0-9a-f]{6}$/i.test(annotation.color)?annotation.color:'#2563eb';
       var opacity=Number.isFinite(annotation.opacity)?Math.max(0,Math.min(1,annotation.opacity)):1;
       var preset=['ink','highlight','underline'].indexOf(data.preset)>=0?data.preset:'ink';
-      var stroke=inkStrokeWidthPx(annotation.strokeWidth,preset);
+      var stroke=inkStrokeWidthPx(annotation.strokeWidth,preset), hitPaths=[];
+      inkHitPaths.set(annotation.id,{stroke:stroke,paths:hitPaths});
       data.segments.forEach(function(segment) {
         if (segment.href!==options.href || !Array.isArray(segment.points)) return;
         var paths=[], current=[];
@@ -20821,6 +20839,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         });
         if(current.length>1)paths.push(current);
         paths.forEach(function(points) {
+          hitPaths.push(points);
           var d='M '+points[0].x.toFixed(1)+' '+points[0].y.toFixed(1);
           for(var i=1;i<points.length;i++){var prev=points[i-1],point=points[i],mx=(prev.x+point.x)/2,my=(prev.y+point.y)/2;d+=' Q '+prev.x.toFixed(1)+' '+prev.y.toFixed(1)+' '+mx.toFixed(1)+' '+my.toFixed(1);}
           var last=points[points.length-1];d+=' L '+last.x.toFixed(1)+' '+last.y.toFixed(1);
@@ -20884,9 +20903,25 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         epubInk:{version:1,kind:'epub-ink',documentId:documentId,preset:inkConfig.preset,segments:segments}};
       if(typeof options.onInkCommit==='function')options.onInkCommit(annotation);
     }
+    function eraseAt(event) {
+      var bodyRect=doc.body.getBoundingClientRect() || {left:0,top:0};
+      var id=inkHitAt(inkHitPaths,event.clientX-bodyRect.left,event.clientY-bodyRect.top,12);
+      if(!id || activeGesture.erased.has(id))return;
+      activeGesture.erased.add(id);
+      // Hide at once; the host removes the annotation and resyncs the layer.
+      var group=inkRegistry.get(id);if(group)group.style.display='none';
+      if(typeof options.onInkErase==='function')options.onInkErase(id);
+    }
     function pointerDown(event) {
       if(!inkConfig.enabled || !alive || !options.isCurrent() || event.button!==undefined && event.button!==0)return;
       if(activeGesture){cancelGesture();return;}
+      if(inkConfig.preset==='eraser'){
+        // Tap or scrub across strokes to erase them; nothing is drawn.
+        event.preventDefault();event.stopPropagation();
+        activeGesture={pointerId:event.pointerId,eraser:true,erased:new Set()};
+        try{inkCanvas.setPointerCapture(event.pointerId);}catch(_){}
+        eraseAt(event);return;
+      }
       event.preventDefault();event.stopPropagation();
       activeGesture={pointerId:event.pointerId,points:[{x:event.clientX+win.scrollX,y:event.clientY+win.scrollY}],last:{x:event.clientX,y:event.clientY},previewPath:null,previewPathPoints:0,previewLast:null};
       updatePreviewPath(event.clientX,event.clientY);
@@ -20896,13 +20931,14 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       if(!activeGesture || activeGesture.pointerId!==event.pointerId)return;
       if(!options.isCurrent()||!inkConfig.enabled){cancelGesture();return;}
       event.preventDefault();event.stopPropagation();
+      if(activeGesture.eraser){eraseAt(event);return;}
       var point={x:event.clientX+win.scrollX,y:event.clientY+win.scrollY};activeGesture.points.push(point);
       if(activeGesture.points.length>2048)activeGesture.points=compactGesturePoints(activeGesture.points,1024);
       if(inkContext){inkContext.beginPath();inkContext.moveTo(activeGesture.last.x,activeGesture.last.y);inkContext.lineTo(event.clientX,event.clientY);inkContext.strokeStyle=inkConfig.color;inkContext.globalAlpha=inkConfig.opacity;inkContext.lineWidth=inkStrokeWidthPx(inkConfig.strokeWidth,inkConfig.preset);inkContext.lineCap='round';inkContext.lineJoin='round';inkContext.stroke();}
       updatePreviewPath(event.clientX,event.clientY);
       activeGesture.last={x:event.clientX,y:event.clientY};
     }
-    function pointerUp(event) {if(!activeGesture || activeGesture.pointerId!==event.pointerId)return;event.preventDefault();event.stopPropagation();var end={x:event.clientX+win.scrollX,y:event.clientY+win.scrollY},last=activeGesture.points[activeGesture.points.length-1];if(Math.hypot(end.x-last.x,end.y-last.y)>0.5){activeGesture.points.push(end);updatePreviewPath(event.clientX,event.clientY);}commitGesture();}
+    function pointerUp(event) {if(!activeGesture || activeGesture.pointerId!==event.pointerId)return;event.preventDefault();event.stopPropagation();if(activeGesture.eraser){cancelGesture();return;}var end={x:event.clientX+win.scrollX,y:event.clientY+win.scrollY},last=activeGesture.points[activeGesture.points.length-1];if(Math.hypot(end.x-last.x,end.y-last.y)>0.5){activeGesture.points.push(end);updatePreviewPath(event.clientX,event.clientY);}commitGesture();}
     function pointerCancel(event) {if(activeGesture && (event.pointerId===undefined || activeGesture.pointerId===event.pointerId))cancelGesture();}
     resizeCanvas();rebuildSpatialIndex();
     inkCanvas.addEventListener('pointerdown',pointerDown);inkCanvas.addEventListener('pointermove',pointerMove);inkCanvas.addEventListener('pointerup',pointerUp);inkCanvas.addEventListener('pointercancel',pointerCancel);inkCanvas.addEventListener('lostpointercapture',pointerCancel);
@@ -20956,7 +20992,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         group.button.addEventListener('click',function(e){e.stopPropagation();if(options.isCurrent())options.onTap(group.ids[0],group.ids);});
       });
       registry.forEach(function(group,id){if (!keep.has(id)) {group.remove();registry.delete(id);}});
-      inkRegistry.forEach(function(group,id){if (!keepInk.has(id)) {group.remove();inkRegistry.delete(id);}});
+      inkRegistry.forEach(function(group,id){if (!keepInk.has(id)) {group.remove();inkRegistry.delete(id);inkHitPaths.delete(id);}});
     }
     function schedule() { if (alive && !frame) frame = win.requestAnimationFrame(render); }
     function rebuildAndSchedule(){if(!alive)return;rebuildSpatialIndex();schedule();}
@@ -20973,9 +21009,9 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     win.addEventListener('resize',handleResize);win.addEventListener('scroll',schedule); doc.addEventListener('load',handleDocumentLoad,true);
     if (doc.fonts && doc.fonts.ready) doc.fonts.ready.then(function(){if(alive){rebuildSpatialIndex();schedule();}});
     schedule();
-    return {schedule:schedule, setInkMode:function(config){var preset=['ink','highlight','underline'].indexOf(config?.preset)>=0?config.preset:'ink';inkConfig={enabled:!!config?.enabled,preset:preset,color:/^#[0-9a-f]{6}$/i.test(config?.color)?config.color:'#2563eb',opacity:Number.isFinite(config?.opacity)?Math.max(0,Math.min(1,config.opacity)):1,strokeWidth:Number.isFinite(config?.strokeWidth)?Math.max(0.0025,Math.min(0.02,config.strokeWidth)):0.006};inkCanvas.style.pointerEvents=inkConfig.enabled?'auto':'none';if(!inkConfig.enabled)cancelGesture();}, invalidateLayout:rebuildAndSchedule, hit:function(x,y){return hitRegions.some(function(item){return item.rects.some(function(r){return x>=r.left && x<=r.right && y>=r.top && y<=r.bottom;});});}, range:function(anchor){return resolveRange(contents,anchor);}, destroy:function(){alive=false;cancelGesture();if(frame)win.cancelAnimationFrame(frame);if(observer)observer.disconnect();win.removeEventListener('resize',handleResize);win.removeEventListener('scroll',schedule);win.removeEventListener('blur',pointerCancel);doc.removeEventListener('load',handleDocumentLoad,true);doc.removeEventListener('click',tapMarkup);inkCanvas.removeEventListener('pointerdown',pointerDown);inkCanvas.removeEventListener('pointermove',pointerMove);inkCanvas.removeEventListener('pointerup',pointerUp);inkCanvas.removeEventListener('pointercancel',pointerCancel);inkCanvas.removeEventListener('lostpointercapture',pointerCancel);inkCanvas.remove();previewSvg.remove();overlay.remove();doc.body.style.position=originalPosition;registry.clear();inkRegistry.clear();rangeCache.clear();}};
+    return {schedule:schedule, setInkMode:function(config){var preset=['ink','highlight','underline','eraser'].indexOf(config?.preset)>=0?config.preset:'ink';inkConfig={enabled:!!config?.enabled,preset:preset,color:/^#[0-9a-f]{6}$/i.test(config?.color)?config.color:'#2563eb',opacity:Number.isFinite(config?.opacity)?Math.max(0,Math.min(1,config.opacity)):1,strokeWidth:Number.isFinite(config?.strokeWidth)?Math.max(0.0025,Math.min(0.02,config.strokeWidth)):0.006};inkCanvas.style.pointerEvents=inkConfig.enabled?'auto':'none';if(!inkConfig.enabled)cancelGesture();}, invalidateLayout:rebuildAndSchedule, hit:function(x,y){return hitRegions.some(function(item){return item.rects.some(function(r){return x>=r.left && x<=r.right && y>=r.top && y<=r.bottom;});});}, range:function(anchor){return resolveRange(contents,anchor);}, destroy:function(){alive=false;cancelGesture();if(frame)win.cancelAnimationFrame(frame);if(observer)observer.disconnect();win.removeEventListener('resize',handleResize);win.removeEventListener('scroll',schedule);win.removeEventListener('blur',pointerCancel);doc.removeEventListener('load',handleDocumentLoad,true);doc.removeEventListener('click',tapMarkup);inkCanvas.removeEventListener('pointerdown',pointerDown);inkCanvas.removeEventListener('pointermove',pointerMove);inkCanvas.removeEventListener('pointerup',pointerUp);inkCanvas.removeEventListener('pointercancel',pointerCancel);inkCanvas.removeEventListener('lostpointercapture',pointerCancel);inkCanvas.remove();previewSvg.remove();overlay.remove();doc.body.style.position=originalPosition;registry.clear();inkRegistry.clear();inkHitPaths.clear();rangeCache.clear();}};
   }
-  return {validAnchor:validAnchor,simplifyPath:simplifyPath,compactGesturePoints:compactGesturePoints,densifyPath:densifyPath,createSpatialIndex:createSpatialIndex,queryNearestTextRect:queryNearestTextRect,recoverRange:recoverRange,resolveRange:resolveRange,selection:selection,install:install};
+  return {validAnchor:validAnchor,simplifyPath:simplifyPath,compactGesturePoints:compactGesturePoints,densifyPath:densifyPath,createSpatialIndex:createSpatialIndex,queryNearestTextRect:queryNearestTextRect,recoverRange:recoverRange,resolveRange:resolveRange,selection:selection,inkHitAt:inkHitAt,install:install};
 });
 
 /* @papyrus-epub-annotations:end */
@@ -22198,6 +22234,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             pageWidth: () => activeRendition.layout?.width || viewer.clientWidth,
             annotations: () => epubAnnotations, labels: () => annotationLabels,
             onInkCommit: annotation => sendEvent('EPUB_INK_CREATED',{documentSessionId:session,annotation}),
+            onInkErase: id => sendEvent('EPUB_INK_ERASED',{documentSessionId:session,id}),
             onTap: (id, ids) => sendEvent("EPUB_ANNOTATION_TAP", {documentSessionId: session, id, ids}),
           });
           renderer.setInkMode(epubInkMode);
@@ -22762,7 +22799,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       }
       if (kind === 'set-epub-ink-mode') {
         if(currentType!=='epub'||!documentSessionId||payload.documentSessionId!==documentSessionId)throw new Error('Stale EPUB ink session');
-        epubInkMode={enabled:payload.enabled===true,preset:['ink','highlight','underline'].indexOf(payload.preset)>=0?payload.preset:'ink',color:/^#[0-9a-f]{6}$/i.test(payload.color||'')?payload.color:'#2563eb',opacity:Number.isFinite(payload.opacity)?Math.max(0,Math.min(1,payload.opacity)):1,strokeWidth:Number.isFinite(payload.strokeWidth)?Math.max(0.0025,Math.min(0.02,payload.strokeWidth)):0.006};
+        epubInkMode={enabled:payload.enabled===true,preset:['ink','highlight','underline','eraser'].indexOf(payload.preset)>=0?payload.preset:'ink',color:/^#[0-9a-f]{6}$/i.test(payload.color||'')?payload.color:'#2563eb',opacity:Number.isFinite(payload.opacity)?Math.max(0,Math.min(1,payload.opacity)):1,strokeWidth:Number.isFinite(payload.strokeWidth)?Math.max(0.0025,Math.min(0.02,payload.strokeWidth)):0.006};
         epubAnnotationRenderers.forEach(renderer=>renderer.setInkMode(epubInkMode));
         sendResponse(id,true,null);return;
       }

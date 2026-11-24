@@ -183,3 +183,19 @@ it('renders true strikeout, grouped notes and reconciles 120 stable IDs after re
  snapshot=[];renderer.schedule();flush();expect(document.querySelectorAll('[data-annotation-id]')).toHaveLength(0);
  renderer.destroy();expect(document.querySelector('[data-papyrus-overlay]')).toBeNull();window.requestAnimationFrame=originalRAF;
 });
+
+describe('EPUB ink eraser hit test',()=>{
+ const strokes=new Map<string,any>([
+  ['line',{stroke:4,paths:[[{x:10,y:10},{x:110,y:10}]]}],
+  ['dot',{stroke:2,paths:[[{x:300,y:300}]]}],
+ ]);
+ it('hits a stroke near any of its segments, including its width',()=>{
+  expect(annotations.inkHitAt(strokes,60,20,8)).toBe('line');
+  expect(annotations.inkHitAt(strokes,60,25,8)).toBeNull();
+  expect(annotations.inkHitAt(strokes,305,300,6)).toBe('dot');
+ });
+ it('misses empty space and empty layers',()=>{
+  expect(annotations.inkHitAt(strokes,200,200,12)).toBeNull();
+  expect(annotations.inkHitAt(new Map(),0,0,12)).toBeNull();
+ });
+});

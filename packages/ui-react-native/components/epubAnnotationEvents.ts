@@ -21,11 +21,22 @@ export function parseEpubSelectionGeometryEvent(raw:string,session:string):{kind
  const rect=parseEpubSelectionRect(message.payload.rect);
  return rect?{kind:'rect',rect}:null;
 }
-const EPUB_INK_PRESETS: readonly EpubInkPreset[] = ['ink','highlight','underline'];
+/** Runtime ink modes: the stored presets plus the eraser, which removes strokes instead of drawing. */
+export type EpubInkMode = EpubInkPreset | 'eraser';
+const EPUB_INK_MODES: readonly EpubInkMode[] = ['ink','highlight','underline','eraser'];
 export function resolveEpubInkMode(input:{documentType:string;isLoaded:boolean;activeTool:string;preset:string;color:string;opacity:number;strokeWidth:number}) {
  if(!input.isLoaded||input.documentType!=='epub')return null;
- const preset=EPUB_INK_PRESETS.includes(input.preset as EpubInkPreset)?input.preset as EpubInkPreset:'ink';
- return {enabled:input.activeTool==='ink'&&EPUB_INK_PRESETS.includes(input.preset as EpubInkPreset),preset,color:input.color,opacity:input.opacity,strokeWidth:input.strokeWidth};
+ const known=EPUB_INK_MODES.includes(input.preset as EpubInkMode);
+ const preset:EpubInkMode=known?input.preset as EpubInkMode:'ink';
+ return {enabled:input.activeTool==='ink'&&known,preset,color:input.color,opacity:input.opacity,strokeWidth:input.strokeWidth};
+}
+/** An ink stroke the reader erased in the EPUB runtime (eraser tool). */
+export function parseEpubInkErasedEvent(raw:string,session:string):string|null {
+ if(!session||raw.length>4096)return null;
+ let message:any;try{message=JSON.parse(raw);}catch{return null;}
+ const p=message?.payload;
+ if(message?.type!=='event'||message.name!=='EPUB_INK_ERASED'||p?.documentSessionId!==session||typeof p.id!=='string'||!p.id||p.id.length>256)return null;
+ return p.id;
 }
 export function parseEpubAnnotationEvent(raw:string,session:string,documentId?:string):EpubAnnotationEvent|null {
  if(!session || raw.length>750000) return null;

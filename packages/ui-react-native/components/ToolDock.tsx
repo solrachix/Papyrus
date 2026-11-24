@@ -14,6 +14,7 @@ import { getStrings } from "../mobileStrings";
 import {
   IconClose,
   IconColorRing,
+  IconEraser,
   IconRedo,
   IconToolHighlighter,
   IconToolInk,
@@ -88,6 +89,33 @@ const EXTRA_TOOLS = [
 
 const ALL_TOOLS = [...PRIMARY_TOOLS, ...EXTRA_TOOLS] as const;
 const INK_WIDTHS = [0.003, 0.006, 0.01, 0.014] as const;
+const MARKER_WIDTHS = [0.01, 0.014, 0.016, 0.02] as const;
+
+/**
+ * EPUB freehand dock: only drawing tools. Text highlight/underline/strikeout
+ * live in the selection menu, so they are not offered here.
+ */
+export const FREEHAND_TOOLS = ["ink", "highlight", "eraser"] as const;
+export type FreehandToolId = (typeof FREEHAND_TOOLS)[number];
+
+// Fallback when the host does not persist the hint: shown once per app session.
+let freehandHintSeenThisSession = false;
+/** Test hook: forget the in-memory "hint seen" flag. */
+export const resetFreehandHintForTests = () => {
+  freehandHintSeenThisSession = false;
+};
+
+export type ToolDockProps = {
+  /**
+   * Document type of the open reader. "epub" switches the dock to freehand
+   * drawing tools (pen, highlighter, eraser). Other types keep the full dock.
+   */
+  documentType?: string;
+  /** Host-persisted flag for the one-time freehand hint. */
+  freehandHintSeen?: boolean;
+  /** Called when the freehand hint is shown, so the host can persist it. */
+  onFreehandHintSeen?: () => void;
+};
 const OPACITY_TRACK_PADDING = 6;
 const OPACITY_THUMB_SIZE = 22;
 const OPACITY_RAIL_HEIGHT = 10;
@@ -244,7 +272,12 @@ const OpacitySlider = React.memo(function OpacitySlider({
   );
 });
 
-const ToolDock: React.FC = () => {
+const ToolDock: React.FC<ToolDockProps> = ({
+  documentType,
+  freehandHintSeen,
+  onFreehandHintSeen,
+}) => {
+  const freehand = documentType === "epub";
   const chromeOffsets = resolveMobileChromeOffsets(usePapyrusSafeAreaInsets());
   const {
     uiTheme,
@@ -293,7 +326,28 @@ const ToolDock: React.FC = () => {
     [activeTool, activeDrawToolPreset, interactionMode]
   );
   const inkSettingsExpanded =
-    activeTool === "ink" && activeDrawToolPreset === "ink";
+    activeTool === "ink" &&
+    (activeDrawToolPreset === "ink" ||
+      (freehand && activeDrawToolPreset === "highlight"));
+  const strokeWidths =
+    freehand && activeDrawToolPreset === "highlight" ? MARKER_WIDTHS : INK_WIDTHS;
+  const [showFreehandHint, setShowFreehandHint] = useState(false);
+  useEffect(() => {
+    if (!freehand || !toolDockOpen) {
+      setShowFreehandHint(false);
+      return;
+    }
+    // The EPUB dock only draws: arm the pen when it opens.
+    const state = useViewerStore.getState();
+    if (state.activeTool !== "ink") applyTool("ink");
+    if (freehandHintSeen || freehandHintSeenThisSession) return;
+    freehandHintSeenThisSession = true;
+    setShowFreehandHint(true);
+    onFreehandHintSeen?.();
+    const timer = setTimeout(() => setShowFreehandHint(false), 4000);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [freehand, toolDockOpen]);
   const showInkDockControls = shouldShowToolDockInkControls({
     nativeInkToolPickerActive,
   });
@@ -308,7 +362,15 @@ const ToolDock: React.FC = () => {
     setExtrasExpanded(false);
   }, [nativeInkToolPickerActive]);
 
-  const applyTool = (toolId: (typeof ALL_TOOLS)[number]["id"]) => {
+  const applyTool = (toolId: (typeof ALL_TOOLS)[number]["id"] | "eraser") => {
+    if (toolId === "eraser") {
+      setDocumentState({
+        activeTool: "ink",
+        activeDrawToolPreset: "eraser",
+        interactionMode: "pan",
+      });
+      return;
+    }
     if (toolId === "ink") {
       setDocumentState({
         activeTool: "ink",
@@ -382,6 +444,9 @@ const ToolDock: React.FC = () => {
     return (
       <Pressable
         key={tool.id}
+        accessibilityRole="button"
+        accessibilityLabel={getToolLabel(tool.label, t)}
+        accessibilityState={{ selected: isSelected }}
         onPress={() => {
           applyTool(tool.id);
           if (compact) setExtrasExpanded(false);
@@ -412,6 +477,101 @@ const ToolDock: React.FC = () => {
     );
   };
 
+  const disabledIconColor = isDark
+    ? MOBILE_CHROME_METRICS.toolDockDisabledIconColorDark
+    : MOBILE_CHROME_METRICS.toolDockDisabledIconColorLight;
+  const freehandLabels: Record<FreehandToolId, string> = {
+    ink: t.toolPen,
+    highlight: t.toolMarker,
+    eraser: t.toolEraser,
+  };
+  const renderFreehandTool = (toolId: FreehandToolId) => {
+    const isSelected = activeTool === "ink" && activeDrawToolPreset === toolId;
+    const color = isSelected
+      ? toolId === "eraser"
+        ? accentColor
+        : annotationColor
+      : iconColor;
+    return (
+      <Pressable
+        key={toolId}
+        testID={`papyrus-freehand-tool-${toolId}`}
+        accessibilityRole="button"
+        accessibilityLabel={freehandLabels[toolId]}
+        accessibilityState={{ selected: isSelected }}
+        onPress={() => applyTool(toolId)}
+        style={[
+          styles.freehandTool,
+          isSelected && { backgroundColor: `${accentColor}14` },
+        ]}
+      >
+        {toolId === "eraser" ? (
+          <IconEraser size={24} color={color} />
+        ) : toolId === "highlight" ? (
+          <IconToolHighlighter size={34} color={color} />
+        ) : (
+          <IconToolInk size={34} color={color} />
+        )}
+        <Text
+          numberOfLines={1}
+          style={[
+            styles.freehandLabel,
+            { color: isSelected ? accentColor : labelColor },
+          ]}
+        >
+          {freehandLabels[toolId]}
+        </Text>
+      </Pressable>
+    );
+  };
+  const renderFreehandRow = () => (
+    <View style={styles.freehandRow}>
+      <View style={styles.freehandHistory}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t.undo}
+          onPress={undoAnnotations}
+          disabled={!canUndo}
+          style={[styles.utilityButton, { backgroundColor: buttonColor }, !canUndo && styles.disabledButton]}
+        >
+          <IconUndo size={MOBILE_CHROME_METRICS.toolDockHistoryIconSize} color={canUndo ? utilityIconColor : disabledIconColor} strokeWidth={2.2} />
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t.redo}
+          onPress={redoAnnotations}
+          disabled={!canRedo}
+          style={[styles.utilityButton, { backgroundColor: buttonColor }, !canRedo && styles.disabledButton]}
+        >
+          <IconRedo size={MOBILE_CHROME_METRICS.toolDockHistoryIconSize} color={canRedo ? utilityIconColor : disabledIconColor} strokeWidth={2.2} />
+        </Pressable>
+      </View>
+      <View style={styles.freehandTools}>{FREEHAND_TOOLS.map(renderFreehandTool)}</View>
+      <View style={styles.freehandHistory}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t.color}
+          onPress={() => setPaletteExpanded((value) => !value)}
+          style={styles.colorButton}
+        >
+          <IconColorRing
+            size={30}
+            centerColor={annotationColor}
+            borderColor={annotationColor === "#f3f4f6" ? "#d1d5db" : isDark ? "#111827" : "#ffffff"}
+          />
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t.close}
+          onPress={() => setDocumentState(getToolDockDismissState({ activeTool, interactionMode }))}
+          style={[styles.utilityButton, { backgroundColor: buttonColor }]}
+        >
+          <IconClose size={15} color={utilityIconColor} strokeWidth={2.2} />
+        </Pressable>
+      </View>
+    </View>
+  );
+
   return (
     <View
       pointerEvents="box-none"
@@ -419,6 +579,15 @@ const ToolDock: React.FC = () => {
     >
       {toolDockOpen ? (
         <View style={styles.stack}>
+          {freehand && showFreehandHint ? (
+            <View
+              accessibilityLiveRegion="polite"
+              testID="papyrus-freehand-hint"
+              style={[styles.hint, { backgroundColor: panelColor, borderColor }]}
+            >
+              <Text style={[styles.hintText, { color: labelColor }]}>{t.freehandHint}</Text>
+            </View>
+          ) : null}
           {paletteExpanded && showInkDockControls ? (
             <View
               style={[
@@ -475,11 +644,14 @@ const ToolDock: React.FC = () => {
               ]}
             >
               <View style={styles.inkPreviewRow}>
-                {INK_WIDTHS.map((width) => {
+                {strokeWidths.map((width) => {
                   const selected = Math.abs(inkStrokeWidth - width) < 0.0005;
                   return (
                     <Pressable
                       key={width}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${t.strokeWidth} ${strokeWidths.indexOf(width) + 1}`}
+                      accessibilityState={{ selected }}
                       onPress={() => setInkStrokeWidth(width)}
                       style={[
                         styles.inkWidthButton,
@@ -491,7 +663,7 @@ const ToolDock: React.FC = () => {
                     >
                       <View style={styles.inkNib}>
                         <IconToolInk
-                          size={Math.round(18 + width * 1200)}
+                          size={Math.round(18 + Math.min(width, 0.014) * 1200)}
                           color={withInkAlpha(annotationColor, annotationOpacity)}
                         />
                       </View>
@@ -508,7 +680,7 @@ const ToolDock: React.FC = () => {
             </View>
           ) : null}
 
-          {extrasExpanded ? (
+          {extrasExpanded && !freehand ? (
             <View
               style={[
                 styles.popup,
@@ -534,7 +706,9 @@ const ToolDock: React.FC = () => {
               },
             ]}
           >
-            {primaryToolsRowIsScrollable ? (
+            {freehand ? (
+              renderFreehandRow()
+            ) : primaryToolsRowIsScrollable ? (
               <ScrollView
                 horizontal
                 bounces={false}
@@ -794,6 +968,49 @@ const ToolDock: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
+  freehandRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    minHeight: 78,
+  },
+  freehandHistory: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  freehandTools: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+  },
+  freehandTool: {
+    minWidth: 60,
+    height: 66,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 4,
+  },
+  freehandLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+    marginTop: 2,
+  },
+  hint: {
+    marginBottom: 10,
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  hintText: {
+    fontSize: 13,
+    fontWeight: "500",
+    textAlign: "center",
+  },
   root: {
     ...StyleSheet.absoluteFillObject,
     alignItems: "center",

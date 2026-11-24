@@ -15,7 +15,7 @@ import {
   parseWebViewState,
 } from "./webViewState";
 
-import { parseEpubAnnotationEvent, parseEpubSelectionGeometryEvent, resolveEpubInkMode, type EpubAnnotationEvent } from "./epubAnnotationEvents";
+import { parseEpubAnnotationEvent, parseEpubInkErasedEvent, parseEpubSelectionGeometryEvent, resolveEpubInkMode, type EpubAnnotationEvent } from "./epubAnnotationEvents";
 import { EpubSelectionMenu, type EpubSelectionMenuAction } from "./EpubSelectionMenu";
 import { getReaderSheetPalette, toReaderSheetTheme } from "./readerSheetPresentation";
 import { getStrings } from "../mobileStrings";
@@ -113,7 +113,7 @@ const WebViewViewer: React.FC<WebViewViewerProps> = ({
     });
     return () => subscription.remove();
   }, []);
-  const { pageTheme, epubReadingMode, setDocumentState, annotations, isLoaded, locale, annotationColor, annotationOpacity, inkStrokeWidth, activeTool, activeDrawToolPreset, addAnnotation, beginAnnotationDraft, setSelectedAnnotation } = useViewerStore();
+  const { pageTheme, epubReadingMode, setDocumentState, annotations, isLoaded, locale, annotationColor, annotationOpacity, inkStrokeWidth, activeTool, activeDrawToolPreset, addAnnotation, removeAnnotation, beginAnnotationDraft, setSelectedAnnotation } = useViewerStore();
   const [selection,setSelection] = useState<Extract<EpubAnnotationEvent,{kind:"selection"}> | null>(null);
   const t = getStrings(locale);
   const bridgeEngine = engine as WebViewBridgeEngine;
@@ -276,6 +276,9 @@ const WebViewViewer: React.FC<WebViewViewerProps> = ({
     const geometry = parseEpubSelectionGeometryEvent(raw, bridgeEngine.getWebViewDocumentSessionId?.() ?? "");
     if (geometry?.kind === "cleared") setSelection(null);
     if (geometry?.kind === "rect") setSelection(current => current ? {...current, rect: geometry.rect} : current);
+    const erasedInkId = parseEpubInkErasedEvent(raw, bridgeEngine.getWebViewDocumentSessionId?.() ?? "");
+    // removeAnnotation records an undo step, so the dock's undo restores it.
+    if (erasedInkId && useViewerStore.getState().annotations.some(a => a.id === erasedInkId && a.type === "ink")) removeAnnotation(erasedInkId);
     // Action messages carry a validated, current-session CFI snapshot from
     // the chapter iframe. WebView's selectedText only reads the root frame.
     let action: string | undefined;

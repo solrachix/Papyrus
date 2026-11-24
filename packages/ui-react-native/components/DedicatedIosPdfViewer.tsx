@@ -341,7 +341,7 @@ export default function DedicatedIosPdfViewer({
         annotationNavigationRequest={annotationNavigationRequest}
         annotations={annotations.filter(a => !a.anchor?.documentId || a.anchor.documentId === documentId)}
         activeTool={activeTool}
-        activeDrawToolPreset={activeDrawToolPreset}
+        activeDrawToolPreset={activeDrawToolPreset === "eraser" ? "ink" : activeDrawToolPreset}
         inkStrokeWidth={inkStrokeWidth}
         annotationColor={annotationColor}
         annotationSelectionColor={annotationSelectionColor}

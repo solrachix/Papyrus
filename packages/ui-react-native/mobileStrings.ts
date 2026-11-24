@@ -95,6 +95,13 @@ type Strings = {
   colorBlue: string;
   colorGreen: string;
   colorPurple: string;
+  toolPen: string;
+  toolMarker: string;
+  toolEraser: string;
+  freehandHint: string;
+  undo: string;
+  redo: string;
+  strokeWidth: string;
 };
 
 const STRINGS: Record<Locale, Strings> = {
@@ -193,6 +200,13 @@ const STRINGS: Record<Locale, Strings> = {
     colorBlue: "Blue",
     colorGreen: "Green",
     colorPurple: "Purple",
+    toolPen: "Pen",
+    toolMarker: "Highlighter",
+    toolEraser: "Eraser",
+    freehandHint: "Draw freehand on the page",
+    undo: "Undo",
+    redo: "Redo",
+    strokeWidth: "Stroke width",
   },
   "pt-BR": {
     pages: "Paginas",
@@ -289,6 +303,13 @@ const STRINGS: Record<Locale, Strings> = {
     colorBlue: "Azul",
     colorGreen: "Verde",
     colorPurple: "Roxo",
+    toolPen: "Caneta",
+    toolMarker: "Marca-texto",
+    toolEraser: "Borracha",
+    freehandHint: "Desenhe à mão livre sobre a página",
+    undo: "Desfazer",
+    redo: "Refazer",
+    strokeWidth: "Espessura",
   },
 };
 

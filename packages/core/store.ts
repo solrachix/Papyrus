@@ -87,7 +87,8 @@ interface ViewerState {
   annotationColor: string;
   annotationOpacity: number;
   inkStrokeWidth: number;
-  activeDrawToolPreset: "ink" | "highlight" | "underline";
+  /** "eraser" is only offered by the EPUB freehand dock (ink is removed by tapping/scrubbing strokes). */
+  activeDrawToolPreset: "ink" | "highlight" | "underline" | "eraser";
   nativeInkToolPickerActive: boolean;
   outline: OutlineItem[];
   sidebarLeftOpen: boolean;

@@ -808,3 +808,20 @@ export const IconBookOpen: React.FC<IconProps> = ({
     />
   </Svg>
 );
+
+/** Eraser for the EPUB freehand dock. */
+export const IconEraser: React.FC<IconProps> = ({
+  size = 24,
+  color = defaultColor,
+  strokeWidth = 2,
+}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <Path
+      d="m7 21-4.3-4.3a1 1 0 0 1 0-1.4l10-10a1 1 0 0 1 1.4 0l5.6 5.6a1 1 0 0 1 0 1.4L11 21M22 21H7M5 11l9 9"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
