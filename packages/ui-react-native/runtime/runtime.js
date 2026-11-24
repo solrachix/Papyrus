@@ -2315,6 +2315,29 @@
     return items.map((item) => item.str).join(' ');
   };
 
+  /**
+   * CFIs of a query's matches in an EPUB section, in document order, from
+   * epub.js' Section.find. They let the search jump to the match itself:
+   * displaying a CFI in the chapter already on screen only scrolls, while
+   * going to the chapter re-renders it from its start.
+   */
+  const findEpubSectionCfis = async (pageIndex, query) => {
+    const activeBook = book;
+    const item = spineItems[pageIndex];
+    const section = activeBook && (activeBook.spine.get(pageIndex) || (item && activeBook.spine.get(item.href)));
+    if (!section || typeof section.load !== 'function' || typeof section.find !== 'function') return [];
+    const wasLoaded = Boolean(section.contents);
+    try {
+      await section.load(activeBook.load.bind(activeBook));
+      const found = section.find(query) || [];
+      return found.map((match) => match && match.cfi).filter((cfi) => typeof cfi === 'string');
+    } catch (error) {
+      return [];
+    } finally {
+      if (!wasLoaded && typeof section.unload === 'function') section.unload();
+    }
+  };
+
   const searchText = async (query) => {
     const normalized = query.toLowerCase();
     const results = [];
@@ -2325,15 +2348,26 @@
       const lower = text.toLowerCase();
       let pos = lower.indexOf(normalized, 0);
       let matchIndex = 0;
+      const sectionResults = [];
       while (pos !== -1) {
         // Enough context for a readable snippet in the search sheet.
         const start = Math.max(0, pos - 60);
         const end = Math.min(text.length, pos + query.length + 60);
         const snippet = text.substring(start, end).replace(/\s+/g, ' ').trim();
-        results.push({ pageIndex: i, text: (start > 0 ? '…' : '') + snippet + (end < text.length ? '…' : ''), matchIndex });
+        sectionResults.push({ pageIndex: i, text: (start > 0 ? '…' : '') + snippet + (end < text.length ? '…' : ''), matchIndex });
         matchIndex += 1;
         pos = lower.indexOf(normalized, pos + 1);
       }
+      if (sectionResults.length && currentType === 'epub') {
+        // Section.find only sees matches inside one text node; when its count
+        // differs (a match split by markup), keep chapter-level navigation
+        // rather than pair a result with the wrong place.
+        const cfis = await findEpubSectionCfis(i, query);
+        if (cfis.length === sectionResults.length) {
+          sectionResults.forEach((result, index) => { result.cfi = cfis[index]; });
+        }
+      }
+      results.push(...sectionResults);
     }
 
     return results;
