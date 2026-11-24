@@ -87,3 +87,40 @@ it('invalidates chapter-scroll before relocation and ignores stale iframe callba
  dispatch('touchstart',40);dispatch('touchmove',120);expect(invalidations).toBe(1);
  current=false;dispatch('touchend',180);d.window.document.querySelector('a')!.dispatchEvent(new d.window.Event('click',{bubbles:true}));expect(invalidations).toBe(1);cleanup();
 });
+
+describe('EPUB chapter-scroll edge pull',()=>{
+ const start={x:200,y:400,time:0};
+ it('continues only when the drag starts at the matching chapter edge',()=>{
+  const p=load();
+  expect(p.chapterPull(start,{x:205,y:300,time:200},{mode:'chapter-scroll',edge:{top:false,bottom:true}})).toEqual({direction:'next',progress:100/96>1?1:100/96});
+  expect(p.chapterPull(start,{x:205,y:352,time:200},{mode:'chapter-scroll',edge:{top:false,bottom:true}}).progress).toBeCloseTo(0.5);
+  expect(p.chapterPull(start,{x:200,y:520,time:200},{mode:'chapter-scroll',edge:{top:true,bottom:false}})).toMatchObject({direction:'prev',progress:1});
+  expect(p.chapterPull(start,{x:200,y:300,time:200},{mode:'chapter-scroll',edge:{top:true,bottom:false}})).toBe(null);
+  expect(p.chapterPull(start,{x:200,y:300,time:200},{mode:'chapter-scroll',edge:{top:false,bottom:false}})).toBe(null);
+  expect(p.chapterPull(start,{x:200,y:300,time:200},{mode:'chapter-scroll',edge:null})).toBe(null);
+ });
+ it('ignores paged mode, horizontal drags, selection, links and multitouch',()=>{
+  const p=load(),edge={top:true,bottom:true};
+  expect(p.chapterPull(start,{x:200,y:300,time:200},{mode:'paged',edge})).toBe(null);
+  expect(p.chapterPull(start,{x:40,y:330,time:200},{mode:'chapter-scroll',edge})).toBe(null);
+  for(const k of ['selected','interactive','multitouch'])expect(p.chapterPull(start,{x:200,y:300,time:200},{mode:'chapter-scroll',edge,[k]:true})).toBe(null);
+ });
+ it('turns to the next chapter after a full pull from the bottom edge and reports progress',()=>{
+  const d=new JSDOM('<p>end of chapter</p>',{runScripts:'outside-only'});
+  d.window.eval(readFileSync('packages/ui-react-native/runtime/epubReader.js','utf8'));
+  const turns:Array<[number,string|undefined]>=[],pulls:unknown[]=[];let taps=0,edge={top:false,bottom:true};
+  const cleanup=(d.window as any).PapyrusEpubReader.install({document:d.window.document,window:d.window},{mode:()=> 'chapter-scroll',rtl:()=>false,blocked:()=>false,current:()=>true,edge:()=>edge,pull:(v:unknown)=>pulls.push(v),tap:()=>taps++,turn:(dir:number,source?:string)=>turns.push([dir,source])});
+  const target=d.window.document.querySelector('p')!;
+  const drag=(ys:number[])=>ys.forEach((y,i)=>{const type=i===0?'touchstart':i===ys.length-1?'touchend':'touchmove',e=new d.window.Event(type,{bubbles:true}),pt={clientX:200,clientY:y};Object.defineProperties(e,{touches:{value:type==='touchend'?[]:[pt]},changedTouches:{value:[pt]}});target.dispatchEvent(e);});
+  drag([500,460,420,380]);
+  expect(turns).toEqual([[1,'chapter-pull']]);
+  expect(pulls.some(v=>v&&(v as any).direction==='next'&&(v as any).progress<1)).toBe(true);
+  expect(pulls.at(-1)).toBe(null);
+  drag([500,470,450]);
+  expect(turns).toHaveLength(1);
+  edge={top:false,bottom:false};drag([500,300,200]);
+  expect(turns).toHaveLength(1);
+  expect(taps).toBe(0);
+  cleanup();
+ });
+});
