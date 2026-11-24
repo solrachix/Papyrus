@@ -8,10 +8,11 @@ import {IconClose, IconHighlight, IconUnderline, IconStrikeout, IconComment} fro
 import {usePapyrusSafeAreaInsets} from "./PapyrusSafeArea";
 import {ReaderOrientationModal} from "./ReaderOrientationModal";
 import {ANNOTATION_COLORS} from "./annotationColors";
+import {resolveReaderSheetAppearance} from "./readerSheetPresentation";
 
 const COLORS = ANNOTATION_COLORS;
 const AnnotationEditor: React.FC<{documentId?: string}> = ({documentId}) => {
-  const {annotations,annotationDraft,clearAnnotationDraft,addAnnotation,selectedAnnotationId,updateAnnotation,removeAnnotation,setSelectedAnnotation,uiTheme,locale,accentColor} = useViewerStore();
+  const {annotations,annotationDraft,clearAnnotationDraft,addAnnotation,selectedAnnotationId,updateAnnotation,removeAnnotation,setSelectedAnnotation,pageTheme,locale,accentColor} = useViewerStore();
   const annotation = annotationDraft?.id === selectedAnnotationId ? annotationDraft : annotations.find(a => a.id === selectedAnnotationId);
   const supported = annotation && annotation.type !== "ink" && (!documentId || !annotation.anchor?.documentId || annotation.anchor.documentId === documentId);
   const [editing,setEditing] = useState(false);
@@ -21,7 +22,7 @@ const AnnotationEditor: React.FC<{documentId?: string}> = ({documentId}) => {
   const [reduceMotion,setReduceMotion] = useState(true);
   const progress = useRef(new Animated.Value(0)).current;
   const insets = usePapyrusSafeAreaInsets();
-  const dark = uiTheme === "dark", t = getStrings(locale);
+  const {isDark: dark, palette} = resolveReaderSheetAppearance(pageTheme), t = getStrings(locale);
   useEffect(() => {
     let alive = true;
     void AccessibilityInfo.isReduceMotionEnabled().then(enabled => {if(alive)setReduceMotion(enabled);});
@@ -50,17 +51,17 @@ const AnnotationEditor: React.FC<{documentId?: string}> = ({documentId}) => {
     if(annotationDraft){clearAnnotationDraft();addAnnotation({...annotation,...patch});}else updateAnnotation(annotation.id,patch);close();
   };
   const remove = () => Alert.alert(t.deleteAnnotation,t.deleteAnnotationConfirmation,[{text:t.cancel,style:"cancel"},{text:t.deleteAnnotation,style:"destructive",onPress:()=>deleteAnnotationAndClearSelection(annotation.id,removeAnnotation,setSelectedAnnotation)}]);
-  const textStyle = {color:dark?"#f9fafb":"#111827"};
+  const textStyle = {color:palette.text};
   const quote = getAnnotationQuote(annotation);
   return <ReaderOrientationModal visible transparent animationType="none" onRequestClose={close}>
     <KeyboardAvoidingView behavior={Platform.OS === "ios"?"padding":undefined} style={styles.host}>
       <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityLabel={t.close} />
-      <Animated.View accessibilityViewIsModal style={[styles.card,{backgroundColor:dark?"#17191f":"#fff",marginBottom:Math.max(16,insets.bottom),opacity:progress,transform:[{translateY:progress.interpolate({inputRange:[0,1],outputRange:[12,0]})}]}]}>
-        <View style={styles.header}><Text style={[styles.title,textStyle]}>{editing?t.editNote:t.annotationNote}</Text><Pressable onPress={close} accessibilityRole="button" accessibilityLabel={t.close} style={[styles.button, {borderRadius:22, backgroundColor:dark?"#242936":"#f1f5f9"}]}><IconClose size={20} color={textStyle.color}/></Pressable></View>
+      <Animated.View accessibilityViewIsModal style={[styles.card,{backgroundColor:palette.surface,borderColor:palette.divider,borderWidth:1,marginBottom:Math.max(16,insets.bottom),opacity:progress,transform:[{translateY:progress.interpolate({inputRange:[0,1],outputRange:[12,0]})}]}]}>
+        <View style={styles.header}><Text style={[styles.title,textStyle]}>{editing?t.editNote:t.annotationNote}</Text><Pressable onPress={close} accessibilityRole="button" accessibilityLabel={t.close} style={[styles.button, {borderRadius:22, backgroundColor:palette.closeSurface}]}><IconClose size={20} color={textStyle.color}/></Pressable></View>
         <ScrollView style={styles.content} keyboardShouldPersistTaps="handled">
           {quote?<Text style={[styles.quote,textStyle]} selectable>{quote}</Text>:null}
           {editing?<>
-            <TextInput accessibilityLabel={t.editNote} value={draft} onChangeText={setDraft} multiline autoFocus placeholder={t.notePlaceholder} placeholderTextColor={dark?"#9ca3af":"#6b7280"} style={[styles.input,textStyle,{borderColor:dark?"#374151":"#d1d5db"}]} />
+            <TextInput accessibilityLabel={t.editNote} value={draft} onChangeText={setDraft} multiline autoFocus placeholder={t.notePlaceholder} placeholderTextColor={palette.mutedText} style={[styles.input,textStyle,{borderColor:palette.divider}]} />
             <View style={styles.options}>{COLORS.map(value=><Pressable key={value} accessibilityRole="button" accessibilityLabel={`${t.annotationColor} ${value}`} accessibilityState={{selected:color===value}} onPress={()=>setColor(value)} style={[styles.color,{backgroundColor:value,borderColor:color===value?accentColor:"transparent"}]} />)}</View>
             <View style={styles.markupOptions}>{([
               ["highlight",t.annotationHighlight,IconHighlight],
@@ -70,7 +71,7 @@ const AnnotationEditor: React.FC<{documentId?: string}> = ({documentId}) => {
             ] as const).map(([style,label,Icon])=><Pressable key={style} onPress={()=>setMarkup(style)}
               accessibilityRole="button" accessibilityLabel={label} accessibilityState={{selected:markup===style}}
               testID={`annotation-style-${style}`}
-              style={[styles.markupButton,{backgroundColor:dark?"#242936":"#f1f5f9",borderColor:markup===style?accentColor:"transparent"}]}>
+              style={[styles.markupButton,{backgroundColor:palette.elevatedSurface,borderColor:markup===style?accentColor:"transparent"}]}>
               <View accessible={false} importantForAccessibility="no-hide-descendants"><Icon size={22} color={markup===style?accentColor:textStyle.color}/></View>
               <Text style={[styles.markupLabel,textStyle]}>{style==="none"?(locale==="pt-BR"?"Indicador":"Indicator"):label}</Text>
             </Pressable>)}</View>

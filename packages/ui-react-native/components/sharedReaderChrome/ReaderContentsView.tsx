@@ -1,12 +1,15 @@
 import React from "react";
 import { Pressable, StyleSheet, Text } from "react-native";
 import { NativeSheet, NativeSheetScrollView } from "../NativeSheet";
+import { getReaderSheetPalette, type ReaderSheetTheme } from "../readerSheetPresentation";
 import type { ReaderContentsEntry } from "./types";
 
 export interface ReaderContentsViewProps<T = unknown> {
   visible: boolean;
   title: string;
   isDark: boolean;
+  /** Page-theme sheet palette (light/sepia/dark/high-contrast); falls back to isDark. */
+  sheetTheme?: ReaderSheetTheme;
   accentColor: string;
   entries: ReaderContentsEntry<T>[];
   onSelect?: (entry: ReaderContentsEntry<T>) => void;
@@ -19,6 +22,7 @@ export default function ReaderContentsView<T = unknown>({
   visible,
   title,
   isDark,
+  sheetTheme,
   accentColor,
   entries,
   onSelect,
@@ -26,18 +30,21 @@ export default function ReaderContentsView<T = unknown>({
   emptyMessage = "Nenhum capítulo disponível",
   closeAccessibilityLabel = "Fechar sumário",
 }: ReaderContentsViewProps<T>) {
+  const palette = getReaderSheetPalette(sheetTheme ?? isDark);
   return (
     <NativeSheet
       visible={visible}
       onClose={onClose}
       isDark={isDark}
+      sheetTheme={sheetTheme}
+      sheetPalette={palette}
       title={title}
       showHeader
       closeAccessibilityLabel={closeAccessibilityLabel}
     >
       <NativeSheetScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {entries.length === 0 ? (
-          <Text style={[styles.empty, isDark && styles.emptyDark]}>{emptyMessage}</Text>
+          <Text style={[styles.empty, { color: palette.mutedText }]}>{emptyMessage}</Text>
         ) : entries.map((entry) => (
           <Pressable
             key={entry.id}
@@ -45,9 +52,9 @@ export default function ReaderContentsView<T = unknown>({
             accessibilityLabel={`Abrir ${entry.title}`}
             disabled={entry.disabled || !onSelect}
             onPress={() => onSelect?.(entry)}
-            style={[styles.entry, { paddingLeft: 12 + Math.min(Math.max(entry.depth ?? 0, 0), 6) * 14 }, entry.disabled && styles.disabled]}
+            style={[styles.entry, { paddingLeft: 12 + Math.min(Math.max(entry.depth ?? 0, 0), 6) * 14 }, { borderBottomColor: palette.divider }, entry.disabled && styles.disabled]}
           >
-            <Text numberOfLines={2} style={[styles.entryTitle, isDark && styles.entryTitleDark]}>{entry.title}</Text>
+            <Text numberOfLines={2} style={[styles.entryTitle, { color: palette.text }]}>{entry.title}</Text>
             <Text style={[styles.chevron, { color: accentColor }]}>›</Text>
           </Pressable>
         ))}

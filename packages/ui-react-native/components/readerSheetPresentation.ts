@@ -94,3 +94,20 @@ const ANNOTATION_KIND_LABELS: Record<string, { en: string; "pt-BR": string }> =
 
 export const getAnnotationKindLabel = (kind: string, locale: Locale): string =>
   (ANNOTATION_KIND_LABELS[kind]?.[locale] ?? kind).toUpperCase();
+
+/** Dark-on-light vs light-on-dark: dark and high contrast sheets use light text. */
+export const isDarkReaderSheetTheme = (theme: ReaderSheetTheme): boolean =>
+  theme === "dark" || theme === "high-contrast";
+
+/**
+ * Everything a Papyrus sheet needs to match the current page theme
+ * (Original → light, Sépia → sepia, Escuro → dark, Contraste → high contrast).
+ */
+export const resolveReaderSheetAppearance = (pageTheme: PageTheme) => {
+  const sheetTheme = toReaderSheetTheme(pageTheme);
+  return {
+    sheetTheme,
+    palette: getReaderSheetPalette(sheetTheme),
+    isDark: isDarkReaderSheetTheme(sheetTheme),
+  };
+};

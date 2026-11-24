@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from "react-native";
 import { useViewerStore } from "@papyrus-sdk/core";
 import { getStrings } from "../mobileStrings";
 import { NativeSheet } from "./NativeSheet";
-import { getReaderSheetPalette } from "./readerSheetPresentation";
+import { useReaderSheetAppearance } from "./useReaderSheetAppearance";
 
 type DocumentActionsSheetProps = {
   visible: boolean;
@@ -14,16 +14,17 @@ export function DocumentActionsSheet({
   visible,
   onClose,
 }: DocumentActionsSheetProps) {
-  const { uiTheme, locale } = useViewerStore();
+  const { locale } = useViewerStore();
   const t = getStrings(locale);
-  const isDark = uiTheme === "dark";
-  const palette = getReaderSheetPalette(isDark);
+  const { isDark, sheetTheme, palette } = useReaderSheetAppearance();
 
   return (
     <NativeSheet
       visible={visible}
       onClose={onClose}
       isDark={isDark}
+      sheetTheme={sheetTheme}
+      sheetPalette={palette}
       maxHeight="55%"
       showHeader
       title={t.documentActions}

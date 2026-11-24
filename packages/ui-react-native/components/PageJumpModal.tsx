@@ -4,14 +4,15 @@ import { useViewerStore } from "@papyrus-sdk/core";
 import { getStrings } from "../mobileStrings";
 import { resolvePageJumpTarget } from "./pageJumpModel";
 import { NativeSheet } from "./NativeSheet";
-import { getReaderSheetPalette } from "./readerSheetPresentation";
+import { useReaderSheetAppearance } from "./useReaderSheetAppearance";
 
 type PageJumpModalProps = {
   documentType?: string;
   visible: boolean;
   currentPage: number;
   pageCount: number;
-  isDark: boolean;
+  /** @deprecated The sheet follows the viewer page theme. */
+  isDark?: boolean;
   accentColor: string;
   onClose: () => void;
   onConfirm: (page: number) => void;
@@ -22,14 +23,13 @@ export function PageJumpModal({
   visible,
   currentPage,
   pageCount,
-  isDark,
   accentColor,
   onClose,
   onConfirm,
 }: PageJumpModalProps) {
   const t = getStrings(useViewerStore((state) => state.locale));
   const [value, setValue] = useState(`${currentPage}`);
-  const palette = getReaderSheetPalette(isDark);
+  const { isDark, sheetTheme, palette } = useReaderSheetAppearance();
   useEffect(() => {
     if (visible) setValue(`${currentPage}`);
   }, [currentPage, visible]);
@@ -44,6 +44,8 @@ export function PageJumpModal({
       visible={visible}
       onClose={onClose}
       isDark={isDark}
+      sheetTheme={sheetTheme}
+      sheetPalette={palette}
       maxHeight={300}
       showHeader
       title={documentType === "epub" ? t.goToChapter : t.goToPage}
