@@ -2,7 +2,7 @@ import { create } from "zustand";
 import {
   ViewMode,
   EpubReadingMode,
-  EpubTypography,
+  EpubTypography, EpubCustomFont,
   EpubReadingLocation,
   Annotation,
   AnnotationReply,
@@ -81,6 +81,8 @@ interface ViewerState {
   epubReadingMode: EpubReadingMode;
   epubLocation: EpubReadingLocation | null;
   epubTypography: EpubTypography;
+  /** Host fonts available to EPUB typography ("custom:<id>"). */
+  epubCustomFonts: EpubCustomFont[];
   viewerMode: PdfViewerMode;
   uiTheme: UITheme;
   pageTheme: PageTheme;
@@ -172,6 +174,7 @@ interface ViewerState {
   triggerScrollToTextOffset: (offset: number) => void;
   /** Merges typography overrides; invalid values fall back to the publisher CSS. */
   setEpubTypography: (typography: Partial<EpubTypography>) => void;
+  setEpubCustomFonts: (fonts: EpubCustomFont[]) => void;
   setComicLayoutMode: (mode: ComicLayoutMode) => void;
   setComicFitMode: (mode: ComicFitMode) => void;
   setComicReadingDirection: (direction: ComicReadingDirection) => void;
@@ -208,7 +211,10 @@ export const normalizeEpubTypography = (
     allowed.includes(candidate as T) ? (candidate as T) : allowed[0];
   const lineHeight = value?.lineHeight;
   return {
-    fontFamily: pick(value?.fontFamily, ["original", "serif", "sans", "mono"] as const),
+    fontFamily:
+      typeof value?.fontFamily === "string" && /^custom:[a-z0-9-]{1,40}$/.test(value.fontFamily)
+        ? value.fontFamily
+        : pick(value?.fontFamily, ["original", "serif", "sans", "mono"] as const),
     lineHeight:
       typeof lineHeight === "number" && Number.isFinite(lineHeight) && lineHeight >= 1 && lineHeight <= 2.5
         ? lineHeight
@@ -234,6 +240,7 @@ const getDefaultViewerState = () => ({
   epubReadingMode: "paged" as EpubReadingMode,
   epubLocation: null as EpubReadingLocation | null,
   epubTypography: DEFAULT_EPUB_TYPOGRAPHY,
+  epubCustomFonts: [],
   viewerMode: "compat" as PdfViewerMode,
   uiTheme: "light" as UITheme,
   pageTheme: "normal" as PageTheme,
@@ -785,6 +792,7 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
         textNavigationRequest: {offset:safeOffset,nonce:(state.textNavigationRequest?.nonce??0)+1},
       };
     }),
+  setEpubCustomFonts: (fonts) => set({ epubCustomFonts: Array.isArray(fonts) ? fonts : [] }),
   setEpubTypography: (typography) =>
     set((state) => ({
       epubTypography: normalizeEpubTypography({ ...state.epubTypography, ...typography }),

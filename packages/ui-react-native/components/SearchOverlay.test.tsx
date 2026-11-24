@@ -58,7 +58,7 @@ describe("EPUB search sheet", () => {
     await act(async () => { fireEvent.keyDown(screen.getByRole("textbox", { name: "Buscar" }), { key: "Enter" }); });
     const results = await screen.findAllByRole("button", { name: /pedra/ });
     expect(results.length).toBeGreaterThan(0);
-    expect(screen.getAllByText("pedra").length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/^pedra\u200B?$/).length).toBeGreaterThan(0);
     expect(screen.getByText(/resultados/)).toBeTruthy();
     fireEvent.click(results[0]);
     expect(screen.getByTestId("papyrus-search-navigator")).toBeTruthy();

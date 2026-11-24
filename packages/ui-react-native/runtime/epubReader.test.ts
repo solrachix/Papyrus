@@ -176,3 +176,19 @@ describe('EPUB typography CSS',()=>{
   expect(p.typographyCss({fontFamily:'mono'})).toContain('monospace');
  });
 });
+
+describe('EPUB host fonts',()=>{
+ const src='data:font/ttf;base64,AAEAAAALAIAAAwAw';
+ it('embeds a registered host font and uses it for the book text',()=>{
+  const p=load();p.registerFonts([{id:'manrope',family:'Papel Manrope',src}]);
+  const css=p.typographyCss({fontFamily:'custom:manrope'});
+  expect(css).toContain("@font-face { font-family: 'Papel Manrope'; src: url("+src+")");
+  expect(css).toContain("font-family: 'Papel Manrope',");
+ });
+ it('keeps a custom id before its font arrives and rejects unsafe fonts',()=>{
+  const p=load();p.registerFonts([{id:'bad',family:'X',src:'https://evil.test/font.ttf'},{id:'x;y',family:'X',src}]);
+  expect(p.typography({fontFamily:'custom:bad'}).fontFamily).toBe('custom:bad');
+  expect(p.typographyCss({fontFamily:'custom:bad'})).not.toContain('evil');
+  expect(p.typography({fontFamily:'custom:../x'}).fontFamily).toBe('original');
+ });
+});
