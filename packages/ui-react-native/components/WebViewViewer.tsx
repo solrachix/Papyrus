@@ -1,7 +1,7 @@
 import {usePapyrusSafeAreaInsets} from './PapyrusSafeArea';
 import {parseEpubReadingLocation} from './epubReadingLocation';
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Image, StyleSheet, View, Alert } from "react-native";
+import { Image, Keyboard, StyleSheet, View, Alert, useWindowDimensions } from "react-native";
 import Clipboard from "@react-native-clipboard/clipboard";
 import WebView, {
   type WebViewMessageEvent,
@@ -25,6 +25,15 @@ import {
 
 const runtimeAsset = require("../runtime/index.html");
 type RuntimeSource = { html: string; baseUrl?: string } | { uri: string };
+
+// EPUB page themes are applied inside the book (background and text), not
+// as a tinted overlay on top of it.
+const PAPYRUS_EPUB_PAGE_PALETTES: Record<string, {background: string; foreground: string | null; link: string | null}> = {
+  normal: { background: "#fffdf8", foreground: null, link: null },
+  sepia: { background: "#f1e7d5", foreground: "#292724", link: "#7a4b2a" },
+  dark: { background: "#242326", foreground: "#f5f3ee", link: "#f0b7a8" },
+  "high-contrast": { background: "#000000", foreground: "#ffffff", link: "#ffe066" },
+};
 
 const resolveRuntimeSource = (asset: unknown): RuntimeSource => {
   if (typeof asset === "string") {
@@ -84,6 +93,24 @@ const WebViewViewer: React.FC<WebViewViewerProps> = ({
 }) => {
   const webViewRef = useRef<WebView>(null);
   const insets=usePapyrusSafeAreaInsets();
+  // The keyboard can change the bottom inset; resizing the EPUB WebView makes
+  // epub.js blank and re-render the page. Re-read it on a real window change
+  // or when the keyboard closes.
+  const papyrusWindow = useWindowDimensions();
+  const stableBottomInsetRef = useRef({ key: "", value: 0 });
+  const [, setStableBottomInsetVersion] = useState(0);
+  const stableBottomInsetKey = `${papyrusWindow.width}x${papyrusWindow.height}`;
+  if (stableBottomInsetRef.current.key !== stableBottomInsetKey) {
+    stableBottomInsetRef.current = { key: stableBottomInsetKey, value: insets.bottom };
+  }
+  const stableBottomInset = stableBottomInsetRef.current.value;
+  useEffect(() => {
+    const subscription = Keyboard.addListener("keyboardDidHide", () => {
+      stableBottomInsetRef.current = { key: "", value: 0 };
+      setStableBottomInsetVersion(version => version + 1);
+    });
+    return () => subscription.remove();
+  }, []);
   const { pageTheme, epubReadingMode, setDocumentState, annotations, isLoaded, locale, annotationColor, annotationOpacity, inkStrokeWidth, activeTool, activeDrawToolPreset, addAnnotation, beginAnnotationDraft, setSelectedAnnotation } = useViewerStore();
   const [selection,setSelection] = useState<Extract<EpubAnnotationEvent,{kind:"selection"}> | null>(null);
   const t = getStrings(locale);
@@ -125,9 +152,12 @@ const WebViewViewer: React.FC<WebViewViewerProps> = ({
   }, [runtimeSource]);
 
   const webViewSource = useMemo<RuntimeSource>(() => {
-    if (runtimeHtml !== null) {
+    // Inline runtime HTML must have the same base URL on its first render.
+    // Otherwise the effect changes the WebView source after ready and can lose the load.
+    const html = "html" in runtimeSource ? runtimeSource.html : runtimeHtml;
+    if (html !== null) {
       return {
-        html: runtimeHtml,
+        html,
         baseUrl: "http://localhost:3005/",
       };
     }
@@ -290,7 +320,13 @@ const WebViewViewer: React.FC<WebViewViewerProps> = ({
     }
   };
 
+  const epubPagePalette = documentType === "epub" ? PAPYRUS_EPUB_PAGE_PALETTES[pageTheme] || PAPYRUS_EPUB_PAGE_PALETTES.normal : null;
+  useEffect(() => {
+    if (!isLoaded || documentType !== "epub") return;
+    webViewRef.current?.postMessage(JSON.stringify({ id: `epub-theme-${Date.now()}`, kind: "set-epub-theme", payload: { theme: epubPagePalette } }));
+  }, [isLoaded, documentType, epubPagePalette]);
   const themeOverlayStyle = useMemo(() => {
+    if (documentType === "epub") return styles.themeNone;
     switch (pageTheme) {
       case "sepia":
         return styles.themeSepia;
@@ -301,7 +337,7 @@ const WebViewViewer: React.FC<WebViewViewerProps> = ({
       default:
         return styles.themeNone;
     }
-  }, [pageTheme]);
+  }, [pageTheme, documentType]);
 
   const allowingReadAccessToURL = useMemo(() => {
     if (!runtimeSource || typeof runtimeSource !== "object") return undefined;
@@ -320,7 +356,7 @@ const WebViewViewer: React.FC<WebViewViewerProps> = ({
     : undefined;
 
   return (
-    <View style={[styles.container,documentType === "epub" && {paddingTop:insets.top,paddingBottom:insets.bottom}]}>
+    <View style={[styles.container,documentType === "epub" && {paddingTop:insets.top,paddingBottom:stableBottomInset},epubPagePalette && {backgroundColor:epubPagePalette.background}]}>
       <WebView
         ref={webViewRef}
         source={webViewSource}
