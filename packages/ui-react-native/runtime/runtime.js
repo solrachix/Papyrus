@@ -2321,16 +2321,62 @@
    * displaying a CFI in the chapter already on screen only scrolls, while
    * going to the chapter re-renders it from its start.
    */
+  /**
+   * Lowercases and drops accents one UTF-16 unit at a time, so an index in
+   * the folded text is the same index in the original ("publico" finds
+   * "público", as the reader's fallback search already does).
+   */
+  const foldSearchText = (value) => {
+    let folded = '';
+    for (let i = 0; i < value.length; i += 1) {
+      const char = value[i];
+      const next = char.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+      folded += next.length === 1 ? next : char;
+    }
+    return folded;
+  };
+
+  /**
+   * CFIs of a query's matches in an EPUB section, in document order. They let
+   * the search jump to the match itself: displaying a CFI in the chapter
+   * already on screen only scrolls, while going to the chapter re-renders it
+   * from its start. Like epub.js' Section.find, a match must sit inside one
+   * text node.
+   */
   const findEpubSectionCfis = async (pageIndex, query) => {
     const activeBook = book;
     const item = spineItems[pageIndex];
     const section = activeBook && (activeBook.spine.get(pageIndex) || (item && activeBook.spine.get(item.href)));
-    if (!section || typeof section.load !== 'function' || typeof section.find !== 'function') return [];
+    if (!section || typeof section.load !== 'function' || typeof section.cfiFromRange !== 'function') return [];
+    const needle = foldSearchText(query);
+    if (!needle) return [];
     const wasLoaded = Boolean(section.contents);
     try {
-      await section.load(activeBook.load.bind(activeBook));
-      const found = section.find(query) || [];
-      return found.map((match) => match && match.cfi).filter((cfi) => typeof cfi === 'string');
+      const doc = await section.load(activeBook.load.bind(activeBook));
+      const ownerDocument = (doc && doc.ownerDocument) || section.document;
+      const root = doc && (doc.body || (doc.querySelector && doc.querySelector('body')) || doc.documentElement || doc);
+      if (!root || !ownerDocument || typeof ownerDocument.createRange !== 'function') return [];
+      const cfis = [];
+      const walk = (node) => {
+        if (!node) return;
+        if (node.nodeType === 3) {
+          const folded = foldSearchText(node.nodeValue || '');
+          let pos = folded.indexOf(needle);
+          while (pos !== -1) {
+            const range = ownerDocument.createRange();
+            range.setStart(node, pos);
+            range.setEnd(node, pos + needle.length);
+            const cfi = section.cfiFromRange(range);
+            if (typeof cfi === 'string') cfis.push(cfi);
+            pos = folded.indexOf(needle, pos + 1);
+          }
+          return;
+        }
+        if (node.nodeType !== 1 || /^(script|style|head|title)$/i.test(node.nodeName || '')) return;
+        for (let child = node.firstChild; child; child = child.nextSibling) walk(child);
+      };
+      walk(root);
+      return cfis;
     } catch (error) {
       return [];
     } finally {
@@ -2339,13 +2385,13 @@
   };
 
   const searchText = async (query) => {
-    const normalized = query.toLowerCase();
+    const normalized = foldSearchText(query);
     const results = [];
 
     for (let i = 0; i < pageCount; i += 1) {
       const text = await getPageText(i);
       if (!text) continue;
-      const lower = text.toLowerCase();
+      const lower = foldSearchText(text);
       let pos = lower.indexOf(normalized, 0);
       let matchIndex = 0;
       const sectionResults = [];
@@ -2359,7 +2405,7 @@
         pos = lower.indexOf(normalized, pos + 1);
       }
       if (sectionResults.length && currentType === 'epub') {
-        // Section.find only sees matches inside one text node; when its count
+        // Only matches inside one text node get a CFI; when the count
         // differs (a match split by markup), keep chapter-level navigation
         // rather than pair a result with the wrong place.
         const cfis = await findEpubSectionCfis(i, query);

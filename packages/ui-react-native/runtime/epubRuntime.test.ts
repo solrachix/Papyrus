@@ -56,6 +56,17 @@ describe('EPUB runtime bridge',()=>{
   const latestState=r.messages.filter(message=>message.type==='state').at(-1);
   expect(latestState?.payload.currentPage).toBe(1);
  });
+ it('finds matches without accents and gives each one its exact CFI',async()=>{
+  const r=runtime();
+  const chapter=new r.dom.window.DOMParser().parseFromString('<html><body><p>De domínio <em>público</em>.</p><p>Outro Publico aqui.</p></body></html>','application/xhtml+xml');
+  const section:any={contents:null,load:vi.fn(async()=>{section.contents=chapter.documentElement;section.document=chapter;return chapter.documentElement;}),unload:vi.fn(()=>{section.contents=null;}),
+   cfiFromRange:(range:any)=>`epubcfi(/6/2!/${range.startContainer.nodeValue.trim()}:${range.startOffset})`};
+  r.book.spine.items=[{href:'a.xhtml'}];r.book.spine.get=vi.fn(()=>section);r.book.load=vi.fn();
+  await r.send('load','load',{type:'epub',documentSessionId:'s',source:{kind:'base64',data:'AA=='}});
+  const found=await r.send('search','search-text',{query:'publico'});
+  expect(found.data.map((result:any)=>result.cfi)).toEqual(['epubcfi(/6/2!/público:0)','epubcfi(/6/2!/Outro Publico aqui.:6)']);
+  expect(found.data.map((result:any)=>result.matchIndex)).toEqual([0,1]);
+ });
  it('keeps TXT zoom independent of EPUB state',async()=>{const r=runtime();await r.send('load','load',{type:'text',source:{kind:'text',text:'sample'}});expect((await r.send('zoom','set-zoom',{zoom:1.2})).ok).toBe(true);});
  it('applies typography to chapter documents and keeps the reader on its CFI',async()=>{
   const r=runtime();await r.send('load','load',{type:'epub',documentSessionId:'s',source:{kind:'base64',data:'AA=='}});
