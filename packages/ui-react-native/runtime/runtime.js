@@ -2247,9 +2247,11 @@
       let pos = lower.indexOf(normalized, 0);
       let matchIndex = 0;
       while (pos !== -1) {
-        const start = Math.max(0, pos - 20);
-        const end = Math.min(text.length, pos + query.length + 20);
-        results.push({ pageIndex: i, text: text.substring(start, end), matchIndex });
+        // Enough context for a readable snippet in the search sheet.
+        const start = Math.max(0, pos - 60);
+        const end = Math.min(text.length, pos + query.length + 60);
+        const snippet = text.substring(start, end).replace(/\s+/g, ' ').trim();
+        results.push({ pageIndex: i, text: (start > 0 ? '…' : '') + snippet + (end < text.length ? '…' : ''), matchIndex });
         matchIndex += 1;
         pos = lower.indexOf(normalized, pos + 1);
       }

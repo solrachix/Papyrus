@@ -115,6 +115,13 @@ type Strings = {
   typographyAlignment: string;
   typographyJustify: string;
   typographyLeft: string;
+  chapter: string;
+  clearSearch: string;
+  previousResult: string;
+  nextResult: string;
+  showResults: string;
+  closeSearch: string;
+  searchHint: string;
 };
 
 const STRINGS: Record<Locale, Strings> = {
@@ -233,6 +240,13 @@ const STRINGS: Record<Locale, Strings> = {
     typographyAlignment: "Alignment",
     typographyJustify: "Justified",
     typographyLeft: "Left",
+    chapter: "Chapter",
+    clearSearch: "Clear search",
+    previousResult: "Previous result",
+    nextResult: "Next result",
+    showResults: "Show results",
+    closeSearch: "Close search",
+    searchHint: "Type a word or phrase and press search.",
   },
   "pt-BR": {
     pages: "Paginas",
@@ -349,6 +363,13 @@ const STRINGS: Record<Locale, Strings> = {
     typographyAlignment: "Alinhamento",
     typographyJustify: "Justificado",
     typographyLeft: "À esquerda",
+    chapter: "Capítulo",
+    clearSearch: "Limpar busca",
+    previousResult: "Resultado anterior",
+    nextResult: "Próximo resultado",
+    showResults: "Ver resultados",
+    closeSearch: "Fechar busca",
+    searchHint: "Digite uma palavra ou frase e toque em buscar.",
   },
 };
 
