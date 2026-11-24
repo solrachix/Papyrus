@@ -63,6 +63,18 @@
     manager.resize=resize;
     return {cfi:function(){return anchor;},invalidate:function(){anchor=null;},destroy:function(){if(manager.resize===resize)manager.resize=original;anchor=null;}};
   }
+  // Bounding rect of a chapter selection in the WebView viewport. The range
+  // rect is relative to the chapter iframe; the iframe rect already includes
+  // the manager container scroll (paged columns and chapter-scroll alike).
+  function selectionRect(range,frame){
+    if(!range || typeof range.getBoundingClientRect!=='function')return null;
+    var r=range.getBoundingClientRect();
+    if(!r || !(r.width>0 || r.height>0))return null;
+    var f=frame && typeof frame.getBoundingClientRect==='function'?frame.getBoundingClientRect():null;
+    var x=(f?f.left:0)+r.left,y=(f?f.top:0)+r.top;
+    if(![x,y,r.width,r.height].every(Number.isFinite))return null;
+    return {x:Math.round(x),y:Math.round(y),width:Math.round(r.width),height:Math.round(r.height)};
+  }
   function install(contents,config){
     var doc=contents.document,win=contents.window,start=null,blocked=false,edge=null,pull=null;
     function point(e){var t=e.changedTouches&&e.changedTouches[0]||e.touches&&e.touches[0];return t?{x:t.clientX,y:t.clientY,time:Date.now()}:null;}
@@ -79,5 +91,5 @@
     doc.addEventListener('touchstart',begin,{passive:true});doc.addEventListener('touchmove',move,{passive:true});doc.addEventListener('touchend',end,{passive:true});doc.addEventListener('touchcancel',cancel,{passive:true});doc.addEventListener('click',link);
     return function(){showPull(null);doc.removeEventListener('touchstart',begin);doc.removeEventListener('touchmove',move);doc.removeEventListener('touchend',end);doc.removeEventListener('touchcancel',cancel);doc.removeEventListener('click',link);};
   }
-  root.PapyrusEpubReader={mode:mode,validCfi:validCfi,options:options,gesture:gesture,chapterPull:chapterPull,location:location,installResizeAnchor:installResizeAnchor,install:install};
+  root.PapyrusEpubReader={mode:mode,validCfi:validCfi,options:options,gesture:gesture,chapterPull:chapterPull,location:location,installResizeAnchor:installResizeAnchor,selectionRect:selectionRect,install:install};
 })(typeof window==='undefined'?globalThis:window);

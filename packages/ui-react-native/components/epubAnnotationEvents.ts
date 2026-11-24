@@ -1,7 +1,26 @@
 import {validateAnnotationAnchor,validateEpubInkData} from '@papyrus-sdk/core';
 import type {Annotation,AnnotationAnchor} from '@papyrus-sdk/types';
 import type {EpubInkPreset} from '@papyrus-sdk/types';
-export type EpubAnnotationEvent = {kind:'tap';id:string;ids?:string[]} | {kind:'selection';session:string;text:string;pageIndex:number;anchor:AnnotationAnchor} | {kind:'ink';session:string;annotation:Annotation};
+/** Selection bounding box in WebView viewport (CSS px = dp) coordinates. */
+export type EpubSelectionRect = {x:number;y:number;width:number;height:number};
+export type EpubAnnotationEvent = {kind:'tap';id:string;ids?:string[]} | {kind:'selection';session:string;text:string;pageIndex:number;anchor:AnnotationAnchor;rect?:EpubSelectionRect} | {kind:'ink';session:string;annotation:Annotation};
+export function parseEpubSelectionRect(value:unknown):EpubSelectionRect|undefined {
+ const r=value as EpubSelectionRect|null|undefined;
+ if(!r||typeof r!=='object')return undefined;
+ const values=[r.x,r.y,r.width,r.height];
+ if(!values.every(n=>typeof n==='number'&&Number.isFinite(n)&&Math.abs(n)<1e6)||r.width<0||r.height<0)return undefined;
+ return {x:r.x,y:r.y,width:r.width,height:r.height};
+}
+/** Selection geometry updates (scroll) and collapse notifications from the runtime. */
+export function parseEpubSelectionGeometryEvent(raw:string,session:string):{kind:'rect';rect:EpubSelectionRect}|{kind:'cleared'}|null {
+ if(!session||raw.length>4096)return null;
+ let message:any;try{message=JSON.parse(raw);}catch{return null;}
+ if(message?.type!=='event'||message.payload?.documentSessionId!==session)return null;
+ if(message.name==='EPUB_SELECTION_CLEARED')return {kind:'cleared'};
+ if(message.name!=='EPUB_SELECTION_RECT')return null;
+ const rect=parseEpubSelectionRect(message.payload.rect);
+ return rect?{kind:'rect',rect}:null;
+}
 const EPUB_INK_PRESETS: readonly EpubInkPreset[] = ['ink','highlight','underline'];
 export function resolveEpubInkMode(input:{documentType:string;isLoaded:boolean;activeTool:string;preset:string;color:string;opacity:number;strokeWidth:number}) {
  if(!input.isLoaded||input.documentType!=='epub')return null;
@@ -23,5 +42,6 @@ export function parseEpubAnnotationEvent(raw:string,session:string,documentId?:s
  }
  if(message.name!=='EPUB_TEXT_SELECTED'||!validateAnnotationAnchor(p.anchor)||p.anchor.kind!=='epub-cfi'||p.text!==p.anchor.quote||!Number.isSafeInteger(p.pageIndex)||p.pageIndex<1)return null;
  if(documentId&&p.anchor.documentId&&p.anchor.documentId!==documentId)return null;
- return {kind:'selection',session,text:p.text,pageIndex:p.pageIndex,anchor:{...p.anchor,documentId:documentId??p.anchor.documentId}};
+ const rect=parseEpubSelectionRect(p.rect);
+ return {kind:'selection',session,text:p.text,pageIndex:p.pageIndex,anchor:{...p.anchor,documentId:documentId??p.anchor.documentId},...(rect?{rect}:{})};
 }

@@ -88,6 +88,13 @@ type Strings = {
   comicLtr: string;
   comicRtl: string;
   comicPageError: string;
+  selectionActions: string;
+  consult: string;
+  colorYellow: string;
+  colorPink: string;
+  colorBlue: string;
+  colorGreen: string;
+  colorPurple: string;
 };
 
 const STRINGS: Record<Locale, Strings> = {
@@ -179,6 +186,13 @@ const STRINGS: Record<Locale, Strings> = {
     comicLtr: "Left to right",
     comicRtl: "Right to left / Manga",
     comicPageError: "This comic page could not be displayed.",
+    selectionActions: "Selection actions",
+    consult: "Look up",
+    colorYellow: "Yellow",
+    colorPink: "Pink",
+    colorBlue: "Blue",
+    colorGreen: "Green",
+    colorPurple: "Purple",
   },
   "pt-BR": {
     pages: "Paginas",
@@ -268,6 +282,13 @@ const STRINGS: Record<Locale, Strings> = {
     comicLtr: "Esquerda para direita",
     comicRtl: "Direita para esquerda / Mangá",
     comicPageError: "Não foi possível exibir esta página do quadrinho.",
+    selectionActions: "Ações da seleção",
+    consult: "Consultar",
+    colorYellow: "Amarelo",
+    colorPink: "Rosa",
+    colorBlue: "Azul",
+    colorGreen: "Verde",
+    colorPurple: "Roxo",
   },
 };
 

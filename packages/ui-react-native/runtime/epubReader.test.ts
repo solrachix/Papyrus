@@ -134,3 +134,19 @@ describe('EPUB chapter-scroll edge pull',()=>{
   cleanup();
  });
 });
+
+describe('EPUB selection rect',()=>{
+ it('maps the chapter range rect into WebView viewport coordinates through the iframe offset',()=>{
+  const p=load();
+  const range={getBoundingClientRect:()=>({left:30.4,top:500,width:120,height:18})};
+  // A chapter-scroll iframe scrolled up by 300px, or a paged column shifted left.
+  expect(p.selectionRect(range,{getBoundingClientRect:()=>({left:-360,top:-300})})).toEqual({x:-330,y:200,width:120,height:18});
+  expect(p.selectionRect(range,null)).toEqual({x:30,y:500,width:120,height:18});
+ });
+ it('ignores empty or unmeasurable ranges',()=>{
+  const p=load();
+  expect(p.selectionRect({getBoundingClientRect:()=>({left:0,top:0,width:0,height:0})},null)).toBe(null);
+  expect(p.selectionRect({},null)).toBe(null);
+  expect(p.selectionRect(null,null)).toBe(null);
+ });
+});

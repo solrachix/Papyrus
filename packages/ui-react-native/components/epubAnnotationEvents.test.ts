@@ -1,7 +1,7 @@
 import {describe,it,expect} from 'vitest';
 import {readFileSync} from 'node:fs';
 import {resolve} from 'node:path';
-import {parseEpubAnnotationEvent,resolveEpubInkMode} from './epubAnnotationEvents';
+import {parseEpubAnnotationEvent,parseEpubSelectionGeometryEvent,resolveEpubInkMode} from './epubAnnotationEvents';
 import type {Annotation} from '@papyrus-sdk/types';
 const payload={documentSessionId:'s1',pageIndex:1,text:'word',anchor:{version:1,kind:'epub-cfi',cfiRange:'epubcfi(/6/2!/4/2:0)',href:'one.xhtml',quote:'word',documentId:'file1'}};
 const event=(p=payload)=>JSON.stringify({type:'event',name:'EPUB_TEXT_SELECTED',payload:p});
@@ -59,5 +59,20 @@ describe('EPUB drawing presets',()=>{
  it('disables drawing for selection and non-EPUB documents',()=>{
   expect(resolveEpubInkMode({...common,activeTool:'select',preset:'ink'})).toMatchObject({enabled:false});
   expect(resolveEpubInkMode({...common,documentType:'pdf',activeTool:'ink',preset:'ink'})).toBeNull();
+ });
+});
+
+describe('EPUB selection geometry',()=>{
+ it('keeps a valid selection rect and drops a malformed one',()=>{
+  expect(parseEpubAnnotationEvent(event({...payload,rect:{x:10,y:20,width:30,height:12}} as any),'s1','file1')).toMatchObject({kind:'selection',rect:{x:10,y:20,width:30,height:12}});
+  const bad=parseEpubAnnotationEvent(event({...payload,rect:{x:'1',y:20,width:30,height:12}} as any),'s1','file1');
+  expect(bad?.kind).toBe('selection');expect(bad && 'rect' in bad).toBe(false);
+ });
+ it('parses rect updates and collapse only for the current session',()=>{
+  const raw=(name:string,p:any)=>JSON.stringify({type:'event',name,payload:p});
+  expect(parseEpubSelectionGeometryEvent(raw('EPUB_SELECTION_RECT',{documentSessionId:'s1',rect:{x:1,y:2,width:3,height:4}}),'s1')).toEqual({kind:'rect',rect:{x:1,y:2,width:3,height:4}});
+  expect(parseEpubSelectionGeometryEvent(raw('EPUB_SELECTION_CLEARED',{documentSessionId:'s1'}),'s1')).toEqual({kind:'cleared'});
+  expect(parseEpubSelectionGeometryEvent(raw('EPUB_SELECTION_CLEARED',{documentSessionId:'old'}),'s1')).toBeNull();
+  expect(parseEpubSelectionGeometryEvent(raw('EPUB_SELECTION_RECT',{documentSessionId:'s1',rect:null}),'s1')).toBeNull();
  });
 });

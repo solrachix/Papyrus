@@ -175,6 +175,18 @@
     manager.resize=resize;
     return {cfi:function(){return anchor;},invalidate:function(){anchor=null;},destroy:function(){if(manager.resize===resize)manager.resize=original;anchor=null;}};
   }
+  // Bounding rect of a chapter selection in the WebView viewport. The range
+  // rect is relative to the chapter iframe; the iframe rect already includes
+  // the manager container scroll (paged columns and chapter-scroll alike).
+  function selectionRect(range,frame){
+    if(!range || typeof range.getBoundingClientRect!=='function')return null;
+    var r=range.getBoundingClientRect();
+    if(!r || !(r.width>0 || r.height>0))return null;
+    var f=frame && typeof frame.getBoundingClientRect==='function'?frame.getBoundingClientRect():null;
+    var x=(f?f.left:0)+r.left,y=(f?f.top:0)+r.top;
+    if(![x,y,r.width,r.height].every(Number.isFinite))return null;
+    return {x:Math.round(x),y:Math.round(y),width:Math.round(r.width),height:Math.round(r.height)};
+  }
   function install(contents,config){
     var doc=contents.document,win=contents.window,start=null,blocked=false,edge=null,pull=null;
     function point(e){var t=e.changedTouches&&e.changedTouches[0]||e.touches&&e.touches[0];return t?{x:t.clientX,y:t.clientY,time:Date.now()}:null;}
@@ -191,7 +203,7 @@
     doc.addEventListener('touchstart',begin,{passive:true});doc.addEventListener('touchmove',move,{passive:true});doc.addEventListener('touchend',end,{passive:true});doc.addEventListener('touchcancel',cancel,{passive:true});doc.addEventListener('click',link);
     return function(){showPull(null);doc.removeEventListener('touchstart',begin);doc.removeEventListener('touchmove',move);doc.removeEventListener('touchend',end);doc.removeEventListener('touchcancel',cancel);doc.removeEventListener('click',link);};
   }
-  root.PapyrusEpubReader={mode:mode,validCfi:validCfi,options:options,gesture:gesture,chapterPull:chapterPull,location:location,installResizeAnchor:installResizeAnchor,install:install};
+  root.PapyrusEpubReader={mode:mode,validCfi:validCfi,options:options,gesture:gesture,chapterPull:chapterPull,location:location,installResizeAnchor:installResizeAnchor,selectionRect:selectionRect,install:install};
 })(typeof window==='undefined'?globalThis:window);
 
 /* @papyrus-epub-reader:end */
@@ -1847,7 +1859,8 @@
             if (!anchor) return;
             if (nativeMenuSelection?.payload?.anchor?.cfiRange === anchor.cfiRange && nativeMenuSelection?.payload?.anchor?.quote === anchor.quote) return;
             const payload = {documentSessionId: session, text: anchor.quote,
-              pageIndex: contents.sectionIndex + 1, anchor};
+              pageIndex: contents.sectionIndex + 1, anchor,
+              rect: window.PapyrusEpubReader.selectionRect(range, frameOf(contents))};
             nativeMenuSelection = {contents, payload};
             sendEvent('EPUB_TEXT_SELECTED', payload);
           };
@@ -1860,7 +1873,12 @@
             // The content document still emits selectionchange, so resolve its
             // live Range to a CFI before the native menu action can fire.
             if (text) reportSelection();
-            else if (nativeMenuSelection?.contents === contents) nativeMenuSelection = null;
+            else if (nativeMenuSelection?.contents === contents) {
+              // Tell the host the selection collapsed so a Papyrus-drawn menu
+              // (Android) can dismiss itself.
+              nativeMenuSelection = null;
+              sendEvent('EPUB_SELECTION_CLEARED', {documentSessionId: session});
+            }
           };
           selectionDocument.addEventListener('selectionchange', handleSelectionChange);
           const selectionCleanup = () => {
@@ -1901,7 +1919,10 @@
         const anchor = href && window.PapyrusEpubAnnotations?.selection(contents,cfiRange,href,annotationDocumentId);
         if (!anchor || nativeMenuSelection?.payload?.anchor?.cfiRange === anchor.cfiRange && nativeMenuSelection?.payload?.anchor?.quote === anchor.quote) return;
         epubScrollDiagnostics && epubScrollDiagnostics.setSelectionActive(true);
-        const payload = {documentSessionId: selectionSession, text: anchor.quote, pageIndex: contents.sectionIndex+1, anchor};
+        const live = contents.window && contents.window.getSelection();
+        const liveRange = live && live.rangeCount ? live.getRangeAt(0) : null;
+        const payload = {documentSessionId: selectionSession, text: anchor.quote, pageIndex: contents.sectionIndex+1, anchor,
+          rect: window.PapyrusEpubReader.selectionRect(liveRange, frameOf(contents))};
         nativeMenuSelection = {contents, payload};
         sendEvent('EPUB_TEXT_SELECTED', payload);
       });
@@ -2029,6 +2050,7 @@
         };
       }
       const handleScroll = event => {
+        scheduleSelectionRect();
         const offsetY = Math.max(0, Number(event && event.top) || 0);
         epubScrollDiagnostics && epubScrollDiagnostics.scroll(event);
         if (Math.abs(offsetY-lastScrollOffset)<1) return;
@@ -2190,6 +2212,25 @@
   };
 
   let nativeMenuSelection = null;
+  const frameOf = (contents) => {
+    try { return contents && contents.document ? contents.document.defaultView.frameElement : null; } catch (_) { return null; }
+  };
+  // While a selection is active, scrolling moves it; resend its viewport rect
+  // once per frame so the host can re-anchor (or hide) its selection menu.
+  let selectionRectFrame = null;
+  const scheduleSelectionRect = () => {
+    if (!nativeMenuSelection || selectionRectFrame !== null) return;
+    const schedule = window.requestAnimationFrame || (callback => setTimeout(callback, 16));
+    selectionRectFrame = schedule(() => {
+      selectionRectFrame = null;
+      const selected = nativeMenuSelection;
+      if (!selected) return;
+      const live = selected.contents.window && selected.contents.window.getSelection();
+      if (!live || live.isCollapsed || !live.rangeCount) return;
+      sendEvent('EPUB_SELECTION_RECT', {documentSessionId: selected.payload.documentSessionId,
+        rect: window.PapyrusEpubReader.selectionRect(live.getRangeAt(0), frameOf(selected.contents))});
+    });
+  };
   let epubViewMode = "single";
   let epubLocation = null;
 
