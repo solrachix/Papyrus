@@ -162,9 +162,19 @@ export default function ReaderSettingsView({
                     accessibilityLabel={`${group.label} ${option.label}`}
                     accessibilityState={{ selected: active }}
                     onPress={() => group.onChange(option.value)}
-                    style={[styles.modeButton, { backgroundColor: active ? accentColor : palette.elevatedSurface, borderColor: active ? accentColor : palette.divider }]}
+                    style={option.previewFontFamily
+                      ? [styles.fontTile, { backgroundColor: active ? palette.activeSurface : palette.elevatedSurface, borderColor: active ? accentColor : palette.divider, borderWidth: active ? 2 : 1 }]
+                      : [styles.modeButton, { backgroundColor: active ? accentColor : palette.elevatedSurface, borderColor: active ? accentColor : palette.divider }]}
                   >
-                    <Text style={[styles.themeLabel, { color: active ? "#ffffff" : palette.text }]}>{option.label}</Text>
+                    {option.previewFontFamily ? (
+                      // Font choices preview themselves, like the app's appearance picker.
+                      <>
+                        <Text style={[styles.fontTileGlyph, { color: palette.text, fontFamily: option.previewFontFamily }]}>Aa</Text>
+                        <Text numberOfLines={1} style={[styles.fontTileLabel, { color: active ? accentColor : palette.mutedText }]}>{option.label}</Text>
+                      </>
+                    ) : (
+                      <Text style={[styles.themeLabel, { color: active ? "#ffffff" : palette.text }]}>{option.label}</Text>
+                    )}
                   </Pressable>
                 );
               })}
@@ -184,9 +194,19 @@ export default function ReaderSettingsView({
                     accessibilityLabel={`Modo ${option.label}`}
                     accessibilityState={{ selected: active }}
                     onPress={() => onTransitionChange(option.value)}
-                    style={[styles.modeButton, { backgroundColor: active ? accentColor : palette.elevatedSurface, borderColor: active ? accentColor : palette.divider }]}
+                    style={option.previewFontFamily
+                      ? [styles.fontTile, { backgroundColor: active ? palette.activeSurface : palette.elevatedSurface, borderColor: active ? accentColor : palette.divider, borderWidth: active ? 2 : 1 }]
+                      : [styles.modeButton, { backgroundColor: active ? accentColor : palette.elevatedSurface, borderColor: active ? accentColor : palette.divider }]}
                   >
-                    <Text style={[styles.themeLabel, { color: active ? "#ffffff" : palette.text }]}>{option.label}</Text>
+                    {option.previewFontFamily ? (
+                      // Font choices preview themselves, like the app's appearance picker.
+                      <>
+                        <Text style={[styles.fontTileGlyph, { color: palette.text, fontFamily: option.previewFontFamily }]}>Aa</Text>
+                        <Text numberOfLines={1} style={[styles.fontTileLabel, { color: active ? accentColor : palette.mutedText }]}>{option.label}</Text>
+                      </>
+                    ) : (
+                      <Text style={[styles.themeLabel, { color: active ? "#ffffff" : palette.text }]}>{option.label}</Text>
+                    )}
                   </Pressable>
                 );
               })}
@@ -211,6 +231,9 @@ const styles = StyleSheet.create({
   section: { marginBottom: 16 },
   sectionTitle: { fontSize: 12, lineHeight: 16, fontWeight: "800", color: "#111827", marginBottom: 8 },
   choiceRow: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  fontTile: { width: 76, height: 76, borderRadius: 16, alignItems: "center", justifyContent: "center", gap: 2 },
+  fontTileGlyph: { fontSize: 24, lineHeight: 30 },
+  fontTileLabel: { fontSize: 10, fontWeight: "700", maxWidth: 70 },
   themeOption: { minWidth: 76, alignItems: "center", paddingVertical: 10, paddingHorizontal: 8, borderRadius: 16, borderWidth: 1.5 },
   swatch: { width: 34, height: 34, borderRadius: 17, marginBottom: 8, overflow: "hidden", borderWidth: 1, alignItems: "center", justifyContent: "center" },
   swatchInset: { position: "absolute", left: 0, top: 0, bottom: 0, width: "50%" },

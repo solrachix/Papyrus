@@ -11,7 +11,7 @@ vi.mock("react-native", async () => {
     React.createElement("button", { onClick: onPress, "aria-label": accessibilityLabel, "aria-pressed": accessibilityState?.selected, disabled }, children);
   const Modal = ({ children }: any) => React.createElement("div", null, children);
   const ScrollView = View;
-  return { View, Text, Pressable, Modal, ScrollView, StyleSheet: { create: (styles: any) => styles, absoluteFillObject: {}, hairlineWidth: 1 } };
+  return { View, Text, Pressable, Modal, ScrollView, Platform: { OS: "ios", select: (o: any) => o.ios ?? o.default }, StyleSheet: { create: (styles: any) => styles, absoluteFillObject: {}, hairlineWidth: 1 } };
 });
 vi.mock("../NativeSheet", async () => {
   const React = await import("react");

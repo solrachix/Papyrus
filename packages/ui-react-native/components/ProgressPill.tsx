@@ -449,7 +449,7 @@ export function ProgressPill({
             testID="papyrus-progress-pill"
           >
             <View style={styles.labelHit}>
-              <Text numberOfLines={1} style={[styles.label, isDark && styles.labelDark]}>
+              <Text numberOfLines={1} ellipsizeMode="tail" style={[styles.label, isDark && styles.labelDark]}>
                 {label}
               </Text>
             </View>
@@ -557,6 +557,9 @@ const styles = StyleSheet.create({
   },
   labelHit: {
     borderRadius: 8,
+    // A long chapter title must shrink and end in "…", not overflow the pill.
+    flexShrink: 1,
+    maxWidth: 168,
   },
   pillDark: {
     backgroundColor: "rgba(15,17,21,0.88)",

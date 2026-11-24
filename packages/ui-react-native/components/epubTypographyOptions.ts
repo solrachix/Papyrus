@@ -1,3 +1,4 @@
+import { Platform } from "react-native";
 import type { EpubTypography, Locale } from "@papyrus-sdk/types";
 import { getStrings } from "../mobileStrings";
 import type { ReaderSettingsChoiceGroup } from "./sharedReaderChrome/types";
@@ -14,18 +15,24 @@ export function getEpubTypographyGroups(
   typography: EpubTypography,
   locale: Locale | undefined,
   onChange: (patch: Partial<EpubTypography>) => void,
+  /** Host fonts registered with setEpubCustomFonts, shown after the built-ins. */
+  customFonts: { id: string; label: string; previewFontFamily?: string }[] = [],
 ): ReaderSettingsChoiceGroup[] {
   const t = getStrings(locale);
+  const ios = Platform?.OS === "ios";
   return [
     {
       key: "fontFamily",
       label: t.typographyFont,
       value: typography.fontFamily,
       options: [
-        { value: "original", label: t.typographyOriginal },
-        { value: "serif", label: t.typographySerif },
-        { value: "sans", label: t.typographySans },
-        { value: "mono", label: t.typographyMono },
+        // Each option previews itself as "Aa" in that font (as the app's
+        // appearance picker does); "original" uses the system font.
+        { value: "original", label: t.typographyOriginal, previewFontFamily: (ios ? "System" : "sans-serif") },
+        { value: "serif", label: t.typographySerif, previewFontFamily: (ios ? "Georgia" : "serif") },
+        { value: "sans", label: t.typographySans, previewFontFamily: (ios ? "Helvetica Neue" : "sans-serif-medium") },
+        { value: "mono", label: t.typographyMono, previewFontFamily: (ios ? "Menlo" : "monospace") },
+        ...customFonts.map((font) => ({ value: `custom:${font.id}`, label: font.label, previewFontFamily: font.previewFontFamily })),
       ],
       onChange: (value) => onChange({ fontFamily: value as EpubTypography["fontFamily"] }),
     },

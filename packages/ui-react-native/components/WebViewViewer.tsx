@@ -120,7 +120,7 @@ const WebViewViewer: React.FC<WebViewViewerProps> = ({
     });
     return () => subscription.remove();
   }, []);
-  const { pageTheme, epubReadingMode, epubTypography, setDocumentState, annotations, isLoaded, locale, annotationColor, annotationOpacity, inkStrokeWidth, activeTool, activeDrawToolPreset, addAnnotation, removeAnnotation, beginAnnotationDraft, setSelectedAnnotation } = useViewerStore();
+  const { pageTheme, epubReadingMode, epubTypography, epubCustomFonts, setDocumentState, annotations, isLoaded, locale, annotationColor, annotationOpacity, inkStrokeWidth, activeTool, activeDrawToolPreset, addAnnotation, removeAnnotation, beginAnnotationDraft, setSelectedAnnotation } = useViewerStore();
   const [selection,setSelection] = useState<Extract<EpubAnnotationEvent,{kind:"selection"}> | null>(null);
   const t = getStrings(locale);
   const bridgeEngine = engine as WebViewBridgeEngine;
@@ -377,6 +377,10 @@ const WebViewViewer: React.FC<WebViewViewerProps> = ({
     if (!isLoaded || documentType !== "epub") return;
     webViewRef.current?.postMessage(JSON.stringify({ id: `epub-theme-${Date.now()}`, kind: "set-epub-theme", payload: { theme: epubPagePalette } }));
   }, [isLoaded, documentType, epubPagePalette]);
+  useEffect(() => {
+    if (!isLoaded || documentType !== "epub") return;
+    webViewRef.current?.postMessage(JSON.stringify({ id: `epub-fonts-${Date.now()}`, kind: "set-epub-fonts", payload: { fonts: epubCustomFonts } }));
+  }, [isLoaded, documentType, epubCustomFonts]);
   useEffect(() => {
     if (!isLoaded || documentType !== "epub") return;
     // The runtime ignores unchanged values, so a reload does not reflow.

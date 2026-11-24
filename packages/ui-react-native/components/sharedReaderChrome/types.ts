@@ -28,6 +28,8 @@ export interface ReaderChoiceOption {
   label: string;
   swatchColor?: string;
   swatchForegroundColor?: string;
+  /** Font for an "Aa" preview tile (typography choices). */
+  previewFontFamily?: string;
 }
 
 export interface ReaderSheetAction {

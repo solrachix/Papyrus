@@ -45,7 +45,17 @@ export type DocumentSource =
 
 export type EpubReadingMode = "paged" | "chapter-scroll";
 /** "original" keeps the publisher CSS for that property. */
-export type EpubFontFamily = "original" | "serif" | "sans" | "mono";
+/** Built-in families, or "custom:<id>" for a font the host registered. */
+export type EpubFontFamily = "original" | "serif" | "sans" | "mono" | `custom:${string}`;
+/** A font the host app ships, sent to the EPUB runtime as a data URL. */
+export interface EpubCustomFont {
+  /** Lowercase id; typography refers to it as "custom:<id>". */
+  id: string;
+  /** CSS family name used inside the book. */
+  family: string;
+  /** data:font/ttf;base64,… (or woff/woff2). */
+  src: string;
+}
 export type EpubPageMargin = "original" | "narrow" | "medium" | "wide";
 export type EpubTextAlign = "original" | "justify" | "left";
 export interface EpubTypography {

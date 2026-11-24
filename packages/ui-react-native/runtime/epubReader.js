@@ -80,16 +80,29 @@
   var TYPE_FONTS={serif:'Georgia, "Iowan Old Style", "Times New Roman", "Noto Serif", serif',sans:'-apple-system, Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif',mono:'ui-monospace, Menlo, "Roboto Mono", "DejaVu Sans Mono", monospace'};
   var TYPE_MARGINS={narrow:'0.5em',medium:'1.5em',wide:'3em'};
   var NOT_OVERLAY=':not([data-papyrus-overlay]):not([data-papyrus-overlay] *)';
+  // Host fonts (the app's own typefaces), embedded as data URLs.
+  var CUSTOM_FONTS={};
+  function registerFonts(list){
+    CUSTOM_FONTS={};
+    (Array.isArray(list)?list:[]).forEach(function(f){
+      if(!f||!/^[a-z0-9-]{1,40}$/.test(f.id)||!/^[A-Za-z0-9 _-]{1,60}$/.test(f.family)||typeof f.src!=='string'||!/^data:(font\/(ttf|otf|woff2?)|application\/(x-font-ttf|font-woff2?|octet-stream));base64,[A-Za-z0-9+\/=]+$/.test(f.src))return;
+      CUSTOM_FONTS['custom:'+f.id]={family:f.family,src:f.src};
+    });
+  }
+  function customFamily(id){return CUSTOM_FONTS[id]?"'"+CUSTOM_FONTS[id].family+"', "+TYPE_FONTS.sans:null;}
   function typography(value){
     var v=value||{},line=Number(v.lineHeight);
-    return {fontFamily:TYPE_FONTS[v.fontFamily]?v.fontFamily:'original',lineHeight:Number.isFinite(line)&&line>=1&&line<=2.5?Math.round(line*100)/100:null,
+    var custom=typeof v.fontFamily==='string'&&/^custom:[a-z0-9-]{1,40}$/.test(v.fontFamily);
+    return {fontFamily:TYPE_FONTS[v.fontFamily]||custom?v.fontFamily:'original',lineHeight:Number.isFinite(line)&&line>=1&&line<=2.5?Math.round(line*100)/100:null,
       margin:TYPE_MARGINS[v.margin]?v.margin:'original',textAlign:v.textAlign==='justify'||v.textAlign==='left'?v.textAlign:'original'};
   }
   function typographyCss(value){
     var t=typography(value),css='';
-    if(t.fontFamily!=='original'){
+    var family=TYPE_FONTS[t.fontFamily]||customFamily(t.fontFamily);
+    if(CUSTOM_FONTS[t.fontFamily])css+="@font-face { font-family: '"+CUSTOM_FONTS[t.fontFamily].family+"'; src: url("+CUSTOM_FONTS[t.fontFamily].src+"); font-display: block; } ";
+    if(t.fontFamily!=='original'&&family){
       // Code keeps a monospace face unless the reader chose monospace anyway.
-      css+='html, body, body *'+NOT_OVERLAY+':not(code):not(pre):not(kbd):not(samp):not(code *):not(pre *) { font-family: '+TYPE_FONTS[t.fontFamily]+' !important; }';
+      css+='html, body, body *'+NOT_OVERLAY+':not(code):not(pre):not(kbd):not(samp):not(code *):not(pre *) { font-family: '+family+' !important; }';
     }
     if(t.lineHeight!==null)css+=' body, body *'+NOT_OVERLAY+' { line-height: '+t.lineHeight+' !important; }';
     if(t.margin!=='original')css+=' body > *'+NOT_OVERLAY+':not(img):not(svg):not(hr) { margin-left: '+TYPE_MARGINS[t.margin]+' !important; margin-right: '+TYPE_MARGINS[t.margin]+' !important; }';
@@ -115,5 +128,5 @@
     doc.addEventListener('touchstart',begin,{passive:true});doc.addEventListener('touchmove',move,{passive:true});doc.addEventListener('touchend',end,{passive:true});doc.addEventListener('touchcancel',cancel,{passive:true});doc.addEventListener('click',link);
     return function(){showPull(null);doc.removeEventListener('touchstart',begin);doc.removeEventListener('touchmove',move);doc.removeEventListener('touchend',end);doc.removeEventListener('touchcancel',cancel);doc.removeEventListener('click',link);};
   }
-  root.PapyrusEpubReader={mode:mode,validCfi:validCfi,options:options,gesture:gesture,chapterPull:chapterPull,location:location,installResizeAnchor:installResizeAnchor,selectionRect:selectionRect,typography:typography,typographyCss:typographyCss,install:install};
+  root.PapyrusEpubReader={mode:mode,validCfi:validCfi,options:options,gesture:gesture,chapterPull:chapterPull,location:location,installResizeAnchor:installResizeAnchor,selectionRect:selectionRect,typography:typography,typographyCss:typographyCss,registerFonts:registerFonts,install:install};
 })(typeof window==='undefined'?globalThis:window);
