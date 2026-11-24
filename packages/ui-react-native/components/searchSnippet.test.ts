@@ -8,6 +8,14 @@ describe("search snippets", () => {
       { text: "Mar", match: true }, { text: " e o ", match: false }, { text: "MAR", match: true },
     ]);
   });
+  it("ignores accents both ways, keeping the original text", () => {
+    expect(splitSearchSnippet("de domínio público.", "publico")).toEqual([
+      { text: "de domínio ", match: false }, { text: "público", match: true }, { text: ".", match: false },
+    ]);
+    expect(splitSearchSnippet("um publico", "público")).toEqual([
+      { text: "um ", match: false }, { text: "publico", match: true },
+    ]);
+  });
   it("returns the plain text without a query and nothing for empty text", () => {
     expect(splitSearchSnippet("texto", " ")).toEqual([{ text: "texto", match: false }]);
     expect(splitSearchSnippet("", "a")).toEqual([]);
