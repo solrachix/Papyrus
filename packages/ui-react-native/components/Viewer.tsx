@@ -116,6 +116,13 @@ export interface ViewerProps {
   onTextRangeSelected?: (payload: { text: string; start: number; end: number }) => void;
   /** Called when Define is chosen for a native TXT range. */
   onDefineTextSelection?: (payload: { text: string; start: number; end: number }) => void;
+  /**
+   * EPUB chapter-scroll: height of the host's floating top chrome below the
+   * safe area, in points. Chapters start that far down and navigations to a
+   * target (contents entry, annotation) land below it. Defaults to the Papyrus
+   * top bar height; pass 0 to disable.
+   */
+  epubTargetTopInset?: number;
 }
 
 const LIST_TOP_PADDING = 18;
@@ -206,6 +213,7 @@ const Viewer: React.FC<ViewerProps> = ({
   defineSelectionMode = "selection",
   onTextRangeSelected,
   onDefineTextSelection,
+  epubTargetTopInset,
 }) => {
   const pageCount = useViewerStore((state) => state.pageCount);
   const currentPage = useViewerStore((state) => state.currentPage);
@@ -2234,6 +2242,7 @@ const Viewer: React.FC<ViewerProps> = ({
           maxPageWidth={maxPageWidth}
           onScrollOffset={handleWebViewScroll}
           onTap={handleWebViewTap}
+          epubTargetTopInset={epubTargetTopInset}
         />
       </View>
     );

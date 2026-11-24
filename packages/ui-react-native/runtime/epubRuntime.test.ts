@@ -86,4 +86,23 @@ describe('EPUB runtime bridge',()=>{
   hook({document:chapter.window.document,window:chapter.window,sectionIndex:0});
   expect(chapter.window.document.getElementById('papyrus-typography')?.textContent).toContain('text-align: justify');
  });
+ it('lands TOC targets below the top chrome in chapter scroll only',async()=>{
+  const r=runtime();await r.send('load','load',{type:'epub',documentSessionId:'s',source:{kind:'base64',data:'AA=='}});
+  await r.send('inset','set-epub-target-inset',{top:64});
+  // Paged mode: no spacer, no offset.
+  r.renditions[0].manager.container={scrollTop:0};
+  r.renditions[0].display.mockImplementation(async()=>{r.renditions[0].manager.container.scrollTop=500;});
+  await r.send('paged','epub-go-to-destination',{dest:{kind:'href',value:'b.xhtml#part'},documentSessionId:'s'});
+  expect(r.renditions[0].manager.container.scrollTop).toBe(500);
+  await r.send('mode','set-epub-view-mode',{epubMode:'chapter-scroll',documentSessionId:'s'});
+  const scroll=r.renditions[1];scroll.manager.container={scrollTop:0};
+  scroll.display.mockImplementation(async()=>{scroll.manager.container.scrollTop=500;});
+  await r.send('toc','epub-go-to-destination',{dest:{kind:'href',value:'b.xhtml#part'},documentSessionId:'s'});
+  expect(scroll.manager.container.scrollTop).toBe(436);
+  // Chapter documents get the spacer so a chapter-start heading clears the chrome too.
+  const chapter=new JSDOM('<html><head></head><body><h1>Capítulo</h1></body></html>');
+  const hook=scroll.hooks.content.register.mock.calls.map((call:any)=>call[0]).find((fn:any)=>String(fn).includes('applyEpubTargetInsetToContents'));
+  hook({document:chapter.window.document,window:chapter.window,sectionIndex:1});
+  expect(chapter.window.document.getElementById('papyrus-target-inset')?.textContent).toBe('html { padding-top: 64px !important; }');
+ });
 });

@@ -22040,6 +22040,35 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     doc.head.appendChild(style);
     style.textContent = css;
   };
+  // Chapter-scroll only: the host's floating top chrome covers the top of the
+  // WebView. Chapters get a top spacer of that height, and navigations to a
+  // target (TOC entry, annotation) land that far below the top, so headings
+  // are not hidden. Ordinary scrolling is not offset.
+  let epubTargetTopInset = 0;
+  const EPUB_TARGET_INSET_STYLE_ID = 'papyrus-target-inset';
+  const epubTargetInset = () => epubViewMode === 'single' ? 0 : epubTargetTopInset;
+  const applyEpubTargetInsetToContents = (contents) => {
+    const doc = contents && contents.document;
+    if (!doc || !doc.head) return;
+    let style = doc.getElementById(EPUB_TARGET_INSET_STYLE_ID);
+    const inset = epubTargetInset();
+    if (!inset) {
+      if (style) style.remove();
+      return;
+    }
+    if (!style) {
+      style = doc.createElement('style');
+      style.id = EPUB_TARGET_INSET_STYLE_ID;
+      doc.head.appendChild(style);
+    }
+    style.textContent = 'html { padding-top: ' + inset + 'px !important; }';
+  };
+  const offsetEpubTarget = (activeRendition) => {
+    const container = activeRendition && activeRendition.manager && activeRendition.manager.container;
+    const inset = epubTargetInset();
+    if (!container || !inset) return;
+    container.scrollTop = Math.max(0, container.scrollTop - inset);
+  };
   const applyEpubTheme = () => {
     const background = epubPageTheme && epubPageTheme.background ? epubPageTheme.background : '#ffffff';
     document.documentElement.style.background = background;
@@ -22235,6 +22264,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     if (rendition && rendition.hooks && rendition.hooks.content) {
       rendition.hooks.content.register((contents) => applyEpubThemeToContents(contents));
       rendition.hooks.content.register((contents) => applyEpubTypographyToContents(contents));
+      rendition.hooks.content.register((contents) => applyEpubTargetInsetToContents(contents));
     }
     applyEpubTheme();
 
@@ -22777,6 +22807,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             const range = contents && window.PapyrusEpubAnnotations.resolveRange(contents,annotation.anchor);
             if(!range)throw new Error('EPUB anchor unresolved');
             await activeRendition.display(contents.cfiFromRange(range));
+            if(navigationSession === documentSessionId && activeRendition === rendition)offsetEpubTarget(activeRendition);
           });
           epubNavigationQueue = navigation;
           await navigation;
@@ -22864,6 +22895,20 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         sendResponse(id, true, null);
         return;
       }
+      if (kind === 'set-epub-target-inset') {
+        const top = Number(payload && payload.top);
+        const next = Number.isFinite(top) ? Math.round(Math.max(0, Math.min(400, top))) : 0;
+        const previous = epubTargetInset();
+        epubTargetTopInset = next;
+        if (currentType === 'epub' && rendition && typeof rendition.getContents === 'function') {
+          try { rendition.getContents().forEach(applyEpubTargetInsetToContents); } catch (error) {}
+          // Keep the text under the reader's eyes when the spacer changes.
+          const container = rendition.manager && rendition.manager.container;
+          if (container && container.scrollTop > 0) container.scrollTop = Math.max(0, container.scrollTop + epubTargetInset() - previous);
+        }
+        sendResponse(id, true, null);
+        return;
+      }
       if (kind === 'set-epub-ink-mode') {
         if(currentType!=='epub'||!documentSessionId||payload.documentSessionId!==documentSessionId)throw new Error('Stale EPUB ink session');
         epubInkMode={enabled:payload.enabled===true,preset:['ink','highlight','underline','eraser'].indexOf(payload.preset)>=0?payload.preset:'ink',color:/^#[0-9a-f]{6}$/i.test(payload.color||'')?payload.color:'#2563eb',opacity:Number.isFinite(payload.opacity)?Math.max(0,Math.min(1,payload.opacity)):1,strokeWidth:Number.isFinite(payload.strokeWidth)?Math.max(0.0025,Math.min(0.02,payload.strokeWidth)):0.006};
@@ -22891,6 +22936,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           if (payload.documentSessionId !== documentSessionId || activeRendition !== rendition) return null;
           epubResizeAnchor?.invalidate();
           await activeRendition.display(href);
+          if (payload.documentSessionId === documentSessionId && activeRendition === rendition) offsetEpubTarget(activeRendition);
           const pageIndex = getPageIndex(href);
           const resolvedPageIndex = Number.isSafeInteger(pageIndex) && pageIndex >= 0 ? pageIndex : null;
           if (resolvedPageIndex !== null) currentPage = resolvedPageIndex + 1;

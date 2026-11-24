@@ -10,6 +10,7 @@ import WebView, {
 import { createContextualAnnotation, useViewerStore } from "@papyrus-sdk/core";
 import { Annotation, AnnotationMarkupStyle, DocumentEngine } from "@papyrus-sdk/types";
 import { resolveMaxPageWidth } from "./pdfPageMetrics";
+import { MOBILE_CHROME_METRICS } from "./mobileChromeMetrics";
 import {
   parseWebViewInteraction,
   parseWebViewState,
@@ -81,7 +82,12 @@ interface WebViewViewerProps {
   maxPageWidth?: number;
   onScrollOffset?: (offsetY: number) => void;
   onTap?: () => void;
+  /** See ViewerProps.epubTargetTopInset. */
+  epubTargetTopInset?: number;
 }
+
+/** Papyrus' floating top bar plus a little breathing room. */
+export const DEFAULT_EPUB_TARGET_TOP_INSET = MOBILE_CHROME_METRICS.topbarHeight + 8;
 
 const WebViewViewer: React.FC<WebViewViewerProps> = ({
   engine,
@@ -92,6 +98,7 @@ const WebViewViewer: React.FC<WebViewViewerProps> = ({
   maxPageWidth,
   onScrollOffset,
   onTap,
+  epubTargetTopInset = DEFAULT_EPUB_TARGET_TOP_INSET,
 }) => {
   const webViewRef = useRef<WebView>(null);
   const insets=usePapyrusSafeAreaInsets();
@@ -375,6 +382,11 @@ const WebViewViewer: React.FC<WebViewViewerProps> = ({
     // The runtime ignores unchanged values, so a reload does not reflow.
     webViewRef.current?.postMessage(JSON.stringify({ id: `epub-typography-${Date.now()}`, kind: "set-epub-typography", payload: { typography: epubTypography } }));
   }, [isLoaded, documentType, epubTypography]);
+  useEffect(() => {
+    if (!isLoaded || documentType !== "epub") return;
+    // Chapter-scroll: TOC/annotation targets land below the floating top chrome.
+    webViewRef.current?.postMessage(JSON.stringify({ id: `epub-target-inset-${Date.now()}`, kind: "set-epub-target-inset", payload: { top: epubTargetTopInset } }));
+  }, [isLoaded, documentType, epubTargetTopInset]);
   const themeOverlayStyle = useMemo(() => {
     if (documentType === "epub") return styles.themeNone;
     switch (pageTheme) {
