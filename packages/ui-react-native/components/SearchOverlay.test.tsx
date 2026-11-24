@@ -70,6 +70,39 @@ describe("EPUB search sheet", () => {
     expect(screen.getByRole("region", { name: "Buscar" })).toBeTruthy();
   });
 
+  it("goes straight to the match location when the result has one, without re-opening the chapter", async () => {
+    const goToEpubLocation = vi.fn(async () => undefined);
+    const goToPage = vi.fn();
+    const cfiEngine = {
+      ...engine,
+      goToEpubLocation,
+      goToPage,
+      searchText: async () => [
+        { pageIndex: 1, text: "uma pedra", matchIndex: 0, cfi: "epubcfi(/6/4!/4/2/1:10)" },
+        { pageIndex: 1, text: "outra pedra", matchIndex: 1, cfi: "epubcfi(/6/4!/4/2/1:40)" },
+        { pageIndex: 2, text: "pedra adiante", matchIndex: 0 },
+      ],
+    } as any;
+    render(<SearchOverlay engine={cfiEngine} documentType="epub" visible onClose={vi.fn()} />);
+    fireEvent.change(screen.getByRole("textbox", { name: "Buscar" }), { target: { value: "pedra" } });
+    await act(async () => { fireEvent.keyDown(screen.getByRole("textbox", { name: "Buscar" }), { key: "Enter" }); });
+    fireEvent.click((await screen.findAllByRole("button", { name: /uma pedra/ }))[0]);
+    expect(goToEpubLocation).toHaveBeenLastCalledWith("epubcfi(/6/4!/4/2/1:10)");
+    expect(useViewerStore.getState().scrollToPageSignal).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Próximo resultado" }));
+    expect(goToEpubLocation).toHaveBeenLastCalledWith("epubcfi(/6/4!/4/2/1:40)");
+    expect(useViewerStore.getState()).toMatchObject({ activeSearchIndex: 1, scrollToPageSignal: null });
+
+    // A result without a location still goes to its chapter.
+    fireEvent.click(screen.getByRole("button", { name: "Próximo resultado" }));
+    expect(useViewerStore.getState()).toMatchObject({ activeSearchIndex: 2, scrollToPageSignal: 2 });
+
+    fireEvent.click(screen.getByRole("button", { name: "Resultado anterior" }));
+    expect(goToEpubLocation).toHaveBeenLastCalledWith("epubcfi(/6/4!/4/2/1:40)");
+    expect(useViewerStore.getState().activeSearchIndex).toBe(1);
+  });
+
   it("clears the query and the results", async () => {
     render(<SearchOverlay engine={engine} documentType="epub" visible onClose={vi.fn()} />);
     fireEvent.change(screen.getByRole("textbox", { name: "Buscar" }), { target: { value: "pedra" } });

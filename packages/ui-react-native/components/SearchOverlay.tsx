@@ -40,6 +40,17 @@ type SearchOverlayProps = {
  * jumps to it and collapses the sheet into a small bar with previous/next
  * navigation, so the page stays visible while stepping through matches.
  */
+/** The EPUB match location the runtime attaches to a search result, if any. */
+export function getEpubSearchCfi(result: ReaderSearchResult | undefined): string | null {
+  const cfi = result && !("kind" in result) ? (result as { cfi?: unknown }).cfi : undefined;
+  return typeof cfi === "string" && cfi.startsWith("epubcfi(") ? cfi : null;
+}
+
+function getEpubLocationNavigator(engine: SearchOverlayProps["engine"]): ((cfi: string) => Promise<void>) | null {
+  const goTo = (engine as { goToEpubLocation?: (cfi: string) => Promise<void> }).goToEpubLocation;
+  return typeof goTo === "function" ? (cfi: string) => goTo.call(engine, cfi) : null;
+}
+
 export function SearchOverlay({ engine, documentType, visible, onClose }: SearchOverlayProps) {
   const {
     activeSearchIndex,
@@ -140,7 +151,14 @@ export function SearchOverlay({ engine, documentType, visible, onClose }: Search
 
   const openResult = (result: ReaderSearchResult, index: number) => {
     Keyboard.dismiss();
-    if ("kind" in result && result.kind === "text") {
+    const cfi = getEpubSearchCfi(result);
+    const goToCfi = cfi ? getEpubLocationNavigator(engine) : null;
+    if (cfi && goToCfi) {
+      // Straight to the match: in the chapter on screen this only scrolls;
+      // going to the chapter would re-render it from its first page.
+      setDocumentState({ activeSearchIndex: index, currentPage: (result as { pageIndex: number }).pageIndex + 1 });
+      goToCfi(cfi).catch(() => triggerScrollToPage((result as { pageIndex: number }).pageIndex));
+    } else if ("kind" in result && result.kind === "text") {
       setDocumentState({ activeSearchIndex: index, currentTextOffset: result.location.start });
       triggerScrollToTextOffset(result.location.start);
     } else {
@@ -149,6 +167,18 @@ export function SearchOverlay({ engine, documentType, visible, onClose }: Search
       triggerScrollToPage(pageIndex);
     }
     setNavigating(true);
+  };
+
+  const stepResult = (direction: -1 | 1) => {
+    if (results.length === 0) return;
+    const nextIndex = ((activeSearchIndex < 0 ? (direction > 0 ? -1 : 0) : activeSearchIndex) + direction + results.length) % results.length;
+    const target = results[nextIndex];
+    if (target && getEpubSearchCfi(target) && getEpubLocationNavigator(engine)) {
+      openResult(target, nextIndex);
+      return;
+    }
+    if (direction > 0) nextSearchResult();
+    else prevSearchResult();
   };
 
   if (!visible) return null;
@@ -245,7 +275,7 @@ export function SearchOverlay({ engine, documentType, visible, onClose }: Search
       {navigating && activeResult ? (
         <View pointerEvents="box-none" style={[styles.navigatorFrame, overlayLayout.frame, { bottom: offsets.search, paddingLeft: Math.max(overlayLayout.frame.paddingHorizontal, offsets.left), paddingRight: Math.max(overlayLayout.frame.paddingHorizontal, offsets.right) }]}>
           <View testID="papyrus-search-navigator" style={[styles.navigator, overlayLayout.card, { backgroundColor: palette.surface, borderColor: palette.divider }]}>
-            <Pressable accessibilityRole="button" accessibilityLabel={t.previousResult} disabled={results.length < 2} onPress={prevSearchResult} style={[styles.navButton, { backgroundColor: palette.elevatedSurface }, results.length < 2 && styles.disabled]}>
+            <Pressable accessibilityRole="button" accessibilityLabel={t.previousResult} disabled={results.length < 2} onPress={() => stepResult(-1)} style={[styles.navButton, { backgroundColor: palette.elevatedSurface }, results.length < 2 && styles.disabled]}>
               <IconChevronLeft size={16} color={palette.text} />
             </Pressable>
             <Pressable accessibilityRole="button" accessibilityLabel={t.showResults} onPress={() => setNavigating(false)} style={styles.navigatorBody}>
@@ -254,7 +284,7 @@ export function SearchOverlay({ engine, documentType, visible, onClose }: Search
               </Text>
               {renderSnippet(activeResult.text, 1)}
             </Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel={t.nextResult} disabled={results.length < 2} onPress={nextSearchResult} style={[styles.navButton, { backgroundColor: palette.elevatedSurface }, results.length < 2 && styles.disabled]}>
+            <Pressable accessibilityRole="button" accessibilityLabel={t.nextResult} disabled={results.length < 2} onPress={() => stepResult(1)} style={[styles.navButton, { backgroundColor: palette.elevatedSurface }, results.length < 2 && styles.disabled]}>
               <IconChevronRight size={16} color={palette.text} />
             </Pressable>
             <Pressable accessibilityRole="button" accessibilityLabel={t.closeSearch} onPress={handleClose} style={[styles.navButton, { backgroundColor: palette.closeSurface }]}>
