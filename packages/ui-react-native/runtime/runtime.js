@@ -2233,7 +2233,8 @@
     const key = item.idref || item.href;
     const cached = epubSectionTextCache.get(key);
     if (cached && cached.book === activeBook) return cached.text;
-    const section = activeBook.spine.get(key);
+    // spine.get(string) looks up an href (or '#id'); the index is unambiguous.
+    const section = activeBook.spine.get(pageIndex) || activeBook.spine.get(item.href);
     if (!section || typeof section.load !== 'function') return '';
     const wasLoaded = Boolean(section.contents);
     const doc = await section.load(activeBook.load.bind(activeBook));
