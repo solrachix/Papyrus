@@ -2224,6 +2224,26 @@
     await navigation;
   };
 
+  // epub.js sections have no text(); load the chapter document and read its
+  // text, cached per spine item. Sections the reader has not loaded are
+  // unloaded again so search does not keep every chapter in memory.
+  const epubSectionTextCache = new Map();
+  const getEpubSectionText = async (pageIndex, item) => {
+    const activeBook = book;
+    const key = item.idref || item.href;
+    const cached = epubSectionTextCache.get(key);
+    if (cached && cached.book === activeBook) return cached.text;
+    const section = activeBook.spine.get(key);
+    if (!section || typeof section.load !== 'function') return '';
+    const wasLoaded = Boolean(section.contents);
+    const doc = await section.load(activeBook.load.bind(activeBook));
+    const root = doc && (doc.body || doc.documentElement || doc);
+    const text = String((root && root.textContent) || '').replace(/\s+/g, ' ').trim();
+    if (!wasLoaded && typeof section.unload === 'function') section.unload();
+    if (activeBook === book) epubSectionTextCache.set(key, {book: activeBook, text});
+    return text;
+  };
+
   const getTextContent = async (pageIndex) => {
     if (currentType === 'text') {
       const text = textPages[pageIndex] || '';
@@ -2242,8 +2262,7 @@
       const item = spineItems[pageIndex];
       if (!item) return [];
       try {
-        const section = book.spine.get(item.idref || item.href);
-        const text = section && typeof section.text === 'function' ? await section.text() : '';
+        const text = await getEpubSectionText(pageIndex, item);
         if (!text) return [];
         return [{
           str: text,
