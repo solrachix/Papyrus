@@ -41,3 +41,14 @@ describe('native EPUB menu dispatch',()=>{
    expect(f.messages).toContainEqual(expect.objectContaining({name:'EPUB_SELECTION_ACTION',payload:expect.objectContaining({action:key,text:'word'})}));}
  });
 });
+describe('custom EPUB selection menu geometry',()=>{
+ it('reports the selection rect, its scroll updates and collapse to the host',()=>{
+  const bundled=readFileSync('packages/ui-react-native/runtime/index.html','utf8');
+  for(const runtime of [source,bundled]){
+   expect(runtime).toContain("rect: window.PapyrusEpubReader.selectionRect(range, frameOf(contents))");
+   expect(runtime).toContain("sendEvent('EPUB_SELECTION_RECT'");
+   expect(runtime).toContain("sendEvent('EPUB_SELECTION_CLEARED', {documentSessionId: session})");
+   expect(runtime).toMatch(/const handleScroll = event => \{\s*scheduleSelectionRect\(\);/);
+  }
+ });
+});

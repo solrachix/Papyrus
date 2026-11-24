@@ -1,12 +1,42 @@
 import {validateAnnotationAnchor,validateEpubInkData} from '@papyrus-sdk/core';
 import type {Annotation,AnnotationAnchor} from '@papyrus-sdk/types';
 import type {EpubInkPreset} from '@papyrus-sdk/types';
-export type EpubAnnotationEvent = {kind:'tap';id:string;ids?:string[]} | {kind:'selection';session:string;text:string;pageIndex:number;anchor:AnnotationAnchor} | {kind:'ink';session:string;annotation:Annotation};
-const EPUB_INK_PRESETS: readonly EpubInkPreset[] = ['ink','highlight','underline'];
+/** Selection bounding box in WebView viewport (CSS px = dp) coordinates. */
+export type EpubSelectionRect = {x:number;y:number;width:number;height:number};
+export type EpubAnnotationEvent = {kind:'tap';id:string;ids?:string[]} | {kind:'selection';session:string;text:string;pageIndex:number;anchor:AnnotationAnchor;rect?:EpubSelectionRect} | {kind:'ink';session:string;annotation:Annotation};
+export function parseEpubSelectionRect(value:unknown):EpubSelectionRect|undefined {
+ const r=value as EpubSelectionRect|null|undefined;
+ if(!r||typeof r!=='object')return undefined;
+ const values=[r.x,r.y,r.width,r.height];
+ if(!values.every(n=>typeof n==='number'&&Number.isFinite(n)&&Math.abs(n)<1e6)||r.width<0||r.height<0)return undefined;
+ return {x:r.x,y:r.y,width:r.width,height:r.height};
+}
+/** Selection geometry updates (scroll) and collapse notifications from the runtime. */
+export function parseEpubSelectionGeometryEvent(raw:string,session:string):{kind:'rect';rect:EpubSelectionRect}|{kind:'cleared'}|null {
+ if(!session||raw.length>4096)return null;
+ let message:any;try{message=JSON.parse(raw);}catch{return null;}
+ if(message?.type!=='event'||message.payload?.documentSessionId!==session)return null;
+ if(message.name==='EPUB_SELECTION_CLEARED')return {kind:'cleared'};
+ if(message.name!=='EPUB_SELECTION_RECT')return null;
+ const rect=parseEpubSelectionRect(message.payload.rect);
+ return rect?{kind:'rect',rect}:null;
+}
+/** Runtime ink modes: the stored presets plus the eraser, which removes strokes instead of drawing. */
+export type EpubInkMode = EpubInkPreset | 'eraser';
+const EPUB_INK_MODES: readonly EpubInkMode[] = ['ink','highlight','underline','eraser'];
 export function resolveEpubInkMode(input:{documentType:string;isLoaded:boolean;activeTool:string;preset:string;color:string;opacity:number;strokeWidth:number}) {
  if(!input.isLoaded||input.documentType!=='epub')return null;
- const preset=EPUB_INK_PRESETS.includes(input.preset as EpubInkPreset)?input.preset as EpubInkPreset:'ink';
- return {enabled:input.activeTool==='ink'&&EPUB_INK_PRESETS.includes(input.preset as EpubInkPreset),preset,color:input.color,opacity:input.opacity,strokeWidth:input.strokeWidth};
+ const known=EPUB_INK_MODES.includes(input.preset as EpubInkMode);
+ const preset:EpubInkMode=known?input.preset as EpubInkMode:'ink';
+ return {enabled:input.activeTool==='ink'&&known,preset,color:input.color,opacity:input.opacity,strokeWidth:input.strokeWidth};
+}
+/** An ink stroke the reader erased in the EPUB runtime (eraser tool). */
+export function parseEpubInkErasedEvent(raw:string,session:string):string|null {
+ if(!session||raw.length>4096)return null;
+ let message:any;try{message=JSON.parse(raw);}catch{return null;}
+ const p=message?.payload;
+ if(message?.type!=='event'||message.name!=='EPUB_INK_ERASED'||p?.documentSessionId!==session||typeof p.id!=='string'||!p.id||p.id.length>256)return null;
+ return p.id;
 }
 export function parseEpubAnnotationEvent(raw:string,session:string,documentId?:string):EpubAnnotationEvent|null {
  if(!session || raw.length>750000) return null;
@@ -23,5 +53,6 @@ export function parseEpubAnnotationEvent(raw:string,session:string,documentId?:s
  }
  if(message.name!=='EPUB_TEXT_SELECTED'||!validateAnnotationAnchor(p.anchor)||p.anchor.kind!=='epub-cfi'||p.text!==p.anchor.quote||!Number.isSafeInteger(p.pageIndex)||p.pageIndex<1)return null;
  if(documentId&&p.anchor.documentId&&p.anchor.documentId!==documentId)return null;
- return {kind:'selection',session,text:p.text,pageIndex:p.pageIndex,anchor:{...p.anchor,documentId:documentId??p.anchor.documentId}};
+ const rect=parseEpubSelectionRect(p.rect);
+ return {kind:'selection',session,text:p.text,pageIndex:p.pageIndex,anchor:{...p.anchor,documentId:documentId??p.anchor.documentId},...(rect?{rect}:{})};
 }

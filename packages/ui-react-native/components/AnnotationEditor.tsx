@@ -7,15 +7,16 @@ import {deleteAnnotationAndClearSelection} from "./annotationDeletion";
 import {IconClose, IconHighlight, IconUnderline, IconStrikeout, IconComment} from "../icons";
 import {usePapyrusSafeAreaInsets} from "./PapyrusSafeArea";
 import {ReaderOrientationModal} from "./ReaderOrientationModal";
+import {ANNOTATION_COLORS} from "./annotationColors";
 
-const COLORS = ["#fbbf24", "#fb7185", "#60a5fa", "#34d399", "#c084fc"];
+const COLORS = ANNOTATION_COLORS;
 const AnnotationEditor: React.FC<{documentId?: string}> = ({documentId}) => {
   const {annotations,annotationDraft,clearAnnotationDraft,addAnnotation,selectedAnnotationId,updateAnnotation,removeAnnotation,setSelectedAnnotation,uiTheme,locale,accentColor} = useViewerStore();
   const annotation = annotationDraft?.id === selectedAnnotationId ? annotationDraft : annotations.find(a => a.id === selectedAnnotationId);
   const supported = annotation && annotation.type !== "ink" && (!documentId || !annotation.anchor?.documentId || annotation.anchor.documentId === documentId);
   const [editing,setEditing] = useState(false);
   const [draft,setDraft] = useState("");
-  const [color,setColor] = useState(COLORS[0]);
+  const [color,setColor] = useState<string>(COLORS[0]);
   const [markup,setMarkup] = useState<AnnotationMarkupStyle>("none");
   const [reduceMotion,setReduceMotion] = useState(true);
   const progress = useRef(new Animated.Value(0)).current;

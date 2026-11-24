@@ -449,7 +449,7 @@ export function ProgressPill({
             testID="papyrus-progress-pill"
           >
             <View style={styles.labelHit}>
-              <Text style={[styles.label, isDark && styles.labelDark]}>
+              <Text numberOfLines={1} style={[styles.label, isDark && styles.labelDark]}>
                 {label}
               </Text>
             </View>

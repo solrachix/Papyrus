@@ -23,6 +23,7 @@ import { NativeSheet, NativeSheetScrollView } from "./NativeSheet";
 import { getSettingsSheetMaxHeight } from "./settingsSheetLayout";
 import ReaderSettingsView from "./sharedReaderChrome/ReaderSettingsView";
 import { getReaderSheetPalette, toReaderSheetTheme } from "./readerSheetPresentation";
+import { getEpubTypographyGroups } from "./epubTypographyOptions";
 
 export interface SettingsSheetProps {
   engine: DocumentEngine;
@@ -87,6 +88,8 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
     comicLayoutMode,
     comicFitMode,
     comicReadingDirection,
+    epubTypography,
+    setEpubTypography,
   } = useViewerStore();
   const isDark = uiTheme === "dark";
   const sheetTheme = toReaderSheetTheme(pageTheme);
@@ -172,6 +175,7 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
           },
         }}
         fontSizeLabel={locale === "pt-BR" ? "Tamanho da fonte" : "Font size"}
+        choiceGroups={getEpubTypographyGroups(epubTypography, locale, setEpubTypography)}
         transitionOptions={[
           { value: "continuous", label: locale === "pt-BR" ? "Rolagem por capítulo" : t.continuous },
           { value: "paged", label: t.pageByPage },

@@ -73,3 +73,22 @@ describe("ReaderSettingsView", () => {
     expect(screen.getByRole("button", { name: "Close sheet" })).toBeTruthy();
   });
 });
+
+describe("ReaderSettingsView typography", () => {
+  it("renders EPUB typography groups and reports store patches", async () => {
+    const { getEpubTypographyGroups } = await import("../epubTypographyOptions");
+    const onChange = vi.fn();
+    const groups = getEpubTypographyGroups({ fontFamily: "original", lineHeight: 1.6, margin: "original", textAlign: "original" }, "pt-BR", onChange);
+    render(<ReaderSettingsView visible title="Exibição" isDark={false} accentColor="#2563eb" onClose={vi.fn()} choiceGroups={groups} />);
+    expect(screen.getByText("Fonte")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Espaçamento entre linhas 1,6" }).getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: "Fonte Serifada" }));
+    expect(onChange).toHaveBeenLastCalledWith({ fontFamily: "serif" });
+    fireEvent.click(screen.getByRole("button", { name: "Espaçamento entre linhas Original" }));
+    expect(onChange).toHaveBeenLastCalledWith({ lineHeight: null });
+    fireEvent.click(screen.getByRole("button", { name: "Margens Larga" }));
+    expect(onChange).toHaveBeenLastCalledWith({ margin: "wide" });
+    fireEvent.click(screen.getByRole("button", { name: "Alinhamento Justificado" }));
+    expect(onChange).toHaveBeenLastCalledWith({ textAlign: "justify" });
+  });
+});

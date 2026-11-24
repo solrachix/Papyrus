@@ -1,6 +1,8 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Keyboard,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -9,28 +11,36 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { SearchService, useViewerStore } from "@papyrus-sdk/core";
-import { DocumentEngine, DocumentType } from "@papyrus-sdk/types";
-import { IconChevronLeft, IconChevronRight, IconSearch } from "../icons";
+import type { DocumentEngine, DocumentType, ReaderSearchResult } from "@papyrus-sdk/types";
+import { IconChevronLeft, IconChevronRight, IconClose, IconSearch } from "../icons";
 import { getStrings } from "../mobileStrings";
 import { resolveMobileChromeOffsets } from "./mobileChromeMetrics";
 import { getSearchOverlayLayout } from "./searchOverlayLayout";
 import { usePapyrusSafeAreaInsets } from "./PapyrusSafeArea";
+import { NativeSheet, NativeSheetScrollView } from "./NativeSheet";
+import { getReaderSheetPalette, toReaderSheetTheme } from "./readerSheetPresentation";
+import { resolveEpubChapterTitle } from "./epubChapterLabel";
+import { normalizeSearchSnippet, splitSearchSnippet } from "./searchSnippet";
 
 type SearchOverlayProps = {
   engine: DocumentEngine;
   documentType: DocumentType;
   visible: boolean;
   onClose: () => void;
-  onOpenResults: () => void;
+  /**
+   * @deprecated Results are listed inside the search sheet now; kept so
+   * existing hosts still compile. Not called.
+   */
+  onOpenResults?: () => void;
 };
 
-export function SearchOverlay({
-  engine,
-  documentType,
-  visible,
-  onClose,
-  onOpenResults,
-}: SearchOverlayProps) {
+/**
+ * Search as a bottom sheet: query field with a clear button and the result
+ * list (chapter/page + snippet with the match highlighted). Tapping a result
+ * jumps to it and collapses the sheet into a small bar with previous/next
+ * navigation, so the page stays visible while stepping through matches.
+ */
+export function SearchOverlay({ engine, documentType, visible, onClose }: SearchOverlayProps) {
   const {
     activeSearchIndex,
     locale,
@@ -41,51 +51,67 @@ export function SearchOverlay({
     textSearchResults,
     isLoaded,
     pageCount,
+    textLength,
+    outline,
     setSearch,
-    uiTheme,
+    setDocumentState,
+    triggerScrollToPage,
+    triggerScrollToTextOffset,
+    pageTheme,
     accentColor,
   } = useViewerStore();
   const [draft, setDraft] = useState(searchQuery);
   const [isSearching, setIsSearching] = useState(false);
-  const searchRequestIdRef = React.useRef(0);
-  const isDark = uiTheme === "dark";
+  // No counters or empty state before the first search of this session.
+  const [searched, setSearched] = useState(Boolean(searchQuery));
+  const [navigating, setNavigating] = useState(false);
+  // setSearch preselects result 0; only highlight a row the reader picked.
+  const [picked, setPicked] = useState(false);
+  const searchRequestIdRef = useRef(0);
   const { width: windowWidth } = useWindowDimensions();
   const overlayLayout = getSearchOverlayLayout(windowWidth);
   const offsets = resolveMobileChromeOffsets(usePapyrusSafeAreaInsets());
+  const palette = getReaderSheetPalette(toReaderSheetTheme(pageTheme));
   const t = getStrings(locale);
   const searchService = useMemo(() => new SearchService(engine), [engine]);
-  const results =
-    documentType === "text" ? textSearchResults : searchResults;
+  const results: ReaderSearchResult[] = documentType === "text" ? textSearchResults : searchResults;
 
   useEffect(() => {
     searchService.clearCache();
   }, [isLoaded, pageCount, searchService]);
-  const currentCount =
-    results.length > 0 && activeSearchIndex >= 0
-      ? activeSearchIndex + 1
-      : 0;
-  const targetLabel =
-    documentType === "pdf"
-      ? t.page
-      : documentType === "epub"
-      ? t.contents
-      : t.progress;
 
   useEffect(() => {
-    if (!visible) return;
+    if (!visible) {
+      setNavigating(false);
+      return;
+    }
     setDraft(searchQuery);
-  }, [searchQuery, visible]);
+    setSearched(Boolean(searchQuery));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
+
+  const resultLabel = (result: ReaderSearchResult) => {
+    if ("kind" in result && result.kind === "text") {
+      return `${t.progress} ${textLength <= 0 ? 0 : Math.round((result.location.start / textLength) * 100)}%`;
+    }
+    const pageIndex = (result as { pageIndex: number }).pageIndex;
+    if (documentType === "epub") return resolveEpubChapterTitle(outline, pageIndex) ?? `${t.chapter} ${pageIndex + 1}`;
+    if (documentType === "pdf") return `${t.page} ${pageIndex + 1}`;
+    return `${t.progress} ${pageCount <= 1 ? 100 : Math.round(((pageIndex + 1) / pageCount) * 100)}%`;
+  };
 
   const handleSubmit = async () => {
     const requestId = ++searchRequestIdRef.current;
     const query = draft.trim();
     if (!query) {
       setIsSearching(false);
+      setSearched(false);
       setSearch("", []);
       return;
     }
-
     setIsSearching(true);
+    setSearched(true);
+    setPicked(false);
     try {
       const nextResults = await searchService.searchReader(query);
       if (requestId !== searchRequestIdRef.current) return;
@@ -95,260 +121,190 @@ export function SearchOverlay({
     }
   };
 
+  const handleClear = () => {
+    searchRequestIdRef.current += 1;
+    setDraft("");
+    setIsSearching(false);
+    setSearched(false);
+    setPicked(false);
+    setSearch("", []);
+  };
+
   const handleClose = () => {
     Keyboard.dismiss();
+    searchRequestIdRef.current += 1;
     setSearch("", []);
+    setNavigating(false);
     onClose();
+  };
+
+  const openResult = (result: ReaderSearchResult, index: number) => {
+    Keyboard.dismiss();
+    if ("kind" in result && result.kind === "text") {
+      setDocumentState({ activeSearchIndex: index, currentTextOffset: result.location.start });
+      triggerScrollToTextOffset(result.location.start);
+    } else {
+      const pageIndex = (result as { pageIndex: number }).pageIndex;
+      setDocumentState({ activeSearchIndex: index, currentPage: pageIndex + 1 });
+      triggerScrollToPage(pageIndex);
+    }
+    setNavigating(true);
   };
 
   if (!visible) return null;
 
+  const renderSnippet = (text: string, numberOfLines?: number) => (
+    <Text numberOfLines={numberOfLines} style={[styles.snippet, { color: palette.text }]}>
+      {splitSearchSnippet(normalizeSearchSnippet(text), searchQuery).map((part, index) =>
+        part.match ? (
+          <Text key={index} style={[styles.match, { backgroundColor: `${accentColor}33`, color: palette.text }]}>
+            {/* Android drew the match background one glyph short; a trailing
+                zero-width space keeps the whole word inside it. */}
+            {Platform.OS === "android" ? `${part.text}\u200B` : part.text}
+          </Text>
+        ) : (
+          part.text
+        ),
+      )}
+    </Text>
+  );
+
+  const activeResult = activeSearchIndex >= 0 ? results[activeSearchIndex] : undefined;
+  const counter = results.length > 0 && activeSearchIndex >= 0 ? `${activeSearchIndex + 1}/${results.length}` : "";
+
   return (
-    <View
-      pointerEvents="box-none"
-      style={[
-        styles.frame,
-        overlayLayout.frame,
-        {
-          bottom: offsets.search,
-          paddingLeft: Math.max(overlayLayout.frame.paddingHorizontal, offsets.left),
-          paddingRight: Math.max(overlayLayout.frame.paddingHorizontal, offsets.right),
-        },
-      ]}
-    >
-      <View
-        style={[styles.card, overlayLayout.card, isDark && styles.cardDark]}
-        testID="papyrus-search-overlay"
+    <>
+      <NativeSheet
+        visible={!navigating}
+        onClose={handleClose}
+        sheetTheme={toReaderSheetTheme(pageTheme)}
+        maxHeight="82%"
+        showHeader
+        title={t.search}
+        closeAccessibilityLabel={t.closeSearch}
       >
-        <View style={styles.inputRow}>
-          <View style={[styles.searchInputWrap, isDark && styles.searchInputWrapDark]}>
-            <IconSearch size={16} color={isDark ? "#cbd5e1" : "#64748b"} />
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.sheetBody}>
+          <View style={[styles.inputWrap, { backgroundColor: palette.elevatedSurface, borderColor: palette.divider }]}>
+            <IconSearch size={16} color={palette.mutedText} />
             <TextInput
               value={draft}
               onChangeText={setDraft}
               placeholder={t.searchPlaceholder}
-              placeholderTextColor={isDark ? "#94a3b8" : "#6b7280"}
-              style={[styles.input, isDark && styles.inputDark]}
-              autoFocus
+              placeholderTextColor={palette.mutedText}
+              style={[styles.input, { color: palette.text }]}
+              autoFocus={!searchQuery}
               returnKeyType="search"
               onSubmitEditing={handleSubmit}
-              accessibilityLabel="Search text"
+              accessibilityLabel={t.search}
               testID="papyrus-search-input"
             />
+            {draft ? (
+              <Pressable accessibilityRole="button" accessibilityLabel={t.clearSearch} hitSlop={8} onPress={handleClear} style={[styles.clearButton, { backgroundColor: palette.closeSurface }]}>
+                <IconClose size={12} color={palette.text} strokeWidth={2.4} />
+              </Pressable>
+            ) : null}
           </View>
-          <Pressable
-            onPress={handleClose}
-            style={[styles.closeButton, isDark && styles.closeButtonDark]}
-            accessibilityLabel="Close search"
-          >
-            <Text style={[styles.closeText, isDark && styles.closeTextDark]}>
-              {t.cancel}
+          {draft.trim() && draft.trim() !== searchQuery ? (
+            <Pressable accessibilityRole="button" accessibilityLabel={t.searchGo} onPress={handleSubmit} testID="papyrus-search-run" style={[styles.goButton, { backgroundColor: accentColor }]}>
+              <Text style={styles.goText}>{t.searchGo}</Text>
+            </Pressable>
+          ) : null}
+          {isSearching ? (
+            <Text style={[styles.meta, { color: palette.mutedText }]}>{t.searching}</Text>
+          ) : searched && searchQuery ? (
+            <Text style={[styles.meta, { color: palette.mutedText }]}>
+              {results.length > 0 ? `${results.length} ${t.results}` : t.noResults}
             </Text>
-          </Pressable>
+          ) : (
+            <Text style={[styles.meta, { color: palette.mutedText }]}>{t.searchHint}</Text>
+          )}
+          <NativeSheetScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.list} testID="papyrus-search-results">
+            {!isSearching && searched
+              ? results.map((result, index) => {
+                  const active = picked && index === activeSearchIndex;
+                  return (
+                    <Pressable
+                      key={"kind" in result ? `text-${result.location.start}-${index}` : `page-${result.pageIndex}-${index}`}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${resultLabel(result)}: ${normalizeSearchSnippet(result.text)}`}
+                      onPress={() => {
+                        setPicked(true);
+                        openResult(result, index);
+                      }}
+                      style={[styles.result, { borderBottomColor: palette.divider }, active && { backgroundColor: palette.activeSurface }]}
+                    >
+                      <Text numberOfLines={1} style={[styles.resultLabel, { color: accentColor }]}>{resultLabel(result)}</Text>
+                      {renderSnippet(result.text, 3)}
+                    </Pressable>
+                  );
+                })
+              : null}
+          </NativeSheetScrollView>
+        </KeyboardAvoidingView>
+      </NativeSheet>
+      {navigating && activeResult ? (
+        <View pointerEvents="box-none" style={[styles.navigatorFrame, overlayLayout.frame, { bottom: offsets.search, paddingLeft: Math.max(overlayLayout.frame.paddingHorizontal, offsets.left), paddingRight: Math.max(overlayLayout.frame.paddingHorizontal, offsets.right) }]}>
+          <View testID="papyrus-search-navigator" style={[styles.navigator, overlayLayout.card, { backgroundColor: palette.surface, borderColor: palette.divider }]}>
+            <Pressable accessibilityRole="button" accessibilityLabel={t.previousResult} disabled={results.length < 2} onPress={prevSearchResult} style={[styles.navButton, { backgroundColor: palette.elevatedSurface }, results.length < 2 && styles.disabled]}>
+              <IconChevronLeft size={16} color={palette.text} />
+            </Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel={t.showResults} onPress={() => setNavigating(false)} style={styles.navigatorBody}>
+              <Text numberOfLines={1} style={[styles.resultLabel, { color: accentColor }]}>
+                {counter} · {resultLabel(activeResult)}
+              </Text>
+              {renderSnippet(activeResult.text, 1)}
+            </Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel={t.nextResult} disabled={results.length < 2} onPress={nextSearchResult} style={[styles.navButton, { backgroundColor: palette.elevatedSurface }, results.length < 2 && styles.disabled]}>
+              <IconChevronRight size={16} color={palette.text} />
+            </Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel={t.closeSearch} onPress={handleClose} style={[styles.navButton, { backgroundColor: palette.closeSurface }]}>
+              <IconClose size={14} color={palette.text} strokeWidth={2.2} />
+            </Pressable>
+          </View>
         </View>
-
-        <View style={styles.metaRow}>
-          <Pressable
-            onPress={prevSearchResult}
-            disabled={results.length === 0}
-            style={[
-              styles.navButton,
-              isDark && styles.navButtonDark,
-              results.length === 0 && styles.navButtonDisabled,
-            ]}
-            accessibilityLabel="Previous result"
-          >
-            <IconChevronLeft size={16} color={isDark ? "#e5e7eb" : "#111827"} />
-          </Pressable>
-          <Text style={[styles.metaText, isDark && styles.metaTextDark]}>
-            {isSearching
-              ? t.searching
-              : `${currentCount}/${results.length} ${targetLabel}`}
-          </Text>
-          <Pressable
-            onPress={nextSearchResult}
-            disabled={results.length === 0}
-            style={[
-              styles.navButton,
-              isDark && styles.navButtonDark,
-              results.length === 0 && styles.navButtonDisabled,
-            ]}
-            accessibilityLabel="Next result"
-          >
-            <IconChevronRight size={16} color={isDark ? "#e5e7eb" : "#111827"} />
-          </Pressable>
-        </View>
-
-        <View style={styles.actionsRow}>
-          <Pressable
-            onPress={handleSubmit}
-            style={[styles.primaryAction, { backgroundColor: accentColor }]}
-            accessibilityLabel="Run search"
-            testID="papyrus-search-run"
-          >
-            <Text style={styles.primaryActionText}>{t.searchGo}</Text>
-          </Pressable>
-          <Pressable
-            onPress={onOpenResults}
-            disabled={results.length === 0}
-            style={[
-              styles.secondaryAction,
-              isDark && styles.secondaryActionDark,
-              results.length === 0 && styles.navButtonDisabled,
-            ]}
-            accessibilityLabel="Open all results"
-          >
-            <Text
-              style={[
-                styles.secondaryActionText,
-                isDark && styles.secondaryActionTextDark,
-              ]}
-            >
-              {t.allResults}
-            </Text>
-          </Pressable>
-        </View>
-      </View>
-    </View>
+      ) : null}
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  frame: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 20,
-    zIndex: 24,
-    paddingHorizontal: 12,
-  },
-  card: {
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.72)",
-    backgroundColor: "rgba(255,255,255,0.94)",
-    padding: 8,
+  sheetBody: { paddingHorizontal: 18, paddingBottom: 12, flexShrink: 1 },
+  inputWrap: {
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    minHeight: 46,
+  },
+  input: { flex: 1, fontSize: 15, minHeight: 44 },
+  clearButton: { width: 24, height: 24, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  goButton: { marginTop: 10, borderRadius: 12, minHeight: 40, alignItems: "center", justifyContent: "center" },
+  goText: { color: "#ffffff", fontSize: 13, fontWeight: "800" },
+  meta: { fontSize: 12, marginTop: 12, marginBottom: 4 },
+  list: { paddingBottom: 12 },
+  result: { paddingVertical: 12, paddingHorizontal: 6, borderBottomWidth: StyleSheet.hairlineWidth, gap: 4, borderRadius: 10 },
+  resultLabel: { fontSize: 11, fontWeight: "800" },
+  snippet: { fontSize: 14, lineHeight: 20 },
+  // Background only: a bolder nested span is measured at the regular
+  // width on Android, so the highlight stopped short of the last letter.
+  match: {},
+  navigatorFrame: { position: "absolute", left: 0, right: 0, zIndex: 24 },
+  navigator: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 8,
     shadowColor: "#0f172a",
-    shadowOpacity: 0.12,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.14,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
     elevation: 10,
   },
-  cardDark: {
-    backgroundColor: "rgba(15,17,21,0.94)",
-    borderColor: "rgba(71,85,105,0.48)",
-  },
-  inputRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  searchInputWrap: {
-    flex: 1,
-    borderRadius: 14,
-    backgroundColor: "#f8fafc",
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  searchInputWrapDark: {
-    backgroundColor: "#111827",
-    borderColor: "#1f2937",
-  },
-  input: {
-    flex: 1,
-    minHeight: 28,
-    fontSize: 13,
-    color: "#111827",
-  },
-  inputDark: {
-    color: "#f8fafc",
-  },
-  closeButton: {
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    backgroundColor: "#f1f5f9",
-  },
-  closeButtonDark: {
-    backgroundColor: "#0f172a",
-  },
-  closeText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#334155",
-  },
-  closeTextDark: {
-    color: "#e2e8f0",
-  },
-  metaRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  metaText: {
-    flex: 1,
-    textAlign: "center",
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#475569",
-    paddingHorizontal: 8,
-  },
-  metaTextDark: {
-    color: "#cbd5e1",
-  },
-  navButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 12,
-    backgroundColor: "#e2e8f0",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  navButtonDark: {
-    backgroundColor: "#111827",
-  },
-  navButtonDisabled: {
-    opacity: 0.45,
-  },
-  actionsRow: {
-    flexDirection: "row",
-    gap: 8,
-  },
-  primaryAction: {
-    flex: 1,
-    borderRadius: 14,
-    paddingVertical: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  primaryActionText: {
-    color: "#ffffff",
-    fontWeight: "800",
-    fontSize: 12,
-  },
-  secondaryAction: {
-    flex: 1,
-    borderRadius: 14,
-    paddingVertical: 10,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#f1f5f9",
-  },
-  secondaryActionDark: {
-    backgroundColor: "#0f172a",
-  },
-  secondaryActionText: {
-    color: "#334155",
-    fontWeight: "700",
-    fontSize: 12,
-  },
-  secondaryActionTextDark: {
-    color: "#e2e8f0",
-  },
+  navigatorBody: { flex: 1, minHeight: 40, justifyContent: "center", gap: 2 },
+  navButton: { width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  disabled: { opacity: 0.4 },
 });

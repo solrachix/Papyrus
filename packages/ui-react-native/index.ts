@@ -45,8 +45,11 @@ export type {
   ReaderChromeInsets,
   ReaderContentsEntry,
   ReaderHeaderAction,
+  ReaderSettingsChoiceGroup,
   ReaderSheetAction,
 } from "./components/sharedReaderChrome/types";
+export { getEpubTypographyGroups } from "./components/epubTypographyOptions";
+export type { ToolDockProps } from "./components/ToolDock";
 export { MOBILE_CHROME_METRICS } from "./components/mobileChromeMetrics";
 export {
   IconCopy,

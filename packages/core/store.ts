@@ -2,6 +2,7 @@ import { create } from "zustand";
 import {
   ViewMode,
   EpubReadingMode,
+  EpubTypography,
   EpubReadingLocation,
   Annotation,
   AnnotationReply,
@@ -79,6 +80,7 @@ interface ViewerState {
   viewMode: ViewMode;
   epubReadingMode: EpubReadingMode;
   epubLocation: EpubReadingLocation | null;
+  epubTypography: EpubTypography;
   viewerMode: PdfViewerMode;
   uiTheme: UITheme;
   pageTheme: PageTheme;
@@ -87,7 +89,8 @@ interface ViewerState {
   annotationColor: string;
   annotationOpacity: number;
   inkStrokeWidth: number;
-  activeDrawToolPreset: "ink" | "highlight" | "underline";
+  /** "eraser" is only offered by the EPUB freehand dock (ink is removed by tapping/scrubbing strokes). */
+  activeDrawToolPreset: "ink" | "highlight" | "underline" | "eraser";
   nativeInkToolPickerActive: boolean;
   outline: OutlineItem[];
   sidebarLeftOpen: boolean;
@@ -167,6 +170,8 @@ interface ViewerState {
   triggerScrollToPage: (pageIndex: number) => void;
   setTextLocation: (offset: number, textLength?: number) => void;
   triggerScrollToTextOffset: (offset: number) => void;
+  /** Merges typography overrides; invalid values fall back to the publisher CSS. */
+  setEpubTypography: (typography: Partial<EpubTypography>) => void;
   setComicLayoutMode: (mode: ComicLayoutMode) => void;
   setComicFitMode: (mode: ComicFitMode) => void;
   setComicReadingDirection: (direction: ComicReadingDirection) => void;
@@ -187,6 +192,32 @@ interface ViewerState {
   setMobileKeyboardOpen: (open: boolean) => void;
 }
 
+export const DEFAULT_EPUB_TYPOGRAPHY: EpubTypography = Object.freeze({
+  fontFamily: "original",
+  lineHeight: null,
+  margin: "original",
+  textAlign: "original",
+}) as EpubTypography;
+
+export const EPUB_LINE_HEIGHTS = [1.2, 1.4, 1.6, 1.8, 2.0] as const;
+
+export const normalizeEpubTypography = (
+  value: Partial<EpubTypography> | null | undefined
+): EpubTypography => {
+  const pick = <T extends string>(candidate: unknown, allowed: readonly T[]): T =>
+    allowed.includes(candidate as T) ? (candidate as T) : allowed[0];
+  const lineHeight = value?.lineHeight;
+  return {
+    fontFamily: pick(value?.fontFamily, ["original", "serif", "sans", "mono"] as const),
+    lineHeight:
+      typeof lineHeight === "number" && Number.isFinite(lineHeight) && lineHeight >= 1 && lineHeight <= 2.5
+        ? lineHeight
+        : null,
+    margin: pick(value?.margin, ["original", "narrow", "medium", "wide"] as const),
+    textAlign: pick(value?.textAlign, ["original", "justify", "left"] as const),
+  };
+};
+
 const getDefaultCapabilityState = (): CapabilityState => ({
   status: "unknown",
   values: {},
@@ -202,6 +233,7 @@ const getDefaultViewerState = () => ({
   viewMode: "continuous" as ViewMode,
   epubReadingMode: "paged" as EpubReadingMode,
   epubLocation: null as EpubReadingLocation | null,
+  epubTypography: DEFAULT_EPUB_TYPOGRAPHY,
   viewerMode: "compat" as PdfViewerMode,
   uiTheme: "light" as UITheme,
   pageTheme: "normal" as PageTheme,
@@ -305,6 +337,7 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
         rotation: config.initialRotation ?? defaults.rotation,
         viewMode: config.initialViewMode ?? defaults.viewMode,
         epubReadingMode: config.initialEpubReadingMode ?? defaults.epubReadingMode,
+        epubTypography: normalizeEpubTypography(config.initialEpubTypography),
         viewerMode: config.viewerMode ?? defaults.viewerMode,
         uiTheme: config.initialUITheme ?? defaults.uiTheme,
         pageTheme: config.initialPageTheme ?? defaults.pageTheme,
@@ -752,6 +785,10 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
         textNavigationRequest: {offset:safeOffset,nonce:(state.textNavigationRequest?.nonce??0)+1},
       };
     }),
+  setEpubTypography: (typography) =>
+    set((state) => ({
+      epubTypography: normalizeEpubTypography({ ...state.epubTypography, ...typography }),
+    })),
   setComicLayoutMode: (mode) => set({ comicLayoutMode: mode }),
   setComicFitMode: (mode) => set({ comicFitMode: mode }),
   setComicReadingDirection: (direction) =>

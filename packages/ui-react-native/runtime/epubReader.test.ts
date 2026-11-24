@@ -134,3 +134,45 @@ describe('EPUB chapter-scroll edge pull',()=>{
   cleanup();
  });
 });
+
+describe('EPUB selection rect',()=>{
+ it('maps the chapter range rect into WebView viewport coordinates through the iframe offset',()=>{
+  const p=load();
+  const range={getBoundingClientRect:()=>({left:30.4,top:500,width:120,height:18})};
+  // A chapter-scroll iframe scrolled up by 300px, or a paged column shifted left.
+  expect(p.selectionRect(range,{getBoundingClientRect:()=>({left:-360,top:-300})})).toEqual({x:-330,y:200,width:120,height:18});
+  expect(p.selectionRect(range,null)).toEqual({x:30,y:500,width:120,height:18});
+ });
+ it('ignores empty or unmeasurable ranges',()=>{
+  const p=load();
+  expect(p.selectionRect({getBoundingClientRect:()=>({left:0,top:0,width:0,height:0})},null)).toBe(null);
+  expect(p.selectionRect({},null)).toBe(null);
+  expect(p.selectionRect(null,null)).toBe(null);
+ });
+});
+
+describe('EPUB typography CSS',()=>{
+ it('emits nothing for the publisher defaults or invalid input',()=>{
+  const p=load();
+  expect(p.typographyCss({fontFamily:'original',lineHeight:null,margin:'original',textAlign:'original'})).toBe('');
+  expect(p.typographyCss(undefined)).toBe('');
+  expect(p.typographyCss({fontFamily:'comic',lineHeight:9,margin:'huge',textAlign:'right'})).toBe('');
+ });
+ it('overrides font, line height, margins and alignment without touching the annotation layer',()=>{
+  const css=load().typographyCss({fontFamily:'serif',lineHeight:1.6,margin:'wide',textAlign:'justify'});
+  expect(css).toContain('font-family: Georgia');
+  expect(css).toContain(':not(code)');
+  expect(css).toContain('line-height: 1.6 !important');
+  expect(css).toContain('margin-left: 3em !important');
+  expect(css).toContain('text-align: justify !important');
+  expect(css).toContain('hyphens: auto');
+  // Every rule excludes the Papyrus overlay.
+  for(const rule of css.split('}').filter(rule=>rule.trim()&&!rule.includes('hyphens')))expect(rule).toContain(':not([data-papyrus-overlay])');
+ });
+ it('aligns left and picks the sans and monospace stacks',()=>{
+  const p=load();
+  expect(p.typographyCss({textAlign:'left'})).toContain('text-align: left !important');
+  expect(p.typographyCss({fontFamily:'sans'})).toContain('sans-serif');
+  expect(p.typographyCss({fontFamily:'mono'})).toContain('monospace');
+ });
+});

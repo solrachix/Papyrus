@@ -1,7 +1,7 @@
 import {usePapyrusSafeAreaInsets} from './PapyrusSafeArea';
 import {parseEpubReadingLocation} from './epubReadingLocation';
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Image, Keyboard, StyleSheet, View, Alert, useWindowDimensions } from "react-native";
+import { Image, Keyboard, Platform, StyleSheet, View, Alert, useWindowDimensions, type LayoutChangeEvent } from "react-native";
 import Clipboard from "@react-native-clipboard/clipboard";
 import WebView, {
   type WebViewMessageEvent,
@@ -10,12 +10,15 @@ import WebView, {
 import { createContextualAnnotation, useViewerStore } from "@papyrus-sdk/core";
 import { Annotation, AnnotationMarkupStyle, DocumentEngine } from "@papyrus-sdk/types";
 import { resolveMaxPageWidth } from "./pdfPageMetrics";
+import { MOBILE_CHROME_METRICS } from "./mobileChromeMetrics";
 import {
   parseWebViewInteraction,
   parseWebViewState,
 } from "./webViewState";
 
-import { parseEpubAnnotationEvent, resolveEpubInkMode, type EpubAnnotationEvent } from "./epubAnnotationEvents";
+import { parseEpubAnnotationEvent, parseEpubInkErasedEvent, parseEpubSelectionGeometryEvent, resolveEpubInkMode, type EpubAnnotationEvent } from "./epubAnnotationEvents";
+import { EpubSelectionMenu, type EpubSelectionMenuAction } from "./EpubSelectionMenu";
+import { getReaderSheetPalette, toReaderSheetTheme } from "./readerSheetPresentation";
 import { getStrings } from "../mobileStrings";
 import {
   getReaderSelectionActionOptions,
@@ -79,7 +82,12 @@ interface WebViewViewerProps {
   maxPageWidth?: number;
   onScrollOffset?: (offsetY: number) => void;
   onTap?: () => void;
+  /** See ViewerProps.epubTargetTopInset. */
+  epubTargetTopInset?: number;
 }
+
+/** Papyrus' floating top bar plus a little breathing room. */
+export const DEFAULT_EPUB_TARGET_TOP_INSET = MOBILE_CHROME_METRICS.topbarHeight + 8;
 
 const WebViewViewer: React.FC<WebViewViewerProps> = ({
   engine,
@@ -90,6 +98,7 @@ const WebViewViewer: React.FC<WebViewViewerProps> = ({
   maxPageWidth,
   onScrollOffset,
   onTap,
+  epubTargetTopInset = DEFAULT_EPUB_TARGET_TOP_INSET,
 }) => {
   const webViewRef = useRef<WebView>(null);
   const insets=usePapyrusSafeAreaInsets();
@@ -111,7 +120,7 @@ const WebViewViewer: React.FC<WebViewViewerProps> = ({
     });
     return () => subscription.remove();
   }, []);
-  const { pageTheme, epubReadingMode, setDocumentState, annotations, isLoaded, locale, annotationColor, annotationOpacity, inkStrokeWidth, activeTool, activeDrawToolPreset, addAnnotation, beginAnnotationDraft, setSelectedAnnotation } = useViewerStore();
+  const { pageTheme, epubReadingMode, epubTypography, setDocumentState, annotations, isLoaded, locale, annotationColor, annotationOpacity, inkStrokeWidth, activeTool, activeDrawToolPreset, addAnnotation, removeAnnotation, beginAnnotationDraft, setSelectedAnnotation } = useViewerStore();
   const [selection,setSelection] = useState<Extract<EpubAnnotationEvent,{kind:"selection"}> | null>(null);
   const t = getStrings(locale);
   const bridgeEngine = engine as WebViewBridgeEngine;
@@ -203,9 +212,9 @@ const WebViewViewer: React.FC<WebViewViewerProps> = ({
     return () => {active=false;};
   }, [bridgeEngine, annotations,documentId,isLoaded,t.annotationNote]);
 
-  const annotateSelection = (style:AnnotationMarkupStyle,note?:string, selected = selection) => {
+  const annotateSelection = (style:AnnotationMarkupStyle,note?:string, selected = selection, color = annotationColor) => {
     if (!selected || selected.session !== bridgeEngine.getWebViewDocumentSessionId?.() || !isLoaded) return;
-    (note !== undefined ? beginAnnotationDraft : addAnnotation)(createContextualAnnotation({id:`annotation-${Date.now()}-${Math.random().toString(36).slice(2)}`,anchor:selected.anchor,pageIndex:selected.pageIndex,style,color:annotationColor,opacity:annotationOpacity,note}));
+    (note !== undefined ? beginAnnotationDraft : addAnnotation)(createContextualAnnotation({id:`annotation-${Date.now()}-${Math.random().toString(36).slice(2)}`,anchor:selected.anchor,pageIndex:selected.pageIndex,style,color,opacity:annotationOpacity,note}));
     setSelection(null);
   };
 
@@ -224,6 +233,27 @@ const WebViewViewer: React.FC<WebViewViewerProps> = ({
     }}));
   }, [isLoaded,documentType,activeTool,activeDrawToolPreset,annotationColor,annotationOpacity,inkStrokeWidth,bridgeEngine]);
 
+  // Android draws its own selection menu (EpubSelectionMenu): the native
+  // action mode only fits a few text items and overflows near the right edge.
+  // An empty menuItems list makes react-native-webview start an action mode
+  // without items, which suppresses the native toolbar while keeping the
+  // selection handles. iOS keeps the native UIMenu with menuItems below.
+  const useCustomSelectionMenu = Platform.OS === "android" && documentType === "epub";
+  const [selectionMenuScrolling, setSelectionMenuScrolling] = useState(false);
+  const selectionScrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingHighlightColorRef = useRef<string | null>(null);
+  const [containerLayout, setContainerLayout] = useState({ width: 0, height: 0 });
+  const [webViewOffset, setWebViewOffset] = useState({ x: 0, y: 0 });
+  useEffect(() => () => {
+    if (selectionScrollTimerRef.current) clearTimeout(selectionScrollTimerRef.current);
+  }, []);
+  const hideSelectionMenuWhileScrolling = () => {
+    if (!useCustomSelectionMenu) return;
+    setSelectionMenuScrolling(true);
+    if (selectionScrollTimerRef.current) clearTimeout(selectionScrollTimerRef.current);
+    // The menu reappears at the selection's new position once scrolling settles.
+    selectionScrollTimerRef.current = setTimeout(() => setSelectionMenuScrolling(false), 220);
+  };
   const sendSelectionCommand = (key: string) => {
     webViewRef.current?.postMessage(JSON.stringify({type: "epub-selection-action", id: "selection-menu", key,
       documentSessionId: bridgeEngine.getWebViewDocumentSessionId?.()}));
@@ -238,8 +268,24 @@ const WebViewViewer: React.FC<WebViewViewerProps> = ({
     {key: "selectAll", label: t.selectAll},
   ];
 
+  const handleCustomSelectionAction = (action: EpubSelectionMenuAction) => {
+    sendSelectionCommand(action);
+    setSelection(null);
+  };
+  const handleCustomSelectionHighlight = (color: string) => {
+    pendingHighlightColorRef.current = color;
+    sendSelectionCommand("highlight");
+    setSelection(null);
+  };
+
   const handleMessage = (event: WebViewMessageEvent) => {
     const raw = event.nativeEvent.data;
+    const geometry = parseEpubSelectionGeometryEvent(raw, bridgeEngine.getWebViewDocumentSessionId?.() ?? "");
+    if (geometry?.kind === "cleared") setSelection(null);
+    if (geometry?.kind === "rect") setSelection(current => current ? {...current, rect: geometry.rect} : current);
+    const erasedInkId = parseEpubInkErasedEvent(raw, bridgeEngine.getWebViewDocumentSessionId?.() ?? "");
+    // removeAnnotation records an undo step, so the dock's undo restores it.
+    if (erasedInkId && useViewerStore.getState().annotations.some(a => a.id === erasedInkId && a.type === "ink")) removeAnnotation(erasedInkId);
     // Action messages carry a validated, current-session CFI snapshot from
     // the chapter iframe. WebView's selectedText only reads the root frame.
     let action: string | undefined;
@@ -265,9 +311,12 @@ const WebViewViewer: React.FC<WebViewViewerProps> = ({
         else Alert.alert(t.define, t.defineSingleWordHint);
         setSelection(null);
       } else if (["highlight", "underline", "strikeout", READER_SELECTION_ACTIONS.note].includes(action)) {
+        // A colour dot in the custom menu picks the highlight colour.
+        const color = action === "highlight" && pendingHighlightColorRef.current ? pendingHighlightColorRef.current : annotationColor;
         annotateSelection(action === READER_SELECTION_ACTIONS.note ? "highlight" : action as AnnotationMarkupStyle,
-          action === READER_SELECTION_ACTIONS.note ? "" : undefined, annotationEvent);
+          action === READER_SELECTION_ACTIONS.note ? "" : undefined, annotationEvent, color);
       }
+      if (action) pendingHighlightColorRef.current = null;
     }
     if (annotationEvent?.kind === "tap" && annotations.some(a => a.id === annotationEvent.id)) {setSelection(null);
       const group=annotations.filter(a=>annotationEvent.ids?.includes(a.id));
@@ -279,7 +328,10 @@ const WebViewViewer: React.FC<WebViewViewerProps> = ({
       setSelection(null);
     }
     const interaction = parseWebViewInteraction(raw);
-    if (interaction?.kind === "scroll") onScrollOffset?.(interaction.offsetY);
+    if (interaction?.kind === "scroll") {
+      onScrollOffset?.(interaction.offsetY);
+      if (selection) hideSelectionMenuWhileScrolling();
+    }
     if (interaction?.kind === "tap") onTap?.();
 
     const state = parseWebViewState(raw);
@@ -325,6 +377,16 @@ const WebViewViewer: React.FC<WebViewViewerProps> = ({
     if (!isLoaded || documentType !== "epub") return;
     webViewRef.current?.postMessage(JSON.stringify({ id: `epub-theme-${Date.now()}`, kind: "set-epub-theme", payload: { theme: epubPagePalette } }));
   }, [isLoaded, documentType, epubPagePalette]);
+  useEffect(() => {
+    if (!isLoaded || documentType !== "epub") return;
+    // The runtime ignores unchanged values, so a reload does not reflow.
+    webViewRef.current?.postMessage(JSON.stringify({ id: `epub-typography-${Date.now()}`, kind: "set-epub-typography", payload: { typography: epubTypography } }));
+  }, [isLoaded, documentType, epubTypography]);
+  useEffect(() => {
+    if (!isLoaded || documentType !== "epub") return;
+    // Chapter-scroll: TOC/annotation targets land below the floating top chrome.
+    webViewRef.current?.postMessage(JSON.stringify({ id: `epub-target-inset-${Date.now()}`, kind: "set-epub-target-inset", payload: { top: epubTargetTopInset } }));
+  }, [isLoaded, documentType, epubTargetTopInset]);
   const themeOverlayStyle = useMemo(() => {
     if (documentType === "epub") return styles.themeNone;
     switch (pageTheme) {
@@ -356,13 +418,13 @@ const WebViewViewer: React.FC<WebViewViewerProps> = ({
     : undefined;
 
   return (
-    <View style={[styles.container,documentType === "epub" && {paddingTop:insets.top,paddingBottom:stableBottomInset},epubPagePalette && {backgroundColor:epubPagePalette.background}]}>
+    <View onLayout={(event: LayoutChangeEvent) => {const {width,height}=event.nativeEvent.layout;setContainerLayout(current=>current.width===width&&current.height===height?current:{width,height});}} style={[styles.container,documentType === "epub" && {paddingTop:insets.top,paddingBottom:stableBottomInset},epubPagePalette && {backgroundColor:epubPagePalette.background}]}>
       <WebView
         ref={webViewRef}
         source={webViewSource}
         originWhitelist={["*"]}
         onMessage={handleMessage}
-        menuItems={selectionMenuItems}
+        menuItems={useCustomSelectionMenu ? [] : selectionMenuItems}
         onCustomMenuSelection={event => sendSelectionCommand(event.nativeEvent.key)}
         onLoadEnd={handleLoadEnd}
         onError={handleError}
@@ -376,12 +438,26 @@ const WebViewViewer: React.FC<WebViewViewerProps> = ({
         allowFileAccessFromFileURLs
         allowUniversalAccessFromFileURLs
         allowingReadAccessToURL={allowingReadAccessToURL}
+        onLayout={(event: LayoutChangeEvent) => {const {x,y}=event.nativeEvent.layout;setWebViewOffset(current=>current.x===x&&current.y===y?current:{x,y});}}
         style={[styles.webview, cappedWebViewStyle]}
       />
       <View
         pointerEvents="none"
         style={[styles.themeOverlay, themeOverlayStyle]}
       />
+      {useCustomSelectionMenu && selection?.rect && !selectionMenuScrolling && activeTool !== "ink" ? (
+        <EpubSelectionMenu
+          anchor={{...selection.rect, x: selection.rect.x + webViewOffset.x, y: selection.rect.y + webViewOffset.y}}
+          container={containerLayout}
+          topInset={insets.top}
+          bottomInset={stableBottomInset}
+          locale={locale}
+          palette={getReaderSheetPalette(toReaderSheetTheme(pageTheme))}
+          canConsult={Boolean(onDefineSelection)}
+          onHighlight={handleCustomSelectionHighlight}
+          onAction={handleCustomSelectionAction}
+        />
+      ) : null}
     </View>
   );
 };

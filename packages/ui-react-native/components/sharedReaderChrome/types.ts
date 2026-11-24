@@ -44,3 +44,12 @@ export interface ReaderContentsEntry<T = unknown> {
   disabled?: boolean;
   value?: T;
 }
+
+/** A labelled single-choice row in the reading settings sheet (e.g. typography). */
+export interface ReaderSettingsChoiceGroup {
+  key: string;
+  label: string;
+  value: string;
+  options: ReaderChoiceOption[];
+  onChange: (value: string) => void;
+}

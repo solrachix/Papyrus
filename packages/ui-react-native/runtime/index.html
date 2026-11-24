@@ -20549,6 +20549,42 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     manager.resize=resize;
     return {cfi:function(){return anchor;},invalidate:function(){anchor=null;},destroy:function(){if(manager.resize===resize)manager.resize=original;anchor=null;}};
   }
+  // Bounding rect of a chapter selection in the WebView viewport. The range
+  // rect is relative to the chapter iframe; the iframe rect already includes
+  // the manager container scroll (paged columns and chapter-scroll alike).
+  function selectionRect(range,frame){
+    if(!range || typeof range.getBoundingClientRect!=='function')return null;
+    var r=range.getBoundingClientRect();
+    if(!r || !(r.width>0 || r.height>0))return null;
+    var f=frame && typeof frame.getBoundingClientRect==='function'?frame.getBoundingClientRect():null;
+    var x=(f?f.left:0)+r.left,y=(f?f.top:0)+r.top;
+    if(![x,y,r.width,r.height].every(Number.isFinite))return null;
+    return {x:Math.round(x),y:Math.round(y),width:Math.round(r.width),height:Math.round(r.height)};
+  }
+  // Reader typography. Every rule skips the annotation layer so highlights,
+  // ink and note buttons keep their own geometry and fonts.
+  var TYPE_FONTS={serif:'Georgia, "Iowan Old Style", "Times New Roman", "Noto Serif", serif',sans:'-apple-system, Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif',mono:'ui-monospace, Menlo, "Roboto Mono", "DejaVu Sans Mono", monospace'};
+  var TYPE_MARGINS={narrow:'0.5em',medium:'1.5em',wide:'3em'};
+  var NOT_OVERLAY=':not([data-papyrus-overlay]):not([data-papyrus-overlay] *)';
+  function typography(value){
+    var v=value||{},line=Number(v.lineHeight);
+    return {fontFamily:TYPE_FONTS[v.fontFamily]?v.fontFamily:'original',lineHeight:Number.isFinite(line)&&line>=1&&line<=2.5?Math.round(line*100)/100:null,
+      margin:TYPE_MARGINS[v.margin]?v.margin:'original',textAlign:v.textAlign==='justify'||v.textAlign==='left'?v.textAlign:'original'};
+  }
+  function typographyCss(value){
+    var t=typography(value),css='';
+    if(t.fontFamily!=='original'){
+      // Code keeps a monospace face unless the reader chose monospace anyway.
+      css+='html, body, body *'+NOT_OVERLAY+':not(code):not(pre):not(kbd):not(samp):not(code *):not(pre *) { font-family: '+TYPE_FONTS[t.fontFamily]+' !important; }';
+    }
+    if(t.lineHeight!==null)css+=' body, body *'+NOT_OVERLAY+' { line-height: '+t.lineHeight+' !important; }';
+    if(t.margin!=='original')css+=' body > *'+NOT_OVERLAY+':not(img):not(svg):not(hr) { margin-left: '+TYPE_MARGINS[t.margin]+' !important; margin-right: '+TYPE_MARGINS[t.margin]+' !important; }';
+    if(t.textAlign!=='original'){
+      css+=' body p, body li, body blockquote, body dd, body div'+NOT_OVERLAY+' { text-align: '+t.textAlign+' !important; }';
+      if(t.textAlign==='justify')css+=' body p { -webkit-hyphens: auto; hyphens: auto; }';
+    }
+    return css.trim();
+  }
   function install(contents,config){
     var doc=contents.document,win=contents.window,start=null,blocked=false,edge=null,pull=null;
     function point(e){var t=e.changedTouches&&e.changedTouches[0]||e.touches&&e.touches[0];return t?{x:t.clientX,y:t.clientY,time:Date.now()}:null;}
@@ -20565,7 +20601,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     doc.addEventListener('touchstart',begin,{passive:true});doc.addEventListener('touchmove',move,{passive:true});doc.addEventListener('touchend',end,{passive:true});doc.addEventListener('touchcancel',cancel,{passive:true});doc.addEventListener('click',link);
     return function(){showPull(null);doc.removeEventListener('touchstart',begin);doc.removeEventListener('touchmove',move);doc.removeEventListener('touchend',end);doc.removeEventListener('touchcancel',cancel);doc.removeEventListener('click',link);};
   }
-  root.PapyrusEpubReader={mode:mode,validCfi:validCfi,options:options,gesture:gesture,chapterPull:chapterPull,location:location,installResizeAnchor:installResizeAnchor,install:install};
+  root.PapyrusEpubReader={mode:mode,validCfi:validCfi,options:options,gesture:gesture,chapterPull:chapterPull,location:location,installResizeAnchor:installResizeAnchor,selectionRect:selectionRect,typography:typography,typographyCss:typographyCss,install:install};
 })(typeof window==='undefined'?globalThis:window);
 
 /* @papyrus-epub-reader:end */
@@ -20699,6 +20735,23 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     var anchor = {version:1,kind:'epub-cfi',cfiRange:cfiRange,href:href,spineIndex:contents.sectionIndex,documentId:documentId,quote:range.toString(),prefix:before.toString().slice(-48),suffix:after.toString().slice(0,48)};
     return validAnchor(anchor) ? anchor : null;
   }
+  // Ink eraser hit test: rendered stroke polylines (body coordinates) keyed by
+  // annotation id. Returns the id of the top-most stroke within reach.
+  function inkHitAt(entries, x, y, slop) {
+    var found = null;
+    entries.forEach(function(entry, id) {
+      var reach = Math.max(0, slop || 0) + (entry.stroke || 0) / 2;
+      entry.paths.forEach(function(points) {
+        for (var i = 0; i < points.length; i++) {
+          var a = points[i], b = points[i + 1] || a;
+          var dx = b.x - a.x, dy = b.y - a.y, length = dx * dx + dy * dy;
+          var t = length ? Math.max(0, Math.min(1, ((x - a.x) * dx + (y - a.y) * dy) / length)) : 0;
+          if (Math.hypot(x - (a.x + t * dx), y - (a.y + t * dy)) <= reach) { found = id; return; }
+        }
+      });
+    });
+    return found;
+  }
   function install(contents, options) {
     var doc = contents.document, win = contents.window, alive = true, frame = 0;
     var overlay = doc.createElement('div'); overlay.dataset.papyrusOverlay = 'annotations';
@@ -20707,7 +20760,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     if(win.getComputedStyle(doc.body).position==='static')doc.body.style.position='relative';
     doc.body.appendChild(overlay);
     var registry = new Map(), hitRegions = [];
-    var inkRegistry = new Map(), rangeCache = new Map(), spatialIndex = null, activeGesture = null, inkConfig = {enabled:false,preset:'ink'};
+    var inkRegistry = new Map(), inkHitPaths = new Map(), rangeCache = new Map(), spatialIndex = null, activeGesture = null, inkConfig = {enabled:false,preset:'ink'};
     var inkSvg = doc.createElementNS('http://www.w3.org/2000/svg','svg');
     inkSvg.setAttribute('data-papyrus-ink-overlay','');
     inkSvg.style.cssText = 'position:absolute;left:0;top:0;overflow:visible;pointer-events:none;z-index:1';
@@ -20788,11 +20841,12 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       keep.add(annotation.id);
       var group=inkRegistry.get(annotation.id);
       if (!group) { group=doc.createElementNS('http://www.w3.org/2000/svg','g'); group.setAttribute('data-epub-ink-id',annotation.id); inkSvg.appendChild(group); inkRegistry.set(annotation.id,group); }
-      group.replaceChildren();
+      group.replaceChildren();group.style.display='';
       var color=/^#[0-9a-f]{6}$/i.test(annotation.color)?annotation.color:'#2563eb';
       var opacity=Number.isFinite(annotation.opacity)?Math.max(0,Math.min(1,annotation.opacity)):1;
       var preset=['ink','highlight','underline'].indexOf(data.preset)>=0?data.preset:'ink';
-      var stroke=inkStrokeWidthPx(annotation.strokeWidth,preset);
+      var stroke=inkStrokeWidthPx(annotation.strokeWidth,preset), hitPaths=[];
+      inkHitPaths.set(annotation.id,{stroke:stroke,paths:hitPaths});
       data.segments.forEach(function(segment) {
         if (segment.href!==options.href || !Array.isArray(segment.points)) return;
         var paths=[], current=[];
@@ -20809,6 +20863,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         });
         if(current.length>1)paths.push(current);
         paths.forEach(function(points) {
+          hitPaths.push(points);
           var d='M '+points[0].x.toFixed(1)+' '+points[0].y.toFixed(1);
           for(var i=1;i<points.length;i++){var prev=points[i-1],point=points[i],mx=(prev.x+point.x)/2,my=(prev.y+point.y)/2;d+=' Q '+prev.x.toFixed(1)+' '+prev.y.toFixed(1)+' '+mx.toFixed(1)+' '+my.toFixed(1);}
           var last=points[points.length-1];d+=' L '+last.x.toFixed(1)+' '+last.y.toFixed(1);
@@ -20872,9 +20927,25 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         epubInk:{version:1,kind:'epub-ink',documentId:documentId,preset:inkConfig.preset,segments:segments}};
       if(typeof options.onInkCommit==='function')options.onInkCommit(annotation);
     }
+    function eraseAt(event) {
+      var bodyRect=doc.body.getBoundingClientRect() || {left:0,top:0};
+      var id=inkHitAt(inkHitPaths,event.clientX-bodyRect.left,event.clientY-bodyRect.top,12);
+      if(!id || activeGesture.erased.has(id))return;
+      activeGesture.erased.add(id);
+      // Hide at once; the host removes the annotation and resyncs the layer.
+      var group=inkRegistry.get(id);if(group)group.style.display='none';
+      if(typeof options.onInkErase==='function')options.onInkErase(id);
+    }
     function pointerDown(event) {
       if(!inkConfig.enabled || !alive || !options.isCurrent() || event.button!==undefined && event.button!==0)return;
       if(activeGesture){cancelGesture();return;}
+      if(inkConfig.preset==='eraser'){
+        // Tap or scrub across strokes to erase them; nothing is drawn.
+        event.preventDefault();event.stopPropagation();
+        activeGesture={pointerId:event.pointerId,eraser:true,erased:new Set()};
+        try{inkCanvas.setPointerCapture(event.pointerId);}catch(_){}
+        eraseAt(event);return;
+      }
       event.preventDefault();event.stopPropagation();
       activeGesture={pointerId:event.pointerId,points:[{x:event.clientX+win.scrollX,y:event.clientY+win.scrollY}],last:{x:event.clientX,y:event.clientY},previewPath:null,previewPathPoints:0,previewLast:null};
       updatePreviewPath(event.clientX,event.clientY);
@@ -20884,13 +20955,14 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       if(!activeGesture || activeGesture.pointerId!==event.pointerId)return;
       if(!options.isCurrent()||!inkConfig.enabled){cancelGesture();return;}
       event.preventDefault();event.stopPropagation();
+      if(activeGesture.eraser){eraseAt(event);return;}
       var point={x:event.clientX+win.scrollX,y:event.clientY+win.scrollY};activeGesture.points.push(point);
       if(activeGesture.points.length>2048)activeGesture.points=compactGesturePoints(activeGesture.points,1024);
       if(inkContext){inkContext.beginPath();inkContext.moveTo(activeGesture.last.x,activeGesture.last.y);inkContext.lineTo(event.clientX,event.clientY);inkContext.strokeStyle=inkConfig.color;inkContext.globalAlpha=inkConfig.opacity;inkContext.lineWidth=inkStrokeWidthPx(inkConfig.strokeWidth,inkConfig.preset);inkContext.lineCap='round';inkContext.lineJoin='round';inkContext.stroke();}
       updatePreviewPath(event.clientX,event.clientY);
       activeGesture.last={x:event.clientX,y:event.clientY};
     }
-    function pointerUp(event) {if(!activeGesture || activeGesture.pointerId!==event.pointerId)return;event.preventDefault();event.stopPropagation();var end={x:event.clientX+win.scrollX,y:event.clientY+win.scrollY},last=activeGesture.points[activeGesture.points.length-1];if(Math.hypot(end.x-last.x,end.y-last.y)>0.5){activeGesture.points.push(end);updatePreviewPath(event.clientX,event.clientY);}commitGesture();}
+    function pointerUp(event) {if(!activeGesture || activeGesture.pointerId!==event.pointerId)return;event.preventDefault();event.stopPropagation();if(activeGesture.eraser){cancelGesture();return;}var end={x:event.clientX+win.scrollX,y:event.clientY+win.scrollY},last=activeGesture.points[activeGesture.points.length-1];if(Math.hypot(end.x-last.x,end.y-last.y)>0.5){activeGesture.points.push(end);updatePreviewPath(event.clientX,event.clientY);}commitGesture();}
     function pointerCancel(event) {if(activeGesture && (event.pointerId===undefined || activeGesture.pointerId===event.pointerId))cancelGesture();}
     resizeCanvas();rebuildSpatialIndex();
     inkCanvas.addEventListener('pointerdown',pointerDown);inkCanvas.addEventListener('pointermove',pointerMove);inkCanvas.addEventListener('pointerup',pointerUp);inkCanvas.addEventListener('pointercancel',pointerCancel);inkCanvas.addEventListener('lostpointercapture',pointerCancel);
@@ -20944,7 +21016,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         group.button.addEventListener('click',function(e){e.stopPropagation();if(options.isCurrent())options.onTap(group.ids[0],group.ids);});
       });
       registry.forEach(function(group,id){if (!keep.has(id)) {group.remove();registry.delete(id);}});
-      inkRegistry.forEach(function(group,id){if (!keepInk.has(id)) {group.remove();inkRegistry.delete(id);}});
+      inkRegistry.forEach(function(group,id){if (!keepInk.has(id)) {group.remove();inkRegistry.delete(id);inkHitPaths.delete(id);}});
     }
     function schedule() { if (alive && !frame) frame = win.requestAnimationFrame(render); }
     function rebuildAndSchedule(){if(!alive)return;rebuildSpatialIndex();schedule();}
@@ -20961,9 +21033,9 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     win.addEventListener('resize',handleResize);win.addEventListener('scroll',schedule); doc.addEventListener('load',handleDocumentLoad,true);
     if (doc.fonts && doc.fonts.ready) doc.fonts.ready.then(function(){if(alive){rebuildSpatialIndex();schedule();}});
     schedule();
-    return {schedule:schedule, setInkMode:function(config){var preset=['ink','highlight','underline'].indexOf(config?.preset)>=0?config.preset:'ink';inkConfig={enabled:!!config?.enabled,preset:preset,color:/^#[0-9a-f]{6}$/i.test(config?.color)?config.color:'#2563eb',opacity:Number.isFinite(config?.opacity)?Math.max(0,Math.min(1,config.opacity)):1,strokeWidth:Number.isFinite(config?.strokeWidth)?Math.max(0.0025,Math.min(0.02,config.strokeWidth)):0.006};inkCanvas.style.pointerEvents=inkConfig.enabled?'auto':'none';if(!inkConfig.enabled)cancelGesture();}, invalidateLayout:rebuildAndSchedule, hit:function(x,y){return hitRegions.some(function(item){return item.rects.some(function(r){return x>=r.left && x<=r.right && y>=r.top && y<=r.bottom;});});}, range:function(anchor){return resolveRange(contents,anchor);}, destroy:function(){alive=false;cancelGesture();if(frame)win.cancelAnimationFrame(frame);if(observer)observer.disconnect();win.removeEventListener('resize',handleResize);win.removeEventListener('scroll',schedule);win.removeEventListener('blur',pointerCancel);doc.removeEventListener('load',handleDocumentLoad,true);doc.removeEventListener('click',tapMarkup);inkCanvas.removeEventListener('pointerdown',pointerDown);inkCanvas.removeEventListener('pointermove',pointerMove);inkCanvas.removeEventListener('pointerup',pointerUp);inkCanvas.removeEventListener('pointercancel',pointerCancel);inkCanvas.removeEventListener('lostpointercapture',pointerCancel);inkCanvas.remove();previewSvg.remove();overlay.remove();doc.body.style.position=originalPosition;registry.clear();inkRegistry.clear();rangeCache.clear();}};
+    return {schedule:schedule, setInkMode:function(config){var preset=['ink','highlight','underline','eraser'].indexOf(config?.preset)>=0?config.preset:'ink';inkConfig={enabled:!!config?.enabled,preset:preset,color:/^#[0-9a-f]{6}$/i.test(config?.color)?config.color:'#2563eb',opacity:Number.isFinite(config?.opacity)?Math.max(0,Math.min(1,config.opacity)):1,strokeWidth:Number.isFinite(config?.strokeWidth)?Math.max(0.0025,Math.min(0.02,config.strokeWidth)):0.006};inkCanvas.style.pointerEvents=inkConfig.enabled?'auto':'none';if(!inkConfig.enabled)cancelGesture();}, invalidateLayout:rebuildAndSchedule, hit:function(x,y){return hitRegions.some(function(item){return item.rects.some(function(r){return x>=r.left && x<=r.right && y>=r.top && y<=r.bottom;});});}, range:function(anchor){return resolveRange(contents,anchor);}, destroy:function(){alive=false;cancelGesture();if(frame)win.cancelAnimationFrame(frame);if(observer)observer.disconnect();win.removeEventListener('resize',handleResize);win.removeEventListener('scroll',schedule);win.removeEventListener('blur',pointerCancel);doc.removeEventListener('load',handleDocumentLoad,true);doc.removeEventListener('click',tapMarkup);inkCanvas.removeEventListener('pointerdown',pointerDown);inkCanvas.removeEventListener('pointermove',pointerMove);inkCanvas.removeEventListener('pointerup',pointerUp);inkCanvas.removeEventListener('pointercancel',pointerCancel);inkCanvas.removeEventListener('lostpointercapture',pointerCancel);inkCanvas.remove();previewSvg.remove();overlay.remove();doc.body.style.position=originalPosition;registry.clear();inkRegistry.clear();inkHitPaths.clear();rangeCache.clear();}};
   }
-  return {validAnchor:validAnchor,simplifyPath:simplifyPath,compactGesturePoints:compactGesturePoints,densifyPath:densifyPath,createSpatialIndex:createSpatialIndex,queryNearestTextRect:queryNearestTextRect,recoverRange:recoverRange,resolveRange:resolveRange,selection:selection,install:install};
+  return {validAnchor:validAnchor,simplifyPath:simplifyPath,compactGesturePoints:compactGesturePoints,densifyPath:densifyPath,createSpatialIndex:createSpatialIndex,queryNearestTextRect:queryNearestTextRect,recoverRange:recoverRange,resolveRange:resolveRange,selection:selection,inkHitAt:inkHitAt,install:install};
 });
 
 /* @papyrus-epub-annotations:end */
@@ -21949,6 +22021,54 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     }
     style.textContent = css;
   };
+  let epubTypography = null;
+  const EPUB_TYPOGRAPHY_STYLE_ID = 'papyrus-typography';
+  const applyEpubTypographyToContents = (contents) => {
+    const doc = contents && contents.document;
+    if (!doc || !doc.head) return;
+    let style = doc.getElementById(EPUB_TYPOGRAPHY_STYLE_ID);
+    const css = window.PapyrusEpubReader.typographyCss(epubTypography);
+    if (!css) {
+      if (style) style.remove();
+      return;
+    }
+    if (!style) {
+      style = doc.createElement('style');
+      style.id = EPUB_TYPOGRAPHY_STYLE_ID;
+    }
+    // Last in <head> so it wins over the publisher sheets of equal weight.
+    doc.head.appendChild(style);
+    style.textContent = css;
+  };
+  // Chapter-scroll only: the host's floating top chrome covers the top of the
+  // WebView. Chapters get a top spacer of that height, and navigations to a
+  // target (TOC entry, annotation) land that far below the top, so headings
+  // are not hidden. Ordinary scrolling is not offset.
+  let epubTargetTopInset = 0;
+  const EPUB_TARGET_INSET_STYLE_ID = 'papyrus-target-inset';
+  const epubTargetInset = () => epubViewMode === 'single' ? 0 : epubTargetTopInset;
+  const applyEpubTargetInsetToContents = (contents) => {
+    const doc = contents && contents.document;
+    if (!doc || !doc.head) return;
+    let style = doc.getElementById(EPUB_TARGET_INSET_STYLE_ID);
+    const inset = epubTargetInset();
+    if (!inset) {
+      if (style) style.remove();
+      return;
+    }
+    if (!style) {
+      style = doc.createElement('style');
+      style.id = EPUB_TARGET_INSET_STYLE_ID;
+      doc.head.appendChild(style);
+    }
+    style.textContent = 'html { padding-top: ' + inset + 'px !important; }';
+  };
+  const offsetEpubTarget = (activeRendition) => {
+    const container = activeRendition && activeRendition.manager && activeRendition.manager.container;
+    const inset = epubTargetInset();
+    if (!container || !inset) return;
+    container.scrollTop = Math.max(0, container.scrollTop - inset);
+  };
   const applyEpubTheme = () => {
     const background = epubPageTheme && epubPageTheme.background ? epubPageTheme.background : '#ffffff';
     document.documentElement.style.background = background;
@@ -22143,6 +22263,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     sendEpubDiagnostic('epub.rendition.created', diagnosticPayload);
     if (rendition && rendition.hooks && rendition.hooks.content) {
       rendition.hooks.content.register((contents) => applyEpubThemeToContents(contents));
+      rendition.hooks.content.register((contents) => applyEpubTypographyToContents(contents));
+      rendition.hooks.content.register((contents) => applyEpubTargetInsetToContents(contents));
     }
     applyEpubTheme();
 
@@ -22186,6 +22308,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             pageWidth: () => activeRendition.layout?.width || viewer.clientWidth,
             annotations: () => epubAnnotations, labels: () => annotationLabels,
             onInkCommit: annotation => sendEvent('EPUB_INK_CREATED',{documentSessionId:session,annotation}),
+            onInkErase: id => sendEvent('EPUB_INK_ERASED',{documentSessionId:session,id}),
             onTap: (id, ids) => sendEvent("EPUB_ANNOTATION_TAP", {documentSessionId: session, id, ids}),
           });
           renderer.setInkMode(epubInkMode);
@@ -22221,7 +22344,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             if (!anchor) return;
             if (nativeMenuSelection?.payload?.anchor?.cfiRange === anchor.cfiRange && nativeMenuSelection?.payload?.anchor?.quote === anchor.quote) return;
             const payload = {documentSessionId: session, text: anchor.quote,
-              pageIndex: contents.sectionIndex + 1, anchor};
+              pageIndex: contents.sectionIndex + 1, anchor,
+              rect: window.PapyrusEpubReader.selectionRect(range, frameOf(contents))};
             nativeMenuSelection = {contents, payload};
             sendEvent('EPUB_TEXT_SELECTED', payload);
           };
@@ -22234,7 +22358,12 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             // The content document still emits selectionchange, so resolve its
             // live Range to a CFI before the native menu action can fire.
             if (text) reportSelection();
-            else if (nativeMenuSelection?.contents === contents) nativeMenuSelection = null;
+            else if (nativeMenuSelection?.contents === contents) {
+              // Tell the host the selection collapsed so a Papyrus-drawn menu
+              // (Android) can dismiss itself.
+              nativeMenuSelection = null;
+              sendEvent('EPUB_SELECTION_CLEARED', {documentSessionId: session});
+            }
           };
           selectionDocument.addEventListener('selectionchange', handleSelectionChange);
           const selectionCleanup = () => {
@@ -22275,7 +22404,10 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         const anchor = href && window.PapyrusEpubAnnotations?.selection(contents,cfiRange,href,annotationDocumentId);
         if (!anchor || nativeMenuSelection?.payload?.anchor?.cfiRange === anchor.cfiRange && nativeMenuSelection?.payload?.anchor?.quote === anchor.quote) return;
         epubScrollDiagnostics && epubScrollDiagnostics.setSelectionActive(true);
-        const payload = {documentSessionId: selectionSession, text: anchor.quote, pageIndex: contents.sectionIndex+1, anchor};
+        const live = contents.window && contents.window.getSelection();
+        const liveRange = live && live.rangeCount ? live.getRangeAt(0) : null;
+        const payload = {documentSessionId: selectionSession, text: anchor.quote, pageIndex: contents.sectionIndex+1, anchor,
+          rect: window.PapyrusEpubReader.selectionRect(liveRange, frameOf(contents))};
         nativeMenuSelection = {contents, payload};
         sendEvent('EPUB_TEXT_SELECTED', payload);
       });
@@ -22403,6 +22535,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         };
       }
       const handleScroll = event => {
+        scheduleSelectionRect();
         const offsetY = Math.max(0, Number(event && event.top) || 0);
         epubScrollDiagnostics && epubScrollDiagnostics.scroll(event);
         if (Math.abs(offsetY-lastScrollOffset)<1) return;
@@ -22465,6 +22598,43 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     await navigation;
   };
 
+  // epub.js sections have no text(); load the chapter document and read its
+  // text, cached per spine item. Sections the reader has not loaded are
+  // unloaded again so search does not keep every chapter in memory.
+  const epubSectionTextCache = new Map();
+  const getEpubSectionText = async (pageIndex, item) => {
+    const activeBook = book;
+    const key = item.idref || item.href;
+    const cached = epubSectionTextCache.get(key);
+    if (cached && cached.book === activeBook) return cached.text;
+    // spine.get(string) looks up an href (or '#id'); the index is unambiguous.
+    const section = activeBook.spine.get(pageIndex) || activeBook.spine.get(item.href);
+    if (!section || typeof section.load !== 'function') return '';
+    const wasLoaded = Boolean(section.contents);
+    const doc = await section.load(activeBook.load.bind(activeBook));
+    const root = doc && (doc.body || doc.documentElement || doc);
+    // textContent glues block elements together ("UvasFábulas"); walk the
+    // text nodes and separate those that sit in different blocks.
+    const parts = [];
+    const BLOCK = /^(p|div|h[1-6]|li|blockquote|section|article|header|footer|figcaption|td|th|dt|dd|pre|br|hr)$/i;
+    const walk = (node) => {
+      if (!node) return;
+      if (node.nodeType === 3) { parts.push(node.nodeValue); return; }
+      if (node.nodeType !== 1) return;
+      const tag = node.nodeName || '';
+      if (/^(script|style|head|title)$/i.test(tag)) return;
+      const block = BLOCK.test(tag);
+      if (block) parts.push(' ');
+      for (let child = node.firstChild; child; child = child.nextSibling) walk(child);
+      if (block) parts.push(' ');
+    };
+    walk(root);
+    const text = parts.join('').replace(/\s+/g, ' ').trim();
+    if (!wasLoaded && typeof section.unload === 'function') section.unload();
+    if (activeBook === book) epubSectionTextCache.set(key, {book: activeBook, text});
+    return text;
+  };
+
   const getTextContent = async (pageIndex) => {
     if (currentType === 'text') {
       const text = textPages[pageIndex] || '';
@@ -22483,8 +22653,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       const item = spineItems[pageIndex];
       if (!item) return [];
       try {
-        const section = book.spine.get(item.idref || item.href);
-        const text = section && typeof section.text === 'function' ? await section.text() : '';
+        const text = await getEpubSectionText(pageIndex, item);
         if (!text) return [];
         return [{
           str: text,
@@ -22518,9 +22687,11 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       let pos = lower.indexOf(normalized, 0);
       let matchIndex = 0;
       while (pos !== -1) {
-        const start = Math.max(0, pos - 20);
-        const end = Math.min(text.length, pos + query.length + 20);
-        results.push({ pageIndex: i, text: text.substring(start, end), matchIndex });
+        // Enough context for a readable snippet in the search sheet.
+        const start = Math.max(0, pos - 60);
+        const end = Math.min(text.length, pos + query.length + 60);
+        const snippet = text.substring(start, end).replace(/\s+/g, ' ').trim();
+        results.push({ pageIndex: i, text: (start > 0 ? '…' : '') + snippet + (end < text.length ? '…' : ''), matchIndex });
         matchIndex += 1;
         pos = lower.indexOf(normalized, pos + 1);
       }
@@ -22564,6 +22735,25 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   };
 
   let nativeMenuSelection = null;
+  const frameOf = (contents) => {
+    try { return contents && contents.document ? contents.document.defaultView.frameElement : null; } catch (_) { return null; }
+  };
+  // While a selection is active, scrolling moves it; resend its viewport rect
+  // once per frame so the host can re-anchor (or hide) its selection menu.
+  let selectionRectFrame = null;
+  const scheduleSelectionRect = () => {
+    if (!nativeMenuSelection || selectionRectFrame !== null) return;
+    const schedule = window.requestAnimationFrame || (callback => setTimeout(callback, 16));
+    selectionRectFrame = schedule(() => {
+      selectionRectFrame = null;
+      const selected = nativeMenuSelection;
+      if (!selected) return;
+      const live = selected.contents.window && selected.contents.window.getSelection();
+      if (!live || live.isCollapsed || !live.rangeCount) return;
+      sendEvent('EPUB_SELECTION_RECT', {documentSessionId: selected.payload.documentSessionId,
+        rect: window.PapyrusEpubReader.selectionRect(live.getRangeAt(0), frameOf(selected.contents))});
+    });
+  };
   let epubViewMode = "single";
   let epubLocation = null;
 
@@ -22653,6 +22843,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             const range = contents && window.PapyrusEpubAnnotations.resolveRange(contents,annotation.anchor);
             if(!range)throw new Error('EPUB anchor unresolved');
             await activeRendition.display(contents.cfiFromRange(range));
+            if(navigationSession === documentSessionId && activeRendition === rendition)offsetEpubTarget(activeRendition);
           });
           epubNavigationQueue = navigation;
           await navigation;
@@ -22719,9 +22910,44 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         sendResponse(id, true, null);
         return;
       }
+      if (kind === 'set-epub-typography') {
+        const next = window.PapyrusEpubReader.typography(payload && payload.typography);
+        const reader = window.PapyrusEpubReader;
+        if (reader.typographyCss(next) === reader.typographyCss(epubTypography)) {sendResponse(id, true, null); return;}
+        if (currentType !== 'epub' || !rendition) {epubTypography = next; sendResponse(id, true, null); return;}
+        const session = documentSessionId;
+        // Typography reflows the chapter: keep the reader on the same CFI,
+        // like set-zoom, through the serialized navigation queue.
+        epubNavigationQueue = epubNavigationQueue.catch(() => {}).then(async () => {
+          if (session !== documentSessionId) return;
+          const active = rendition;
+          const cfi = epubResizeAnchor?.cfi() || epubLocation?.cfi;
+          epubTypography = next;
+          try { active.getContents().forEach(applyEpubTypographyToContents); } catch (error) {}
+          await new Promise(resolve => (window.requestAnimationFrame || (callback => setTimeout(callback, 0)))(resolve));
+          if (cfi && active === rendition && session === documentSessionId) await active.display(cfi);
+        });
+        await epubNavigationQueue;
+        sendResponse(id, true, null);
+        return;
+      }
+      if (kind === 'set-epub-target-inset') {
+        const top = Number(payload && payload.top);
+        const next = Number.isFinite(top) ? Math.round(Math.max(0, Math.min(400, top))) : 0;
+        const previous = epubTargetInset();
+        epubTargetTopInset = next;
+        if (currentType === 'epub' && rendition && typeof rendition.getContents === 'function') {
+          try { rendition.getContents().forEach(applyEpubTargetInsetToContents); } catch (error) {}
+          // Keep the text under the reader's eyes when the spacer changes.
+          const container = rendition.manager && rendition.manager.container;
+          if (container && container.scrollTop > 0) container.scrollTop = Math.max(0, container.scrollTop + epubTargetInset() - previous);
+        }
+        sendResponse(id, true, null);
+        return;
+      }
       if (kind === 'set-epub-ink-mode') {
         if(currentType!=='epub'||!documentSessionId||payload.documentSessionId!==documentSessionId)throw new Error('Stale EPUB ink session');
-        epubInkMode={enabled:payload.enabled===true,preset:['ink','highlight','underline'].indexOf(payload.preset)>=0?payload.preset:'ink',color:/^#[0-9a-f]{6}$/i.test(payload.color||'')?payload.color:'#2563eb',opacity:Number.isFinite(payload.opacity)?Math.max(0,Math.min(1,payload.opacity)):1,strokeWidth:Number.isFinite(payload.strokeWidth)?Math.max(0.0025,Math.min(0.02,payload.strokeWidth)):0.006};
+        epubInkMode={enabled:payload.enabled===true,preset:['ink','highlight','underline','eraser'].indexOf(payload.preset)>=0?payload.preset:'ink',color:/^#[0-9a-f]{6}$/i.test(payload.color||'')?payload.color:'#2563eb',opacity:Number.isFinite(payload.opacity)?Math.max(0,Math.min(1,payload.opacity)):1,strokeWidth:Number.isFinite(payload.strokeWidth)?Math.max(0.0025,Math.min(0.02,payload.strokeWidth)):0.006};
         epubAnnotationRenderers.forEach(renderer=>renderer.setInkMode(epubInkMode));
         sendResponse(id,true,null);return;
       }
@@ -22746,6 +22972,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           if (payload.documentSessionId !== documentSessionId || activeRendition !== rendition) return null;
           epubResizeAnchor?.invalidate();
           await activeRendition.display(href);
+          if (payload.documentSessionId === documentSessionId && activeRendition === rendition) offsetEpubTarget(activeRendition);
           const pageIndex = getPageIndex(href);
           const resolvedPageIndex = Number.isSafeInteger(pageIndex) && pageIndex >= 0 ? pageIndex : null;
           if (resolvedPageIndex !== null) currentPage = resolvedPageIndex + 1;

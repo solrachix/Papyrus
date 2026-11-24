@@ -88,6 +88,40 @@ type Strings = {
   comicLtr: string;
   comicRtl: string;
   comicPageError: string;
+  selectionActions: string;
+  consult: string;
+  colorYellow: string;
+  colorPink: string;
+  colorBlue: string;
+  colorGreen: string;
+  colorPurple: string;
+  toolPen: string;
+  toolMarker: string;
+  toolEraser: string;
+  freehandHint: string;
+  undo: string;
+  redo: string;
+  strokeWidth: string;
+  typographyFont: string;
+  typographyOriginal: string;
+  typographySerif: string;
+  typographySans: string;
+  typographyMono: string;
+  typographyLineHeight: string;
+  typographyMargins: string;
+  typographyNarrow: string;
+  typographyMedium: string;
+  typographyWide: string;
+  typographyAlignment: string;
+  typographyJustify: string;
+  typographyLeft: string;
+  chapter: string;
+  clearSearch: string;
+  previousResult: string;
+  nextResult: string;
+  showResults: string;
+  closeSearch: string;
+  searchHint: string;
 };
 
 const STRINGS: Record<Locale, Strings> = {
@@ -179,6 +213,40 @@ const STRINGS: Record<Locale, Strings> = {
     comicLtr: "Left to right",
     comicRtl: "Right to left / Manga",
     comicPageError: "This comic page could not be displayed.",
+    selectionActions: "Selection actions",
+    consult: "Look up",
+    colorYellow: "Yellow",
+    colorPink: "Pink",
+    colorBlue: "Blue",
+    colorGreen: "Green",
+    colorPurple: "Purple",
+    toolPen: "Pen",
+    toolMarker: "Highlighter",
+    toolEraser: "Eraser",
+    freehandHint: "Draw freehand on the page",
+    undo: "Undo",
+    redo: "Redo",
+    strokeWidth: "Stroke width",
+    typographyFont: "Font",
+    typographyOriginal: "Original",
+    typographySerif: "Serif",
+    typographySans: "Sans serif",
+    typographyMono: "Monospace",
+    typographyLineHeight: "Line spacing",
+    typographyMargins: "Margins",
+    typographyNarrow: "Narrow",
+    typographyMedium: "Medium",
+    typographyWide: "Wide",
+    typographyAlignment: "Alignment",
+    typographyJustify: "Justified",
+    typographyLeft: "Left",
+    chapter: "Chapter",
+    clearSearch: "Clear search",
+    previousResult: "Previous result",
+    nextResult: "Next result",
+    showResults: "Show results",
+    closeSearch: "Close search",
+    searchHint: "Type a word or phrase and press search.",
   },
   "pt-BR": {
     pages: "Paginas",
@@ -268,6 +336,40 @@ const STRINGS: Record<Locale, Strings> = {
     comicLtr: "Esquerda para direita",
     comicRtl: "Direita para esquerda / Mangá",
     comicPageError: "Não foi possível exibir esta página do quadrinho.",
+    selectionActions: "Ações da seleção",
+    consult: "Consultar",
+    colorYellow: "Amarelo",
+    colorPink: "Rosa",
+    colorBlue: "Azul",
+    colorGreen: "Verde",
+    colorPurple: "Roxo",
+    toolPen: "Caneta",
+    toolMarker: "Marca-texto",
+    toolEraser: "Borracha",
+    freehandHint: "Desenhe à mão livre sobre a página",
+    undo: "Desfazer",
+    redo: "Refazer",
+    strokeWidth: "Espessura",
+    typographyFont: "Fonte",
+    typographyOriginal: "Original",
+    typographySerif: "Serifada",
+    typographySans: "Sem serifa",
+    typographyMono: "Monoespaçada",
+    typographyLineHeight: "Espaçamento entre linhas",
+    typographyMargins: "Margens",
+    typographyNarrow: "Estreita",
+    typographyMedium: "Média",
+    typographyWide: "Larga",
+    typographyAlignment: "Alinhamento",
+    typographyJustify: "Justificado",
+    typographyLeft: "À esquerda",
+    chapter: "Capítulo",
+    clearSearch: "Limpar busca",
+    previousResult: "Resultado anterior",
+    nextResult: "Próximo resultado",
+    showResults: "Ver resultados",
+    closeSearch: "Fechar busca",
+    searchHint: "Digite uma palavra ou frase e toque em buscar.",
   },
 };
 

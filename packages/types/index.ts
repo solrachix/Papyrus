@@ -44,6 +44,17 @@ export type DocumentSource =
   | FileLike;
 
 export type EpubReadingMode = "paged" | "chapter-scroll";
+/** "original" keeps the publisher CSS for that property. */
+export type EpubFontFamily = "original" | "serif" | "sans" | "mono";
+export type EpubPageMargin = "original" | "narrow" | "medium" | "wide";
+export type EpubTextAlign = "original" | "justify" | "left";
+export interface EpubTypography {
+  fontFamily: EpubFontFamily;
+  /** Unitless line height (1.2–2.0), or null for the publisher value. */
+  lineHeight: number | null;
+  margin: EpubPageMargin;
+  textAlign: EpubTextAlign;
+}
 export interface EpubReadingLocation {
   version: 1;
   cfi: string;
@@ -309,6 +320,8 @@ export interface PapyrusConfig {
   initialRotation?: number;
   initialViewMode?: ViewMode;
   initialEpubReadingMode?: EpubReadingMode;
+  /** Reader typography overrides for EPUB. Defaults keep the publisher CSS. */
+  initialEpubTypography?: Partial<EpubTypography>;
   viewerMode?: PdfViewerMode;
   initialUITheme?: UITheme;
   initialPageTheme?: PageTheme;
