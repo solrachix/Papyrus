@@ -158,7 +158,9 @@ export function SearchOverlay({ engine, documentType, visible, onClose }: Search
       {splitSearchSnippet(normalizeSearchSnippet(text), searchQuery).map((part, index) =>
         part.match ? (
           <Text key={index} style={[styles.match, { backgroundColor: `${accentColor}33`, color: palette.text }]}>
-            {part.text}
+            {/* Android drew the match background one glyph short; a trailing
+                zero-width space keeps the whole word inside it. */}
+            {Platform.OS === "android" ? `${part.text}\u200B` : part.text}
           </Text>
         ) : (
           part.text
