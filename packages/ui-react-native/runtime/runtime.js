@@ -151,9 +151,21 @@
     var fraction=total?Math.max(0,(visualPage-1)/total):0;
     return {version:1,cfi:start.cfi,href:start.href||'',chapter:chapter,chapterCount:count,visualPage:visualPage,visualPageCount:total,progress:Math.min(1,Math.max(0,(chapter-1+fraction)/Math.max(1,count))),mode:mode(readingMode),atStart:atStart,atEnd:atEnd};
   }
-  function installResizeAnchor(manager,readCfi){
+  function installResizeAnchor(manager,readCfi,keepLayoutOnHeightChange){
     var original=manager.resize,anchor=null;
     function resize(width,height,target){
+      // Scrolled chapters lay out by width only. A height-only change (a
+      // status bar, the keyboard, a dialog) must not clear and redisplay the
+      // whole chapter, which flashes it from the top before restoring.
+      if(keepLayoutOnHeightChange && keepLayoutOnHeightChange() && this && this.stage && typeof this.stage.size==='function' && this._stageSize){
+        var next=this.stage.size(width,height);
+        if(next && next.width===this._stageSize.width){
+          this._stageSize=next;
+          if(this.viewSettings)this.viewSettings.height=next.height;
+          if(typeof this.bounds==='function')this._bounds=this.bounds();
+          return;
+        }
+      }
       if(validCfi(target))anchor=target;
       if(!anchor){var current=readCfi();if(validCfi(current))anchor=current;}
       // epub.js accepts a logical target as its third argument. Keep it across
@@ -1897,7 +1909,7 @@
     if (!isCurrentLoad()) throw new Error('EPUB load superseded by a newer load');
     sendEpubDiagnostic('epub.display.end', diagnosticPayload);
     const resizeRendition=rendition;
-    epubResizeAnchor=window.PapyrusEpubReader.installResizeAnchor(resizeRendition.manager,()=>resizeRendition.location?.start?.cfi);
+    epubResizeAnchor=window.PapyrusEpubReader.installResizeAnchor(resizeRendition.manager,()=>resizeRendition.location?.start?.cfi,()=>epubViewMode!=='single');
     if (
       rendition &&
       rendition.manager &&
@@ -2494,7 +2506,9 @@
         selection.addRange(range);
         return;
       }
-      if (!['copy','define','highlight','underline','strikeout','comment'].includes(message.key)) return;
+      // Menu keys come from READER_SELECTION_ACTIONS (note, consult); keep the
+      // older comment/define aliases for hosts that still send them.
+      if (!['copy','define','consult','highlight','underline','strikeout','comment','note'].includes(message.key)) return;
       sendEvent('EPUB_SELECTION_ACTION', {...selected.payload, action: message.key});
       selected.contents.window.getSelection()?.removeAllRanges();
       nativeMenuSelection = null;

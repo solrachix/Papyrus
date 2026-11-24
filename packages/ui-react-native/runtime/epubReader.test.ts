@@ -48,6 +48,16 @@ describe('EPUB subpixel column boundaries',()=>{
 });
 
 describe('EPUB resize anchors',()=>{
+ it('keeps the scrolled chapter on a height-only resize and still relayouts on width changes',()=>{
+  const p=load(),calls:any[]=[];let scrolled=true;
+  const manager:any={_stageSize:{width:412,height:708},viewSettings:{height:708},stage:{size:(w:number,h:number)=>({width:w,height:h})},bounds:()=>'bounds',resize(w:any,h:any,target:any){calls.push([w,h,target]);}};
+  const anchor=p.installResizeAnchor(manager,()=>'epubcfi(/6/4!/4/2)',()=>scrolled);
+  manager.resize(412,651,undefined);
+  expect(calls).toHaveLength(0);expect(manager._stageSize).toEqual({width:412,height:651});expect(manager.viewSettings.height).toBe(651);expect(manager._bounds).toBe('bounds');
+  manager.resize(600,651,undefined);expect(calls).toHaveLength(1);
+  scrolled=false;manager.resize(600,500,undefined);expect(calls).toHaveLength(2);
+  anchor.destroy();
+ });
  it('preserves a logical CFI through transient resize until real interaction',()=>{
   const p=load(),calls:any[]=[];let current='epubcfi(/6/2!/4/12/1:149)';
   const original=function(this:any,w:any,h:any,target:any){calls.push([this,w,h,target]);return 'resized';};

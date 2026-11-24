@@ -15,6 +15,7 @@ import { DocumentType } from "@papyrus-sdk/types";
 import { getStrings } from "../mobileStrings";
 import { MOBILE_CHROME_METRICS } from "./mobileChromeMetrics";
 import { resolveProgressPillMode } from "./progressPillMode";
+import { resolveEpubChapterTitle, shortenEpubChapterTitle } from "./epubChapterLabel";
 import { IconPageNav } from "../icons";
 import { resolveMobileChromeOffsets } from "./mobileChromeMetrics";
 import { usePapyrusSafeAreaInsets } from "./PapyrusSafeArea";
@@ -64,6 +65,7 @@ export function ProgressPill({
     viewMode,
     epubReadingMode,
     epubLocation,
+    outline,
     locale,
     uiTheme,
     accentColor,
@@ -119,11 +121,14 @@ export function ProgressPill({
     }
 
     if (documentType === "epub") {
-      return `Cap. ${displayedPage} · ${scrubPreviewPage === null && epubLocation ? clampPercent(epubLocation.progress * 100) : percent}%`;
+      // EPUB "pages" are files (cover, title page…): name the TOC chapter.
+      const progress = scrubPreviewPage === null && epubLocation ? clampPercent(epubLocation.progress * 100) : percent;
+      const chapter = resolveEpubChapterTitle(outline as never, displayedPage - 1);
+      return chapter ? `${progress}% · ${shortenEpubChapterTitle(chapter)}` : `${progress}%`;
     }
 
     return `${percent}%`;
-  }, [displayedPage, documentType, pageCount, epubLocation, scrubPreviewPage]);
+  }, [displayedPage, documentType, pageCount, epubLocation, scrubPreviewPage, outline]);
 
   const thumbTop = resolvePageScrubberThumbTop({
     currentPage,
