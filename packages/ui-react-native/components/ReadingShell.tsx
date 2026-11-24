@@ -27,6 +27,8 @@ type ReadingShellProps = {
   documentType?: DocumentType;
   thumbsInitialCount?: number;
   viewerProps?: Omit<React.ComponentProps<typeof Viewer>, "engine">;
+  /** Hide the Claro/Escuro choice in the display sheet when the host owns the UI theme. */
+  hideAppearanceSetting?: boolean;
 };
 
 export function ReadingShell({
@@ -35,6 +37,7 @@ export function ReadingShell({
   documentType = "pdf",
   thumbsInitialCount,
   viewerProps,
+  hideAppearanceSetting,
 }: ReadingShellProps) {
   const {
     activeMobileDestination,
@@ -238,6 +241,7 @@ export function ReadingShell({
         onOpenInfo={() => openDestination("info")}
         engine={engine}
         documentType={documentType}
+        hideAppearance={hideAppearanceSetting}
         visible={settingsOpen}
         onClose={() => {
           setSettingsOpen(false);

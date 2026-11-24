@@ -30,7 +30,13 @@ export interface SettingsSheetProps {
   visible: boolean;
   onClose: () => void;
   documentType?: DocumentType;
+  /** EPUB only: adds an "Informações" row. PDF/comic hosts reach info elsewhere. */
   onOpenInfo?: () => void;
+  /**
+   * Hide the Claro/Escuro appearance choice when the host app controls the
+   * UI theme itself. The page theme (Original/Sépia/Escuro/Contraste) stays.
+   */
+  hideAppearance?: boolean;
 }
 
 const PAGE_THEME_OPTIONS: Array<{ value: PageTheme; labelKey: ThemeLabelKey }> =
@@ -75,6 +81,7 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
   onClose,
   documentType = "pdf",
   onOpenInfo,
+  hideAppearance = false,
 }) => {
   const {
     viewMode,
@@ -147,7 +154,7 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
         sheetTheme={sheetTheme}
         accentColor={accentColor}
         onClose={onClose}
-        appearanceOptions={[
+        appearanceOptions={hideAppearance ? undefined : [
           { value: "light", label: t.light },
           { value: "dark", label: t.dark },
         ]}
@@ -199,19 +206,6 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
             </Pressable>
           </View>
         </View>
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: sheetPalette.text }]}>{t.language}</Text>
-          <View style={styles.optionRow}>
-            {(["en", "pt-BR"] as const).map((value) => {
-              const selected = locale === value;
-              return (
-                <Pressable key={value} accessibilityRole="button" accessibilityState={{ selected }} onPress={() => setDocumentState({ locale: value })} style={[styles.optionButton, { backgroundColor: sheetPalette.elevatedSurface, borderColor: sheetPalette.divider }, selected && styles.optionButtonActive, selected && { backgroundColor: accentColor }]}>
-                  <Text style={[styles.optionText, { color: selected ? "#ffffff" : sheetPalette.text }, selected && styles.optionTextActive]}>{value === "en" ? t.english : t.portuguese}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
       </ReaderSettingsView>
     );
   }
@@ -233,7 +227,6 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
         contentContainerStyle={styles.sheetContent}
         showsVerticalScrollIndicator={false}
       >
-        {onOpenInfo ? <Pressable accessibilityRole="button" onPress={onOpenInfo} style={{minHeight:44,justifyContent:"center",marginBottom:16}}><Text style={[styles.sectionTitle,{ color: sheetPalette.text }]}>{t.info}</Text></Pressable> : null}
         {documentType === "text" && (
           <View style={styles.section}>
             <Text style={[styles.sectionTitle,{ color: sheetPalette.text }]}>{t.fontSize}</Text>
@@ -308,7 +301,7 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
           </View>
         )}
 
-        <View style={styles.section}>
+        {!hideAppearance && (<View style={styles.section}>
           <Text
             style={[styles.sectionTitle, { color: sheetPalette.text }]}
           >
@@ -354,7 +347,7 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
               </Text>
             </Pressable>
           </View>
-        </View>
+        </View>)}
 
         <View style={styles.section}>
           <Text
@@ -557,53 +550,6 @@ const SettingsSheet: React.FC<SettingsSheetProps> = ({
           </View>
         </View>)}
 
-        <View style={styles.section}>
-          <Text
-            style={[styles.sectionTitle, { color: sheetPalette.text }]}
-          >
-            {t.language}
-          </Text>
-          <View style={styles.optionRow}>
-            <Pressable
-              onPress={() => setDocumentState({ locale: "en" })}
-              style={[
-                styles.optionButton,
-                { backgroundColor: sheetPalette.elevatedSurface },
-                locale === "en" && styles.optionButtonActive,
-                locale === "en" && { backgroundColor: accentColor },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.optionText,
-                  { color: sheetPalette.text },
-                  locale === "en" && styles.optionTextActive,
-                ]}
-              >
-                {t.english}
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={() => setDocumentState({ locale: "pt-BR" })}
-              style={[
-                styles.optionButton,
-                { backgroundColor: sheetPalette.elevatedSurface },
-                locale === "pt-BR" && styles.optionButtonActive,
-                locale === "pt-BR" && { backgroundColor: accentColor },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.optionText,
-                  { color: sheetPalette.text },
-                  locale === "pt-BR" && styles.optionTextActive,
-                ]}
-              >
-                {t.portuguese}
-              </Text>
-            </Pressable>
-          </View>
-        </View>
       </NativeSheetScrollView>
     </NativeSheet>
   );
