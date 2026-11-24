@@ -1,13 +1,19 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
   FlatList,
+  PanResponder,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
   type FlatListProps,
+  type GestureResponderEvent,
+  type LayoutChangeEvent,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+  type PanResponderGestureState,
   type ScrollViewProps,
   type StyleProp,
   type ViewStyle,
@@ -20,6 +26,11 @@ import {
   getNativeSheetSizeStyle,
 } from "./nativeSheetLayout";
 import { usePapyrusSafeAreaInsets } from "./PapyrusSafeArea";
+import {
+  clampSheetDrag,
+  shouldDismissSheetOnRelease,
+  shouldStartSheetDismissDrag,
+} from "./nativeSheetGesture";
 import {
   getReaderSheetPalette,
   type ReaderSheetPalette,
@@ -39,7 +50,37 @@ export type NativeSheetProps = {
   showHeader?: boolean;
   sheetStyle?: StyleProp<ViewStyle>;
   onDismiss?: () => void;
+  /**
+   * Show the grab handle and let the user drag the sheet down to close it
+   * (from the handle/header anytime, from the body when its scroll content
+   * is at the top). Defaults to true; the close button stays available.
+   */
+  swipeToDismiss?: boolean;
 };
+
+/**
+ * Scroll offset of the sheet's NativeSheetScrollView/NativeSheetFlatList, so
+ * the body only starts a dismiss drag when the content is at the top.
+ */
+const NativeSheetScrollOffsetContext =
+  React.createContext<React.MutableRefObject<number> | null>(null);
+
+function useSheetScrollTracking<T extends NativeSyntheticEvent<NativeScrollEvent>>(
+  onScroll?: ((event: T) => void) | null,
+) {
+  const offsetRef = useContext(NativeSheetScrollOffsetContext);
+  useEffect(() => {
+    if (!offsetRef) return;
+    offsetRef.current = 0;
+    return () => {
+      offsetRef.current = 0;
+    };
+  }, [offsetRef]);
+  return (event: T) => {
+    if (offsetRef) offsetRef.current = event?.nativeEvent?.contentOffset?.y ?? 0;
+    onScroll?.(event);
+  };
+}
 
 export function NativeSheet({
   visible,
@@ -54,6 +95,7 @@ export function NativeSheet({
   showHeader = false,
   sheetStyle,
   onDismiss,
+  swipeToDismiss = true,
 }: NativeSheetProps) {
   const insets = usePapyrusSafeAreaInsets();
   const palette = sheetPalette ?? getReaderSheetPalette(sheetTheme ?? Boolean(isDark));
@@ -63,6 +105,60 @@ export function NativeSheet({
   const renderedRef = useRef(visible);
   const motion = useRef(new Animated.Value(visible ? 0 : 1)).current;
   const backdropOpacity = useRef(new Animated.Value(visible ? 1 : 0)).current;
+  const dragY = useRef(new Animated.Value(0)).current;
+  const scrollOffsetRef = useRef(0);
+  const sheetHeightRef = useRef(0);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  const swipeEnabledRef = useRef(swipeToDismiss);
+  swipeEnabledRef.current = swipeToDismiss;
+
+  const createDismissResponder = (fromHandle: boolean) => {
+    const claim = (_event: GestureResponderEvent, gesture: PanResponderGestureState) =>
+      swipeEnabledRef.current &&
+      shouldStartSheetDismissDrag({
+        dx: gesture.dx,
+        dy: gesture.dy,
+        scrollOffset: scrollOffsetRef.current,
+        fromHandle,
+      });
+    const settle = () => {
+      Animated.spring(dragY, {
+        toValue: 0,
+        damping: 22,
+        stiffness: 260,
+        mass: 0.8,
+        useNativeDriver: true,
+      }).start();
+    };
+    return PanResponder.create({
+      onMoveShouldSetPanResponderCapture: claim,
+      onMoveShouldSetPanResponder: claim,
+      onPanResponderTerminationRequest: () => false,
+      onPanResponderMove: (_event, gesture) => {
+        dragY.setValue(clampSheetDrag(gesture.dy));
+      },
+      onPanResponderRelease: (_event, gesture) => {
+        if (
+          shouldDismissSheetOnRelease({
+            dy: gesture.dy,
+            vy: gesture.vy,
+            sheetHeight: sheetHeightRef.current,
+          })
+        ) {
+          onCloseRef.current();
+          return;
+        }
+        settle();
+      },
+      onPanResponderTerminate: settle,
+    });
+  };
+  const bodyResponder = useMemo(() => createDismissResponder(false), []);
+  const handleResponder = useMemo(() => createDismissResponder(true), []);
+  const handleSheetLayout = (event: LayoutChangeEvent) => {
+    sheetHeightRef.current = event.nativeEvent.layout.height;
+  };
 
   useEffect(() => {
     motion.stopAnimation();
@@ -71,6 +167,7 @@ export function NativeSheet({
     if (visible) {
       renderedRef.current = true;
       setRendered(true);
+      dragY.setValue(0);
       motion.setValue(1);
       backdropOpacity.setValue(0);
       Animated.parallel([
@@ -90,6 +187,7 @@ export function NativeSheet({
       return;
     }
 
+
     if (!renderedRef.current) return;
 
     Animated.parallel([
@@ -106,9 +204,10 @@ export function NativeSheet({
     ]).start(({ finished }) => {
       if (!finished) return;
       renderedRef.current = false;
+      dragY.setValue(0);
       setRendered(false);
     });
-  }, [backdropOpacity, motion, visible]);
+  }, [backdropOpacity, dragY, motion, visible]);
 
   if (!rendered) return null;
 
@@ -130,6 +229,8 @@ export function NativeSheet({
           />
         </Animated.View>
         <Animated.View
+          onLayout={handleSheetLayout}
+          {...(swipeToDismiss ? bodyResponder.panHandlers : null)}
           style={[
             styles.sheet,
             tabletLayout?.sheet,
@@ -144,37 +245,57 @@ export function NativeSheet({
             {
               transform: [
                 {
-                  translateY: motion.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0, windowHeight],
-                  }),
+                  translateY: Animated.add(
+                    motion.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, windowHeight],
+                    }),
+                    dragY,
+                  ),
                 },
               ],
             },
           ]}
         >
-          {showHeader ? (
-            <View style={styles.header}>
-              <View style={styles.headerSpacer} />
-              <Text
-                style={[styles.title, { color: palette.text }]}
-                numberOfLines={1}
+          <View {...(swipeToDismiss ? handleResponder.panHandlers : null)}>
+            {swipeToDismiss ? (
+              <View
+                testID="papyrus-sheet-drag-handle"
+                style={styles.handleArea}
+                accessible={false}
+                importantForAccessibility="no-hide-descendants"
               >
-                {title}
-              </Text>
-              <Pressable
-                onPress={onClose}
-                style={[
-                  styles.closeButton,
-                  { backgroundColor: palette.closeSurface },
-                ]}
-                accessibilityLabel={closeAccessibilityLabel}
-              >
-                <IconClose size={18} color={palette.text} />
-              </Pressable>
-            </View>
-          ) : null}
-          {children}
+                <View
+                  style={[styles.handle, { backgroundColor: palette.mutedText }]}
+                />
+              </View>
+            ) : null}
+            {showHeader ? (
+              <View style={[styles.header, swipeToDismiss && styles.headerWithHandle]}>
+                <View style={styles.headerSpacer} />
+                <Text
+                  style={[styles.title, { color: palette.text }]}
+                  numberOfLines={1}
+                >
+                  {title}
+                </Text>
+                <Pressable
+                  onPress={onClose}
+                  style={[
+                    styles.closeButton,
+                    { backgroundColor: palette.closeSurface },
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel={closeAccessibilityLabel}
+                >
+                  <IconClose size={18} color={palette.text} />
+                </Pressable>
+              </View>
+            ) : null}
+          </View>
+          <NativeSheetScrollOffsetContext.Provider value={scrollOffsetRef}>
+            {children}
+          </NativeSheetScrollOffsetContext.Provider>
         </Animated.View>
       </View>
     </ReaderOrientationModal>
@@ -185,11 +306,20 @@ export const NativeSheetScrollView = React.forwardRef<
   ScrollView,
   ScrollViewProps
 >(function NativeSheetScrollView(props, ref) {
-  return <ScrollView ref={ref} {...props} />;
+  const onScroll = useSheetScrollTracking(props.onScroll);
+  return (
+    <ScrollView
+      ref={ref}
+      scrollEventThrottle={16}
+      {...props}
+      onScroll={onScroll}
+    />
+  );
 });
 
 export function NativeSheetFlatList<ItemT>(props: FlatListProps<ItemT>) {
-  return <FlatList {...props} />;
+  const onScroll = useSheetScrollTracking(props.onScroll);
+  return <FlatList scrollEventThrottle={16} {...props} onScroll={onScroll} />;
 }
 
 const styles = StyleSheet.create({
@@ -219,6 +349,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 16,
     paddingBottom: 14,
+  },
+  headerWithHandle: {
+    paddingTop: 4,
+  },
+  handleArea: {
+    alignItems: "center",
+    paddingTop: 8,
+    paddingBottom: 6,
+  },
+  handle: {
+    width: 40,
+    height: 5,
+    borderRadius: 3,
+    opacity: 0.45,
   },
   headerSpacer: {
     width: 42,

@@ -951,7 +951,8 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: 16,
-    paddingTop: 16,
+    // NativeSheet's drag handle sits above this header.
+    paddingTop: 4,
     paddingBottom: 14,
     marginBottom: 0,
     gap: 8,
