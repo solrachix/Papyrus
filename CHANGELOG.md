@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased (prepared, not published)
+
+### Fixed
+
+- Android PDF: the engine no longer opens every page to lay a document out, and keeps at most six pdfium pages open. A 1,404-page book went from 813 MB to 194 MB of native heap while reading, and from 830 MB to 209 MB after leaving the reader.
+- Android PDF: a long reading session reopens the document when pdfium's internal cache has grown (96 MB or 400 pages), keeping memory bounded on large and scanned documents.
+- Android PDF: closing a document or a page is accounted honestly; failures show in `getLifecycleStats()` (`retainedPdfPages`, `failedDocumentCloses`, `leakedPdfPages`) instead of being reported as released.
+- Android: consumer R8 rules keep the pdfium members the engine reaches by reflection.
+
+### Added
+
+- `engine.suspend()` / `engine.resume()` release and reopen the native PDF document while the reader is not on screen.
+- `generateThumbnail()` and `isThumbnailGenerationSupported()`: one PDF page or the EPUB cover as an image file, without an engine or a view (Android; iOS reports unsupported).
+- `getLifecycleStats()` adds `openPdfPages`, `canClosePdfPages`, `suspendedDocuments` and `documentRecycles`.
+
+### Packages to publish
+
+| Package | Version |
+| --- | --- |
+| `@papyrus-sdk/engine-native` | `0.2.27` |
+
 ## 2026-10-12
 
 ### Fixed
