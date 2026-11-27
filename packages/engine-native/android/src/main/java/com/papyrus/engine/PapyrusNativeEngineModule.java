@@ -403,6 +403,34 @@ public class PapyrusNativeEngineModule extends ReactContextBaseJavaModule {
     });
   }
 
+  /**
+   * Releases the PDF while the reader is not on screen (the document, its
+   * file and every open page). {@link #resumeDocument} opens it again.
+   */
+  @ReactMethod
+  public void suspendDocument(final String engineId, final Promise promise) {
+    executor.execute(() -> {
+      PapyrusEngineStore.EngineState state = PapyrusEngineStore.getEngine(engineId);
+      promise.resolve(state != null && PapyrusEngineStore.suspendDocument(state));
+    });
+  }
+
+  @ReactMethod
+  public void resumeDocument(final String engineId, final Promise promise) {
+    executor.execute(() -> {
+      PapyrusEngineStore.EngineState state = PapyrusEngineStore.getEngine(engineId);
+      if (state == null) {
+        promise.resolve(false);
+        return;
+      }
+      try {
+        promise.resolve(PapyrusEngineStore.resumeDocument(state));
+      } catch (Throwable error) {
+        promise.reject("papyrus_resume_failed", error);
+      }
+    });
+  }
+
   @ReactMethod(isBlockingSynchronousMethod = true)
   public int getPageCount(String engineId) {
     PapyrusEngineStore.EngineState state = PapyrusEngineStore.getEngine(engineId);
@@ -415,6 +443,13 @@ public class PapyrusNativeEngineModule extends ReactContextBaseJavaModule {
     WritableMap result = Arguments.createMap();
     result.putInt("engineStates", PapyrusEngineStore.engineCount());
     result.putInt("loadedDocuments", PapyrusEngineStore.loadedDocumentCount());
+    result.putInt("openPdfPages", PapyrusEngineStore.openPageCount());
+    result.putBoolean("canClosePdfPages", PapyrusEngineStore.canClosePages());
+    result.putInt("retainedPdfPages", PapyrusEngineStore.retainedPageCount());
+    result.putInt("suspendedDocuments", PapyrusEngineStore.suspendedDocumentCount());
+    result.putInt("failedDocumentCloses", PapyrusEngineStore.failedDocumentCloseCount());
+    result.putInt("documentRecycles", PapyrusEngineStore.documentRecycleCount());
+    result.putInt("leakedPdfPages", PapyrusEngineStore.leakedPageCount());
     for (java.util.Map.Entry<String, Integer> entry : PapyrusPageView.lifecycleStats().entrySet()) {
       result.putInt(entry.getKey(), entry.getValue());
     }
@@ -531,14 +566,9 @@ public class PapyrusNativeEngineModule extends ReactContextBaseJavaModule {
     }
     int width;
     int height;
-    synchronized (state.pdfiumLock) {
-      try {
-        state.pdfium.openPage(state.document, pageIndex);
-      } catch (Throwable ignored) {
-      }
-      width = state.pdfium.getPageWidthPoint(state.document, pageIndex);
-      height = state.pdfium.getPageHeightPoint(state.document, pageIndex);
-    }
+    int[] pageSize = PapyrusEngineStore.pageSizePoints(state, pageIndex);
+    width = pageSize[0];
+    height = pageSize[1];
     WritableMap result = Arguments.createMap();
     result.putInt("width", width);
     result.putInt("height", height);
@@ -743,10 +773,7 @@ public class PapyrusNativeEngineModule extends ReactContextBaseJavaModule {
   }
 
   private String extractPageText(PapyrusEngineStore.EngineState state, int pageIndex) {
-    try {
-      state.pdfium.openPage(state.document, pageIndex);
-    } catch (Throwable ignored) {
-    }
+    PapyrusEngineStore.acquirePage(state, pageIndex);
 
     try {
       java.lang.reflect.Method method = null;

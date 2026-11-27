@@ -176,11 +176,9 @@ class PapyrusNativeEngineModule : Module() {
           promise.resolve(mapOf("width" to 0, "height" to 0))
           return@execute
         }
-        val (width, height) = synchronized(state.pdfiumLock) {
-          val w = state.pdfium.getPageWidthPoint(state.document, pageIndex)
-          val h = state.pdfium.getPageHeightPoint(state.document, pageIndex)
-          Pair(w, h)
-        }
+        val pageSize = PapyrusEngineStore.pageSizePoints(state, pageIndex)
+        val width = pageSize[0]
+        val height = pageSize[1]
         promise.resolve(mapOf("width" to width, "height" to height))
       }
     }
@@ -417,10 +415,7 @@ class PapyrusNativeEngineModule : Module() {
   }
 
   private fun extractPageText(state: PapyrusEngineStore.EngineState, pageIndex: Int): String? {
-    try {
-      state.pdfium.openPage(state.document, pageIndex)
-    } catch (_: Throwable) {
-    }
+    PapyrusEngineStore.acquirePage(state, pageIndex)
 
     try {
       var method: Method? = null
