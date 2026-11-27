@@ -1769,6 +1769,7 @@ public class PapyrusPdfViewerView extends View {
         synchronized (state.pdfiumLock) {
           if (state.document == null) return;
           PapyrusEngineStore.acquirePage(state, frame.index);
+          if (state.document == null) return;
           rendered = Bitmap.createBitmap(renderWidth, renderHeight, Bitmap.Config.ARGB_8888);
           state.pdfium.renderPageBitmap(state.document, rendered, frame.index, 0, 0, renderWidth, renderHeight, true);
         }
@@ -1810,7 +1811,8 @@ public class PapyrusPdfViewerView extends View {
 
   private String buildRenderKey(PageFrame frame) {
     PapyrusEngineStore.EngineState state = PapyrusEngineStore.getEngine(engineId);
-    int docIdentity = state == null || state.document == null ? 0 : System.identityHashCode(state.document);
+    // The document as the reader sees it: stable while the same file is reopened underneath.
+    int docIdentity = state == null || state.document == null ? 0 : 31 * System.identityHashCode(state) + state.documentGeneration + 1;
     String source = state == null || state.sourcePath == null ? "" : state.sourcePath;
     // Bucket zoom to prevent tiny fluctuations from changing the key during scroll/pan
     float zoomBucket = Math.round(zoom * 100f) / 100f;
