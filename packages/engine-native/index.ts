@@ -252,6 +252,7 @@ type NativeEngineModule = {
   getPageCount?: (engineId: string) => number;
   getLifecycleStats?: () => Record<string, number>;
   suspendDocument?: (engineId: string) => Promise<boolean>;
+  generateThumbnail?: (options: Record<string, unknown>) => Promise<PapyrusThumbnail>;
   resumeDocument?: (engineId: string) => Promise<boolean>;
   renderPage?: (
     engineId: string,
@@ -451,6 +452,55 @@ const resolveNativeModule = (): NativeEngineModule | null => {
 };
 
 let cachedAndroidTabletFormFactor: boolean | undefined;
+
+export type PapyrusThumbnailOptions = {
+  /** A local document: `file://`, an absolute path or (PDF only) `content://`. Remote URLs are refused. */
+  uri: string;
+  /** "pdf" | "epub" or a MIME type, when the file name does not say. */
+  type?: string;
+  /** PDF page to draw. EPUB always yields its cover image. */
+  pageIndex?: number;
+  maxWidth?: number;
+  format?: "jpeg" | "png";
+  /** 1–100, JPEG only. */
+  quality?: number;
+  /** Where to write the image. Defaults to a new file in the app's cache. */
+  outputPath?: string;
+};
+
+export type PapyrusThumbnail = { uri: string; width: number; height: number };
+
+/**
+ * Whether `generateThumbnail` works on this build. Android only for now: the
+ * iOS implementation ships disabled until it has been validated on a device.
+ */
+export const isThumbnailGenerationSupported = (): boolean =>
+  Platform.OS === "android" && typeof resolveNativeModule()?.generateThumbnail === "function";
+
+/**
+ * Draws one page of a PDF, or the cover image of an EPUB, into an image file
+ * and returns it. The document is opened, rendered and closed inside the
+ * call: no engine, view or WebView is involved and nothing stays in memory.
+ * Calls are served one at a time on a background-priority thread.
+ *
+ * The host owns the policy around it: when to ask, where to keep the files
+ * and how to show them.
+ */
+export async function generateThumbnail(options: PapyrusThumbnailOptions): Promise<PapyrusThumbnail> {
+  if (!isThumbnailGenerationSupported()) {
+    throw new Error("[Papyrus] generateThumbnail is not available on this platform or build.");
+  }
+  if (/^https?:/i.test(options.uri)) {
+    throw new Error("[Papyrus] generateThumbnail needs a local document.");
+  }
+  return resolveNativeModule()!.generateThumbnail!({
+    pageIndex: 0,
+    maxWidth: 480,
+    format: "jpeg",
+    quality: 85,
+    ...options,
+  });
+}
 
 export const isPapyrusTablet = (): boolean => {
   if (Platform.OS === "ios") return Platform.isPad;

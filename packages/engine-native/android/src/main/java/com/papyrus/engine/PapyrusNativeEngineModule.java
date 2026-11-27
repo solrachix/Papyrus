@@ -48,6 +48,15 @@ public class PapyrusNativeEngineModule extends ReactContextBaseJavaModule {
   private static final long MAX_COMIC_ARCHIVE_BYTES = 512L * 1024L * 1024L;
   private final ReactApplicationContext reactContext;
   private final ExecutorService executor = Executors.newSingleThreadExecutor();
+  /** One thumbnail at a time, below the priority of anything on screen. */
+  private static final java.util.concurrent.ExecutorService thumbnailExecutor =
+    java.util.concurrent.Executors.newSingleThreadExecutor(task -> {
+      Thread thread = new Thread(() -> {
+        android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND);
+        task.run();
+      }, "papyrus-thumbnail");
+      return thread;
+    });
   private final ThreadPoolExecutor comicPreviewExecutor = PapyrusComicPreviewExecutor.create();
   private final ConcurrentHashMap<String, File> comicSourceFiles = new ConcurrentHashMap<>();
   private long renderRequestCounter = 0;
@@ -427,6 +436,35 @@ public class PapyrusNativeEngineModule extends ReactContextBaseJavaModule {
         promise.resolve(PapyrusEngineStore.resumeDocument(state));
       } catch (Throwable error) {
         promise.reject("papyrus_resume_failed", error);
+      }
+    });
+  }
+
+  /**
+   * One page of a PDF, or the cover of an EPUB, as an image file. Options:
+   * uri (local file), type, pageIndex, maxWidth, format ("jpeg" | "png"),
+   * quality, outputPath. Nothing stays open after it resolves.
+   */
+  @ReactMethod
+  public void generateThumbnail(final ReadableMap options, final Promise promise) {
+    thumbnailExecutor.execute(() -> {
+      try {
+        PapyrusThumbnail.Result result = PapyrusThumbnail.generate(
+          reactContext,
+          options.hasKey("uri") ? options.getString("uri") : null,
+          options.hasKey("type") ? options.getString("type") : null,
+          options.hasKey("pageIndex") ? options.getInt("pageIndex") : 0,
+          options.hasKey("maxWidth") ? options.getInt("maxWidth") : 480,
+          options.hasKey("format") ? options.getString("format") : "jpeg",
+          options.hasKey("quality") ? options.getInt("quality") : 85,
+          options.hasKey("outputPath") ? options.getString("outputPath") : null);
+        WritableMap map = Arguments.createMap();
+        map.putString("uri", Uri.fromFile(new File(result.path)).toString());
+        map.putInt("width", result.width);
+        map.putInt("height", result.height);
+        promise.resolve(map);
+      } catch (Throwable error) {
+        promise.reject("papyrus_thumbnail_failed", error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage(), error);
       }
     });
   }
