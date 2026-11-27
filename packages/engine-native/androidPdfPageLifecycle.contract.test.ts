@@ -43,8 +43,12 @@ describe("Android PDF page lifecycle", () => {
   });
 
   it("closes the document and its file under the engine lock", () => {
-    const release = store.slice(store.indexOf("private static void releaseDocumentLocked"));
+    const release = store.slice(store.indexOf("private static boolean releaseDocumentLocked"), store.indexOf("static boolean suspendDocument"));
     expect(release).toMatch(/closeDocument\(state\.document\)[\s\S]*fileDescriptor\.close\(\)/);
+    // The counters are cleared after the close, and a close that throws is
+    // recorded as a leak instead of being reported as released.
+    expect(release.indexOf("pdfium.closeDocument")).toBeLessThan(release.indexOf("state.openPages.clear()"));
+    expect(release).toMatch(/catch \(Throwable error\) \{[\s\S]*FAILED_DOCUMENT_CLOSES\.incrementAndGet\(\);[\s\S]*LEAKED_PAGES\.addAndGet/);
     expect(store).toMatch(/static void closeDocument\(EngineState state\) \{\s*synchronized \(state\.pdfiumLock\) \{\s*releaseDocumentLocked\(state\);/);
     expect(store).toMatch(/static void destroyEngine[\s\S]*closeDocument\(state\);/);
   });

@@ -118,24 +118,53 @@ final class PapyrusEngineStore {
     }
   }
 
-  /** Closes the pdfium document and its file; pdfium frees every page with it. */
-  private static void releaseDocumentLocked(EngineState state) {
-    state.openPages.clear();
-    state.retainedPages.clear();
+  /** Documents whose close threw: their native memory may still be held. */
+  private static final java.util.concurrent.atomic.AtomicInteger FAILED_DOCUMENT_CLOSES = new java.util.concurrent.atomic.AtomicInteger();
+  /** Pages that were open in a document whose close threw. */
+  private static final java.util.concurrent.atomic.AtomicInteger LEAKED_PAGES = new java.util.concurrent.atomic.AtomicInteger();
+
+  static int failedDocumentCloseCount() {
+    return FAILED_DOCUMENT_CLOSES.get();
+  }
+
+  static int leakedPageCount() {
+    return LEAKED_PAGES.get();
+  }
+
+  /**
+   * Closes the pdfium document and its file; pdfium frees every page with it.
+   * The page counters are cleared only after the close succeeded. If it
+   * throws, the document is dropped anyway (it cannot be trusted any more),
+   * but its pages are added to the leak counters instead of being reported
+   * as released. Returns whether everything was released.
+   */
+  private static boolean releaseDocumentLocked(EngineState state) {
+    boolean released = true;
     if (state.document != null) {
       try {
         state.pdfium.closeDocument(state.document);
-      } catch (Throwable ignored) {
+      } catch (Throwable error) {
+        released = false;
+        FAILED_DOCUMENT_CLOSES.incrementAndGet();
+        LEAKED_PAGES.addAndGet(state.openPages.size() + state.retainedPages.size());
+        android.util.Log.w("PapyrusEngine", "closeDocument failed; native memory may be held", error);
       }
       state.document = null;
     }
+    // Reached with the document gone either way: these now describe nothing.
+    state.openPages.clear();
+    state.retainedPages.clear();
     if (state.fileDescriptor != null) {
       try {
+        // pdfium-android closes the descriptor with the document; closing it
+        // again is harmless and covers a close that threw half-way.
         state.fileDescriptor.close();
-      } catch (IOException ignored) {
+      } catch (IOException error) {
+        android.util.Log.w("PapyrusEngine", "closing the document file failed", error);
       }
       state.fileDescriptor = null;
     }
+    return released;
   }
 
   /**
@@ -147,9 +176,9 @@ final class PapyrusEngineStore {
   static boolean suspendDocument(EngineState state) {
     synchronized (state.pdfiumLock) {
       if (state.document == null || state.sourcePath == null) return false;
-      releaseDocumentLocked(state);
+      boolean released = releaseDocumentLocked(state);
       state.suspended = true;
-      return true;
+      return released;
     }
   }
 

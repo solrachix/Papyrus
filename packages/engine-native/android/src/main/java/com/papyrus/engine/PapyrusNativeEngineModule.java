@@ -447,6 +447,8 @@ public class PapyrusNativeEngineModule extends ReactContextBaseJavaModule {
     result.putBoolean("canClosePdfPages", PapyrusEngineStore.canClosePages());
     result.putInt("retainedPdfPages", PapyrusEngineStore.retainedPageCount());
     result.putInt("suspendedDocuments", PapyrusEngineStore.suspendedDocumentCount());
+    result.putInt("failedDocumentCloses", PapyrusEngineStore.failedDocumentCloseCount());
+    result.putInt("leakedPdfPages", PapyrusEngineStore.leakedPageCount());
     for (java.util.Map.Entry<String, Integer> entry : PapyrusPageView.lifecycleStats().entrySet()) {
       result.putInt(entry.getKey(), entry.getValue());
     }
