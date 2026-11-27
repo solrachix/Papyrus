@@ -167,6 +167,7 @@ public class PapyrusPageView extends View {
         try {
           telemetry.emit("native.render.worker.start");
           PdfDocument doc = state.document;
+          final int docGeneration = state.documentGeneration;
           if (doc == null) {
             telemetry.emit("native.render.stale");
             completion.complete(PapyrusRenderCompletion.Status.STALE);
@@ -188,21 +189,29 @@ public class PapyrusPageView extends View {
             completion.complete(PapyrusRenderCompletion.Status.STALE);
             return;
           }
-          if (doc != state.document) {
+          // Another document was set (the same file reopened does not count).
+          if (docGeneration != state.documentGeneration || state.document == null) {
             telemetry.emit("native.render.stale");
             completion.complete(PapyrusRenderCompletion.Status.STALE);
             return;
           }
-          int pageCount = state.pdfium.getPageCount(doc);
+          int pageCount = state.pdfium.getPageCount(state.document);
           if (pageIndex < 0 || pageIndex >= pageCount) {
             telemetry.emit("native.render.stale");
             completion.complete(PapyrusRenderCompletion.Status.STALE);
             return;
           }
           PapyrusEngineStore.acquirePage(state, pageIndex);
+          // Read after acquiring: a long session may have reopened the document.
+          PdfDocument current = state.document;
+          if (current == null) {
+            telemetry.emit("native.render.stale");
+            completion.complete(PapyrusRenderCompletion.Status.STALE);
+            return;
+          }
           rendered = Bitmap.createBitmap(renderWidth, renderHeight, Bitmap.Config.ARGB_8888);
           telemetry.emit("native.render.raster.start");
-          state.pdfium.renderPageBitmap(doc, rendered, pageIndex, 0, 0, renderWidth, renderHeight, true);
+          state.pdfium.renderPageBitmap(current, rendered, pageIndex, 0, 0, renderWidth, renderHeight, true);
           telemetry.emit("native.render.raster.end");
         }
 

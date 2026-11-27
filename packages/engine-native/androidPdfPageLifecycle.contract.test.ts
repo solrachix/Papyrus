@@ -81,4 +81,14 @@ describe("Android PDF page lifecycle", () => {
     const module = sources.find((source) => source.name === "PapyrusNativeEngineModule.java")!.text;
     expect(module).toContain('result.putInt("openPdfPages", PapyrusEngineStore.openPageCount());');
   });
+
+  it("reopens the document when pdfium's own cache has grown, without invalidating the views", () => {
+    expect(store).toMatch(/private static void recycleIfGrownLocked[\s\S]*releaseDocumentLocked\(state\);[\s\S]*newDocument\(fd\)/);
+    expect(store).toMatch(/if \(!state\.openPages\.containsKey\(pageIndex\)\) recycleIfGrownLocked\(state\);/);
+    const pageView = sources.find((source) => source.name === "PapyrusPageView.java")!.text;
+    // Staleness follows the logical document, and the handle is read after acquiring the page.
+    expect(pageView).toContain("docGeneration != state.documentGeneration");
+    expect(pageView).toMatch(/acquirePage\(state, pageIndex\);[\s\S]*PdfDocument current = state\.document;[\s\S]*renderPageBitmap\(current,/);
+    expect(pageView).not.toMatch(/renderPageBitmap\(doc,/);
+  });
 });
