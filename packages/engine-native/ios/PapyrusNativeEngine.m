@@ -293,6 +293,89 @@ RCT_EXPORT_BLOCKING_SYNCHRONOUS_METHOD(createEngine) {
   return [[PapyrusEngineStore shared] createEngine];
 }
 
+// One page of a PDF as an image file. The document is opened, drawn and
+// released inside the call (PDFKit, no engine or view involved), one call at
+// a time on a utility queue. NOT REACHABLE FROM JS YET: `generateThumbnail`
+// in index.ts reports iOS as unsupported until this has been validated on a
+// device. EPUB covers are not implemented here.
+RCT_EXPORT_METHOD(generateThumbnail:(NSDictionary *)options
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject) {
+  static dispatch_queue_t queue;
+  static dispatch_once_t onceToken;
+  dispatch_once(&onceToken, ^{
+    queue = dispatch_queue_create("com.papyrus.thumbnail", dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0));
+  });
+  dispatch_async(queue, ^{
+    @autoreleasepool {
+      id uriValue = options[@"uri"];
+      NSString *uri = [uriValue isKindOfClass:[NSString class]] ? (NSString *)uriValue : nil;
+      if (uri.length == 0) {
+        reject(@"papyrus_thumbnail_failed", @"uri is required", nil);
+        return;
+      }
+      NSURL *url = [uri hasPrefix:@"file://"] ? [NSURL URLWithString:uri] : ([uri hasPrefix:@"/"] ? [NSURL fileURLWithPath:uri] : nil);
+      if (url == nil || !url.isFileURL) {
+        reject(@"papyrus_thumbnail_failed", @"the document must be a local file", nil);
+        return;
+      }
+      PDFDocument *document = [[PDFDocument alloc] initWithURL:url];
+      if (document == nil || document.pageCount < 1) {
+        reject(@"papyrus_thumbnail_failed", @"unsupported document type", nil);
+        return;
+      }
+      id pageValue = options[@"pageIndex"];
+      NSInteger pageIndex = [pageValue isKindOfClass:[NSNumber class]] ? [(NSNumber *)pageValue integerValue] : 0;
+      pageIndex = MAX(0, MIN(pageIndex, (NSInteger)document.pageCount - 1));
+      PDFPage *page = [document pageAtIndex:(NSUInteger)pageIndex];
+      CGRect bounds = [page boundsForBox:kPDFDisplayBoxCropBox];
+      if (page == nil || bounds.size.width <= 0 || bounds.size.height <= 0) {
+        reject(@"papyrus_thumbnail_failed", @"the page is not readable", nil);
+        return;
+      }
+      id widthValue = options[@"maxWidth"];
+      CGFloat maxWidth = [widthValue isKindOfClass:[NSNumber class]] ? [(NSNumber *)widthValue doubleValue] : 480.0;
+      maxWidth = MAX(32.0, MIN(maxWidth, 2048.0));
+      CGFloat scale = maxWidth / bounds.size.width;
+      CGSize size = CGSizeMake(round(bounds.size.width * scale), round(bounds.size.height * scale));
+      UIImage *image = [page thumbnailOfSize:size forBox:kPDFDisplayBoxCropBox];
+      if (image == nil) {
+        reject(@"papyrus_thumbnail_failed", @"could not draw the page", nil);
+        return;
+      }
+      id formatValue = options[@"format"];
+      BOOL png = [formatValue isKindOfClass:[NSString class]] && [[(NSString *)formatValue lowercaseString] isEqualToString:@"png"];
+      id qualityValue = options[@"quality"];
+      CGFloat quality = [qualityValue isKindOfClass:[NSNumber class]] ? [(NSNumber *)qualityValue doubleValue] : 85.0;
+      quality = MAX(1.0, MIN(quality, 100.0)) / 100.0;
+      NSData *data = png ? UIImagePNGRepresentation(image) : UIImageJPEGRepresentation(image, quality);
+      if (data == nil) {
+        reject(@"papyrus_thumbnail_failed", @"could not encode the thumbnail", nil);
+        return;
+      }
+      id outputValue = options[@"outputPath"];
+      NSString *outputPath = [outputValue isKindOfClass:[NSString class]] ? (NSString *)outputValue : nil;
+      if ([outputPath hasPrefix:@"file://"]) outputPath = [NSURL URLWithString:outputPath].path;
+      if (outputPath.length == 0) {
+        NSString *name = [NSString stringWithFormat:@"papyrus-thumbnail-%@.%@", [NSUUID UUID].UUIDString, png ? @"png" : @"jpg"];
+        outputPath = [NSTemporaryDirectory() stringByAppendingPathComponent:name];
+      }
+      NSError *error = nil;
+      [[NSFileManager defaultManager] createDirectoryAtPath:[outputPath stringByDeletingLastPathComponent] withIntermediateDirectories:YES attributes:nil error:nil];
+      // NSDataWritingAtomic writes aside and renames.
+      if (![data writeToFile:outputPath options:NSDataWritingAtomic error:&error]) {
+        reject(@"papyrus_thumbnail_failed", error.localizedDescription ?: @"could not store the thumbnail", error);
+        return;
+      }
+      resolve(@{
+        @"uri": [NSURL fileURLWithPath:outputPath].absoluteString,
+        @"width": @((NSInteger)round(image.size.width * image.scale)),
+        @"height": @((NSInteger)round(image.size.height * image.scale)),
+      });
+    }
+  });
+}
+
 RCT_EXPORT_METHOD(destroyEngine:(NSString *)engineId) {
   [[PapyrusEngineStore shared] destroyEngine:engineId];
   [[PapyrusTextStore shared] closeEngineId:engineId];
