@@ -1600,9 +1600,9 @@ public class PapyrusPdfViewerView extends View {
         if ("single".equals(viewMode)) {
           float cellHeight = getHeight();
           for (int i = 0; i < pageCount; i += 1) {
-            state.pdfium.openPage(document, i);
-            int pageWidth = Math.max(1, state.pdfium.getPageWidthPoint(document, i));
-            int pageHeight = Math.max(1, state.pdfium.getPageHeightPoint(document, i));
+            int[] pageSize = PapyrusEngineStore.layoutPageSizePoints(state, i);
+            int pageWidth = Math.max(1, pageSize[0]);
+            int pageHeight = Math.max(1, pageSize[1]);
             float baseScale = availableWidth / (float) pageWidth;
             float width = pageWidth * baseScale * zoom;
             float height = pageHeight * baseScale * zoom;
@@ -1616,9 +1616,9 @@ public class PapyrusPdfViewerView extends View {
         } else {
           float y = PAGE_PADDING;
           for (int i = 0; i < pageCount; i += 1) {
-            state.pdfium.openPage(document, i);
-            int pageWidth = Math.max(1, state.pdfium.getPageWidthPoint(document, i));
-            int pageHeight = Math.max(1, state.pdfium.getPageHeightPoint(document, i));
+            int[] pageSize = PapyrusEngineStore.layoutPageSizePoints(state, i);
+            int pageWidth = Math.max(1, pageSize[0]);
+            int pageHeight = Math.max(1, pageSize[1]);
             float baseScale = availableWidth / (float) pageWidth;
             float width = pageWidth * baseScale * zoom;
             float height = pageHeight * baseScale * zoom;
@@ -1768,7 +1768,7 @@ public class PapyrusPdfViewerView extends View {
       try {
         synchronized (state.pdfiumLock) {
           if (state.document == null) return;
-          state.pdfium.openPage(state.document, frame.index);
+          PapyrusEngineStore.acquirePage(state, frame.index);
           rendered = Bitmap.createBitmap(renderWidth, renderHeight, Bitmap.Config.ARGB_8888);
           state.pdfium.renderPageBitmap(state.document, rendered, frame.index, 0, 0, renderWidth, renderHeight, true);
         }

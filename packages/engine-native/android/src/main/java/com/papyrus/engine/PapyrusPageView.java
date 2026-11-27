@@ -199,7 +199,7 @@ public class PapyrusPageView extends View {
             completion.complete(PapyrusRenderCompletion.Status.STALE);
             return;
           }
-          state.pdfium.openPage(doc, pageIndex);
+          PapyrusEngineStore.acquirePage(state, pageIndex);
           rendered = Bitmap.createBitmap(renderWidth, renderHeight, Bitmap.Config.ARGB_8888);
           telemetry.emit("native.render.raster.start");
           state.pdfium.renderPageBitmap(doc, rendered, pageIndex, 0, 0, renderWidth, renderHeight, true);
