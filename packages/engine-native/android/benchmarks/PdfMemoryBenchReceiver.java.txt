@@ -1,0 +1,104 @@
+package com.papyrus.engine;
+
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.graphics.Bitmap;
+import android.os.Debug;
+import android.os.ParcelFileDescriptor;
+import android.util.Log;
+
+import com.shockwave.pdfium.PdfDocument;
+
+import java.io.File;
+
+/**
+ * LOCAL TEST TOOL (never shipped): exercises the PDF engine without the
+ * reader UI, an account or a reading session.
+ *
+ *   adb shell am broadcast -n <pkg>/com.papyrus.engine.PdfMemoryBenchReceiver \
+ *     --es path /data/local/tmp/pdfbench/texto-1000.pdf --es mode new|legacy --ei read 40 --ei opens 3
+ */
+public class PdfMemoryBenchReceiver extends BroadcastReceiver {
+  private static long mb() {
+    return Debug.getNativeHeapAllocatedSize() / (1024 * 1024);
+  }
+
+  private static void log(String file, String mode, String stage, long extra) {
+    Log.i("PDFBENCH", file + " " + mode + " " + stage + " nativeMb=" + mb() + (extra >= 0 ? " ms=" + extra : "")
+        + " openPages=" + PapyrusEngineStore.openPageCount() + " retained=" + PapyrusEngineStore.retainedPageCount());
+  }
+
+  @Override
+  public void onReceive(Context context, Intent intent) {
+    final String path = intent.getStringExtra("path");
+    final String mode = intent.getStringExtra("mode") == null ? "new" : intent.getStringExtra("mode");
+    final int read = intent.getIntExtra("read", 40);
+    final int opens = intent.getIntExtra("opens", 3);
+    final Context app = context.getApplicationContext();
+    new Thread(() -> {
+      String file = new File(path).getName();
+      try {
+        log(file, mode, "base", -1);
+        for (int round = 1; round <= opens; round++) {
+          String engineId = PapyrusEngineStore.createEngine(app);
+          PapyrusEngineStore.EngineState state = PapyrusEngineStore.getEngine(engineId);
+          ParcelFileDescriptor fd = ParcelFileDescriptor.open(new File(path), ParcelFileDescriptor.MODE_READ_ONLY);
+          PdfDocument document = state.pdfium.newDocument(fd);
+          PapyrusEngineStore.setDocument(state, document, fd, path);
+          int pages = state.pdfium.getPageCount(document);
+          log(file, mode, "r" + round + ".loaded(" + pages + "p)", -1);
+
+          long t = System.currentTimeMillis();
+          for (int i = 0; i < pages; i++) {
+            if ("legacy".equals(mode)) {
+              synchronized (state.pdfiumLock) {
+                state.pdfium.openPage(document, i);
+                state.pdfium.getPageWidthPoint(document, i);
+                state.pdfium.getPageHeightPoint(document, i);
+              }
+            } else {
+              PapyrusEngineStore.layoutPageSizePoints(state, i);
+            }
+          }
+          log(file, mode, "r" + round + ".layout", System.currentTimeMillis() - t);
+
+          t = System.currentTimeMillis();
+          int toRead = Math.min(read, pages);
+          for (int i = 0; i < toRead; i++) {
+            synchronized (state.pdfiumLock) {
+              if ("legacy".equals(mode)) state.pdfium.openPage(document, i);
+              else PapyrusEngineStore.acquirePage(state, i);
+              int[] size = "legacy".equals(mode)
+                  ? new int[] {state.pdfium.getPageWidthPoint(document, i), state.pdfium.getPageHeightPoint(document, i)}
+                  : PapyrusEngineStore.pageSizePoints(state, i);
+              int width = 1080;
+              int height = Math.max(1, Math.round(width * (size[1] / (float) Math.max(1, size[0]))));
+              Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+              state.pdfium.renderPageBitmap(document, bitmap, i, 0, 0, width, height, true);
+              bitmap.recycle();
+            }
+          }
+          log(file, mode, "r" + round + ".read" + toRead, System.currentTimeMillis() - t);
+
+          if (!"legacy".equals(mode)) {
+            PapyrusEngineStore.suspendDocument(state);
+            log(file, mode, "r" + round + ".suspended", -1);
+            t = System.currentTimeMillis();
+            PapyrusEngineStore.resumeDocument(state);
+            synchronized (state.pdfiumLock) {
+              PapyrusEngineStore.acquirePage(state, Math.min(toRead, pages - 1));
+            }
+            log(file, mode, "r" + round + ".resumed", System.currentTimeMillis() - t);
+          }
+          PapyrusEngineStore.destroyEngine(engineId);
+          log(file, mode, "r" + round + ".closed", -1);
+        }
+      } catch (Throwable error) {
+        Log.e("PDFBENCH", file + " " + mode + " FAILED " + error);
+      } finally {
+        Log.i("PDFBENCH", file + " " + mode + " done");
+      }
+    }, "pdf-bench").start();
+  }
+}

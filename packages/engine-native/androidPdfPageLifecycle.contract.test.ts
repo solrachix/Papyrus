@@ -43,9 +43,34 @@ describe("Android PDF page lifecycle", () => {
   });
 
   it("closes the document and its file under the engine lock", () => {
-    const close = store.slice(store.indexOf("static void closeDocument"));
-    expect(close).toMatch(/synchronized \(state\.pdfiumLock\)[\s\S]*closeDocument\(state\.document\)[\s\S]*fileDescriptor\.close\(\)/);
+    const release = store.slice(store.indexOf("private static void releaseDocumentLocked"));
+    expect(release).toMatch(/closeDocument\(state\.document\)[\s\S]*fileDescriptor\.close\(\)/);
+    expect(store).toMatch(/static void closeDocument\(EngineState state\) \{\s*synchronized \(state\.pdfiumLock\) \{\s*releaseDocumentLocked\(state\);/);
     expect(store).toMatch(/static void destroyEngine[\s\S]*closeDocument\(state\);/);
+  });
+
+  it("never reports a page as closed when pdfium did not release it", () => {
+    const close = store.slice(store.indexOf("private static boolean closePageLocked"), store.indexOf("static void acquirePage"));
+    // The native close runs before the pointer is forgotten...
+    expect(close.indexOf("nativeClosePageMethod.invoke")).toBeLessThan(close.indexOf("pages.remove(pageIndex)"));
+    // ...and a failure keeps the page counted as retained.
+    expect(close).toMatch(/else state\.retainedPages\.add\(pageIndex\);/);
+    expect(store).toMatch(/count \+= state\.openPages\.size\(\) \+ state\.retainedPages\.size\(\);/);
+  });
+
+  it("keeps the reflected pdfium members from being renamed by R8", () => {
+    const rules = readFileSync(resolve(process.cwd(), "packages/engine-native/android/consumer-rules.pro"), "utf8");
+    expect(rules).toContain("java.util.Map mNativePagesPtr;");
+    expect(rules).toContain("long mNativeDocPtr;");
+    expect(rules).toContain("private native void nativeClosePage(long);");
+  });
+
+  it("can release the document while the reader is away and reopen it", () => {
+    expect(store).toMatch(/static boolean suspendDocument[\s\S]*releaseDocumentLocked\(state\);\s*state\.suspended = true;/);
+    expect(store).toMatch(/static boolean resumeDocument[\s\S]*newDocument\(fd\)/);
+    const module = sources.find((source) => source.name === "PapyrusNativeEngineModule.java")!.text;
+    expect(module).toContain("public void suspendDocument(final String engineId, final Promise promise)");
+    expect(module).toContain("public void resumeDocument(final String engineId, final Promise promise)");
   });
 
   it("reports open pages in the lifecycle stats", () => {

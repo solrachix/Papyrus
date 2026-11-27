@@ -10,7 +10,6 @@ import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -26,6 +25,14 @@ final class PapyrusEngineStore {
     String sourcePath;
     /** Pages this engine opened for drawing or text, least recently used first. */
     final LinkedHashMap<Integer, Boolean> openPages = new LinkedHashMap<>(16, 0.75f, true);
+    /**
+     * Pages that are still open in pdfium because closing them failed (or is
+     * not possible on this pdfium build). Counted apart so the stats never
+     * claim memory that was not released.
+     */
+    final java.util.Set<Integer> retainedPages = new java.util.HashSet<>();
+    /** True while the document was released on purpose and can be reopened from {@code sourcePath}. */
+    boolean suspended = false;
     /** Page sizes in points, so a layout never needs the page open again. */
     final Map<Integer, int[]> pageSizes = new ConcurrentHashMap<>();
 
@@ -64,12 +71,32 @@ final class PapyrusEngineStore {
     return count;
   }
 
+  /** Every page still open in pdfium, including the ones that could not be closed. */
   static int openPageCount() {
     int count = 0;
     for (EngineState state : ENGINES.values()) {
       synchronized (state.pdfiumLock) {
-        count += state.openPages.size();
+        count += state.openPages.size() + state.retainedPages.size();
       }
+    }
+    return count;
+  }
+
+  /** Pages left open because closing failed: above zero means memory is being held. */
+  static int retainedPageCount() {
+    int count = 0;
+    for (EngineState state : ENGINES.values()) {
+      synchronized (state.pdfiumLock) {
+        count += state.retainedPages.size();
+      }
+    }
+    return count;
+  }
+
+  static int suspendedDocumentCount() {
+    int count = 0;
+    for (EngineState state : ENGINES.values()) {
+      if (state.suspended) count++;
     }
     return count;
   }
@@ -83,24 +110,67 @@ final class PapyrusEngineStore {
   /** Closes the document and its file under the engine lock: a render in progress finishes first. */
   static void closeDocument(EngineState state) {
     synchronized (state.pdfiumLock) {
-      state.openPages.clear();
+      releaseDocumentLocked(state);
       state.pageSizes.clear();
       state.layoutSizes.clear();
-      if (state.document != null) {
-        try {
-          state.pdfium.closeDocument(state.document);
-        } catch (Throwable ignored) {
-        }
-        state.document = null;
+      state.sourcePath = null;
+      state.suspended = false;
+    }
+  }
+
+  /** Closes the pdfium document and its file; pdfium frees every page with it. */
+  private static void releaseDocumentLocked(EngineState state) {
+    state.openPages.clear();
+    state.retainedPages.clear();
+    if (state.document != null) {
+      try {
+        state.pdfium.closeDocument(state.document);
+      } catch (Throwable ignored) {
       }
-      if (state.fileDescriptor != null) {
+      state.document = null;
+    }
+    if (state.fileDescriptor != null) {
+      try {
+        state.fileDescriptor.close();
+      } catch (IOException ignored) {
+      }
+      state.fileDescriptor = null;
+    }
+  }
+
+  /**
+   * Releases the document while the reader is not on screen, keeping what is
+   * needed to open it again: the file path and the measured page sizes. The
+   * reading position, progress and annotations live outside the engine and
+   * are not touched.
+   */
+  static boolean suspendDocument(EngineState state) {
+    synchronized (state.pdfiumLock) {
+      if (state.document == null || state.sourcePath == null) return false;
+      releaseDocumentLocked(state);
+      state.suspended = true;
+      return true;
+    }
+  }
+
+  /** Reopens a suspended document. Returns false when there is nothing to reopen. */
+  static boolean resumeDocument(EngineState state) throws IOException {
+    synchronized (state.pdfiumLock) {
+      if (state.document != null) return true;
+      if (!state.suspended || state.sourcePath == null) return false;
+      ParcelFileDescriptor fd = ParcelFileDescriptor.open(new File(state.sourcePath), ParcelFileDescriptor.MODE_READ_ONLY);
+      try {
+        state.document = state.pdfium.newDocument(fd);
+        state.fileDescriptor = fd;
+        state.suspended = false;
+        return true;
+      } catch (IOException | RuntimeException error) {
         try {
-          state.fileDescriptor.close();
+          fd.close();
         } catch (IOException ignored) {
         }
-        state.fileDescriptor = null;
+        throw error;
       }
-      state.sourcePath = null;
     }
   }
 
@@ -151,18 +221,41 @@ final class PapyrusEngineStore {
     return nativeClosePageMethod != null;
   }
 
-  /** Call with {@code state.pdfiumLock} held. */
+  /**
+   * Call with {@code state.pdfiumLock} held. Returns whether the page is
+   * really closed in pdfium. A page that could not be closed moves to
+   * {@code retainedPages}: it is still counted, and never reported as freed.
+   */
   @SuppressWarnings("unchecked")
-  private static void closePageLocked(EngineState state, int pageIndex) {
-    state.openPages.remove(pageIndex);
-    lookupClose();
-    if (nativeClosePageMethod == null || state.document == null) return;
-    try {
-      Map<Integer, Long> pages = (Map<Integer, Long>) nativePagesField.get(state.document);
-      Long pointer = pages == null ? null : pages.remove(pageIndex);
-      if (pointer != null) nativeClosePageMethod.invoke(state.pdfium, pointer.longValue());
-    } catch (Throwable ignored) {
+  private static boolean closePageLocked(EngineState state, int pageIndex) {
+    if (state.document == null) {
+      state.openPages.remove(pageIndex);
+      state.retainedPages.remove(pageIndex);
+      return true;
     }
+    boolean closed = false;
+    lookupClose();
+    if (nativeClosePageMethod != null) {
+      try {
+        Map<Integer, Long> pages = (Map<Integer, Long>) nativePagesField.get(state.document);
+        Long pointer = pages == null ? null : pages.get(pageIndex);
+        if (pointer == null) {
+          // pdfium does not have it open: nothing to release.
+          closed = pages != null;
+        } else {
+          nativeClosePageMethod.invoke(state.pdfium, pointer.longValue());
+          // Forget the pointer only after pdfium released it.
+          pages.remove(pageIndex);
+          closed = true;
+        }
+      } catch (Throwable ignored) {
+        closed = false;
+      }
+    }
+    state.openPages.remove(pageIndex);
+    if (closed) state.retainedPages.remove(pageIndex);
+    else state.retainedPages.add(pageIndex);
+    return closed;
   }
 
   /**
@@ -178,14 +271,20 @@ final class PapyrusEngineStore {
       } catch (Throwable ignored) {
         return;
       }
+      state.retainedPages.remove(pageIndex);
       state.openPages.put(pageIndex, Boolean.TRUE);
-      Iterator<Integer> oldest = state.openPages.keySet().iterator();
-      while (state.openPages.size() > MAX_OPEN_PAGES && oldest.hasNext()) {
-        int candidate = oldest.next();
-        if (candidate == pageIndex) continue;
-        oldest.remove();
+      while (state.openPages.size() > MAX_OPEN_PAGES) {
+        Integer candidate = null;
+        for (Integer index : state.openPages.keySet()) {
+          if (index != pageIndex) {
+            candidate = index;
+            break;
+          }
+        }
+        if (candidate == null) break;
+        // On failure the page leaves the LRU for `retainedPages`, so this
+        // loop always ends and the page is not asked to close again.
         closePageLocked(state, candidate);
-        oldest = state.openPages.keySet().iterator();
       }
     }
   }

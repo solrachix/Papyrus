@@ -251,6 +251,8 @@ type NativeEngineModule = {
   ) => Promise<{ pageCount?: number } | void>;
   getPageCount?: (engineId: string) => number;
   getLifecycleStats?: () => Record<string, number>;
+  suspendDocument?: (engineId: string) => Promise<boolean>;
+  resumeDocument?: (engineId: string) => Promise<boolean>;
   renderPage?: (
     engineId: string,
     pageIndex: number,
@@ -758,6 +760,21 @@ export class NativeDocumentEngine extends BaseDocumentEngine {
     const normalized = normalizeNativeDestination(dest);
     if (!normalized || normalized.kind !== "named") return null;
     return native.getPageIndex(this.engineId, normalized);
+  }
+
+  /**
+   * Releases the native document (file, pages, parser caches) while the
+   * reader is not on screen. Position, zoom and everything the app keeps
+   * (progress, annotations) are untouched; call `resume()` before using the
+   * engine again. Resolves false where the platform has nothing to release.
+   */
+  async suspend(): Promise<boolean> {
+    return (await this.nativeModule?.suspendDocument?.(this.engineId)) ?? false;
+  }
+
+  /** Reopens a document released by `suspend()`. Safe to call when it is already open. */
+  async resume(): Promise<boolean> {
+    return (await this.nativeModule?.resumeDocument?.(this.engineId)) ?? false;
   }
 
   destroy(): void {
@@ -1822,6 +1839,19 @@ export class MobileDocumentEngine extends BaseDocumentEngine {
       ...this.pdfEngine.getLifecycleStats(),
       ...this.webEngine.getLifecycleStats(),
     };
+  }
+
+  /**
+   * Releases the native PDF document while the reader is not on screen, and
+   * reopens it. Only the PDF engine holds a native document; for the other
+   * formats both resolve false and nothing changes.
+   */
+  async suspend(): Promise<boolean> {
+    return this.activeEngine === this.pdfEngine ? this.pdfEngine.suspend() : false;
+  }
+
+  async resume(): Promise<boolean> {
+    return this.activeEngine === this.pdfEngine ? this.pdfEngine.resume() : false;
   }
 
   resolveAnnotationTextRange(annotation:Annotation):Promise<{start:number;end:number}|null> {return this.textEngine.resolveAnnotationTextRange(annotation);}

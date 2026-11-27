@@ -403,6 +403,34 @@ public class PapyrusNativeEngineModule extends ReactContextBaseJavaModule {
     });
   }
 
+  /**
+   * Releases the PDF while the reader is not on screen (the document, its
+   * file and every open page). {@link #resumeDocument} opens it again.
+   */
+  @ReactMethod
+  public void suspendDocument(final String engineId, final Promise promise) {
+    executor.execute(() -> {
+      PapyrusEngineStore.EngineState state = PapyrusEngineStore.getEngine(engineId);
+      promise.resolve(state != null && PapyrusEngineStore.suspendDocument(state));
+    });
+  }
+
+  @ReactMethod
+  public void resumeDocument(final String engineId, final Promise promise) {
+    executor.execute(() -> {
+      PapyrusEngineStore.EngineState state = PapyrusEngineStore.getEngine(engineId);
+      if (state == null) {
+        promise.resolve(false);
+        return;
+      }
+      try {
+        promise.resolve(PapyrusEngineStore.resumeDocument(state));
+      } catch (Throwable error) {
+        promise.reject("papyrus_resume_failed", error);
+      }
+    });
+  }
+
   @ReactMethod(isBlockingSynchronousMethod = true)
   public int getPageCount(String engineId) {
     PapyrusEngineStore.EngineState state = PapyrusEngineStore.getEngine(engineId);
@@ -417,6 +445,8 @@ public class PapyrusNativeEngineModule extends ReactContextBaseJavaModule {
     result.putInt("loadedDocuments", PapyrusEngineStore.loadedDocumentCount());
     result.putInt("openPdfPages", PapyrusEngineStore.openPageCount());
     result.putBoolean("canClosePdfPages", PapyrusEngineStore.canClosePages());
+    result.putInt("retainedPdfPages", PapyrusEngineStore.retainedPageCount());
+    result.putInt("suspendedDocuments", PapyrusEngineStore.suspendedDocumentCount());
     for (java.util.Map.Entry<String, Integer> entry : PapyrusPageView.lifecycleStats().entrySet()) {
       result.putInt(entry.getKey(), entry.getValue());
     }
