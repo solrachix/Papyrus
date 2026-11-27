@@ -22850,6 +22850,17 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   let epubViewMode = "single";
   let epubLocation = null;
 
+  // A book's text size is the reader's choice ("Texto"), never a pinch: a
+  // stray second finger while turning a page used to zoom the whole page on
+  // Android, so the size seemed to change by itself. Comics keep the pinch.
+  const lockReflowableZoom = (locked) => {
+    const meta = document.querySelector("meta[name='viewport']");
+    if (!meta) return;
+    meta.setAttribute('content', locked
+      ? 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no'
+      : 'width=device-width, initial-scale=1');
+  };
+
   const handleCommand = async (message) => {
     const { id, kind, payload } = message;
 
@@ -22857,6 +22868,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       if (kind === 'load') {
         const generation = (epubLoadGeneration += 1);
         currentType = payload.type;
+        lockReflowableZoom(currentType === 'epub' || currentType === 'text');
         documentSessionId = payload.documentSessionId || null;
         epubAnnotations = [];
         annotationDocumentId = undefined;

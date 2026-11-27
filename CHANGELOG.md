@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased (prepared, not published)
+## 2026-11-27
 
 ### Fixed
 
@@ -15,11 +15,12 @@
 - `generateThumbnail()` and `isThumbnailGenerationSupported()`: one PDF page or the EPUB cover as an image file, without an engine or a view (Android; iOS reports unsupported).
 - `getLifecycleStats()` adds `openPdfPages`, `canClosePdfPages`, `suspendedDocuments` and `documentRecycles`.
 
-### Packages to publish
+### Published packages
 
 | Package | Version |
 | --- | --- |
 | `@papyrus-sdk/engine-native` | `0.2.27` |
+| `@papyrus-sdk/ui-react-native` | `0.2.47` (peer on `engine-native` 0.2.27; no code change since 0.2.46) |
 
 ## 2026-10-12
 
