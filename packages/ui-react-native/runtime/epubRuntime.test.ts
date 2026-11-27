@@ -3,7 +3,7 @@ import {JSDOM} from 'jsdom';
 import {describe,it,expect,vi} from 'vitest';
 
 function runtime() {
- const dom=new JSDOM('<div id="viewer"></div>',{runScripts:'outside-only'});
+ const dom=new JSDOM('<head><meta name="viewport" content="width=device-width, initial-scale=1"></head><div id="viewer"></div>',{runScripts:'outside-only'});
  const messages:any[]=[], renditions:any[]=[];
  (dom.window as any).ReactNativeWebView={postMessage:(raw:string)=>messages.push(JSON.parse(raw))};
  for (const helper of ['epubReader.js','epubAnnotations.js']) {
@@ -24,6 +24,13 @@ function runtime() {
  return {send,messages,renditions,book,dom};
 }
 describe('EPUB runtime bridge',()=>{
+ it('turns off the page pinch for books and gives it back to other documents',async()=>{
+  const r=runtime();const meta=()=>r.dom.window.document.querySelector("meta[name='viewport']")!.getAttribute('content');
+  await r.send('load','load',{type:'epub',documentSessionId:'s',source:{kind:'base64',data:'AA=='}});
+  expect(meta()).toContain('user-scalable=no');
+  await r.send('text','load',{type:'text',source:{kind:'text',text:'sample'}});
+  expect(meta()).toContain('maximum-scale=1');
+ });
  it('loads paginated by default and emits visual location within the same chapter',async()=>{
   const r=runtime();expect((await r.send('load','load',{type:'epub',documentSessionId:'s',source:{kind:'base64',data:'AA=='}})).ok).toBe(true);
   expect(r.renditions[0].options.flow).toBe('paginated');

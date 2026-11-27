@@ -436,7 +436,9 @@ const WebViewViewer: React.FC<WebViewViewerProps> = ({
         javaScriptEnabled
         domStorageEnabled
         scalesPageToFit
-        setBuiltInZoomControls
+        // Android's native pinch zoomed the whole book page (the text size
+        // seemed to change by itself); a book's size is the "Texto" control.
+        setBuiltInZoomControls={documentType !== "epub" && documentType !== "text"}
         setDisplayZoomControls={false}
         allowFileAccess
         allowFileAccessFromFileURLs
